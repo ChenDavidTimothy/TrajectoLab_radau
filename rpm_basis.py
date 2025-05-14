@@ -9,6 +9,31 @@ ZERO_TOLERANCE = 1e-12
 # LGR Nodes, Weights, and Basis/Collocation Points (GPOPS-II Style)
 # ==============================================================================
 
+class RadauBasisComponents:
+    """Class representing the mathematical components required for RPM method."""
+    
+    def __init__(self, 
+                 state_approximation_nodes=None, 
+                 collocation_nodes=None, 
+                 quadrature_weights=None, 
+                 differentiation_matrix=None,
+                 barycentric_weights_for_state_nodes=None,
+                 lagrange_basis_evaluation_at_local_tau_plus_one=None):
+        self.state_approximation_nodes = state_approximation_nodes
+        self.collocation_nodes = collocation_nodes
+        self.quadrature_weights = quadrature_weights
+        self.differentiation_matrix = differentiation_matrix
+        self.barycentric_weights_for_state_nodes = barycentric_weights_for_state_nodes
+        self.lagrange_basis_evaluation_at_local_tau_plus_one = lagrange_basis_evaluation_at_local_tau_plus_one
+
+class RadauNodesAndWeights:
+    """Class representing LGR nodes and weights."""
+    
+    def __init__(self, state_approximation_nodes=None, collocation_nodes=None, quadrature_weights=None):
+        self.state_approximation_nodes = state_approximation_nodes
+        self.collocation_nodes = collocation_nodes
+        self.quadrature_weights = quadrature_weights
+
 def compute_legendre_gauss_radau_nodes_and_weights(num_collocation_nodes):
     """
     Computes Legendre-Gauss-Radau (LGR) points and related data structures
@@ -32,11 +57,11 @@ def compute_legendre_gauss_radau_nodes_and_weights(num_collocation_nodes):
                                      Must be >= 1.
 
     Returns:
-        dict: A dictionary containing:
-            - 'state_approximation_nodes': (Nk+1,) numpy array of sorted basis points.
-            - 'collocation_nodes': (Nk,) numpy array of sorted LGR collocation points.
-            - 'quadrature_weights': (Nk,) numpy array of LGR quadrature weights
-                                    corresponding to the collocation_nodes.
+        RadauNodesAndWeights: An object containing:
+            - state_approximation_nodes: (Nk+1,) numpy array of sorted basis points.
+            - collocation_nodes: (Nk,) numpy array of sorted LGR collocation points.
+            - quadrature_weights: (Nk,) numpy array of LGR quadrature weights
+                                  corresponding to the collocation_nodes.
     """
     if not isinstance(num_collocation_nodes, int) or num_collocation_nodes < 1:
         raise ValueError("Number of collocation points (num_collocation_nodes) must be an integer >= 1.")
@@ -108,11 +133,11 @@ def compute_legendre_gauss_radau_nodes_and_weights(num_collocation_nodes):
                  f"Collocation points: {collocation_nodes}, Initial basis list: {state_approximation_nodes_list}"
             )
             
-    return {
-        'state_approximation_nodes': state_approximation_nodes,
-        'collocation_nodes': collocation_nodes,
-        'quadrature_weights': quadrature_weights,
-    }
+    return RadauNodesAndWeights(
+        state_approximation_nodes=state_approximation_nodes,
+        collocation_nodes=collocation_nodes,
+        quadrature_weights=quadrature_weights
+    )
 
 # ==============================================================================
 # Barycentric Interpolation Utilities
@@ -234,16 +259,16 @@ def compute_radau_collocation_components(num_collocation_nodes):
         num_collocation_nodes (int): The number of LGR collocation points (Nk in gpops.txt).
 
     Returns:
-        dict: A dictionary containing:
-            - 'differentiation_matrix': (Nk x (Nk+1)) differentiation matrix. Maps state values
+        RadauBasisComponents: An object containing:
+            - differentiation_matrix: (Nk x (Nk+1)) differentiation matrix. Maps state values
                           at state_approximation_nodes to derivatives at collocation_nodes.
-            - 'state_approximation_nodes': (Nk+1,) array of LGR basis points [-1, ..., +1].
-            - 'collocation_nodes': (Nk,) array of LGR collocation points [-1, ...).
-            - 'quadrature_weights': (Nk,) array of LGR weights corresponding
+            - state_approximation_nodes: (Nk+1,) array of LGR basis points [-1, ..., +1].
+            - collocation_nodes: (Nk,) array of LGR collocation points [-1, ...).
+            - quadrature_weights: (Nk,) array of LGR weights corresponding
                                     to collocation_nodes for integration on [-1,1].
-            - 'barycentric_weights_for_state_nodes': (Nk+1,) array of barycentric weights
+            - barycentric_weights_for_state_nodes: (Nk+1,) array of barycentric weights
                                            for state_approximation_nodes.
-            - 'lagrange_basis_evaluation_at_local_tau_plus_one': (Nk+1,) array: L_j(+1) for basis polynomials L_j
+            - lagrange_basis_evaluation_at_local_tau_plus_one: (Nk+1,) array: L_j(+1) for basis polynomials L_j
                                defined over state_approximation_nodes, evaluated at +1.
                                Expected to be [0, ..., 0, 1] due to +1 being a basis point.
     """
@@ -251,9 +276,9 @@ def compute_radau_collocation_components(num_collocation_nodes):
         raise ValueError("Number of collocation points Nk must be an integer >= 1.")
 
     legendre_gauss_radau_components = compute_legendre_gauss_radau_nodes_and_weights(num_collocation_nodes)
-    state_approximation_nodes = legendre_gauss_radau_components['state_approximation_nodes']
-    collocation_nodes = legendre_gauss_radau_components['collocation_nodes']
-    quadrature_weights = legendre_gauss_radau_components['quadrature_weights']
+    state_approximation_nodes = legendre_gauss_radau_components.state_approximation_nodes
+    collocation_nodes = legendre_gauss_radau_components.collocation_nodes
+    quadrature_weights = legendre_gauss_radau_components.quadrature_weights
 
     num_state_approximation_nodes = len(state_approximation_nodes) 
     num_actual_collocation_nodes = len(collocation_nodes)
@@ -295,12 +320,11 @@ def compute_radau_collocation_components(num_collocation_nodes):
         print("Warning: +1.0 not found precisely in state_approximation_nodes using np.isclose. Interpolating as fallback.")
         lagrange_basis_evaluation_at_local_tau_plus_one = _evaluate_lagrange_polynomial_at_point(state_approximation_nodes, barycentric_weights_for_state_nodes, 1.0)
 
-
-    return {
-        'differentiation_matrix': differentiation_matrix,
-        'state_approximation_nodes': state_approximation_nodes,
-        'collocation_nodes': collocation_nodes,
-        'quadrature_weights': quadrature_weights,
-        'barycentric_weights_for_state_nodes': barycentric_weights_for_state_nodes,
-        'lagrange_basis_evaluation_at_local_tau_plus_one': lagrange_basis_evaluation_at_local_tau_plus_one
-    }
+    return RadauBasisComponents(
+        differentiation_matrix=differentiation_matrix,
+        state_approximation_nodes=state_approximation_nodes,
+        collocation_nodes=collocation_nodes,
+        quadrature_weights=quadrature_weights,
+        barycentric_weights_for_state_nodes=barycentric_weights_for_state_nodes,
+        lagrange_basis_evaluation_at_local_tau_plus_one=lagrange_basis_evaluation_at_local_tau_plus_one
+    )

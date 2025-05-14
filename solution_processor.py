@@ -1,52 +1,72 @@
 # solution_processor.py
 import numpy as np
-from typing import List, Dict, Any, Optional, Union, Tuple
+from typing import List, Optional, Union, Tuple, Any
 
-# Assuming Solution is a type alias for Dict[str, Any] as used in the problem context
-Solution = Dict[str, Any]
+class IntervalData:
+    """Class representing data for a specific mesh interval."""
+    def __init__(self, t_start=None, t_end=None, Nk=None,
+                 time_states_segment=None, states_segment=None,
+                 time_controls_segment=None, controls_segment=None):
+        self.t_start = t_start
+        self.t_end = t_end
+        self.Nk = Nk
+        self.time_states_segment = time_states_segment if time_states_segment is not None else np.array([])
+        self.states_segment = states_segment if states_segment is not None else []
+        self.time_controls_segment = time_controls_segment if time_controls_segment is not None else np.array([])
+        self.controls_segment = controls_segment if controls_segment is not None else []
 
 class SolutionProcessor:
     """
-    Processes the solution dictionary from the PHS adaptive mesh refinement
+    Processes the solution from the optimal control solver
     and provides easy access to common solution components and time-scaled data.
     """
-    def __init__(self, solution_data: Solution):
+    def __init__(self, solution):
         """
         Initializes the SolutionProcessor with the solution data.
 
         Args:
-            solution_data: The dictionary returned by run_phs_adaptive_mesh_refinement.
+            solution: The OptimalControlSolution object returned by the solver.
         """
-        if not isinstance(solution_data, dict):
-            raise TypeError("solution_data must be a dictionary.")
-        if not solution_data: # Check if the dictionary is empty
-            # Allow initialization with an empty dict, but many properties will be None.
-            # This can happen if run_phs_adaptive_mesh_refinement returns an empty dict on total failure.
-            self._solution: Solution = {}
-        else:
-            self._solution: Solution = solution_data
+        if solution is None:
+            # Create empty processor with default values
+            self._solution = None
+            self.initial_time_variable = None
+            self.terminal_time_variable = None
+            self.adaptive_message = "N/A"
+            self.nlp_success = False
+            self.objective = None
+            self.integrals = None
+            self._time_states = None
+            self._states = None
+            self._time_controls = None
+            self._controls = None
+            self._Nk_list = None
+            self._mesh_nodes_tau_global = None
+            self._mesh_nodes_time_domain = None
+            return
 
+        self._solution = solution
 
         # Pre-assign frequently used top-level items
-        self.initial_time_variable: Optional[float] = self._solution.get("initial_time_variable")
-        self.terminal_time_variable: Optional[float] = self._solution.get("terminal_time_variable")
-        self.adaptive_message: str = self._solution.get("message", "N/A")
-        # 'success' in the solution dictionary typically refers to the NLP success of the *last* iteration.
+        self.initial_time_variable = solution.initial_time_variable
+        self.terminal_time_variable = solution.terminal_time_variable
+        self.adaptive_message = solution.message if hasattr(solution, 'message') else "N/A"
+        # 'success' in the solution typically refers to the NLP success of the *last* iteration.
         # The overall adaptive process success is better judged by the message.
-        self.nlp_success: bool = self._solution.get("success", False)
-        self.objective: Optional[float] = self._solution.get("objective")
-        self.integrals: Optional[Union[float, np.ndarray, List[float]]] = self._solution.get("integrals")
+        self.nlp_success = solution.success if hasattr(solution, 'success') else False
+        self.objective = solution.objective if hasattr(solution, 'objective') else None
+        self.integrals = solution.integrals if hasattr(solution, 'integrals') else None
 
-        self._time_states: Optional[np.ndarray] = self._solution.get("time_states")
-        self._states: Optional[List[np.ndarray]] = self._solution.get("states")
-        self._time_controls: Optional[np.ndarray] = self._solution.get("time_controls")
-        self._controls: Optional[List[np.ndarray]] = self._solution.get("controls")
+        self._time_states = solution.time_states if hasattr(solution, 'time_states') else None
+        self._states = solution.states if hasattr(solution, 'states') else None
+        self._time_controls = solution.time_controls if hasattr(solution, 'time_controls') else None
+        self._controls = solution.controls if hasattr(solution, 'controls') else None
 
-        self._Nk_list: Optional[List[int]] = self._solution.get("num_collocation_nodes_per_interval")
-        _mesh_nodes_tau_global = self._solution.get("global_normalized_mesh_nodes")
-        self._mesh_nodes_tau_global: Optional[np.ndarray] = np.asarray(_mesh_nodes_tau_global) if _mesh_nodes_tau_global is not None else None
+        self._Nk_list = solution.num_collocation_nodes_per_interval if hasattr(solution, 'num_collocation_nodes_per_interval') else None
+        _mesh_nodes_tau_global = solution.global_normalized_mesh_nodes if hasattr(solution, 'global_normalized_mesh_nodes') else None
+        self._mesh_nodes_tau_global = np.asarray(_mesh_nodes_tau_global) if _mesh_nodes_tau_global is not None else None
 
-        self._mesh_nodes_time_domain: Optional[np.ndarray] = self._calculate_mesh_nodes_time_domain()
+        self._mesh_nodes_time_domain = self._calculate_mesh_nodes_time_domain()
 
     def _calculate_mesh_nodes_time_domain(self) -> Optional[np.ndarray]:
         """
@@ -144,7 +164,7 @@ class SolutionProcessor:
         print(f"Warning: Control trajectory for index {control_index} not available.")
         return None
 
-    def get_data_for_interval(self, interval_index: int) -> Optional[Dict[str, Any]]:
+    def get_data_for_interval(self, interval_index: int) -> Optional[IntervalData]:
         """
         Extracts state, control, and time data corresponding to a specific mesh interval.
         This is useful for interval-wise plotting or analysis.
@@ -153,15 +173,8 @@ class SolutionProcessor:
             interval_index: The 0-based index of the mesh interval.
 
         Returns:
-            A dictionary containing:
-                't_start': Start time of the interval.
-                't_end': End time of the interval.
-                'Nk': Number of collocation points in this interval.
-                'time_states_segment': Time points for states within this interval.
-                'states_segment': List of state trajectory segments for this interval.
-                'time_controls_segment': Time points for controls within this interval.
-                'controls_segment': List of control trajectory segments for this interval.
-            Returns None if data is insufficient or index is out of bounds.
+            An IntervalData object containing data for the specified interval,
+            or None if data is insufficient or index is out of bounds.
         """
         if not (self.num_intervals > 0 and 0 <= interval_index < self.num_intervals):
             # print(f"Warning: Interval index {interval_index} is out of bounds (0-{self.num_intervals-1}).")
@@ -233,22 +246,22 @@ class SolutionProcessor:
             for _ in range(self.num_controls if self.num_controls > 0 else 1): controls_segment_list.append(np.array([]))
 
 
-        return {
-            "t_start": interval_t_start,
-            "t_end": interval_t_end,
-            "Nk": nk_interval,
-            "time_states_segment": time_states_segment_array,
-            "states_segment": states_segment_list,
-            "time_controls_segment": time_controls_segment_array,
-            "controls_segment": controls_segment_list,
-        }
+        return IntervalData(
+            t_start=interval_t_start,
+            t_end=interval_t_end,
+            Nk=nk_interval,
+            time_states_segment=time_states_segment_array,
+            states_segment=states_segment_list,
+            time_controls_segment=time_controls_segment_array,
+            controls_segment=controls_segment_list
+        )
 
-    def get_all_interval_data(self) -> List[Optional[Dict[str, Any]]]:
+    def get_all_interval_data(self) -> List[Optional[IntervalData]]:
         """
         Retrieves data for all mesh intervals.
 
         Returns:
-            A list of dictionaries, where each dictionary contains data for an interval
+            A list of IntervalData objects, where each object contains data for an interval
             as returned by get_data_for_interval().
         """
         if self.num_intervals == 0:
@@ -259,7 +272,7 @@ class SolutionProcessor:
         """
         Provides a string summary of the solution, similar to the logs in the example scripts.
         """
-        if not self._solution: # Handle case where SolutionProcessor was initialized with empty dict
+        if self._solution is None: # Handle case where SolutionProcessor was initialized with empty dict
             return "--- Solution Data Not Available ---"
 
         lines = []
@@ -302,7 +315,7 @@ class SolutionProcessor:
         return "\n".join(lines)
 
     def __repr__(self) -> str:
-        if not self._solution:
+        if self._solution is None:
             return "<SolutionProcessor (No Data)>"
 
         status = "Successful NLP" if self.nlp_success else "Failed NLP"

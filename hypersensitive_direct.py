@@ -1,20 +1,20 @@
-# hypersensitive.py
+# hypersensitive_direct.py
 # Example problem definition for direct solving with solver_radau.py
 
 import numpy as np
 import casadi as ca
-from typing import List, Dict, Any, Union # For type hinting problem functions
+from typing import List, Dict, Any, Tuple, Optional, Union # For type hinting problem functions
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 
-from rpm_solver import solve_single_phase_radau_collocation, ProblemDefinition, Solution # Import core solver and types
-from solution_processor import SolutionProcessor # Import the solution processor
+from rpm_solver import solve_single_phase_radau_collocation, OptimalControlProblem, OptimalControlSolution, InitialGuess, DefaultGuessValues, PathConstraint, EventConstraint # Import core solver and types
+from solution_processor import SolutionProcessor, IntervalData # Import the solution processor
 
 # --- Hypersensitive Problem Definition ---
 def hypersensitive_dynamics(states: Union[np.ndarray, ca.MX],
                             controls: Union[np.ndarray, ca.MX],
                             time: Union[float, ca.MX],
-                            params: Dict[str, Any]) -> List[Union[float, ca.MX]]:
+                            params: Any) -> List[Union[float, ca.MX]]:
     """
     Dynamics function for the hypersensitive problem.
     dx/dt = -x^3 + u
@@ -33,7 +33,7 @@ def hypersensitive_objective(initial_time_variable: Union[float, ca.MX],
                              x0: Union[np.ndarray, ca.MX],
                              xf: Union[np.ndarray, ca.MX],
                              integral_decision_variables: Union[None, float, np.ndarray, ca.MX],
-                             params: Dict[str, Any]) -> Union[float, ca.MX]:
+                             params: Any) -> Union[float, ca.MX]:
     """
     Objective function for the hypersensitive problem.
     Minimize J = q[0] (integral of 0.5*(x^2 + u^2))
@@ -48,7 +48,7 @@ def hypersensitive_integrand(states: Union[np.ndarray, ca.MX],
                              controls: Union[np.ndarray, ca.MX],
                              time: Union[float, ca.MX],
                              integral_idx: int,
-                             params: Dict[str, Any]) -> Union[float, ca.MX]:
+                             params: Any) -> Union[float, ca.MX]:
     """
     Integrand for the hypersensitive problem.
     L = 0.5 * (x^2 + u^2)
@@ -63,53 +63,49 @@ def hypersensitive_integrand(states: Union[np.ndarray, ca.MX],
         return 0.5 * (x**2 + u**2)
     return 0 # Should not happen if num_integrals is 1
 
+def event_constraints_function(initial_time_variable, terminal_time_variable, x0, xf, q, p):
+    return [
+        EventConstraint(val=x0[0], equals=1.5),  # x(initial_time_variable) = 1.5
+        EventConstraint(val=xf[0], equals=1.0)   # x(terminal_time_variable) = 1.0
+    ]
+
 TF_hypersensitive: float = 40.0
 
 # Define the problem for a single solve with a fixed mesh
 # This is the same definition used as the initial problem in the adaptive script
-fixed_mesh_problem_def_hypersensitive: ProblemDefinition = {
-    'num_states': 1,
-    'num_controls': 1,
-    'num_integrals': 1,
-    'collocation_points_per_interval': [20, 8, 20], # Fixed Nk list for the direct solve
-    'global_normalized_mesh_nodes': [-1.0, -1/3, 1/3, 1.0], # Fixed mesh for the direct solve
-    'dynamics_function': hypersensitive_dynamics,
-    'objective_function': hypersensitive_objective,
-    'integral_integrand_function': hypersensitive_integrand,
-    't0_bounds': [0.0, 0.0],
-    'tf_bounds': [TF_hypersensitive, TF_hypersensitive],
-    'problem_parameters': {}, # No specific parameters for this simple problem
-    'initial_guess': {
-        'initial_time_variable': 0.0,
-        'terminal_time_variable': TF_hypersensitive,
-        'states': [ # Guess should match the structure of collocation_points_per_interval
-            # Interval 0 (Nk=8, so 9 state points)
-            np.array([[1.5, 1.4, 1.3, 1.2, 1.1, 1.0, 0.9, 0.8, 0.7]]),
-            # Interval 1 (Nk=8, so 9 state points)
-            np.array([[0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.0, -0.1]]),
-            # Interval 2 (Nk=8, so 9 state points)
-            np.array([[-0.1, -0.2, -0.3, -0.4, -0.5, -0.6, -0.7, -0.8, 1.0]])
-        ],
-        'controls': [ # Guess should match the structure of collocation_points_per_interval
-            # Interval 0 (Nk=8 control points)
-            np.array([[0.1, 0.1, 0.1, 0.1, 0.1, 0.0, 0.0, 0.0]]),
-            # Interval 1 (Nk=8 control points)
-            np.array([[0.0, 0.0, 0.0, 0.0, 0.0, -0.1, -0.1, -0.1]]),
-            # Interval 2 (Nk=8 control points)
-            np.array([[-0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1]])
-        ],
-        'integrals': [1.0] # Guess for the integral value
-    },
-    'default_initial_guess_values': { # Used by solver_radau if parts of initial_guess are missing/mismatched
-        'state': 0.0, 'control': 0.0, 'integral': 0.0
-    },
-    'event_constraints_function': lambda initial_time_variable,terminal_time_variable,x0,xf,q,p: [
-        {'val': x0[0], 'equals': 1.5}, # x(initial_time_variable) = 1.5
-        {'val': xf[0], 'equals': 1.0}  # x(terminal_time_variable) = 1.0
+initial_guess = InitialGuess(
+    initial_time_variable=0.0,
+    terminal_time_variable=TF_hypersensitive,
+    states=[
+        np.array([[1.5, 1.4, 1.3, 1.2, 1.1, 1.0, 0.9, 0.8, 0.7]]),
+        np.array([[0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.0, -0.1]]),
+        np.array([[-0.1, -0.2, -0.3, -0.4, -0.5, -0.6, -0.7, -0.8, 1.0]])
     ],
-    # Solver options for IPOPT
-    'solver_options': {'ipopt.print_level': 0, 'ipopt.sb': 'yes', 'print_time': 0, 'ipopt.max_iter': 200}
-}
+    controls=[
+        np.array([[0.1, 0.1, 0.1, 0.1, 0.1, 0.0, 0.0, 0.0]]),
+        np.array([[0.0, 0.0, 0.0, 0.0, 0.0, -0.1, -0.1, -0.1]]),
+        np.array([[-0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1]])
+    ],
+    integrals=[1.0]
+)
+
+fixed_mesh_problem_def_hypersensitive = OptimalControlProblem(
+    num_states=1,
+    num_controls=1,
+    num_integrals=1,
+    collocation_points_per_interval=[20, 8, 20], # Fixed Nk list for the direct solve
+    global_normalized_mesh_nodes=[-1.0, -1/3, 1/3, 1.0], # Fixed mesh for the direct solve
+    dynamics_function=hypersensitive_dynamics,
+    objective_function=hypersensitive_objective,
+    integral_integrand_function=hypersensitive_integrand,
+    t0_bounds=[0.0, 0.0],
+    tf_bounds=[TF_hypersensitive, TF_hypersensitive],
+    problem_parameters={}, # No specific parameters for this simple problem
+    initial_guess=initial_guess,
+    default_initial_guess_values=DefaultGuessValues(state=0.0, control=0.0, integral=0.0),
+    event_constraints_function=event_constraints_function,
+    solver_options={'ipopt.print_level': 0, 'ipopt.sb': 'yes', 'print_time': 0, 'ipopt.max_iter': 200}
+)
 
 
 def plot_solution_with_processor(solution_processor: SolutionProcessor, title_suffix: str = ""):
@@ -145,9 +141,9 @@ def plot_solution_with_processor(solution_processor: SolutionProcessor, title_su
             axes_states[i].grid(True, which='both', linestyle='--', linewidth=0.5)
 
             for k, interval_data in enumerate(all_interval_data):
-                if interval_data and len(interval_data['states_segment']) > i and interval_data['states_segment'][i].size > 0:
-                    axes_states[i].plot(interval_data['time_states_segment'],
-                                        interval_data['states_segment'][i],
+                if interval_data and len(interval_data.states_segment) > i and interval_data.states_segment[i].size > 0:
+                    axes_states[i].plot(interval_data.time_states_segment,
+                                        interval_data.states_segment[i],
                                         color=colors[k], marker='.', linestyle='-')
                                         # Labeling for legend handled below to avoid duplicates
 
@@ -174,9 +170,9 @@ def plot_solution_with_processor(solution_processor: SolutionProcessor, title_su
             axes_controls[i].grid(True, which='both', linestyle='--', linewidth=0.5)
 
             for k, interval_data in enumerate(all_interval_data):
-                if interval_data and len(interval_data['controls_segment']) > i and interval_data['controls_segment'][i].size > 0 :
-                    axes_controls[i].plot(interval_data['time_controls_segment'],
-                                          interval_data['controls_segment'][i],
+                if interval_data and len(interval_data.controls_segment) > i and interval_data.controls_segment[i].size > 0 :
+                    axes_controls[i].plot(interval_data.time_controls_segment,
+                                          interval_data.controls_segment[i],
                                           color=colors[k], marker='.', linestyle='-')
 
         axes_controls[-1].set_xlabel("Time (s)")
@@ -197,11 +193,11 @@ if __name__ == '__main__':
 
     # Directly call the Radau solver with the fixed mesh problem definition
     # The problem_definition already contains 'collocation_points_per_interval' and 'global_normalized_mesh_nodes'
-    solution_dict = solve_single_phase_radau_collocation(fixed_mesh_problem_def_hypersensitive)
+    solution = solve_single_phase_radau_collocation(fixed_mesh_problem_def_hypersensitive)
 
     # --- Process the solution using SolutionProcessor ---
-    if solution_dict: # Check if a dictionary was returned
-        processor = SolutionProcessor(solution_dict)
+    if solution: # Check if a solution was returned
+        processor = SolutionProcessor(solution)
 
         # --- Print Solution Summary using the processor ---
         # Note: The 'adaptive_message' in the processor will be "N/A" as this is not an adaptive solve.
@@ -228,9 +224,9 @@ if __name__ == '__main__':
             if processor.num_intervals > 0:
                 first_interval_data = processor.get_data_for_interval(0)
                 if first_interval_data:
-                    print(f"Data for Interval 0: t_start={first_interval_data['t_start']:.2f}, t_end={first_interval_data['t_end']:.2f}, Nk={first_interval_data['Nk']}")
-                    if first_interval_data['states_segment'] and len(first_interval_data['states_segment'][0]) > 0:
-                         print(f"  State 0 segment in interval 0 (first 3 pts): {first_interval_data['states_segment'][0][:3]}")
+                    print(f"Data for Interval 0: t_start={first_interval_data.t_start:.2f}, t_end={first_interval_data.t_end:.2f}, Nk={first_interval_data.Nk}")
+                    if first_interval_data.states_segment and len(first_interval_data.states_segment[0]) > 0:
+                         print(f"  State 0 segment in interval 0 (first 3 pts): {first_interval_data.states_segment[0][:3]}")
                     else:
                          print(f"  State 0 segment in interval 0: No data points")
 
@@ -243,8 +239,8 @@ if __name__ == '__main__':
             print("\nSkipping plots because the NLP solve failed (checked via processor).")
 
     else:
-        # This case should ideally be handled by solve_single_phase_radau_collocation returning a dict with success=False
-        print("\n--- NLP Solve Failed (No solution dictionary returned or it was None) ---")
-        processor = SolutionProcessor({}) # Create an empty processor for consistent handling
+        # This case should ideally be handled by solve_single_phase_radau_collocation returning a solution with success=False
+        print("\n--- NLP Solve Failed (No solution returned or it was None) ---")
+        processor = SolutionProcessor(None) # Create an empty processor for consistent handling
         print(processor.summary())
         print("Skipping plots and further processing.")
