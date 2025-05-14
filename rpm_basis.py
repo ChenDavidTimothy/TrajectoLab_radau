@@ -1,5 +1,6 @@
 # radau_pseudospectral_basis.py
 import numpy as np
+from dataclasses import dataclass
 from scipy.special import roots_jacobi # eval_jacobi removed as it was unused
 
 # Tolerance for floating point comparisons
@@ -9,30 +10,22 @@ ZERO_TOLERANCE = 1e-12
 # LGR Nodes, Weights, and Basis/Collocation Points (GPOPS-II Style)
 # ==============================================================================
 
+@dataclass
 class RadauBasisComponents:
     """Class representing the mathematical components required for RPM method."""
-    
-    def __init__(self, 
-                 state_approximation_nodes=None, 
-                 collocation_nodes=None, 
-                 quadrature_weights=None, 
-                 differentiation_matrix=None,
-                 barycentric_weights_for_state_nodes=None,
-                 lagrange_basis_evaluation_at_local_tau_plus_one=None):
-        self.state_approximation_nodes = state_approximation_nodes
-        self.collocation_nodes = collocation_nodes
-        self.quadrature_weights = quadrature_weights
-        self.differentiation_matrix = differentiation_matrix
-        self.barycentric_weights_for_state_nodes = barycentric_weights_for_state_nodes
-        self.lagrange_basis_evaluation_at_local_tau_plus_one = lagrange_basis_evaluation_at_local_tau_plus_one
+    state_approximation_nodes: np.ndarray = None
+    collocation_nodes: np.ndarray = None
+    quadrature_weights: np.ndarray = None
+    differentiation_matrix: np.ndarray = None
+    barycentric_weights_for_state_nodes: np.ndarray = None
+    lagrange_at_tau_plus_one: np.ndarray = None  # Shortened from lagrange_basis_evaluation_at_local_tau_plus_one
 
+@dataclass
 class RadauNodesAndWeights:
     """Class representing LGR nodes and weights."""
-    
-    def __init__(self, state_approximation_nodes=None, collocation_nodes=None, quadrature_weights=None):
-        self.state_approximation_nodes = state_approximation_nodes
-        self.collocation_nodes = collocation_nodes
-        self.quadrature_weights = quadrature_weights
+    state_approximation_nodes: np.ndarray = None
+    collocation_nodes: np.ndarray = None
+    quadrature_weights: np.ndarray = None
 
 def compute_legendre_gauss_radau_nodes_and_weights(num_collocation_nodes):
     """
@@ -66,73 +59,30 @@ def compute_legendre_gauss_radau_nodes_and_weights(num_collocation_nodes):
     if not isinstance(num_collocation_nodes, int) or num_collocation_nodes < 1:
         raise ValueError("Number of collocation points (num_collocation_nodes) must be an integer >= 1.")
 
-    collocation_nodes_list = [-1.0] # Start with the fixed point
-    quadrature_weights_list = [0.0] # Placeholder for weight of -1.0, will be set later
-
+    # Initialize with the fixed left endpoint
+    collocation_nodes = np.array([-1.0])
+    
     if num_collocation_nodes == 1:
-        # Only one collocation point: -1. Basis points: [-1, 1].
-        # Weight for a 1-point Radau rule (just -1) covering [-1,1] is 2.
-        quadrature_weights_list[0] = 2.0
-        # interior_roots will be empty, state_approximation_nodes_list constructed after if/else
+        # Only one collocation point case
+        quadrature_weights = np.array([2.0])
     else:
-        # num_collocation_nodes > 1
+        # Multi-point case: compute interior roots and weights
         num_interior_roots = num_collocation_nodes - 1
+        interior_roots, jacobi_weights, _ = roots_jacobi(num_interior_roots, 0, 1, mu=True)
         
-        # interior_roots are in (-1, 1)
-        # jacobi_polynomial_weights are weights for the measure (1-x)^alpha * (1+x)^beta = (1+x)
-        interior_roots, jacobi_polynomial_weights, _ = roots_jacobi(num_interior_roots, 0, 1, mu=True)
-
-        # Adjust Jacobi weights for the standard Legendre measure (dx) on (-1,1)
-        denominator = 1.0 + interior_roots # interior_roots are > -1
-        standard_interval_interior_node_weights = jacobi_polynomial_weights / denominator
+        # Adjust Jacobi weights for standard Legendre measure
+        interior_weights = jacobi_weights / (1.0 + interior_roots)
         
-        collocation_nodes_list.extend(interior_roots)
-        quadrature_weights_list.extend(standard_interval_interior_node_weights)
-
-        # Weight for the -1 point. For an N-point Left-Radau rule, w_(-1) = 2/N^2.
-        # Here N = num_collocation_nodes
-        quadrature_weights_list[0] = 2.0 / (num_collocation_nodes**2)
-
-    # Construct state_approximation_nodes_list using the final collocation_nodes_list
-    # Ensure collocation_nodes_list elements are unique before adding +1.0 for basis points
-    # This is generally true by construction but defensive.
-    # For Nk=1, collocation_nodes_list is just [-1.0]
-    # For Nk>1, collocation_nodes_list is [-1.0, root1, root2, ...]
-    temporary_collocation_nodes = sorted(list(set(collocation_nodes_list))) # Should not change order if already sorted as intended
+        # Weight for the -1 point
+        left_endpoint_weight = 2.0 / (num_collocation_nodes**2)
+        
+        # Combine nodes and weights
+        collocation_nodes = np.concatenate([collocation_nodes, interior_roots])
+        quadrature_weights = np.concatenate([np.array([left_endpoint_weight]), interior_weights])
     
-    state_approximation_nodes_list = list(temporary_collocation_nodes) + [1.0]
+    # Create state approximation nodes (collocation nodes + right endpoint)
+    state_approximation_nodes = np.concatenate([collocation_nodes, np.array([1.0])])
     
-    # Sort collocation points and corresponding weights
-    # (interior_roots from roots_jacobi are sorted, -1 is prepended)
-    # So, collocation_nodes_list might not be fully sorted if roots are < -1 (not possible)
-    # or if sorting after extend is needed.
-    # Let's ensure collocation_nodes_list is sorted before creating the final arrays.
-    
-    # Combine lists for sorting by points
-    combined_nodes_and_weights = sorted(zip(collocation_nodes_list, quadrature_weights_list), key=lambda x: x[0])
-    collocation_nodes = np.array([item[0] for item in combined_nodes_and_weights])
-    quadrature_weights = np.array([item[1] for item in combined_nodes_and_weights])
-
-    # Ensure state_approximation_nodes are sorted and unique.
-    # +1.0 could theoretically be an interior root if num_collocation_nodes is very low
-    # and P_(Nk-1)^(0,1) has +1 as a root, but this is not expected for Jacobi polys used.
-    state_approximation_nodes = np.array(sorted(list(set(state_approximation_nodes_list))))
-
-    # Final check for basis points length
-    expected_state_approximation_nodes_length = num_collocation_nodes + 1
-    if len(state_approximation_nodes) != expected_state_approximation_nodes_length:
-        # Reconstruct carefully if set removed something unexpected (e.g. +1 was an interior root)
-        current_state_approximation_nodes_list_for_debug = [-1.0]
-        if num_collocation_nodes > 1: # interior_roots only exist if Nk > 1
-             current_state_approximation_nodes_list_for_debug.extend(interior_roots) # Use original interior_roots
-        current_state_approximation_nodes_list_for_debug.append(1.0)
-        state_approximation_nodes = np.array(sorted(list(set(current_state_approximation_nodes_list_for_debug))))
-        if len(state_approximation_nodes) != expected_state_approximation_nodes_length:
-             raise ValueError(
-                 f"Error in basis point construction. Expected {expected_state_approximation_nodes_length}, got {len(state_approximation_nodes)}. "
-                 f"Collocation points: {collocation_nodes}, Initial basis list: {state_approximation_nodes_list}"
-            )
-            
     return RadauNodesAndWeights(
         state_approximation_nodes=state_approximation_nodes,
         collocation_nodes=collocation_nodes,
@@ -151,12 +101,14 @@ def _compute_barycentric_weights(nodes):
     num_nodes = len(nodes)
     barycentric_weights = np.ones(num_nodes)
     nodes_array = np.asarray(nodes) 
+    
     for j in range(num_nodes):
         node_differences = nodes_array[j] - np.delete(nodes_array, j)
         # Ensure no zero node_differences if nodes were extremely close (should not happen for distinct LGR nodes)
         node_differences[np.abs(node_differences) < ZERO_TOLERANCE * 1e-1] = np.sign(node_differences[np.abs(node_differences) < ZERO_TOLERANCE * 1e-1]) * ZERO_TOLERANCE * 1e-1 \
-                                           if np.any(node_differences[np.abs(node_differences) < ZERO_TOLERANCE * 1e-1] !=0) else ZERO_TOLERANCE*1e-1
+                                          if np.any(node_differences[np.abs(node_differences) < ZERO_TOLERANCE * 1e-1] !=0) else ZERO_TOLERANCE*1e-1
         barycentric_weights[j] = 1.0 / np.prod(node_differences)
+    
     return barycentric_weights
 
 def _evaluate_lagrange_polynomial_at_point(polynomial_definition_nodes, barycentric_weights, evaluation_point_tau):
@@ -268,63 +220,65 @@ def compute_radau_collocation_components(num_collocation_nodes):
                                     to collocation_nodes for integration on [-1,1].
             - barycentric_weights_for_state_nodes: (Nk+1,) array of barycentric weights
                                            for state_approximation_nodes.
-            - lagrange_basis_evaluation_at_local_tau_plus_one: (Nk+1,) array: L_j(+1) for basis polynomials L_j
+            - lagrange_at_tau_plus_one: (Nk+1,) array: L_j(+1) for basis polynomials L_j
                                defined over state_approximation_nodes, evaluated at +1.
                                Expected to be [0, ..., 0, 1] due to +1 being a basis point.
     """
-    if not isinstance(num_collocation_nodes, int) or num_collocation_nodes < 1:
-        raise ValueError("Number of collocation points Nk must be an integer >= 1.")
+    # Parameter validation is already handled in compute_legendre_gauss_radau_nodes_and_weights
+    
+    lgr_components = compute_legendre_gauss_radau_nodes_and_weights(num_collocation_nodes)
+    state_nodes = lgr_components.state_approximation_nodes
+    collocation_nodes = lgr_components.collocation_nodes
+    quadrature_weights = lgr_components.quadrature_weights
 
-    legendre_gauss_radau_components = compute_legendre_gauss_radau_nodes_and_weights(num_collocation_nodes)
-    state_approximation_nodes = legendre_gauss_radau_components.state_approximation_nodes
-    collocation_nodes = legendre_gauss_radau_components.collocation_nodes
-    quadrature_weights = legendre_gauss_radau_components.quadrature_weights
-
-    num_state_approximation_nodes = len(state_approximation_nodes) 
+    num_state_nodes = len(state_nodes) 
     num_actual_collocation_nodes = len(collocation_nodes)
 
-    if num_state_approximation_nodes != num_collocation_nodes + 1:
-        raise ValueError(f"Mismatch in expected number of basis points. Expected {num_collocation_nodes + 1}, Got {num_state_approximation_nodes}")
+    # Validate dimensions
+    if num_state_nodes != num_collocation_nodes + 1:
+        raise ValueError(f"Mismatch in expected number of basis points. Expected {num_collocation_nodes + 1}, Got {num_state_nodes}")
     if num_actual_collocation_nodes != num_collocation_nodes:
         raise ValueError(f"Mismatch in expected number of collocation points. Expected {num_collocation_nodes}, Got {num_actual_collocation_nodes}")
 
     # Calculate barycentric weights for the basis points
-    barycentric_weights_for_state_nodes = _compute_barycentric_weights(state_approximation_nodes)
+    bary_weights = _compute_barycentric_weights(state_nodes)
 
     # --- Calculate Differentiation Matrix D ---
     # D has shape num_collocation_nodes x num_state_approximation_nodes
-    differentiation_matrix = np.zeros((num_actual_collocation_nodes, num_state_approximation_nodes))
+    diff_matrix = np.zeros((num_actual_collocation_nodes, num_state_nodes))
 
     for collocation_node_index in range(num_actual_collocation_nodes): # Row index -> corresponds to collocation_nodes[collocation_node_index]
         evaluation_point_at_collocation_node_tau = collocation_nodes[collocation_node_index]
-        # differentiation_matrix[collocation_node_index, :] = [dL_0/dtau(eval_pt), dL_1/dtau(eval_pt), ..., dL_{num_state_approximation_nodes-1}/dtau(eval_pt)]
-        # where L_j are basis polynomials defined over state_approximation_nodes.
-        differentiation_matrix[collocation_node_index, :] = _compute_lagrange_derivative_coefficients_at_point(state_approximation_nodes, barycentric_weights_for_state_nodes, evaluation_point_at_collocation_node_tau)
+        # diff_matrix[collocation_node_index, :] = [dL_0/dtau(eval_pt), dL_1/dtau(eval_pt), ..., dL_{num_state_nodes-1}/dtau(eval_pt)]
+        # where L_j are basis polynomials defined over state_nodes.
+        diff_matrix[collocation_node_index, :] = _compute_lagrange_derivative_coefficients_at_point(
+            state_nodes, bary_weights, evaluation_point_at_collocation_node_tau
+        )
 
     # --- Calculate Lagrange Polynomial values at tau = +1 (non-collocated end point for dynamics) ---
-    # Since +1 is one of the state_approximation_nodes (expected to be the last one if sorted),
-    # L_j(+1) will be 1 if state_approximation_nodes[j] == +1, and 0 otherwise.
-    lagrange_basis_evaluation_at_local_tau_plus_one = np.zeros(num_state_approximation_nodes)
-    # Find index of +1.0 in state_approximation_nodes. Basis_pts should be sorted.
-    # Using np.isclose for robust floating point comparison.
-    indices_of_tau_plus_one_candidates = np.where(np.isclose(state_approximation_nodes, 1.0, atol=ZERO_TOLERANCE))[0]
+    # Since +1 is one of the state_nodes (expected to be the last one if sorted),
+    # L_j(+1) will be 1 if state_nodes[j] == +1, and 0 otherwise.
+    lagrange_at_tau_plus_one = np.zeros(num_state_nodes)
     
-    if len(indices_of_tau_plus_one_candidates) == 1:
-        lagrange_basis_evaluation_at_local_tau_plus_one[indices_of_tau_plus_one_candidates[0]] = 1.0
-    elif len(indices_of_tau_plus_one_candidates) > 1:
-        # Should not happen if state_approximation_nodes are distinct
+    # Find index of +1.0 in state_nodes using np.isclose for robust floating point comparison
+    tau_plus_one_indices = np.where(np.isclose(state_nodes, 1.0, atol=ZERO_TOLERANCE))[0]
+    
+    if len(tau_plus_one_indices) == 1:
+        lagrange_at_tau_plus_one[tau_plus_one_indices[0]] = 1.0
+    elif len(tau_plus_one_indices) > 1:
+        # Should not happen if state_nodes are distinct
         print("Warning: Multiple basis points found close to +1.0. Using the last one.")
-        lagrange_basis_evaluation_at_local_tau_plus_one[indices_of_tau_plus_one_candidates[-1]] = 1.0
+        lagrange_at_tau_plus_one[tau_plus_one_indices[-1]] = 1.0
     else:
-        # This should not happen if +1 is correctly included in state_approximation_nodes and ZERO_TOLERANCE is consistent.
-        print("Warning: +1.0 not found precisely in state_approximation_nodes using np.isclose. Interpolating as fallback.")
-        lagrange_basis_evaluation_at_local_tau_plus_one = _evaluate_lagrange_polynomial_at_point(state_approximation_nodes, barycentric_weights_for_state_nodes, 1.0)
+        # Fallback: This should not happen if +1 is correctly included in state_nodes
+        print("Warning: +1.0 not found precisely in state_nodes. Interpolating as fallback.")
+        lagrange_at_tau_plus_one = _evaluate_lagrange_polynomial_at_point(state_nodes, bary_weights, 1.0)
 
     return RadauBasisComponents(
-        differentiation_matrix=differentiation_matrix,
-        state_approximation_nodes=state_approximation_nodes,
+        differentiation_matrix=diff_matrix,
+        state_approximation_nodes=state_nodes,
         collocation_nodes=collocation_nodes,
         quadrature_weights=quadrature_weights,
-        barycentric_weights_for_state_nodes=barycentric_weights_for_state_nodes,
-        lagrange_basis_evaluation_at_local_tau_plus_one=lagrange_basis_evaluation_at_local_tau_plus_one
+        barycentric_weights_for_state_nodes=bary_weights,
+        lagrange_at_tau_plus_one=lagrange_at_tau_plus_one  # Using shortened name
     )

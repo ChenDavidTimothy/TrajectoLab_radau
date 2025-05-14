@@ -27,45 +27,49 @@ class SolutionProcessor:
         Args:
             solution: The OptimalControlSolution object returned by the solver.
         """
+        # Initialize with default values
+        self._solution = solution
+        self.initial_time_variable = None
+        self.terminal_time_variable = None
+        self.adaptive_message = "N/A"
+        self.nlp_success = False
+        self.objective = None
+        self.integrals = None
+        self._time_states = None
+        self._states = None
+        self._time_controls = None
+        self._controls = None
+        self._Nk_list = None
+        self._mesh_nodes_tau_global = None
+        self._mesh_nodes_time_domain = None
+        
         if solution is None:
-            # Create empty processor with default values
-            self._solution = None
-            self.initial_time_variable = None
-            self.terminal_time_variable = None
-            self.adaptive_message = "N/A"
-            self.nlp_success = False
-            self.objective = None
-            self.integrals = None
-            self._time_states = None
-            self._states = None
-            self._time_controls = None
-            self._controls = None
-            self._Nk_list = None
-            self._mesh_nodes_tau_global = None
-            self._mesh_nodes_time_domain = None
             return
 
-        self._solution = solution
+        # Helper function to safely extract attributes
+        def get_attr(attr_name, default=None):
+            return getattr(solution, attr_name, default)
+        
+        # Extract common solution components
+        self.initial_time_variable = get_attr('initial_time_variable')
+        self.terminal_time_variable = get_attr('terminal_time_variable')
+        self.adaptive_message = get_attr('message', "N/A")
+        self.nlp_success = get_attr('success', False)
+        self.objective = get_attr('objective')
+        self.integrals = get_attr('integrals')
 
-        # Pre-assign frequently used top-level items
-        self.initial_time_variable = solution.initial_time_variable
-        self.terminal_time_variable = solution.terminal_time_variable
-        self.adaptive_message = solution.message if hasattr(solution, 'message') else "N/A"
-        # 'success' in the solution typically refers to the NLP success of the *last* iteration.
-        # The overall adaptive process success is better judged by the message.
-        self.nlp_success = solution.success if hasattr(solution, 'success') else False
-        self.objective = solution.objective if hasattr(solution, 'objective') else None
-        self.integrals = solution.integrals if hasattr(solution, 'integrals') else None
+        # Extract trajectory data
+        self._time_states = get_attr('time_states')
+        self._states = get_attr('states')
+        self._time_controls = get_attr('time_controls')
+        self._controls = get_attr('controls')
 
-        self._time_states = solution.time_states if hasattr(solution, 'time_states') else None
-        self._states = solution.states if hasattr(solution, 'states') else None
-        self._time_controls = solution.time_controls if hasattr(solution, 'time_controls') else None
-        self._controls = solution.controls if hasattr(solution, 'controls') else None
-
-        self._Nk_list = solution.num_collocation_nodes_per_interval if hasattr(solution, 'num_collocation_nodes_per_interval') else None
-        _mesh_nodes_tau_global = solution.global_normalized_mesh_nodes if hasattr(solution, 'global_normalized_mesh_nodes') else None
-        self._mesh_nodes_tau_global = np.asarray(_mesh_nodes_tau_global) if _mesh_nodes_tau_global is not None else None
-
+        # Extract mesh information
+        self._Nk_list = get_attr('num_collocation_nodes_per_interval')
+        mesh_nodes = get_attr('global_normalized_mesh_nodes')
+        self._mesh_nodes_tau_global = np.asarray(mesh_nodes) if mesh_nodes is not None else None
+        
+        # Calculate mesh nodes in time domain
         self._mesh_nodes_time_domain = self._calculate_mesh_nodes_time_domain()
 
     def _calculate_mesh_nodes_time_domain(self) -> Optional[np.ndarray]:
@@ -133,7 +137,6 @@ class SolutionProcessor:
             return len(self._mesh_nodes_tau_global) - 1
         return 0
 
-
     def get_state_trajectory(self, state_index: int) -> Optional[np.ndarray]:
         """
         Retrieves a specific state trajectory.
@@ -146,7 +149,6 @@ class SolutionProcessor:
         """
         if self._states and 0 <= state_index < self.num_states:
             return self._states[state_index]
-        print(f"Warning: State trajectory for index {state_index} not available.")
         return None
 
     def get_control_trajectory(self, control_index: int) -> Optional[np.ndarray]:
@@ -161,8 +163,37 @@ class SolutionProcessor:
         """
         if self._controls and 0 <= control_index < self.num_controls:
             return self._controls[control_index]
-        print(f"Warning: Control trajectory for index {control_index} not available.")
         return None
+
+    def _extract_segment_data(self, time_array, data_arrays, interval_t_start, interval_t_end, epsilon=1e-9):
+        """
+        Helper function to extract time and data segments for a specific interval.
+        """
+        if time_array is None or not data_arrays or len(time_array) == 0:
+            return np.array([]), [np.array([]) for _ in range(len(data_arrays) if data_arrays else 1)]
+            
+        sort_indices = np.argsort(time_array)
+        sorted_time = time_array[sort_indices]
+        
+        idx_in_interval = np.where(
+            (sorted_time >= interval_t_start - epsilon) &
+            (sorted_time <= interval_t_end + epsilon)
+        )[0]
+        
+        if len(idx_in_interval) == 0:
+            return np.array([]), [np.array([]) for _ in range(len(data_arrays))]
+            
+        time_segment = sorted_time[idx_in_interval]
+        data_segments = []
+        
+        for data_array in data_arrays:
+            if len(data_array) == len(time_array):
+                sorted_data = data_array[sort_indices]
+                data_segments.append(sorted_data[idx_in_interval])
+            else:
+                data_segments.append(np.array([]))
+                
+        return time_segment, data_segments
 
     def get_data_for_interval(self, interval_index: int) -> Optional[IntervalData]:
         """
@@ -177,83 +208,38 @@ class SolutionProcessor:
             or None if data is insufficient or index is out of bounds.
         """
         if not (self.num_intervals > 0 and 0 <= interval_index < self.num_intervals):
-            # print(f"Warning: Interval index {interval_index} is out of bounds (0-{self.num_intervals-1}).")
             return None
         if self._mesh_nodes_time_domain is None or self._Nk_list is None:
-            # print("Warning: Mesh information incomplete for interval data extraction.")
             return None
-
 
         interval_t_start = self._mesh_nodes_time_domain[interval_index]
         interval_t_end = self._mesh_nodes_time_domain[interval_index + 1]
-        # Handle case where num_collocation_nodes_per_interval might be shorter than number of intervals inferred from mesh_nodes
-        nk_interval = self._Nk_list[interval_index] if interval_index < len(self._Nk_list) else -1 # -1 indicates Nk unknown
+        nk_interval = self._Nk_list[interval_index] if interval_index < len(self._Nk_list) else -1
 
-
-        epsilon = 1e-9 # For robust boundary checks with floating point times
-
-        states_segment_list = []
-        time_states_segment_array = np.array([])
-        if self._time_states is not None and self._states is not None and len(self._time_states) > 0 :
-            sort_indices_states = np.argsort(self._time_states)
-            sorted_time_states = self._time_states[sort_indices_states]
-
-            idx_states_in_interval = np.where(
-                (sorted_time_states >= interval_t_start - epsilon) &
-                (sorted_time_states <= interval_t_end + epsilon)
-            )[0]
-
-            if len(idx_states_in_interval) > 0:
-                time_states_segment_array = sorted_time_states[idx_states_in_interval]
-                for state_traj_idx in range(self.num_states):
-                    state_traj = self._states[state_traj_idx]
-                    if len(state_traj) == len(self._time_states):
-                        sorted_state_traj = state_traj[sort_indices_states]
-                        states_segment_list.append(sorted_state_traj[idx_states_in_interval])
-                    else:
-                        # print(f"Warning: State {state_traj_idx} length mismatch for interval {interval_index}.")
-                        states_segment_list.append(np.array([])) # Fallback for inconsistent length
-            else: # No time points in interval
-                 for _ in range(self.num_states): states_segment_list.append(np.array([]))
-        else: # No state data available
-            for _ in range(self.num_states if self.num_states > 0 else 1): states_segment_list.append(np.array([]))
-
-
-        controls_segment_list = []
-        time_controls_segment_array = np.array([])
-        if self._time_controls is not None and self._controls is not None and len(self._time_controls) > 0:
-            sort_indices_controls = np.argsort(self._time_controls)
-            sorted_time_controls = self._time_controls[sort_indices_controls]
-
-            idx_controls_in_interval = np.where(
-                (sorted_time_controls >= interval_t_start - epsilon) &
-                (sorted_time_controls <= interval_t_end + epsilon)
-            )[0]
-
-            if len(idx_controls_in_interval) > 0:
-                time_controls_segment_array = sorted_time_controls[idx_controls_in_interval]
-                for control_traj_idx in range(self.num_controls):
-                    control_traj = self._controls[control_traj_idx]
-                    if len(control_traj) == len(self._time_controls):
-                        sorted_control_traj = control_traj[sort_indices_controls]
-                        controls_segment_list.append(sorted_control_traj[idx_controls_in_interval])
-                    else:
-                        # print(f"Warning: Control {control_traj_idx} length mismatch for interval {interval_index}.")
-                        controls_segment_list.append(np.array([]))
-            else: # No time points in interval
-                for _ in range(self.num_controls): controls_segment_list.append(np.array([]))
-        else: # No control data available
-            for _ in range(self.num_controls if self.num_controls > 0 else 1): controls_segment_list.append(np.array([]))
-
+        # Extract state data
+        time_states_segment, states_segment = self._extract_segment_data(
+            self._time_states, 
+            self._states if self._states else [], 
+            interval_t_start, 
+            interval_t_end
+        )
+        
+        # Extract control data
+        time_controls_segment, controls_segment = self._extract_segment_data(
+            self._time_controls, 
+            self._controls if self._controls else [], 
+            interval_t_start, 
+            interval_t_end
+        )
 
         return IntervalData(
             t_start=interval_t_start,
             t_end=interval_t_end,
             Nk=nk_interval,
-            time_states_segment=time_states_segment_array,
-            states_segment=states_segment_list,
-            time_controls_segment=time_controls_segment_array,
-            controls_segment=controls_segment_list
+            time_states_segment=time_states_segment,
+            states_segment=states_segment,
+            time_controls_segment=time_controls_segment,
+            controls_segment=controls_segment
         )
 
     def get_all_interval_data(self) -> List[Optional[IntervalData]]:
@@ -272,7 +258,7 @@ class SolutionProcessor:
         """
         Provides a string summary of the solution, similar to the logs in the example scripts.
         """
-        if self._solution is None: # Handle case where SolutionProcessor was initialized with empty dict
+        if self._solution is None:
             return "--- Solution Data Not Available ---"
 
         lines = []
@@ -310,7 +296,6 @@ class SolutionProcessor:
             lines.append(f"  Mesh nodes in actual time domain: {np.array2string(self._mesh_nodes_time_domain, precision=4)}")
         else:
             lines.append(f"  Mesh nodes in actual time domain: Not available")
-
 
         return "\n".join(lines)
 
