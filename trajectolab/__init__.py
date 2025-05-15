@@ -1,14 +1,14 @@
-from trajectolab.problem import Problem, Constraint
+from trajectolab.adaptive import FixedMesh, PHSAdaptive
+from trajectolab.problem import Constraint, Problem
 from trajectolab.solution import Solution
-from trajectolab.solver import solve, RadauDirectSolver
-from trajectolab.adaptive import PHSAdaptive, FixedMesh
+from trajectolab.solver import RadauDirectSolver, solve
 
 __all__ = [
-    'Problem', 
-    'Solution', 
-    'solve', 
-    'RadauDirectSolver', 
-    'PHSAdaptive', 
-    'FixedMesh',
-    'Constraint'
-] 
+    "Problem",
+    "Solution",
+    "solve",
+    "RadauDirectSolver",
+    "PHSAdaptive",
+    "FixedMesh",
+    "Constraint",
+]

@@ -1,20 +1,29 @@
 # hypersensitive_direct.py
 # Example problem definition for direct solving with solver_radau.py
 
-import numpy as np
-import casadi as ca
-from typing import List, Dict, Any, Tuple, Optional, Union # For type hinting problem functions
-import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
+from typing import Any, List, Union  # For type hinting problem functions
 
-from rpm_solver import solve_single_phase_radau_collocation, OptimalControlProblem, OptimalControlSolution, InitialGuess, DefaultGuessValues, PathConstraint, EventConstraint # Import core solver and types
-from solution_processor import SolutionProcessor, IntervalData # Import the solution processor
+import casadi as ca
+import matplotlib.pyplot as plt
+import numpy as np
+
+from rpm_solver import (  # Import core solver and types
+    DefaultGuessValues,
+    EventConstraint,
+    InitialGuess,
+    OptimalControlProblem,
+    solve_single_phase_radau_collocation,
+)
+from solution_processor import SolutionProcessor  # Import the solution processor
+
 
 # --- Hypersensitive Problem Definition ---
-def hypersensitive_dynamics(states: Union[np.ndarray, ca.MX],
-                            controls: Union[np.ndarray, ca.MX],
-                            time: Union[float, ca.MX],
-                            params: Any) -> List[Union[float, ca.MX]]:
+def hypersensitive_dynamics(
+    states: Union[np.ndarray, ca.MX],
+    controls: Union[np.ndarray, ca.MX],
+    time: Union[float, ca.MX],
+    params: Any,
+) -> List[Union[float, ca.MX]]:
     """
     Dynamics function for the hypersensitive problem.
     dx/dt = -x^3 + u
@@ -23,32 +32,46 @@ def hypersensitive_dynamics(states: Union[np.ndarray, ca.MX],
     u = controls[0] if isinstance(controls, (np.ndarray, list, tuple, ca.DM)) else controls
 
     # Handle CasADi MX potentially being (1,1) shape but conceptually scalar
-    if isinstance(x, ca.MX) and x.shape != (1,1) and x.is_scalar(): x = x[0,0]
-    if isinstance(u, ca.MX) and u.shape != (1,1) and u.is_scalar(): u = u[0,0]
+    if isinstance(x, ca.MX) and x.shape != (1, 1) and x.is_scalar():
+        x = x[0, 0]
+    if isinstance(u, ca.MX) and u.shape != (1, 1) and u.is_scalar():
+        u = u[0, 0]
 
-    return [-x**3 + u]
+    return [-(x**3) + u]
 
-def hypersensitive_objective(initial_time_variable: Union[float, ca.MX],
-                             terminal_time_variable: Union[float, ca.MX],
-                             x0: Union[np.ndarray, ca.MX],
-                             xf: Union[np.ndarray, ca.MX],
-                             integral_decision_variables: Union[None, float, np.ndarray, ca.MX],
-                             params: Any) -> Union[float, ca.MX]:
+
+def hypersensitive_objective(
+    initial_time_variable: Union[float, ca.MX],
+    terminal_time_variable: Union[float, ca.MX],
+    x0: Union[np.ndarray, ca.MX],
+    xf: Union[np.ndarray, ca.MX],
+    integral_decision_variables: Union[None, float, np.ndarray, ca.MX],
+    params: Any,
+) -> Union[float, ca.MX]:
     """
     Objective function for the hypersensitive problem.
     Minimize J = q[0] (integral of 0.5*(x^2 + u^2))
     """
     if integral_decision_variables is None:
-        raise ValueError("integral_decision_variables (integral value) is None in objective function.")
+        raise ValueError(
+            "integral_decision_variables (integral value) is None in objective function."
+        )
     # integral_decision_variables can be scalar or array-like depending on num_integrals
-    return integral_decision_variables[0] if isinstance(integral_decision_variables, (list, np.ndarray, ca.DM)) and len(integral_decision_variables) > 0 else integral_decision_variables
+    return (
+        integral_decision_variables[0]
+        if isinstance(integral_decision_variables, (list, np.ndarray, ca.DM))
+        and len(integral_decision_variables) > 0
+        else integral_decision_variables
+    )
 
 
-def hypersensitive_integrand(states: Union[np.ndarray, ca.MX],
-                             controls: Union[np.ndarray, ca.MX],
-                             time: Union[float, ca.MX],
-                             integral_idx: int,
-                             params: Any) -> Union[float, ca.MX]:
+def hypersensitive_integrand(
+    states: Union[np.ndarray, ca.MX],
+    controls: Union[np.ndarray, ca.MX],
+    time: Union[float, ca.MX],
+    integral_idx: int,
+    params: Any,
+) -> Union[float, ca.MX]:
     """
     Integrand for the hypersensitive problem.
     L = 0.5 * (x^2 + u^2)
@@ -56,18 +79,22 @@ def hypersensitive_integrand(states: Union[np.ndarray, ca.MX],
     x = states[0] if isinstance(states, (np.ndarray, list, tuple, ca.DM)) else states
     u = controls[0] if isinstance(controls, (np.ndarray, list, tuple, ca.DM)) else controls
 
-    if isinstance(x, ca.MX) and x.shape != (1,1) and x.is_scalar(): x = x[0,0]
-    if isinstance(u, ca.MX) and u.shape != (1,1) and u.is_scalar(): u = u[0,0]
+    if isinstance(x, ca.MX) and x.shape != (1, 1) and x.is_scalar():
+        x = x[0, 0]
+    if isinstance(u, ca.MX) and u.shape != (1, 1) and u.is_scalar():
+        u = u[0, 0]
 
     if integral_idx == 0:
         return 0.5 * (x**2 + u**2)
-    return 0 # Should not happen if num_integrals is 1
+    return 0  # Should not happen if num_integrals is 1
+
 
 def event_constraints_function(initial_time_variable, terminal_time_variable, x0, xf, q, p):
     return [
         EventConstraint(val=x0[0], equals=1.5),  # x(initial_time_variable) = 1.5
-        EventConstraint(val=xf[0], equals=1.0)   # x(terminal_time_variable) = 1.0
+        EventConstraint(val=xf[0], equals=1.0),  # x(terminal_time_variable) = 1.0
     ]
+
 
 TF_hypersensitive: float = 40.0
 
@@ -79,32 +106,37 @@ initial_guess = InitialGuess(
     states=[
         np.array([[1.5, 1.4, 1.3, 1.2, 1.1, 1.0, 0.9, 0.8, 0.7]]),
         np.array([[0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.0, -0.1]]),
-        np.array([[-0.1, -0.2, -0.3, -0.4, -0.5, -0.6, -0.7, -0.8, 1.0]])
+        np.array([[-0.1, -0.2, -0.3, -0.4, -0.5, -0.6, -0.7, -0.8, 1.0]]),
     ],
     controls=[
         np.array([[0.1, 0.1, 0.1, 0.1, 0.1, 0.0, 0.0, 0.0]]),
         np.array([[0.0, 0.0, 0.0, 0.0, 0.0, -0.1, -0.1, -0.1]]),
-        np.array([[-0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1]])
+        np.array([[-0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1]]),
     ],
-    integrals=[1.0]
+    integrals=[1.0],
 )
 
 fixed_mesh_problem_def_hypersensitive = OptimalControlProblem(
     num_states=1,
     num_controls=1,
     num_integrals=1,
-    collocation_points_per_interval=[20, 8, 20], # Fixed Nk list for the direct solve
-    global_normalized_mesh_nodes=[-1.0, -1/3, 1/3, 1.0], # Fixed mesh for the direct solve
+    collocation_points_per_interval=[20, 8, 20],  # Fixed Nk list for the direct solve
+    global_normalized_mesh_nodes=[-1.0, -1 / 3, 1 / 3, 1.0],  # Fixed mesh for the direct solve
     dynamics_function=hypersensitive_dynamics,
     objective_function=hypersensitive_objective,
     integral_integrand_function=hypersensitive_integrand,
     t0_bounds=[0.0, 0.0],
     tf_bounds=[TF_hypersensitive, TF_hypersensitive],
-    problem_parameters={}, # No specific parameters for this simple problem
+    problem_parameters={},  # No specific parameters for this simple problem
     initial_guess=initial_guess,
     default_initial_guess_values=DefaultGuessValues(state=0.0, control=0.0, integral=0.0),
     event_constraints_function=event_constraints_function,
-    solver_options={'ipopt.print_level': 0, 'ipopt.sb': 'yes', 'print_time': 0, 'ipopt.max_iter': 200}
+    solver_options={
+        "ipopt.print_level": 0,
+        "ipopt.sb": "yes",
+        "print_time": 0,
+        "ipopt.max_iter": 200,
+    },
 )
 
 
@@ -117,7 +149,7 @@ def plot_solution_with_processor(solution_processor: SolutionProcessor, title_su
         solution_processor: An instance of SolutionProcessor.
         title_suffix: A string to append to the plot titles.
     """
-    if not solution_processor.nlp_success: # Check NLP success for plotting
+    if not solution_processor.nlp_success:  # Check NLP success for plotting
         print("Plotting skipped: NLP solve failed or no solution data.")
         return
 
@@ -126,69 +158,106 @@ def plot_solution_with_processor(solution_processor: SolutionProcessor, title_su
         return
 
     num_intervals = solution_processor.num_intervals
-    colors = plt.cm.viridis(np.linspace(0, 1, num_intervals)) if num_intervals > 0 else ['blue']
+    colors = plt.cm.viridis(np.linspace(0, 1, num_intervals)) if num_intervals > 0 else ["blue"]
 
     all_interval_data = solution_processor.get_all_interval_data()
 
     # --- Plot States ---
     if solution_processor.num_states > 0:
-        fig_states, axes_states = plt.subplots(solution_processor.num_states, 1, sharex=True, figsize=(10, 2 + 2 * solution_processor.num_states))
+        fig_states, axes_states = plt.subplots(
+            solution_processor.num_states,
+            1,
+            sharex=True,
+            figsize=(10, 2 + 2 * solution_processor.num_states),
+        )
         if solution_processor.num_states == 1:
-            axes_states = [axes_states] # Make it iterable
+            axes_states = [axes_states]  # Make it iterable
 
         for i in range(solution_processor.num_states):
             axes_states[i].set_ylabel(f"State x{i+1}")
-            axes_states[i].grid(True, which='both', linestyle='--', linewidth=0.5)
+            axes_states[i].grid(True, which="both", linestyle="--", linewidth=0.5)
 
             for k, interval_data in enumerate(all_interval_data):
-                if interval_data and len(interval_data.states_segment) > i and interval_data.states_segment[i].size > 0:
-                    axes_states[i].plot(interval_data.time_states_segment,
-                                        interval_data.states_segment[i],
-                                        color=colors[k], marker='.', linestyle='-')
-                                        # Labeling for legend handled below to avoid duplicates
+                if (
+                    interval_data
+                    and len(interval_data.states_segment) > i
+                    and interval_data.states_segment[i].size > 0
+                ):
+                    axes_states[i].plot(
+                        interval_data.time_states_segment,
+                        interval_data.states_segment[i],
+                        color=colors[k],
+                        marker=".",
+                        linestyle="-",
+                    )
+                    # Labeling for legend handled below to avoid duplicates
 
         axes_states[-1].set_xlabel("Time (s)")
         fig_states.suptitle(f"State Trajectories by Mesh Interval{title_suffix}", fontsize=14)
 
-        if num_intervals > 0 and solution_processor.num_states > 0 and solution_processor.num_collocation_nodes_per_interval:
+        if (
+            num_intervals > 0
+            and solution_processor.num_states > 0
+            and solution_processor.num_collocation_nodes_per_interval
+        ):
             handles, labels = [], []
             for k in range(num_intervals):
                 handles.append(plt.Line2D([0], [0], color=colors[k], lw=2))
-                labels.append(f"Int {k} (Nk={solution_processor.num_collocation_nodes_per_interval[k]})") # Use num_collocation_nodes_per_interval from processor
-            fig_states.legend(handles, labels, loc='upper right', title="Mesh Intervals")
+                labels.append(
+                    f"Int {k} (Nk={solution_processor.num_collocation_nodes_per_interval[k]})"
+                )  # Use num_collocation_nodes_per_interval from processor
+            fig_states.legend(handles, labels, loc="upper right", title="Mesh Intervals")
         plt.tight_layout(rect=[0, 0, 0.85, 0.96])
-
 
     # --- Plot Controls ---
     if solution_processor.num_controls > 0:
-        fig_controls, axes_controls = plt.subplots(solution_processor.num_controls, 1, sharex=True, figsize=(10, 2 + 2 * solution_processor.num_controls))
+        fig_controls, axes_controls = plt.subplots(
+            solution_processor.num_controls,
+            1,
+            sharex=True,
+            figsize=(10, 2 + 2 * solution_processor.num_controls),
+        )
         if solution_processor.num_controls == 1:
-            axes_controls = [axes_controls] # Make it iterable
+            axes_controls = [axes_controls]  # Make it iterable
 
         for i in range(solution_processor.num_controls):
             axes_controls[i].set_ylabel(f"Control u{i+1}")
-            axes_controls[i].grid(True, which='both', linestyle='--', linewidth=0.5)
+            axes_controls[i].grid(True, which="both", linestyle="--", linewidth=0.5)
 
             for k, interval_data in enumerate(all_interval_data):
-                if interval_data and len(interval_data.controls_segment) > i and interval_data.controls_segment[i].size > 0 :
-                    axes_controls[i].plot(interval_data.time_controls_segment,
-                                          interval_data.controls_segment[i],
-                                          color=colors[k], marker='.', linestyle='-')
+                if (
+                    interval_data
+                    and len(interval_data.controls_segment) > i
+                    and interval_data.controls_segment[i].size > 0
+                ):
+                    axes_controls[i].plot(
+                        interval_data.time_controls_segment,
+                        interval_data.controls_segment[i],
+                        color=colors[k],
+                        marker=".",
+                        linestyle="-",
+                    )
 
         axes_controls[-1].set_xlabel("Time (s)")
         fig_controls.suptitle(f"Control Trajectories by Mesh Interval{title_suffix}", fontsize=14)
-        if num_intervals > 0 and solution_processor.num_controls > 0 and solution_processor.num_collocation_nodes_per_interval:
+        if (
+            num_intervals > 0
+            and solution_processor.num_controls > 0
+            and solution_processor.num_collocation_nodes_per_interval
+        ):
             handles, labels = [], []
             for k in range(num_intervals):
                 handles.append(plt.Line2D([0], [0], color=colors[k], lw=2))
-                labels.append(f"Int {k} (Nk={solution_processor.num_collocation_nodes_per_interval[k]})")
-            fig_controls.legend(handles, labels, loc='upper right', title="Mesh Intervals")
+                labels.append(
+                    f"Int {k} (Nk={solution_processor.num_collocation_nodes_per_interval[k]})"
+                )
+            fig_controls.legend(handles, labels, loc="upper right", title="Mesh Intervals")
         plt.tight_layout(rect=[0, 0, 0.85, 0.96])
 
     plt.show()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     print("Running Direct Radau Solve for Hypersensitive Problem from hypersensitive.py...")
 
     # Directly call the Radau solver with the fixed mesh problem definition
@@ -196,20 +265,21 @@ if __name__ == '__main__':
     solution = solve_single_phase_radau_collocation(fixed_mesh_problem_def_hypersensitive)
 
     # --- Process the solution using SolutionProcessor ---
-    if solution: # Check if a solution was returned
+    if solution:  # Check if a solution was returned
         processor = SolutionProcessor(solution)
 
         # --- Print Solution Summary using the processor ---
         # Note: The 'adaptive_message' in the processor will be "N/A" as this is not an adaptive solve.
         # The 'success' field will reflect the NLP solver's success for this single run.
         print("\n--- Solution Summary (from SolutionProcessor - Direct Solve) ---")
-        print(processor.summary()) # The summary will reflect the single NLP solve result
+        print(processor.summary())  # The summary will reflect the single NLP solve result
         print(f"Processor representation: {processor}")
-
 
         # --- Example: Accessing specific data via processor ---
         print("\n--- Further details from SolutionProcessor ---")
-        if processor.nlp_success: # nlp_success here refers to the success of the single solve_single_phase_radau_collocation call
+        if (
+            processor.nlp_success
+        ):  # nlp_success here refers to the success of the single solve_single_phase_radau_collocation call
             print(f"Number of states: {processor.num_states}")
             state0_traj = processor.get_state_trajectory(0)
             if state0_traj is not None:
@@ -224,12 +294,18 @@ if __name__ == '__main__':
             if processor.num_intervals > 0:
                 first_interval_data = processor.get_data_for_interval(0)
                 if first_interval_data:
-                    print(f"Data for Interval 0: t_start={first_interval_data.t_start:.2f}, t_end={first_interval_data.t_end:.2f}, Nk={first_interval_data.Nk}")
-                    if first_interval_data.states_segment and len(first_interval_data.states_segment[0]) > 0:
-                         print(f"  State 0 segment in interval 0 (first 3 pts): {first_interval_data.states_segment[0][:3]}")
+                    print(
+                        f"Data for Interval 0: t_start={first_interval_data.t_start:.2f}, t_end={first_interval_data.t_end:.2f}, Nk={first_interval_data.Nk}"
+                    )
+                    if (
+                        first_interval_data.states_segment
+                        and len(first_interval_data.states_segment[0]) > 0
+                    ):
+                        print(
+                            f"  State 0 segment in interval 0 (first 3 pts): {first_interval_data.states_segment[0][:3]}"
+                        )
                     else:
-                         print(f"  State 0 segment in interval 0: No data points")
-
+                        print("  State 0 segment in interval 0: No data points")
 
         # --- Plot the results using the processor ---
         if processor.nlp_success:
@@ -241,6 +317,6 @@ if __name__ == '__main__':
     else:
         # This case should ideally be handled by solve_single_phase_radau_collocation returning a solution with success=False
         print("\n--- NLP Solve Failed (No solution returned or it was None) ---")
-        processor = SolutionProcessor(None) # Create an empty processor for consistent handling
+        processor = SolutionProcessor(None)  # Create an empty processor for consistent handling
         print(processor.summary())
         print("Skipping plots and further processing.")

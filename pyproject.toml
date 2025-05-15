@@ -1,0 +1,41 @@
+[tool.black]
+line-length = 100
+target-version = ['py37', 'py38', 'py39', 'py310']
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.venv
+  | venv
+  | __pycache__
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 100
+skip = [".venv", "venv", "__pycache__", "build", "dist"]
+skip_gitignore = true
+multi_line_output = 3
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+exclude = [".venv", "venv"]
+ignore_missing_imports = true
+follow_imports = "silent"
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+select = ["E", "F", "B", "I", "W"]
+ignore = ["E501"]
+exclude = [".venv", "venv", "__pycache__", "build", "dist"]
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["F401"]

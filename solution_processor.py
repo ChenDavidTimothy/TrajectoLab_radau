@@ -1,18 +1,32 @@
 # solution_processor.py
+from typing import List, Optional
+
 import numpy as np
-from typing import List, Optional, Union, Tuple, Any
+
 
 class IntervalData:
-    def __init__(self, t_start=None, t_end=None, Nk=None,
-                 time_states_segment=None, states_segment=None,
-                 time_controls_segment=None, controls_segment=None):
+    def __init__(
+        self,
+        t_start=None,
+        t_end=None,
+        Nk=None,
+        time_states_segment=None,
+        states_segment=None,
+        time_controls_segment=None,
+        controls_segment=None,
+    ):
         self.t_start = t_start
         self.t_end = t_end
         self.Nk = Nk
-        self.time_states_segment = time_states_segment if time_states_segment is not None else np.array([])
+        self.time_states_segment = (
+            time_states_segment if time_states_segment is not None else np.array([])
+        )
         self.states_segment = states_segment if states_segment is not None else []
-        self.time_controls_segment = time_controls_segment if time_controls_segment is not None else np.array([])
+        self.time_controls_segment = (
+            time_controls_segment if time_controls_segment is not None else np.array([])
+        )
         self.controls_segment = controls_segment if controls_segment is not None else []
+
 
 class SolutionProcessor:
     def __init__(self, solution):
@@ -31,38 +45,42 @@ class SolutionProcessor:
         self._Nk_list = None
         self._mesh_nodes_tau_global = None
         self._mesh_nodes_time_domain = None
-        
+
         if solution is None:
             return
 
         # Helper function to safely extract attributes
         def get_attr(attr_name, default=None):
             return getattr(solution, attr_name, default)
-        
+
         # Extract common solution components
-        self.initial_time_variable = get_attr('initial_time_variable')
-        self.terminal_time_variable = get_attr('terminal_time_variable')
-        self.adaptive_message = get_attr('message', "N/A")
-        self.nlp_success = get_attr('success', False)
-        self.objective = get_attr('objective')
-        self.integrals = get_attr('integrals')
+        self.initial_time_variable = get_attr("initial_time_variable")
+        self.terminal_time_variable = get_attr("terminal_time_variable")
+        self.adaptive_message = get_attr("message", "N/A")
+        self.nlp_success = get_attr("success", False)
+        self.objective = get_attr("objective")
+        self.integrals = get_attr("integrals")
 
         # Extract trajectory data
-        self._time_states = get_attr('time_states')
-        self._states = get_attr('states')
-        self._time_controls = get_attr('time_controls')
-        self._controls = get_attr('controls')
+        self._time_states = get_attr("time_states")
+        self._states = get_attr("states")
+        self._time_controls = get_attr("time_controls")
+        self._controls = get_attr("controls")
 
         # Extract mesh information
-        self._Nk_list = get_attr('num_collocation_nodes_per_interval')
-        mesh_nodes = get_attr('global_normalized_mesh_nodes')
+        self._Nk_list = get_attr("num_collocation_nodes_per_interval")
+        mesh_nodes = get_attr("global_normalized_mesh_nodes")
         self._mesh_nodes_tau_global = np.asarray(mesh_nodes) if mesh_nodes is not None else None
-        
+
         # Calculate mesh nodes in time domain
         self._mesh_nodes_time_domain = self._calculate_mesh_nodes_time_domain()
 
     def _calculate_mesh_nodes_time_domain(self) -> Optional[np.ndarray]:
-        if self.initial_time_variable is None or self.terminal_time_variable is None or self._mesh_nodes_tau_global is None:
+        if (
+            self.initial_time_variable is None
+            or self.terminal_time_variable is None
+            or self._mesh_nodes_tau_global is None
+        ):
             return None
 
         alpha = (self.terminal_time_variable - self.initial_time_variable) / 2.0
@@ -123,31 +141,34 @@ class SolutionProcessor:
             return self._controls[control_index]
         return None
 
-    def _extract_segment_data(self, time_array, data_arrays, interval_t_start, interval_t_end, epsilon=1e-9):
+    def _extract_segment_data(
+        self, time_array, data_arrays, interval_t_start, interval_t_end, epsilon=1e-9
+    ):
         if time_array is None or not data_arrays or len(time_array) == 0:
-            return np.array([]), [np.array([]) for _ in range(len(data_arrays) if data_arrays else 1)]
-            
+            return np.array([]), [
+                np.array([]) for _ in range(len(data_arrays) if data_arrays else 1)
+            ]
+
         sort_indices = np.argsort(time_array)
         sorted_time = time_array[sort_indices]
-        
+
         idx_in_interval = np.where(
-            (sorted_time >= interval_t_start - epsilon) &
-            (sorted_time <= interval_t_end + epsilon)
+            (sorted_time >= interval_t_start - epsilon) & (sorted_time <= interval_t_end + epsilon)
         )[0]
-        
+
         if len(idx_in_interval) == 0:
             return np.array([]), [np.array([]) for _ in range(len(data_arrays))]
-            
+
         time_segment = sorted_time[idx_in_interval]
         data_segments = []
-        
+
         for data_array in data_arrays:
             if len(data_array) == len(time_array):
                 sorted_data = data_array[sort_indices]
                 data_segments.append(sorted_data[idx_in_interval])
             else:
                 data_segments.append(np.array([]))
-                
+
         return time_segment, data_segments
 
     def get_data_for_interval(self, interval_index: int) -> Optional[IntervalData]:
@@ -162,18 +183,18 @@ class SolutionProcessor:
 
         # Extract state data
         time_states_segment, states_segment = self._extract_segment_data(
-            self._time_states, 
-            self._states if self._states else [], 
-            interval_t_start, 
-            interval_t_end
+            self._time_states,
+            self._states if self._states else [],
+            interval_t_start,
+            interval_t_end,
         )
-        
+
         # Extract control data
         time_controls_segment, controls_segment = self._extract_segment_data(
-            self._time_controls, 
-            self._controls if self._controls else [], 
-            interval_t_start, 
-            interval_t_end
+            self._time_controls,
+            self._controls if self._controls else [],
+            interval_t_start,
+            interval_t_end,
         )
 
         return IntervalData(
@@ -183,7 +204,7 @@ class SolutionProcessor:
             time_states_segment=time_states_segment,
             states_segment=states_segment,
             time_controls_segment=time_controls_segment,
-            controls_segment=controls_segment
+            controls_segment=controls_segment,
         )
 
     def get_all_interval_data(self) -> List[Optional[IntervalData]]:
@@ -197,39 +218,53 @@ class SolutionProcessor:
 
         lines = []
         if "Adaptive mesh converged" in self.adaptive_message:
-             lines.append("--- Adaptive Refinement Succeeded (Converged to Tolerance) ---")
+            lines.append("--- Adaptive Refinement Succeeded (Converged to Tolerance) ---")
         elif "Reached max iterations" in self.adaptive_message and self.nlp_success:
-             lines.append("--- Adaptive Refinement Completed (Max Iterations Reached, Last NLP Succeeded) ---")
+            lines.append(
+                "--- Adaptive Refinement Completed (Max Iterations Reached, Last NLP Succeeded) ---"
+            )
         elif self.nlp_success:
-             lines.append("--- Adaptive Refinement Completed (Last NLP Succeeded, Check Message for Details) ---")
+            lines.append(
+                "--- Adaptive Refinement Completed (Last NLP Succeeded, Check Message for Details) ---"
+            )
         else:
-             lines.append("--- Adaptive Refinement Result (Process or Last NLP Failed) ---")
+            lines.append("--- Adaptive Refinement Result (Process or Last NLP Failed) ---")
 
         lines.append(f"  Overall Adaptive Process Message: {self.adaptive_message}")
         lines.append(f"  Last NLP Solve Success: {self.nlp_success}")
 
-        if self.initial_time_variable is not None: lines.append(f"  Final initial_time_variable: {self.initial_time_variable:.4f}")
-        if self.terminal_time_variable is not None: lines.append(f"  Final terminal_time_variable: {self.terminal_time_variable:.4f}")
-        if self.objective is not None: lines.append(f"  Final Objective: {self.objective:.4f}")
+        if self.initial_time_variable is not None:
+            lines.append(f"  Final initial_time_variable: {self.initial_time_variable:.4f}")
+        if self.terminal_time_variable is not None:
+            lines.append(f"  Final terminal_time_variable: {self.terminal_time_variable:.4f}")
+        if self.objective is not None:
+            lines.append(f"  Final Objective: {self.objective:.4f}")
 
         integrals_val = self.integrals
         if integrals_val is not None:
             if isinstance(integrals_val, (np.ndarray, list)) and np.array(integrals_val).size > 0:
-                lines.append(f"  Final Integrals: {np.array2string(np.array(integrals_val), precision=4)}")
+                lines.append(
+                    f"  Final Integrals: {np.array2string(np.array(integrals_val), precision=4)}"
+                )
             elif isinstance(integrals_val, (float, int)):
                 lines.append(f"  Final Integrals: {integrals_val:.4f}")
             else:
                 lines.append(f"  Final Integrals: {integrals_val}")
 
-        if self._Nk_list is not None: lines.append(f"  Final num_collocation_nodes_per_interval: {self._Nk_list}")
+        if self._Nk_list is not None:
+            lines.append(f"  Final num_collocation_nodes_per_interval: {self._Nk_list}")
 
         if self._mesh_nodes_tau_global is not None:
-            lines.append(f"  Final global_normalized_mesh_nodes: {np.array2string(self._mesh_nodes_tau_global, precision=4)}")
+            lines.append(
+                f"  Final global_normalized_mesh_nodes: {np.array2string(self._mesh_nodes_tau_global, precision=4)}"
+            )
 
         if self._mesh_nodes_time_domain is not None:
-            lines.append(f"  Mesh nodes in actual time domain: {np.array2string(self._mesh_nodes_time_domain, precision=4)}")
+            lines.append(
+                f"  Mesh nodes in actual time domain: {np.array2string(self._mesh_nodes_time_domain, precision=4)}"
+            )
         else:
-            lines.append(f"  Mesh nodes in actual time domain: Not available")
+            lines.append("  Mesh nodes in actual time domain: Not available")
 
         return "\n".join(lines)
 
@@ -239,9 +274,17 @@ class SolutionProcessor:
 
         status = "Successful NLP" if self.nlp_success else "Failed NLP"
         obj_str = f"{self.objective:.4f}" if self.objective is not None else "N/A"
-        tf_str = f"{self.terminal_time_variable:.2f}" if self.terminal_time_variable is not None else "N/A"
-        t0_str = f"{self.initial_time_variable:.2f}" if self.initial_time_variable is not None else "N/A"
+        tf_str = (
+            f"{self.terminal_time_variable:.2f}"
+            if self.terminal_time_variable is not None
+            else "N/A"
+        )
+        t0_str = (
+            f"{self.initial_time_variable:.2f}" if self.initial_time_variable is not None else "N/A"
+        )
 
-        return (f"<SolutionProcessor initial_time_variable={t0_str}, terminal_time_variable={tf_str}, "
-                f"Objective={obj_str}, Status='{status}', "
-                f"Intervals={self.num_intervals}>")
+        return (
+            f"<SolutionProcessor initial_time_variable={t0_str}, terminal_time_variable={tf_str}, "
+            f"Objective={obj_str}, Status='{status}', "
+            f"Intervals={self.num_intervals}>"
+        )
