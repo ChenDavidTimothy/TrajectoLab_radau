@@ -1,0 +1,58 @@
+from abc import ABC, abstractmethod
+import numpy as np
+from typing import List, Optional, Dict, Any
+
+class AdaptiveBase(ABC):
+    """Abstract base class for mesh adaptation strategies."""
+    
+    @abstractmethod
+    def run(self, problem, legacy_problem, initial_solution=None):
+        """Run the adaptive mesh refinement process."""
+        pass
+
+class FixedMesh(AdaptiveBase):
+    """Fixed mesh strategy - solves the problem with the provided mesh."""
+    
+    def __init__(self, polynomial_degrees=None, mesh_points=None):
+        """
+        Initialize the fixed mesh strategy.
+        
+        Args:
+            polynomial_degrees: List of polynomial degrees (number of collocation points) per interval.
+            mesh_points: List of mesh points in normalized time domain [-1, 1].
+        """
+        self.polynomial_degrees = polynomial_degrees or [4]
+        
+        if mesh_points is None:
+            self.mesh_points = np.linspace(-1, 1, len(self.polynomial_degrees) + 1)
+        else:
+            self.mesh_points = np.array(mesh_points)
+            
+        # Validate mesh
+        if len(self.polynomial_degrees) != len(self.mesh_points) - 1:
+            raise ValueError("Number of polynomial degrees must be one less than number of mesh points.")
+        if not np.isclose(self.mesh_points[0], -1.0) or not np.isclose(self.mesh_points[-1], 1.0):
+            raise ValueError("Mesh points must start at -1.0 and end at 1.0.")
+        if not np.all(np.diff(self.mesh_points) > 0):
+            raise ValueError("Mesh points must be strictly increasing.")
+    
+    def run(self, problem, legacy_problem, initial_solution=None):
+        """
+        Solve the problem with the fixed mesh.
+        
+        Args:
+            problem: The problem object.
+            legacy_problem: The legacy problem object for the solver.
+            initial_solution: Optional initial solution (not used).
+            
+        Returns:
+            The solution object.
+        """
+        from trajectolab.direct_solver import solve_single_phase_radau_collocation
+        
+        # Update legacy problem with our mesh configuration
+        legacy_problem.collocation_points_per_interval = self.polynomial_degrees
+        legacy_problem.global_normalized_mesh_nodes = self.mesh_points
+        
+        # Solve the problem
+        return solve_single_phase_radau_collocation(legacy_problem) 
