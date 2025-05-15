@@ -876,6 +876,10 @@ class PHSAdaptive(AdaptiveBase):
         # Initialize mesh configuration
         current_nodes_list = list(legacy_problem.collocation_points_per_interval)
         
+        # Ensure we have at least one interval with minimum polynomial degree
+        if not current_nodes_list:
+            current_nodes_list = [N_min]
+        
         if legacy_problem.global_normalized_mesh_nodes is not None:
             current_mesh = np.array(legacy_problem.global_normalized_mesh_nodes)
         else:
