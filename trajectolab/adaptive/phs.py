@@ -879,37 +879,6 @@ class PHSAdaptive(AdaptiveBase):
                 
         self._initial_polynomial_degrees = initial_polynomial_degrees
         self._initial_mesh_points = initial_mesh_points
-        
-        # For backwards compatibility
-        self._legacy_initial_mesh = None
-    
-    @property
-    def initial_mesh(self):
-        """
-        Get the initial mesh configuration.
-        
-        Returns:
-            A dictionary with 'polynomial_degrees' and 'mesh_points' keys,
-            or None if not configured.
-        """
-        if self._initial_polynomial_degrees is None and self._initial_mesh_points is None:
-            return self._legacy_initial_mesh
-            
-        if self._initial_polynomial_degrees is not None:
-            poly_degrees = self._initial_polynomial_degrees
-            
-            # Create default mesh points if not provided
-            if self._initial_mesh_points is None:
-                mesh_points = np.linspace(-1, 1, len(poly_degrees) + 1)
-            else:
-                mesh_points = self._initial_mesh_points
-                
-            return {
-                'polynomial_degrees': poly_degrees,
-                'mesh_points': mesh_points
-            }
-            
-        return None
             
     def run(self, problem, legacy_problem, initial_solution=None):
         """Run the PHS-Adaptive mesh refinement algorithm."""
