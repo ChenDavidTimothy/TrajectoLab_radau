@@ -841,9 +841,28 @@ class PHSAdaptive(AdaptiveBase):
                  max_polynomial_degree=16,
                  ode_solver_tolerance=1e-7,
                  num_error_sim_points=40,
-                 initial_guess=None):  # Add initial_guess parameter
-        """Initialize the PHS-Adaptive mesh refinement algorithm."""
-        super().__init__(initial_guess)  # Call parent constructor
+                 initial_polynomial_degrees=None,
+                 initial_mesh_points=None,
+                 initial_guess=None):
+        """
+        Initialize the PHS-Adaptive mesh refinement algorithm.
+        
+        Args:
+            error_tolerance: Error tolerance threshold for mesh refinement
+            max_iterations: Maximum number of refinement iterations
+            min_polynomial_degree: Minimum polynomial degree allowed
+            max_polynomial_degree: Maximum polynomial degree allowed
+            ode_solver_tolerance: ODE solver tolerance for error estimation
+            num_error_sim_points: Number of simulation points for error estimation
+            initial_polynomial_degrees: Initial list of polynomial degrees for each interval
+            initial_mesh_points: Initial mesh points in normalized time domain [-1, 1]
+            initial_guess: Optional initial guess for the solver
+
+        Note:
+            If both initial_polynomial_degrees and initial_mesh_points are provided, 
+            they must be consistent: len(initial_polynomial_degrees) == len(initial_mesh_points) - 1
+        """
+        super().__init__(initial_guess)
         self.adaptive_params = AdaptiveParameters(
             error_tolerance=error_tolerance,
             max_iterations=max_iterations,
@@ -852,9 +871,46 @@ class PHSAdaptive(AdaptiveBase):
             ode_solver_tolerance=ode_solver_tolerance,
             num_error_sim_points=num_error_sim_points
         )
-        # Add this to allow setting initial mesh externally
-        self.initial_mesh = None
+        
+        # Validate initial mesh configuration if provided
+        if initial_polynomial_degrees is not None and initial_mesh_points is not None:
+            if len(initial_polynomial_degrees) != len(initial_mesh_points) - 1:
+                raise ValueError("Number of polynomial degrees must be one less than number of mesh points")
+                
+        self._initial_polynomial_degrees = initial_polynomial_degrees
+        self._initial_mesh_points = initial_mesh_points
+        
+        # For backwards compatibility
+        self._legacy_initial_mesh = None
     
+    @property
+    def initial_mesh(self):
+        """
+        Get the initial mesh configuration.
+        
+        Returns:
+            A dictionary with 'polynomial_degrees' and 'mesh_points' keys,
+            or None if not configured.
+        """
+        if self._initial_polynomial_degrees is None and self._initial_mesh_points is None:
+            return self._legacy_initial_mesh
+            
+        if self._initial_polynomial_degrees is not None:
+            poly_degrees = self._initial_polynomial_degrees
+            
+            # Create default mesh points if not provided
+            if self._initial_mesh_points is None:
+                mesh_points = np.linspace(-1, 1, len(poly_degrees) + 1)
+            else:
+                mesh_points = self._initial_mesh_points
+                
+            return {
+                'polynomial_degrees': poly_degrees,
+                'mesh_points': mesh_points
+            }
+            
+        return None
+            
     def run(self, problem, legacy_problem, initial_solution=None):
         """Run the PHS-Adaptive mesh refinement algorithm."""
         # Extract adaptive parameters - FIXED complete parameter extraction
@@ -865,23 +921,26 @@ class PHSAdaptive(AdaptiveBase):
         ode_rtol = self.adaptive_params.ode_solver_tolerance
         num_sim_points = self.adaptive_params.num_error_sim_points
         
-        # Initialize mesh configuration
-        if self.initial_mesh and 'polynomial_degrees' in self.initial_mesh:
-            current_nodes_list = list(self.initial_mesh['polynomial_degrees'])
+        # Initialize mesh configuration, checking modern API first
+        if self._initial_polynomial_degrees is not None:
+            current_nodes_list = list(self._initial_polynomial_degrees)
+            
+            if self._initial_mesh_points is not None:
+                current_mesh = np.array(self._initial_mesh_points)
+            else:
+                current_mesh = np.linspace(-1, 1, len(current_nodes_list) + 1)
+        # Fall back to problem defaults
         else:
             current_nodes_list = list(legacy_problem.collocation_points_per_interval)
-        
-        # Ensure we have at least one interval with minimum polynomial degree
-        if not current_nodes_list:
-            current_nodes_list = [N_min]
-        
-        # Use initial mesh points if provided    
-        if self.initial_mesh and 'mesh_points' in self.initial_mesh:
-            current_mesh = np.array(self.initial_mesh['mesh_points'])
-        elif legacy_problem.global_normalized_mesh_nodes is not None:
-            current_mesh = np.array(legacy_problem.global_normalized_mesh_nodes)
-        else:
-            current_mesh = np.linspace(-1, 1, len(current_nodes_list) + 1)
+            
+            # Ensure we have at least one interval with minimum polynomial degree
+            if not current_nodes_list:
+                current_nodes_list = [N_min]
+            
+            if legacy_problem.global_normalized_mesh_nodes is not None:
+                current_mesh = np.array(legacy_problem.global_normalized_mesh_nodes)
+            else:
+                current_mesh = np.linspace(-1, 1, len(current_nodes_list) + 1)
 
         # Enforce node count limits
         for i in range(len(current_nodes_list)):
@@ -1255,4 +1314,4 @@ class PHSAdaptive(AdaptiveBase):
             failed.message = max_iter_msg + " No successful NLP solution obtained throughout iterations."
             failed.num_collocation_nodes_per_interval = current_nodes_list
             failed.global_normalized_mesh_nodes = current_mesh.tolist() if isinstance(current_mesh, np.ndarray) else current_mesh
-            return failed 
+            return failed

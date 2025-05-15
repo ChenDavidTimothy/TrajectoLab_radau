@@ -61,6 +61,8 @@ initial_guess = InitialGuess(
 # Configure the adaptive solver with appropriate settings
 adaptive_solver = RadauDirectSolver(
     mesh_method=PHSAdaptive(
+        initial_polynomial_degrees=[8, 8, 8],
+        initial_mesh_points=[-1.0, -1/3, 1/3, 1.0],
         error_tolerance=1e-3,
         max_iterations=30,
         min_polynomial_degree=4,
@@ -69,12 +71,6 @@ adaptive_solver = RadauDirectSolver(
     ),
     nlp_options={'ipopt.print_level': 0, 'ipopt.sb': 'yes', 'print_time': 0, 'ipopt.max_iter': 200}
 )
-
-# Initialize with multiple intervals
-adaptive_solver.mesh_method.initial_mesh = {
-    'polynomial_degrees': [8, 8, 8],
-    'mesh_points': [-1.0, -1/3, 1/3, 1.0]
-}
 
 print("Solving with adaptive mesh refinement...")
 solution = solve(problem, adaptive_solver)
