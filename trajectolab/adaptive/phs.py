@@ -840,8 +840,10 @@ class PHSAdaptive(AdaptiveBase):
                  min_polynomial_degree=4,
                  max_polynomial_degree=16,
                  ode_solver_tolerance=1e-7,
-                 num_error_sim_points=40):
+                 num_error_sim_points=40,
+                 initial_guess=None):  # Add initial_guess parameter
         """Initialize the PHS-Adaptive mesh refinement algorithm."""
+        super().__init__(initial_guess)  # Call parent constructor
         self.adaptive_params = AdaptiveParameters(
             error_tolerance=error_tolerance,
             max_iterations=max_iterations,
@@ -860,8 +862,8 @@ class PHSAdaptive(AdaptiveBase):
         max_iterations = self.adaptive_params.max_iterations
         N_min = self.adaptive_params.min_polynomial_degree
         N_max = self.adaptive_params.max_polynomial_degree
-        ode_rtol = self.adaptive_params.ode_solver_tolerance  # Add this line
-        num_sim_points = self.adaptive_params.num_error_sim_points  # Add this line
+        ode_rtol = self.adaptive_params.ode_solver_tolerance
+        num_sim_points = self.adaptive_params.num_error_sim_points
         
         # Initialize mesh configuration
         if self.initial_mesh and 'polynomial_degrees' in self.initial_mesh:
@@ -899,11 +901,19 @@ class PHSAdaptive(AdaptiveBase):
             current_problem.collocation_points_per_interval = list(current_nodes_list)
             current_problem.global_normalized_mesh_nodes = list(current_mesh)
 
-            # Generate initial guess
-            if iteration == 0 or not most_recent_solution or not most_recent_solution.success:
-                print("  First iteration or previous NLP failed. Using robust default initial guess.")
+            # Modified: Generate initial guess
+            if iteration == 0:
+                if self.initial_guess is not None:  # Use provided initial guess for first iteration if available
+                    print("  Using user-provided initial guess for first iteration.")
+                    initial_guess = self.initial_guess
+                else:
+                    print("  No user-provided initial guess. Using robust default.")
+                    initial_guess = _generate_robust_default_initial_guess(current_problem, current_nodes_list)
+            elif not most_recent_solution or not most_recent_solution.success:
+                print("  Previous NLP failed. Using robust default initial guess.")
                 initial_guess = _generate_robust_default_initial_guess(current_problem, current_nodes_list)
             else:
+                # Propagate from previous solution for subsequent iterations
                 initial_guess = _propagate_guess_from_previous(
                     most_recent_solution, current_problem, current_nodes_list, current_mesh
                 )

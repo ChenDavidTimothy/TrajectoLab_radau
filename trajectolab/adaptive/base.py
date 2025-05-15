@@ -5,6 +5,15 @@ from typing import List, Optional, Dict, Any
 class AdaptiveBase(ABC):
     """Abstract base class for mesh adaptation strategies."""
     
+    def __init__(self, initial_guess=None):
+        """
+        Initialize the adaptive mesh strategy.
+        
+        Args:
+            initial_guess: Optional initial guess for the first iteration
+        """
+        self.initial_guess = initial_guess
+    
     @abstractmethod
     def run(self, problem, legacy_problem, initial_solution=None):
         """Run the adaptive mesh refinement process."""
@@ -22,8 +31,8 @@ class FixedMesh(AdaptiveBase):
             mesh_points: List of mesh points in normalized time domain [-1, 1].
             initial_guess: Optional initial guess to pass to the solver.
         """
+        super().__init__(initial_guess)  # Call parent constructor
         self.polynomial_degrees = polynomial_degrees or [4]
-        self.initial_guess = initial_guess
         
         if mesh_points is None:
             self.mesh_points = np.linspace(-1, 1, len(self.polynomial_degrees) + 1)
@@ -57,7 +66,7 @@ class FixedMesh(AdaptiveBase):
         legacy_problem.global_normalized_mesh_nodes = self.mesh_points
         
         # Apply initial guess if provided
-        if hasattr(self, 'initial_guess') and self.initial_guess is not None:
+        if self.initial_guess is not None:
             legacy_problem.initial_guess = self.initial_guess
         
         # Solve the problem
