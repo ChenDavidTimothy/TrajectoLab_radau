@@ -369,9 +369,9 @@ def solve_single_phase_radau_collocation(
     if not problem_definition.collocation_points_per_interval:
         raise ValueError("problem_definition must include 'collocation_points_per_interval'.")
 
-    num_collocation_nodes_per_interval: List[
-        int
-    ] = problem_definition.collocation_points_per_interval
+    num_collocation_nodes_per_interval: List[int] = (
+        problem_definition.collocation_points_per_interval
+    )
     if not isinstance(num_collocation_nodes_per_interval, list) or not all(
         isinstance(n, int) and n > 0 for n in num_collocation_nodes_per_interval
     ):

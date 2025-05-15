@@ -170,9 +170,9 @@ def compute_lagrange_derivative_coefficients_at_point(
                 polynomial_index
             ]
 
-        lagrange_derivative_coefficients[
-            matched_node_index
-        ] = -sum_for_diagonal_derivative_coefficient
+        lagrange_derivative_coefficients[matched_node_index] = (
+            -sum_for_diagonal_derivative_coefficient
+        )
     return lagrange_derivative_coefficients
 
 

@@ -30,14 +30,14 @@ class IntervalSimulationBundle:
 
     forward_simulation_local_tau_evaluation_points: Optional[NDArray[np.float64]] = None
     state_trajectory_from_forward_simulation: Optional[NDArray[np.float64]] = None
-    nlp_state_trajectory_evaluated_at_forward_simulation_points: Optional[
-        NDArray[np.float64]
-    ] = None
+    nlp_state_trajectory_evaluated_at_forward_simulation_points: Optional[NDArray[np.float64]] = (
+        None
+    )
     backward_simulation_local_tau_evaluation_points: Optional[NDArray[np.float64]] = None
     state_trajectory_from_backward_simulation: Optional[NDArray[np.float64]] = None
-    nlp_state_trajectory_evaluated_at_backward_simulation_points: Optional[
-        NDArray[np.float64]
-    ] = None
+    nlp_state_trajectory_evaluated_at_backward_simulation_points: Optional[NDArray[np.float64]] = (
+        None
+    )
     are_forward_and_backward_simulations_successful: bool = True
 
     def __post_init__(self) -> None:

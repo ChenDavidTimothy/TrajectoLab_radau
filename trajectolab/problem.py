@@ -18,8 +18,7 @@ class DynamicsFunction(Protocol):
         controls: Dict[str, float],
         time: float,
         params: Dict[str, Any],
-    ) -> Dict[str, float]:
-        ...
+    ) -> Dict[str, float]: ...
 
 
 class ObjectiveFunction(Protocol):
@@ -31,8 +30,7 @@ class ObjectiveFunction(Protocol):
         final_states: Dict[str, float],
         q: Union[float, List[float], NDArray[np.float64]],
         params: Dict[str, Any],
-    ) -> float:
-        ...
+    ) -> float: ...
 
 
 class IntegralFunction(Protocol):
@@ -42,8 +40,7 @@ class IntegralFunction(Protocol):
         controls: Dict[str, float],
         time: float,
         params: Dict[str, Any],
-    ) -> float:
-        ...
+    ) -> float: ...
 
 
 class ConstraintFunction(Protocol):
@@ -53,8 +50,7 @@ class ConstraintFunction(Protocol):
         controls: Dict[str, float],
         time: float,
         params: Dict[str, Any],
-    ) -> Union["Constraint", List["Constraint"]]:
-        ...
+    ) -> Union["Constraint", List["Constraint"]]: ...
 
 
 class EventConstraintFunction(Protocol):
@@ -66,8 +62,7 @@ class EventConstraintFunction(Protocol):
         final_states: Dict[str, float],
         q: Union[float, List[float], NDArray[np.float64]],
         params: Dict[str, Any],
-    ) -> Union["Constraint", List["Constraint"]]:
-        ...
+    ) -> Union["Constraint", List["Constraint"]]: ...
 
 
 class Constraint:
