@@ -49,7 +49,7 @@ adaptive_solver = RadauDirectSolver(
         min_polynomial_degree=4,
         max_polynomial_degree=8
     ),
-    nlp_options={'ipopt.print_level': 0, 'print_time': 0}  # Less verbose output
+    nlp_options={'ipopt.print_level': 0, 'ipopt.sb': 'yes', 'print_time': 0, 'ipopt.max_iter': 200}
 )
 
 # Initialize with multiple intervals
@@ -65,7 +65,7 @@ if solution.success:
     print(f"Successfully solved! Objective: {solution.objective:.6f}")
     print(f"Final mesh intervals: {solution.polynomial_degrees}")
     print(f"Mesh points: {solution.mesh_points}")
-    solution.plot_by_interval()
+    solution.plot()
 else:
     print(f"Solution failed: {solution.message}")
 

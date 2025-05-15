@@ -199,100 +199,14 @@ class Solution:
         return None
     
     def plot(self, figsize=(10, 8)):
+        """
+        Plot the solution with color-coded intervals.
+        
+        Args:
+            figsize: Figure size tuple (width, height)
+        """
         if not self.success:
             print("Cannot plot: Solution not successful")
-            return
-            
-        num_states = len(self._state_names)
-        num_controls = len(self._control_names)
-        
-        num_rows = num_states + num_controls
-        if num_rows == 0:
-            return
-            
-        fig, axes = plt.subplots(num_rows, 1, figsize=figsize, sharex=True)
-        if num_rows == 1:
-            axes = [axes]
-            
-        row = 0
-        
-        # Plot states
-        for i, name in enumerate(self._state_names):
-            time, values = self.get_state_trajectory(name)
-            axes[row].plot(time, values, 'b-', marker='.')
-            axes[row].set_ylabel(f"{name}")
-            axes[row].grid(True)
-            row += 1
-            
-        # Plot controls
-        for i, name in enumerate(self._control_names):
-            time, values = self.get_control_trajectory(name)
-            axes[row].step(time, values, 'r-', where='post', marker='.')
-            axes[row].set_ylabel(f"{name}")
-            axes[row].grid(True)
-            row += 1
-            
-        axes[-1].set_xlabel('Time')
-        plt.tight_layout()
-        plt.show()
-        
-    def plot_states(self, state_names=None, figsize=(10, 8)):
-        if not self.success:
-            print("Cannot plot: Solution not successful")
-            return
-            
-        if state_names is None:
-            state_names = self._state_names
-            
-        if not state_names:
-            return
-            
-        valid_states = [name for name in state_names if name in self._state_names]
-        
-        fig, axes = plt.subplots(len(valid_states), 1, figsize=figsize, sharex=True)
-        if len(valid_states) == 1:
-            axes = [axes]
-            
-        for i, name in enumerate(valid_states):
-            time, values = self.get_state_trajectory(name)
-            axes[i].plot(time, values, 'b-', marker='.')
-            axes[i].set_ylabel(f"{name}")
-            axes[i].grid(True)
-            
-        axes[-1].set_xlabel('Time')
-        plt.tight_layout()
-        plt.show()
-        
-    def plot_controls(self, control_names=None, figsize=(10, 8)):
-        if not self.success:
-            print("Cannot plot: Solution not successful")
-            return
-            
-        if control_names is None:
-            control_names = self._control_names
-            
-        if not control_names:
-            return
-            
-        valid_controls = [name for name in control_names if name in self._control_names]
-        
-        fig, axes = plt.subplots(len(valid_controls), 1, figsize=figsize, sharex=True)
-        if len(valid_controls) == 1:
-            axes = [axes]
-            
-        for i, name in enumerate(valid_controls):
-            time, values = self.get_control_trajectory(name)
-            axes[i].step(time, values, 'r-', where='post', marker='.')
-            axes[i].set_ylabel(f"{name}")
-            axes[i].grid(True)
-            
-        axes[-1].set_xlabel('Time')
-        plt.tight_layout()
-        plt.show()
-        
-    def plot_by_interval(self, figsize=(10, 8)):
-        if not self.success or self.num_intervals == 0:
-            print("Cannot plot: Solution not successful or no intervals")
             return
             
         num_states = len(self._state_names)
@@ -358,6 +272,118 @@ class Solution:
         plt.tight_layout(rect=[0, 0, 0.85, 0.96])
         plt.show()
         
+    def plot_states(self, state_names=None, figsize=(10, 8)):
+        """
+        Plot specific state trajectories.
+        
+        Args:
+            state_names: List of state names to plot (default: all)
+            figsize: Figure size tuple (width, height)
+        """
+        if not self.success:
+            print("Cannot plot: Solution not successful")
+            return
+            
+        if state_names is None:
+            state_names = self._state_names
+            
+        if not state_names:
+            return
+            
+        valid_states = [name for name in state_names if name in self._state_names]
+        
+        fig, axes = plt.subplots(len(valid_states), 1, figsize=figsize, sharex=True)
+        if len(valid_states) == 1:
+            axes = [axes]
+            
+        # Get color map for intervals
+        num_intervals = self.num_intervals
+        colors = plt.cm.viridis(np.linspace(0, 1, num_intervals))
+        
+        all_interval_data = self.get_all_interval_data()
+        
+        for i, name in enumerate(valid_states):
+            state_idx = self._get_state_index(name)
+            for k, interval_data in enumerate(all_interval_data):
+                if (interval_data and 
+                    len(interval_data.states_segment) > state_idx and 
+                    interval_data.states_segment[state_idx].size > 0):
+                    axes[i].plot(
+                        interval_data.time_states_segment,
+                        interval_data.states_segment[state_idx],
+                        color=colors[k], marker='.', linestyle='-'
+                    )
+            axes[i].set_ylabel(f"{name}")
+            axes[i].grid(True)
+            
+        # Add legend
+        if self.polynomial_degrees:
+            handles, labels = [], []
+            for k in range(num_intervals):
+                handles.append(plt.Line2D([0], [0], color=colors[k], lw=2))
+                labels.append(f"Interval {k} (Nk={self.polynomial_degrees[k]})")
+            fig.legend(handles, labels, loc='upper right', title="Mesh Intervals")
+            
+        axes[-1].set_xlabel('Time')
+        plt.tight_layout(rect=[0, 0, 0.85, 0.96])
+        plt.show()
+        
+    def plot_controls(self, control_names=None, figsize=(10, 8)):
+        """
+        Plot specific control trajectories.
+        
+        Args:
+            control_names: List of control names to plot (default: all)
+            figsize: Figure size tuple (width, height)
+        """
+        if not self.success:
+            print("Cannot plot: Solution not successful")
+            return
+            
+        if control_names is None:
+            control_names = self._control_names
+            
+        if not control_names:
+            return
+            
+        valid_controls = [name for name in control_names if name in self._control_names]
+        
+        fig, axes = plt.subplots(len(valid_controls), 1, figsize=figsize, sharex=True)
+        if len(valid_controls) == 1:
+            axes = [axes]
+            
+        # Get color map for intervals
+        num_intervals = self.num_intervals
+        colors = plt.cm.viridis(np.linspace(0, 1, num_intervals))
+        
+        all_interval_data = self.get_all_interval_data()
+        
+        for i, name in enumerate(valid_controls):
+            control_idx = self._get_control_index(name)
+            for k, interval_data in enumerate(all_interval_data):
+                if (interval_data and 
+                    len(interval_data.controls_segment) > control_idx and 
+                    interval_data.controls_segment[control_idx].size > 0):
+                    axes[i].plot(
+                        interval_data.time_controls_segment,
+                        interval_data.controls_segment[control_idx],
+                        color=colors[k], marker='.', linestyle='-'
+                    )
+            axes[i].set_ylabel(f"{name}")
+            axes[i].grid(True)
+            
+        # Add legend
+        if self.polynomial_degrees:
+            handles, labels = [], []
+            for k in range(num_intervals):
+                handles.append(plt.Line2D([0], [0], color=colors[k], lw=2))
+                labels.append(f"Interval {k} (Nk={self.polynomial_degrees[k]})")
+            fig.legend(handles, labels, loc='upper right', title="Mesh Intervals")
+            
+        axes[-1].set_xlabel('Time')
+        plt.tight_layout(rect=[0, 0, 0.85, 0.96])
+        plt.show()
+        
     def to_csv(self, filename):
         if not self.success:
             print("Cannot export: Solution not successful")
@@ -400,4 +426,4 @@ class Solution:
     def load(cls, filename):
         import pickle
         with open(filename, 'rb') as f:
-            return pickle.load(f) 
+            return pickle.load(f)
