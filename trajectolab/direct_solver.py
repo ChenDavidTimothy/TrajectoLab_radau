@@ -1,5 +1,3 @@
-from typing import List, Optional
-
 import casadi as ca
 import numpy as np
 
@@ -192,12 +190,12 @@ def _process_trajectory_points(
 
 
 def _extract_and_format_solution(
-    casadi_solution_object: Optional[ca.OptiSol],
-    casadi_optimization_problem_object: ca.Opti,
-    problem_definition: OptimalControlProblem,
-    num_collocation_nodes_per_interval: List[int],
-    global_normalized_mesh_nodes: np.ndarray,
-) -> OptimalControlSolution:
+    casadi_solution_object,
+    casadi_optimization_problem_object,
+    problem_definition,
+    num_collocation_nodes_per_interval,
+    global_normalized_mesh_nodes,
+):
     solution = OptimalControlSolution()
 
     if casadi_solution_object is None:
@@ -208,10 +206,10 @@ def _extract_and_format_solution(
         solution.global_normalized_mesh_nodes = global_normalized_mesh_nodes
         return solution
 
-    num_mesh_intervals: int = len(num_collocation_nodes_per_interval)
-    num_states: int = problem_definition.num_states
-    num_controls: int = problem_definition.num_controls
-    num_integrals: int = problem_definition.num_integrals
+    num_mesh_intervals = len(num_collocation_nodes_per_interval)
+    num_states = problem_definition.num_states
+    num_controls = problem_definition.num_controls
+    num_integrals = problem_definition.num_integrals
 
     try:
         solution.initial_time_variable = casadi_solution_object.value(
@@ -359,27 +357,25 @@ def _set_initial_value_for_integrals(opti, integral_vars, guess, num_integrals):
 
 
 def solve_single_phase_radau_collocation(
-    problem_definition: OptimalControlProblem,
-) -> OptimalControlSolution:
+    problem_definition,
+):
     opti = ca.Opti()
 
     # --- Extract Problem Parameters ---
-    num_states: int = problem_definition.num_states
-    num_controls: int = problem_definition.num_controls
-    num_integrals: int = problem_definition.num_integrals
+    num_states = problem_definition.num_states
+    num_controls = problem_definition.num_controls
+    num_integrals = problem_definition.num_integrals
 
     if not problem_definition.collocation_points_per_interval:
         raise ValueError("problem_definition must include 'collocation_points_per_interval'.")
 
-    num_collocation_nodes_per_interval: List[int] = (
-        problem_definition.collocation_points_per_interval
-    )
+    num_collocation_nodes_per_interval = problem_definition.collocation_points_per_interval
     if not isinstance(num_collocation_nodes_per_interval, list) or not all(
         isinstance(n, int) and n > 0 for n in num_collocation_nodes_per_interval
     ):
         raise ValueError("'collocation_points_per_interval' must be a list of positive integers.")
 
-    num_mesh_intervals: int = len(num_collocation_nodes_per_interval)
+    num_mesh_intervals = len(num_collocation_nodes_per_interval)
 
     # User-defined functions
     dynamics_function = problem_definition.dynamics_function
@@ -390,8 +386,8 @@ def solve_single_phase_radau_collocation(
     problem_parameters = problem_definition.problem_parameters
 
     # --- Decision Variables ---
-    initial_time_variable: ca.MX = opti.variable()
-    terminal_time_variable: ca.MX = opti.variable()
+    initial_time_variable = opti.variable()
+    terminal_time_variable = opti.variable()
     opti.subject_to(initial_time_variable >= problem_definition.t0_bounds[0])
     opti.subject_to(initial_time_variable <= problem_definition.t0_bounds[1])
     opti.subject_to(terminal_time_variable >= problem_definition.tf_bounds[0])
@@ -537,7 +533,10 @@ def solve_single_phase_radau_collocation(
             # Apply path constraints if provided
             if path_constraints_function:
                 path_constraints = path_constraints_function(
-                    state_at_colloc, control_at_colloc, physical_time, problem_parameters
+                    state_at_colloc,
+                    control_at_colloc,
+                    physical_time,
+                    problem_parameters,
                 )
                 if not isinstance(path_constraints, list):
                     path_constraints = [path_constraints]
@@ -644,11 +643,7 @@ def solve_single_phase_radau_collocation(
         # States at global mesh points
         if ig.states and len(ig.states) > 0:
             # First point
-            if (
-                len(ig.states) > 0
-                and isinstance(ig.states[0], np.ndarray)
-                and ig.states[0].shape[0] == num_states
-            ):
+            if isinstance(ig.states[0], np.ndarray) and ig.states[0].shape[0] == num_states:
                 opti.set_initial(state_at_global_mesh_nodes_variables[0], ig.states[0][:, 0])
 
             # End points of each interval
@@ -657,7 +652,8 @@ def solve_single_phase_radau_collocation(
                     cols = ig.states[k].shape[1] - 1
                     if ig.states[k].shape[0] == num_states and cols >= 0:
                         opti.set_initial(
-                            state_at_global_mesh_nodes_variables[k + 1], ig.states[k][:, cols]
+                            state_at_global_mesh_nodes_variables[k + 1],
+                            ig.states[k][:, cols],
                         )
 
             # Interior points
@@ -684,7 +680,8 @@ def solve_single_phase_radau_collocation(
                             # Pad if needed
                             if cols_to_use < interior_nodes:
                                 padding = np.tile(
-                                    guess_slice[:, -1:], (1, interior_nodes - cols_to_use)
+                                    guess_slice[:, -1:],
+                                    (1, interior_nodes - cols_to_use),
                                 )
                                 guess_slice = np.hstack((guess_slice, padding))
 

@@ -9,19 +9,19 @@ ZERO_TOLERANCE = 1e-12
 
 @dataclass
 class RadauBasisComponents:
-    state_approximation_nodes: np.ndarray = None
-    collocation_nodes: np.ndarray = None
-    quadrature_weights: np.ndarray = None
-    differentiation_matrix: np.ndarray = None
-    barycentric_weights_for_state_nodes: np.ndarray = None
-    lagrange_at_tau_plus_one: np.ndarray = None
+    state_approximation_nodes = None
+    collocation_nodes = None
+    quadrature_weights = None
+    differentiation_matrix = None
+    barycentric_weights_for_state_nodes = None
+    lagrange_at_tau_plus_one = None
 
 
 @dataclass
 class RadauNodesAndWeights:
-    state_approximation_nodes: np.ndarray = None
-    collocation_nodes: np.ndarray = None
-    quadrature_weights: np.ndarray = None
+    state_approximation_nodes = None
+    collocation_nodes = None
+    quadrature_weights = None
 
 
 def compute_legendre_gauss_radau_nodes_and_weights(num_collocation_nodes):

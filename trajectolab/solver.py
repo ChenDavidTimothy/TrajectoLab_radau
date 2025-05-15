@@ -1,6 +1,4 @@
-from trajectolab.adaptive.base import AdaptiveBase
 from trajectolab.adaptive.phs import PHSAdaptive
-from trajectolab.problem import Problem
 from trajectolab.solution import Solution
 
 

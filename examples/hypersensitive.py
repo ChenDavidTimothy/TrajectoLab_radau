@@ -1,6 +1,13 @@
 import numpy as np
 
-from trajectolab import Constraint, FixedMesh, PHSAdaptive, Problem, RadauDirectSolver, solve
+from trajectolab import (
+    Constraint,
+    FixedMesh,
+    PHSAdaptive,
+    Problem,
+    RadauDirectSolver,
+    solve,
+)
 from trajectolab.direct_solver import InitialGuess
 
 # Define the hypersensitive problem
@@ -11,7 +18,9 @@ problem.set_time_bounds(t0=0.0, tf=40.0)
 
 # Add state with boundary conditions
 problem.add_state(
-    name="x", initial_constraint=Constraint(equals=1.5), final_constraint=Constraint(equals=1.0)
+    name="x",
+    initial_constraint=Constraint(equals=1.5),
+    final_constraint=Constraint(equals=1.0),
 )
 
 # Add control
@@ -73,7 +82,12 @@ adaptive_solver = RadauDirectSolver(
         max_polynomial_degree=8,
         initial_guess=initial_guess,
     ),
-    nlp_options={"ipopt.print_level": 0, "ipopt.sb": "yes", "print_time": 0, "ipopt.max_iter": 200},
+    nlp_options={
+        "ipopt.print_level": 0,
+        "ipopt.sb": "yes",
+        "print_time": 0,
+        "ipopt.max_iter": 200,
+    },
 )
 
 print("Solving with adaptive mesh refinement...")
@@ -95,7 +109,12 @@ fixed_mesh_solver = RadauDirectSolver(
         mesh_points=[-1.0, -1 / 3, 1 / 3, 1.0],
         initial_guess=initial_guess,  # Pass the initial guess
     ),
-    nlp_options={"ipopt.print_level": 0, "ipopt.sb": "yes", "print_time": 0, "ipopt.max_iter": 200},
+    nlp_options={
+        "ipopt.print_level": 0,
+        "ipopt.sb": "yes",
+        "print_time": 0,
+        "ipopt.max_iter": 200,
+    },
 )
 
 fixed_solution = solve(problem, fixed_mesh_solver)

@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
-from matplotlib.lines import Line2D
 import numpy as np
+from matplotlib.lines import Line2D
 
 
 class IntervalData:

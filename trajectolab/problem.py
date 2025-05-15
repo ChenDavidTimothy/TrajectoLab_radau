@@ -64,7 +64,11 @@ class Problem:
         if bounds is not None:
             lower, upper = bounds
 
-        self._controls[name] = {"index": len(self._controls), "lower": lower, "upper": upper}
+        self._controls[name] = {
+            "index": len(self._controls),
+            "lower": lower,
+            "upper": upper,
+        }
         return self
 
     def add_parameter(self, name, value):
@@ -157,7 +161,10 @@ class Problem:
                     result.extend(
                         [
                             EventConstraint(
-                                val=c.val, min_val=c.lower, max_val=c.upper, equals=c.equals
+                                val=c.val,
+                                min_val=c.lower,
+                                max_val=c.upper,
+                                equals=c.equals,
                             )
                             for c in constraint
                         ]
@@ -174,7 +181,7 @@ class Problem:
             t0_bounds=self._t0_bounds,
             tf_bounds=self._tf_bounds,
             num_integrals=self._num_integrals,
-            integral_integrand_function=vectorized_integrand if self._num_integrals > 0 else None,
+            integral_integrand_function=(vectorized_integrand if self._num_integrals > 0 else None),
             path_constraints_function=(
                 vectorized_path_constraints if self._path_constraints else None
             ),
@@ -258,7 +265,10 @@ class Problem:
                     result.extend(
                         [
                             PathConstraint(
-                                val=c.val, min_val=c.lower, max_val=c.upper, equals=c.equals
+                                val=c.val,
+                                min_val=c.lower,
+                                max_val=c.upper,
+                                equals=c.equals,
                             )
                             for c in constraint
                         ]
