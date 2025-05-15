@@ -243,15 +243,19 @@ def calculate_relative_error_estimate(
     if num_states == 0:
         return 0.0  # No states, no error
 
-    # Forward errors
+    # Forward errors - add debugging to see what's happening
     fwd_diff = np.abs(sim_bundle.state_trajectory_from_forward_simulation - 
                      sim_bundle.nlp_state_trajectory_evaluated_at_forward_simulation_points)
+    print(f"    DEBUG: Forward differences shape: {fwd_diff.shape}, Max raw diff: {np.max(fwd_diff)}")
+    
     fwd_errors = gamma_factors * fwd_diff
     max_fwd_errors = np.nanmax(fwd_errors, axis=1) if fwd_errors.size > 0 else np.zeros(num_states)
 
     # Backward errors
     bwd_diff = np.abs(sim_bundle.state_trajectory_from_backward_simulation - 
                      sim_bundle.nlp_state_trajectory_evaluated_at_backward_simulation_points)
+    print(f"    DEBUG: Backward differences shape: {bwd_diff.shape}, Max raw diff: {np.max(bwd_diff)}")
+    
     bwd_errors = gamma_factors * bwd_diff
     max_bwd_errors = np.nanmax(bwd_errors, axis=1) if bwd_errors.size > 0 else np.zeros(num_states)
 
@@ -261,6 +265,10 @@ def calculate_relative_error_estimate(
     # Overall maximum error across all states
     max_error = np.nanmax(max_errors_per_state) if max_errors_per_state.size > 0 else np.inf
 
+    # Ensure we never return exactly zero error (numerical tolerance)
+    if max_error < 1e-15:
+        max_error = 1e-15
+        
     if np.isnan(max_error):
         print(f"    Interval {interval_idx}: Error calculation resulted in NaN. Treating as high error (np.inf).")
         return np.inf
@@ -833,17 +841,7 @@ class PHSAdaptive(AdaptiveBase):
                  max_polynomial_degree=16,
                  ode_solver_tolerance=1e-7,
                  num_error_sim_points=40):
-        """
-        Initialize the PHS-Adaptive mesh refinement algorithm.
-        
-        Args:
-            error_tolerance: Error tolerance threshold (epsilon_tol)
-            max_iterations: Maximum number of refinement iterations (M_max_iterations)
-            min_polynomial_degree: Minimum polynomial degree allowed (N_min_poly_degree)
-            max_polynomial_degree: Maximum polynomial degree allowed (N_max_poly_degree)
-            ode_solver_tolerance: ODE solver tolerance (ode_solver_tol)
-            num_error_sim_points: Number of points for error simulation
-        """
+        """Initialize the PHS-Adaptive mesh refinement algorithm."""
         self.adaptive_params = AdaptiveParameters(
             error_tolerance=error_tolerance,
             max_iterations=max_iterations,
@@ -852,35 +850,33 @@ class PHSAdaptive(AdaptiveBase):
             ode_solver_tolerance=ode_solver_tolerance,
             num_error_sim_points=num_error_sim_points
         )
+        # Add this to allow setting initial mesh externally
+        self.initial_mesh = None
     
     def run(self, problem, legacy_problem, initial_solution=None):
-        """
-        Run the PHS-Adaptive mesh refinement algorithm.
-        
-        Args:
-            problem: The problem object.
-            legacy_problem: The legacy problem object for the solver.
-            initial_solution: Optional initial solution.
-            
-        Returns:
-            The solution object.
-        """
-        # Extract adaptive parameters
+        """Run the PHS-Adaptive mesh refinement algorithm."""
+        # Extract adaptive parameters - FIXED complete parameter extraction
         error_tol = self.adaptive_params.error_tolerance
         max_iterations = self.adaptive_params.max_iterations
         N_min = self.adaptive_params.min_polynomial_degree
         N_max = self.adaptive_params.max_polynomial_degree
-        ode_rtol = self.adaptive_params.ode_solver_tolerance
-        num_sim_points = self.adaptive_params.num_error_sim_points
-
+        ode_rtol = self.adaptive_params.ode_solver_tolerance  # Add this line
+        num_sim_points = self.adaptive_params.num_error_sim_points  # Add this line
+        
         # Initialize mesh configuration
-        current_nodes_list = list(legacy_problem.collocation_points_per_interval)
+        if self.initial_mesh and 'polynomial_degrees' in self.initial_mesh:
+            current_nodes_list = list(self.initial_mesh['polynomial_degrees'])
+        else:
+            current_nodes_list = list(legacy_problem.collocation_points_per_interval)
         
         # Ensure we have at least one interval with minimum polynomial degree
         if not current_nodes_list:
             current_nodes_list = [N_min]
         
-        if legacy_problem.global_normalized_mesh_nodes is not None:
+        # Use initial mesh points if provided    
+        if self.initial_mesh and 'mesh_points' in self.initial_mesh:
+            current_mesh = np.array(self.initial_mesh['mesh_points'])
+        elif legacy_problem.global_normalized_mesh_nodes is not None:
             current_mesh = np.array(legacy_problem.global_normalized_mesh_nodes)
         else:
             current_mesh = np.linspace(-1, 1, len(current_nodes_list) + 1)
