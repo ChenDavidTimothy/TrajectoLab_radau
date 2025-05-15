@@ -7,6 +7,7 @@ from trajectolab.solution import Solution
 
 
 class RadauDirectSolver:
+
     def __init__(
         self,
         mesh_method: Optional[AdaptiveBase] = None,

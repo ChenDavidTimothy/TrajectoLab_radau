@@ -1,41 +1,26 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional, Sequence, Union
 
 import numpy as np
-from numpy.typing import NDArray
-
-from trajectolab.direct_solver import InitialGuess, OptimalControlProblem, OptimalControlSolution
-from trajectolab.problem import Problem
 
 
 class AdaptiveBase(ABC):
-    def __init__(self, initial_guess: Optional[InitialGuess] = None) -> None:
+    def __init__(self, initial_guess=None):
         self.initial_guess = initial_guess
 
     @abstractmethod
-    def run(
-        self,
-        problem: Problem,
-        legacy_problem: OptimalControlProblem,
-        initial_solution: Optional[OptimalControlSolution] = None,
-    ) -> OptimalControlSolution:
+    def run(self, problem, legacy_problem, initial_solution=None):
         pass
 
 
 class FixedMesh(AdaptiveBase):
-    def __init__(
-        self,
-        polynomial_degrees: Optional[List[int]] = None,
-        mesh_points: Optional[Union[Sequence[float], NDArray[np.float64]]] = None,
-        initial_guess: Optional[InitialGuess] = None,
-    ) -> None:
+    def __init__(self, polynomial_degrees=None, mesh_points=None, initial_guess=None):
         super().__init__(initial_guess)  # Call parent constructor
         self.polynomial_degrees = polynomial_degrees or [4]
 
         if mesh_points is None:
             self.mesh_points = np.linspace(-1, 1, len(self.polynomial_degrees) + 1)
         else:
-            self.mesh_points = np.array(mesh_points, dtype=np.float64)
+            self.mesh_points = np.array(mesh_points)
 
         # Validate mesh
         if len(self.polynomial_degrees) != len(self.mesh_points) - 1:
@@ -47,12 +32,7 @@ class FixedMesh(AdaptiveBase):
         if not np.all(np.diff(self.mesh_points) > 0):
             raise ValueError("Mesh points must be strictly increasing.")
 
-    def run(
-        self,
-        problem: Problem,
-        legacy_problem: OptimalControlProblem,
-        initial_solution: Optional[OptimalControlSolution] = None,
-    ) -> OptimalControlSolution:
+    def run(self, problem, legacy_problem, initial_solution=None):
         from trajectolab.direct_solver import solve_single_phase_radau_collocation
 
         # Update legacy problem with our mesh configuration

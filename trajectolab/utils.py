@@ -61,4 +61,5 @@ def map_normalized_to_physical_time(
 def map_physical_to_normalized_time(
     t: Union[float, np.ndarray], t0: float, tf: float
 ) -> Union[float, np.ndarray]:
+
     return 2 * (t - t0) / (tf - t0) - 1

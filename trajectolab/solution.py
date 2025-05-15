@@ -1,71 +1,63 @@
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple
 
-import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
-from matplotlib.lines import Line2D
-from numpy.typing import NDArray
 
 
 class IntervalData:
     def __init__(
         self,
-        t_start: Optional[float] = None,
-        t_end: Optional[float] = None,
-        Nk: Optional[int] = None,
-        time_states_segment: Optional[NDArray[np.float64]] = None,
-        states_segment: Optional[List[NDArray[np.float64]]] = None,
-        time_controls_segment: Optional[NDArray[np.float64]] = None,
-        controls_segment: Optional[List[NDArray[np.float64]]] = None,
+        t_start=None,
+        t_end=None,
+        Nk=None,
+        time_states_segment=None,
+        states_segment=None,
+        time_controls_segment=None,
+        controls_segment=None,
     ):
-        self.t_start: Optional[float] = t_start
-        self.t_end: Optional[float] = t_end
-        self.Nk: Optional[int] = Nk
-        self.time_states_segment: NDArray[np.float64] = (
+        self.t_start = t_start
+        self.t_end = t_end
+        self.Nk = Nk
+        self.time_states_segment = (
             time_states_segment if time_states_segment is not None else np.array([])
         )
-        self.states_segment: List[NDArray[np.float64]] = (
-            states_segment if states_segment is not None else []
-        )
-        self.time_controls_segment: NDArray[np.float64] = (
+        self.states_segment = states_segment if states_segment is not None else []
+        self.time_controls_segment = (
             time_controls_segment if time_controls_segment is not None else np.array([])
         )
-        self.controls_segment: List[NDArray[np.float64]] = (
-            controls_segment if controls_segment is not None else []
-        )
+        self.controls_segment = controls_segment if controls_segment is not None else []
 
 
 class Solution:
-    def __init__(self, solution: Any, problem: Any):
+    def __init__(self, solution, problem):
         self._problem = problem
         self._solution = solution
-        self._state_names: List[str] = list(problem._states.keys()) if problem else []
-        self._control_names: List[str] = list(problem._controls.keys()) if problem else []
+        self._state_names = list(problem._states.keys()) if problem else []
+        self._control_names = list(problem._controls.keys()) if problem else []
 
         # Extract basic solution properties
-        self.success: bool = False
-        self.message: str = "No solution data"
-        self.initial_time: Optional[float] = None
-        self.final_time: Optional[float] = None
-        self.objective: Optional[float] = None
-        self.integrals: Optional[Union[float, List[float]]] = None
+        self.success = False
+        self.message = "No solution data"
+        self.initial_time = None
+        self.final_time = None
+        self.objective = None
+        self.integrals = None
 
         # Extract trajectories
-        self._time_states: Optional[NDArray[np.float64]] = None
-        self._states: Optional[List[NDArray[np.float64]]] = None
-        self._time_controls: Optional[NDArray[np.float64]] = None
-        self._controls: Optional[List[NDArray[np.float64]]] = None
+        self._time_states = None
+        self._states = None
+        self._time_controls = None
+        self._controls = None
 
         # Extract mesh information
-        self._polynomial_degrees: Optional[List[int]] = None
-        self._mesh_points_normalized: Optional[NDArray[np.float64]] = None
-        self._mesh_points_time: Optional[NDArray[np.float64]] = None
+        self._polynomial_degrees = None
+        self._mesh_points_normalized = None
+        self._mesh_points_time = None
 
         if solution:
             self._extract_solution_data(solution)
 
-    def _extract_solution_data(self, solution: Any) -> None:
+    def _extract_solution_data(self, solution):
         # Basic properties
         self.success = getattr(solution, "success", False)
         self.message = getattr(solution, "message", "Unknown")
@@ -107,50 +99,38 @@ class Solution:
         return self._polynomial_degrees
 
     @property
-    def mesh_points(self) -> Optional[NDArray[np.float64]]:
+    def mesh_points(self) -> Optional[np.ndarray]:
         return self._mesh_points_time
 
     @property
-    def mesh_points_normalized(self) -> Optional[NDArray[np.float64]]:
+    def mesh_points_normalized(self) -> Optional[np.ndarray]:
         return self._mesh_points_normalized
 
-    def get_state_trajectory(
-        self, state_name_or_index: Union[str, int]
-    ) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
+    def get_state_trajectory(self, state_name_or_index) -> Tuple[np.ndarray, np.ndarray]:
         index = self._get_state_index(state_name_or_index)
-        if index is None or self._states is None or self._time_states is None:
-            return np.array([]), np.array([])
-        if index >= len(self._states):
+        if index is None or self._states is None or index >= len(self._states):
             return np.array([]), np.array([])
         return self._time_states, self._states[index]
 
-    def get_control_trajectory(
-        self, control_name_or_index: Union[str, int]
-    ) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
+    def get_control_trajectory(self, control_name_or_index) -> Tuple[np.ndarray, np.ndarray]:
         index = self._get_control_index(control_name_or_index)
-        if index is None or self._controls is None or self._time_controls is None:
-            return np.array([]), np.array([])
-        if index >= len(self._controls):
+        if index is None or self._controls is None or index >= len(self._controls):
             return np.array([]), np.array([])
         return self._time_controls, self._controls[index]
 
-    def interpolate_state(
-        self, state_name_or_index: Union[str, int], time_point: float
-    ) -> Optional[float]:
+    def interpolate_state(self, state_name_or_index, time_point):
         time, values = self.get_state_trajectory(state_name_or_index)
         if len(time) == 0 or len(values) == 0:
             return None
-        return float(np.interp(time_point, time, values))
+        return np.interp(time_point, time, values)
 
-    def interpolate_control(
-        self, control_name_or_index: Union[str, int], time_point: float
-    ) -> Optional[float]:
+    def interpolate_control(self, control_name_or_index, time_point):
         time, values = self.get_control_trajectory(control_name_or_index)
         if len(time) == 0 or len(values) == 0:
             return None
-        return float(np.interp(time_point, time, values))
+        return np.interp(time_point, time, values)
 
-    def get_data_for_interval(self, interval_index: int) -> Optional[IntervalData]:
+    def get_data_for_interval(self, interval_index) -> Optional[IntervalData]:
         if not (0 <= interval_index < self.num_intervals):
             return None
         if self._mesh_points_time is None:
@@ -158,9 +138,11 @@ class Solution:
 
         interval_t_start = self._mesh_points_time[interval_index]
         interval_t_end = self._mesh_points_time[interval_index + 1]
-        nk_interval = -1
-        if self._polynomial_degrees is not None and interval_index < len(self._polynomial_degrees):
-            nk_interval = self._polynomial_degrees[interval_index]
+        nk_interval = (
+            self._polynomial_degrees[interval_index]
+            if self._polynomial_degrees and interval_index < len(self._polynomial_degrees)
+            else -1
+        )
 
         # Extract segment data
         time_states_segment, states_segment = self._extract_segment_data(
@@ -181,17 +163,12 @@ class Solution:
             controls_segment=controls_segment,
         )
 
-    def get_all_interval_data(self) -> List[Optional[IntervalData]]:
+    def get_all_interval_data(self) -> List[IntervalData]:
         return [self.get_data_for_interval(i) for i in range(self.num_intervals)]
 
     def _extract_segment_data(
-        self,
-        time_array: Optional[NDArray[np.float64]],
-        data_arrays: Optional[List[NDArray[np.float64]]],
-        interval_t_start: float,
-        interval_t_end: float,
-        epsilon: float = 1e-9,
-    ) -> Tuple[NDArray[np.float64], List[NDArray[np.float64]]]:
+        self, time_array, data_arrays, interval_t_start, interval_t_end, epsilon=1e-9
+    ):
         if time_array is None or not data_arrays or len(time_array) == 0:
             return np.array([]), [
                 np.array([]) for _ in range(len(data_arrays) if data_arrays else 1)
@@ -208,7 +185,7 @@ class Solution:
             return np.array([]), [np.array([]) for _ in range(len(data_arrays))]
 
         time_segment = sorted_time[idx_in_interval]
-        data_segments: List[NDArray[np.float64]] = []
+        data_segments = []
 
         for data_array in data_arrays:
             if len(data_array) == len(time_array):
@@ -219,7 +196,7 @@ class Solution:
 
         return time_segment, data_segments
 
-    def _get_state_index(self, state_name_or_index: Union[str, int]) -> Optional[int]:
+    def _get_state_index(self, state_name_or_index):
         if isinstance(state_name_or_index, int):
             return (
                 state_name_or_index if 0 <= state_name_or_index < len(self._state_names) else None
@@ -231,7 +208,7 @@ class Solution:
                 return None
         return None
 
-    def _get_control_index(self, control_name_or_index: Union[str, int]) -> Optional[int]:
+    def _get_control_index(self, control_name_or_index):
         if isinstance(control_name_or_index, int):
             return (
                 control_name_or_index
@@ -245,7 +222,7 @@ class Solution:
                 return None
         return None
 
-    def plot(self, figsize: Tuple[float, float] = (10, 8)) -> None:
+    def plot(self, figsize=(10, 8)):
         if not self.success:
             print("Cannot plot: Solution not successful")
             return
@@ -263,66 +240,65 @@ class Solution:
 
         # Get color map for intervals
         num_intervals = self.num_intervals
-        colors = cm.viridis(np.linspace(0, 1, num_intervals))
+        colors = plt.cm.viridis(np.linspace(0, 1, num_intervals))
 
         all_interval_data = self.get_all_interval_data()
 
         row = 0
 
         # Plot states by interval
-        for _i, name in enumerate(self._state_names):
+        for i, name in enumerate(self._state_names):
             state_idx = self._get_state_index(name)
-            if state_idx is not None:
-                for k, interval_data in enumerate(all_interval_data):
-                    if interval_data is not None and state_idx < len(interval_data.states_segment):
-                        if interval_data.states_segment[state_idx].size > 0:
-                            axes[row].plot(
-                                interval_data.time_states_segment,
-                                interval_data.states_segment[state_idx],
-                                color=colors[k],
-                                marker=".",
-                                linestyle="-",
-                            )
+            for k, interval_data in enumerate(all_interval_data):
+                if (
+                    interval_data
+                    and len(interval_data.states_segment) > state_idx
+                    and interval_data.states_segment[state_idx].size > 0
+                ):
+                    axes[row].plot(
+                        interval_data.time_states_segment,
+                        interval_data.states_segment[state_idx],
+                        color=colors[k],
+                        marker=".",
+                        linestyle="-",
+                    )
             axes[row].set_ylabel(f"{name}")
             axes[row].grid(True)
             row += 1
 
         # Plot controls by interval
-        for _i, name in enumerate(self._control_names):
+        for i, name in enumerate(self._control_names):
             control_idx = self._get_control_index(name)
-            if control_idx is not None:
-                for k, interval_data in enumerate(all_interval_data):
-                    if interval_data is not None and control_idx < len(
-                        interval_data.controls_segment
-                    ):
-                        if interval_data.controls_segment[control_idx].size > 0:
-                            axes[row].plot(
-                                interval_data.time_controls_segment,
-                                interval_data.controls_segment[control_idx],
-                                color=colors[k],
-                                marker=".",
-                                linestyle="-",
-                            )
+            for k, interval_data in enumerate(all_interval_data):
+                if (
+                    interval_data
+                    and len(interval_data.controls_segment) > control_idx
+                    and interval_data.controls_segment[control_idx].size > 0
+                ):
+                    axes[row].plot(
+                        interval_data.time_controls_segment,
+                        interval_data.controls_segment[control_idx],
+                        color=colors[k],
+                        marker=".",
+                        linestyle="-",
+                    )
             axes[row].set_ylabel(f"{name}")
             axes[row].grid(True)
             row += 1
 
         # Add legend
         if self.polynomial_degrees:
-            handles: List[Line2D] = []
-            labels: List[str] = []
+            handles, labels = [], []
             for k in range(num_intervals):
-                handles.append(Line2D([0], [0], color=colors[k], lw=2))
+                handles.append(plt.Line2D([0], [0], color=colors[k], lw=2))
                 labels.append(f"Interval {k} (Nk={self.polynomial_degrees[k]})")
             fig.legend(handles, labels, loc="upper right", title="Mesh Intervals")
 
         axes[-1].set_xlabel("Time")
-        plt.tight_layout(rect=(0, 0, 0.85, 0.96))
+        plt.tight_layout(rect=[0, 0, 0.85, 0.96])
         plt.show()
 
-    def plot_states(
-        self, state_names: Optional[List[str]] = None, figsize: Tuple[float, float] = (10, 8)
-    ) -> None:
+    def plot_states(self, state_names=None, figsize=(10, 8)):
         if not self.success:
             print("Cannot plot: Solution not successful")
             return
@@ -341,42 +317,41 @@ class Solution:
 
         # Get color map for intervals
         num_intervals = self.num_intervals
-        colors = cm.viridis(np.linspace(0, 1, num_intervals))
+        colors = plt.cm.viridis(np.linspace(0, 1, num_intervals))
 
         all_interval_data = self.get_all_interval_data()
 
         for i, name in enumerate(valid_states):
             state_idx = self._get_state_index(name)
-            if state_idx is not None:
-                for k, interval_data in enumerate(all_interval_data):
-                    if interval_data is not None and state_idx < len(interval_data.states_segment):
-                        if interval_data.states_segment[state_idx].size > 0:
-                            axes[i].plot(
-                                interval_data.time_states_segment,
-                                interval_data.states_segment[state_idx],
-                                color=colors[k],
-                                marker=".",
-                                linestyle="-",
-                            )
+            for k, interval_data in enumerate(all_interval_data):
+                if (
+                    interval_data
+                    and len(interval_data.states_segment) > state_idx
+                    and interval_data.states_segment[state_idx].size > 0
+                ):
+                    axes[i].plot(
+                        interval_data.time_states_segment,
+                        interval_data.states_segment[state_idx],
+                        color=colors[k],
+                        marker=".",
+                        linestyle="-",
+                    )
             axes[i].set_ylabel(f"{name}")
             axes[i].grid(True)
 
         # Add legend
         if self.polynomial_degrees:
-            handles: List[Line2D] = []
-            labels: List[str] = []
+            handles, labels = [], []
             for k in range(num_intervals):
-                handles.append(Line2D([0], [0], color=colors[k], lw=2))
+                handles.append(plt.Line2D([0], [0], color=colors[k], lw=2))
                 labels.append(f"Interval {k} (Nk={self.polynomial_degrees[k]})")
             fig.legend(handles, labels, loc="upper right", title="Mesh Intervals")
 
         axes[-1].set_xlabel("Time")
-        plt.tight_layout(rect=(0, 0, 0.85, 0.96))
+        plt.tight_layout(rect=[0, 0, 0.85, 0.96])
         plt.show()
 
-    def plot_controls(
-        self, control_names: Optional[List[str]] = None, figsize: Tuple[float, float] = (10, 8)
-    ) -> None:
+    def plot_controls(self, control_names=None, figsize=(10, 8)):
         if not self.success:
             print("Cannot plot: Solution not successful")
             return
@@ -395,48 +370,49 @@ class Solution:
 
         # Get color map for intervals
         num_intervals = self.num_intervals
-        colors = cm.viridis(np.linspace(0, 1, num_intervals))
+        colors = plt.cm.viridis(np.linspace(0, 1, num_intervals))
 
         all_interval_data = self.get_all_interval_data()
 
         for i, name in enumerate(valid_controls):
             control_idx = self._get_control_index(name)
-            if control_idx is not None:
-                for k, interval_data in enumerate(all_interval_data):
-                    if interval_data is not None and control_idx < len(
-                        interval_data.controls_segment
-                    ):
-                        if interval_data.controls_segment[control_idx].size > 0:
-                            axes[i].plot(
-                                interval_data.time_controls_segment,
-                                interval_data.controls_segment[control_idx],
-                                color=colors[k],
-                                marker=".",
-                                linestyle="-",
-                            )
+            for k, interval_data in enumerate(all_interval_data):
+                if (
+                    interval_data
+                    and len(interval_data.controls_segment) > control_idx
+                    and interval_data.controls_segment[control_idx].size > 0
+                ):
+                    axes[i].plot(
+                        interval_data.time_controls_segment,
+                        interval_data.controls_segment[control_idx],
+                        color=colors[k],
+                        marker=".",
+                        linestyle="-",
+                    )
             axes[i].set_ylabel(f"{name}")
             axes[i].grid(True)
 
         # Add legend
         if self.polynomial_degrees:
-            handles: List[Line2D] = []
-            labels: List[str] = []
+            handles, labels = [], []
             for k in range(num_intervals):
-                handles.append(Line2D([0], [0], color=colors[k], lw=2))
+                handles.append(plt.Line2D([0], [0], color=colors[k], lw=2))
                 labels.append(f"Interval {k} (Nk={self.polynomial_degrees[k]})")
             fig.legend(handles, labels, loc="upper right", title="Mesh Intervals")
 
         axes[-1].set_xlabel("Time")
-        plt.tight_layout(rect=(0, 0, 0.85, 0.96))
+        plt.tight_layout(rect=[0, 0, 0.85, 0.96])
         plt.show()
 
-    def to_csv(self, filename: str) -> None:
+    def to_csv(self, filename):
         if not self.success:
             print("Cannot export: Solution not successful")
             return
 
+        import pandas as pd
+
         # Combine state and control data
-        data: Dict[str, Any] = {}
+        data = {}
 
         # Add time
         if self._time_states is not None and len(self._time_states) > 0:
@@ -449,11 +425,7 @@ class Solution:
 
         # Add controls (needs interpolation to match state times)
         for i, name in enumerate(self._control_names):
-            if (
-                self._controls is not None
-                and i < len(self._controls)
-                and self._time_controls is not None
-            ):
+            if self._controls is not None and i < len(self._controls):
                 if self._time_states is not None and len(self._time_states) > 0:
                     data[name] = np.interp(
                         self._time_states, self._time_controls, self._controls[i]
@@ -463,14 +435,14 @@ class Solution:
         df = pd.DataFrame(data)
         df.to_csv(filename, index=False)
 
-    def save(self, filename: str) -> None:
+    def save(self, filename):
         import pickle
 
         with open(filename, "wb") as f:
             pickle.dump(self, f)
 
     @classmethod
-    def load(cls, filename: str) -> "Solution":
+    def load(cls, filename):
         import pickle
 
         with open(filename, "rb") as f:

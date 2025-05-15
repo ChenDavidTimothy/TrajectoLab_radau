@@ -65,6 +65,7 @@ class OptimalControlProblem:
         default_initial_guess_values=None,
         solver_options=None,
     ):
+
         self.num_states = num_states
         self.num_controls = num_controls
         self.num_integrals = num_integrals
