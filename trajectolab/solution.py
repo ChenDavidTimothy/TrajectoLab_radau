@@ -247,7 +247,7 @@ class Solution:
         row = 0
 
         # Plot states by interval
-        for i, name in enumerate(self._state_names):
+        for _i, name in enumerate(self._state_names):
             state_idx = self._get_state_index(name)
             for k, interval_data in enumerate(all_interval_data):
                 if (
@@ -267,7 +267,7 @@ class Solution:
             row += 1
 
         # Plot controls by interval
-        for i, name in enumerate(self._control_names):
+        for _i, name in enumerate(self._control_names):
             control_idx = self._get_control_index(name)
             for k, interval_data in enumerate(all_interval_data):
                 if (
@@ -285,18 +285,6 @@ class Solution:
             axes[row].set_ylabel(f"{name}")
             axes[row].grid(True)
             row += 1
-
-        # Add legend
-        if self.polynomial_degrees:
-            handles, labels = [], []
-            for k in range(num_intervals):
-                handles.append(plt.Line2D([0], [0], color=colors[k], lw=2))
-                labels.append(f"Interval {k} (Nk={self.polynomial_degrees[k]})")
-            fig.legend(handles, labels, loc="upper right", title="Mesh Intervals")
-
-        axes[-1].set_xlabel("Time")
-        plt.tight_layout(rect=[0, 0, 0.85, 0.96])
-        plt.show()
 
     def plot_states(self, state_names=None, figsize=(10, 8)):
         if not self.success:
