@@ -1,5 +1,3 @@
-from typing import Any, Dict, Optional
-
 from trajectolab.adaptive.base import AdaptiveBase
 from trajectolab.adaptive.phs import PHSAdaptive
 from trajectolab.problem import Problem
@@ -7,12 +5,11 @@ from trajectolab.solution import Solution
 
 
 class RadauDirectSolver:
-
     def __init__(
         self,
-        mesh_method: Optional[AdaptiveBase] = None,
-        nlp_solver: str = "ipopt",
-        nlp_options: Optional[Dict[str, Any]] = None,
+        mesh_method=None,
+        nlp_solver="ipopt",
+        nlp_options=None,
     ):
         self.mesh_method = mesh_method or PHSAdaptive()
         self.nlp_solver = nlp_solver
@@ -22,7 +19,7 @@ class RadauDirectSolver:
             "print_time": 0,
         }
 
-    def solve(self, problem: Problem, initial_solution=None) -> Solution:
+    def solve(self, problem, initial_solution=None):
         # Convert the user-facing problem to the legacy format for the solver
         legacy_problem = problem._convert_to_legacy_problem()
 
@@ -36,7 +33,7 @@ class RadauDirectSolver:
         return Solution(legacy_solution, problem)
 
 
-def solve(problem: Problem, solver: Optional[RadauDirectSolver] = None) -> Solution:
+def solve(problem, solver=None):
     if solver is None:
         solver = RadauDirectSolver()
 

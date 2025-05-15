@@ -108,6 +108,7 @@ class OptimalControlSolution:
         self.opti_object = None
         self.num_collocation_nodes_per_interval = []
         self.global_normalized_mesh_nodes = None
+        # Add these missing attributes
         self.num_collocation_nodes_list_at_solve_time = None
         self.global_mesh_nodes_at_solve_time = None
         self.solved_state_trajectories_per_interval = None

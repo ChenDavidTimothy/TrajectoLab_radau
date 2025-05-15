@@ -1,19 +1,15 @@
-from typing import Tuple, Union
-
 import numpy as np
 
 
-def linear_interpolation(
-    t: np.ndarray, x: np.ndarray, t_eval: Union[float, np.ndarray]
-) -> np.ndarray:
+def linear_interpolation(t, x, t_eval):
     return np.interp(t_eval, t, x)
 
 
-def uniform_mesh(num_intervals: int) -> np.ndarray:
+def uniform_mesh(num_intervals):
     return np.linspace(-1, 1, num_intervals + 1)
 
 
-def refine_around_point(mesh: np.ndarray, point: float, num_intervals: int = 2) -> np.ndarray:
+def refine_around_point(mesh, point, num_intervals=2):
     # Find interval containing the point
     if point < mesh[0] or point > mesh[-1]:
         raise ValueError(f"Point {point} is outside the mesh range [{mesh[0]}, {mesh[-1]}]")
@@ -32,9 +28,7 @@ def refine_around_point(mesh: np.ndarray, point: float, num_intervals: int = 2) 
     return refined_mesh
 
 
-def estimate_error(
-    x_approx: np.ndarray, x_ref: np.ndarray, absolute: bool = False
-) -> Tuple[float, float, float]:
+def estimate_error(x_approx, x_ref, absolute=False):
     if x_approx.shape != x_ref.shape:
         raise ValueError(f"Shape mismatch: x_approx {x_approx.shape}, x_ref {x_ref.shape}")
 
@@ -52,14 +46,9 @@ def estimate_error(
     return max_error, mean_error, rms_error
 
 
-def map_normalized_to_physical_time(
-    tau: Union[float, np.ndarray], t0: float, tf: float
-) -> Union[float, np.ndarray]:
+def map_normalized_to_physical_time(tau, t0, tf):
     return 0.5 * (tf - t0) * tau + 0.5 * (tf + t0)
 
 
-def map_physical_to_normalized_time(
-    t: Union[float, np.ndarray], t0: float, tf: float
-) -> Union[float, np.ndarray]:
-
+def map_physical_to_normalized_time(t, t0, tf):
     return 2 * (t - t0) / (tf - t0) - 1

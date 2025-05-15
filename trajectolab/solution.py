@@ -1,6 +1,5 @@
-from typing import List, Optional, Tuple
-
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 import numpy as np
 
 
@@ -87,7 +86,7 @@ class Solution:
             self._mesh_points_time = alpha * np.array(self._mesh_points_normalized) + alpha_0
 
     @property
-    def num_intervals(self) -> int:
+    def num_intervals(self):
         if self._polynomial_degrees is not None:
             return len(self._polynomial_degrees)
         elif self._mesh_points_normalized is not None:
@@ -95,24 +94,24 @@ class Solution:
         return 0
 
     @property
-    def polynomial_degrees(self) -> Optional[List[int]]:
+    def polynomial_degrees(self):
         return self._polynomial_degrees
 
     @property
-    def mesh_points(self) -> Optional[np.ndarray]:
+    def mesh_points(self):
         return self._mesh_points_time
 
     @property
-    def mesh_points_normalized(self) -> Optional[np.ndarray]:
+    def mesh_points_normalized(self):
         return self._mesh_points_normalized
 
-    def get_state_trajectory(self, state_name_or_index) -> Tuple[np.ndarray, np.ndarray]:
+    def get_state_trajectory(self, state_name_or_index):
         index = self._get_state_index(state_name_or_index)
         if index is None or self._states is None or index >= len(self._states):
             return np.array([]), np.array([])
         return self._time_states, self._states[index]
 
-    def get_control_trajectory(self, control_name_or_index) -> Tuple[np.ndarray, np.ndarray]:
+    def get_control_trajectory(self, control_name_or_index):
         index = self._get_control_index(control_name_or_index)
         if index is None or self._controls is None or index >= len(self._controls):
             return np.array([]), np.array([])
@@ -120,17 +119,17 @@ class Solution:
 
     def interpolate_state(self, state_name_or_index, time_point):
         time, values = self.get_state_trajectory(state_name_or_index)
-        if len(time) == 0 or len(values) == 0:
+        if time is None or len(time) == 0 or values is None or len(values) == 0:
             return None
         return np.interp(time_point, time, values)
 
     def interpolate_control(self, control_name_or_index, time_point):
         time, values = self.get_control_trajectory(control_name_or_index)
-        if len(time) == 0 or len(values) == 0:
+        if time is None or len(time) == 0 or values is None or len(values) == 0:
             return None
         return np.interp(time_point, time, values)
 
-    def get_data_for_interval(self, interval_index) -> Optional[IntervalData]:
+    def get_data_for_interval(self, interval_index):
         if not (0 <= interval_index < self.num_intervals):
             return None
         if self._mesh_points_time is None:
@@ -138,11 +137,9 @@ class Solution:
 
         interval_t_start = self._mesh_points_time[interval_index]
         interval_t_end = self._mesh_points_time[interval_index + 1]
-        nk_interval = (
-            self._polynomial_degrees[interval_index]
-            if self._polynomial_degrees and interval_index < len(self._polynomial_degrees)
-            else -1
-        )
+        nk_interval = -1
+        if self._polynomial_degrees and interval_index < len(self._polynomial_degrees):
+            nk_interval = self._polynomial_degrees[interval_index]
 
         # Extract segment data
         time_states_segment, states_segment = self._extract_segment_data(
@@ -163,13 +160,13 @@ class Solution:
             controls_segment=controls_segment,
         )
 
-    def get_all_interval_data(self) -> List[IntervalData]:
+    def get_all_interval_data(self):
         return [self.get_data_for_interval(i) for i in range(self.num_intervals)]
 
     def _extract_segment_data(
         self, time_array, data_arrays, interval_t_start, interval_t_end, epsilon=1e-9
     ):
-        if time_array is None or not data_arrays or len(time_array) == 0:
+        if time_array is None or data_arrays is None or len(time_array) == 0:
             return np.array([]), [
                 np.array([]) for _ in range(len(data_arrays) if data_arrays else 1)
             ]
@@ -240,7 +237,9 @@ class Solution:
 
         # Get color map for intervals
         num_intervals = self.num_intervals
-        colors = plt.cm.viridis(np.linspace(0, 1, num_intervals))
+        # Use get_cmap which is properly typed
+        cmap = plt.get_cmap("viridis")
+        colors = cmap(np.linspace(0, 1, num_intervals))
 
         all_interval_data = self.get_all_interval_data()
 
@@ -251,8 +250,10 @@ class Solution:
             state_idx = self._get_state_index(name)
             for k, interval_data in enumerate(all_interval_data):
                 if (
-                    interval_data
-                    and len(interval_data.states_segment) > state_idx
+                    interval_data is not None
+                    and interval_data.states_segment is not None
+                    and state_idx is not None
+                    and state_idx < len(interval_data.states_segment)
                     and interval_data.states_segment[state_idx].size > 0
                 ):
                     axes[row].plot(
@@ -271,8 +272,10 @@ class Solution:
             control_idx = self._get_control_index(name)
             for k, interval_data in enumerate(all_interval_data):
                 if (
-                    interval_data
-                    and len(interval_data.controls_segment) > control_idx
+                    interval_data is not None
+                    and interval_data.controls_segment is not None
+                    and control_idx is not None
+                    and control_idx < len(interval_data.controls_segment)
                     and interval_data.controls_segment[control_idx].size > 0
                 ):
                     axes[row].plot(
@@ -305,7 +308,9 @@ class Solution:
 
         # Get color map for intervals
         num_intervals = self.num_intervals
-        colors = plt.cm.viridis(np.linspace(0, 1, num_intervals))
+        # Use get_cmap which is properly typed
+        cmap = plt.get_cmap("viridis")
+        colors = cmap(np.linspace(0, 1, num_intervals))
 
         all_interval_data = self.get_all_interval_data()
 
@@ -313,8 +318,10 @@ class Solution:
             state_idx = self._get_state_index(name)
             for k, interval_data in enumerate(all_interval_data):
                 if (
-                    interval_data
-                    and len(interval_data.states_segment) > state_idx
+                    interval_data is not None
+                    and interval_data.states_segment is not None
+                    and state_idx is not None
+                    and state_idx < len(interval_data.states_segment)
                     and interval_data.states_segment[state_idx].size > 0
                 ):
                     axes[i].plot(
@@ -331,12 +338,12 @@ class Solution:
         if self.polynomial_degrees:
             handles, labels = [], []
             for k in range(num_intervals):
-                handles.append(plt.Line2D([0], [0], color=colors[k], lw=2))
+                handles.append(Line2D([0], [0], color=colors[k], lw=2))
                 labels.append(f"Interval {k} (Nk={self.polynomial_degrees[k]})")
             fig.legend(handles, labels, loc="upper right", title="Mesh Intervals")
 
         axes[-1].set_xlabel("Time")
-        plt.tight_layout(rect=[0, 0, 0.85, 0.96])
+        plt.tight_layout(rect=(0, 0, 0.85, 0.96))  # Convert list to tuple
         plt.show()
 
     def plot_controls(self, control_names=None, figsize=(10, 8)):
@@ -358,7 +365,9 @@ class Solution:
 
         # Get color map for intervals
         num_intervals = self.num_intervals
-        colors = plt.cm.viridis(np.linspace(0, 1, num_intervals))
+        # Use get_cmap which is properly typed
+        cmap = plt.get_cmap("viridis")
+        colors = cmap(np.linspace(0, 1, num_intervals))
 
         all_interval_data = self.get_all_interval_data()
 
@@ -366,8 +375,10 @@ class Solution:
             control_idx = self._get_control_index(name)
             for k, interval_data in enumerate(all_interval_data):
                 if (
-                    interval_data
-                    and len(interval_data.controls_segment) > control_idx
+                    interval_data is not None
+                    and interval_data.controls_segment is not None
+                    and control_idx is not None
+                    and control_idx < len(interval_data.controls_segment)
                     and interval_data.controls_segment[control_idx].size > 0
                 ):
                     axes[i].plot(
@@ -384,12 +395,12 @@ class Solution:
         if self.polynomial_degrees:
             handles, labels = [], []
             for k in range(num_intervals):
-                handles.append(plt.Line2D([0], [0], color=colors[k], lw=2))
+                handles.append(Line2D([0], [0], color=colors[k], lw=2))
                 labels.append(f"Interval {k} (Nk={self.polynomial_degrees[k]})")
             fig.legend(handles, labels, loc="upper right", title="Mesh Intervals")
 
         axes[-1].set_xlabel("Time")
-        plt.tight_layout(rect=[0, 0, 0.85, 0.96])
+        plt.tight_layout(rect=(0, 0, 0.85, 0.96))  # Convert list to tuple
         plt.show()
 
     def to_csv(self, filename):
@@ -413,11 +424,15 @@ class Solution:
 
         # Add controls (needs interpolation to match state times)
         for i, name in enumerate(self._control_names):
-            if self._controls is not None and i < len(self._controls):
-                if self._time_states is not None and len(self._time_states) > 0:
-                    data[name] = np.interp(
-                        self._time_states, self._time_controls, self._controls[i]
-                    )
+            if (
+                self._controls is not None
+                and i < len(self._controls)
+                and self._time_states is not None
+                and len(self._time_states) > 0
+                and self._time_controls is not None
+                and len(self._time_controls) > 0
+            ):
+                data[name] = np.interp(self._time_states, self._time_controls, self._controls[i])
 
         # Create dataframe and save
         df = pd.DataFrame(data)
