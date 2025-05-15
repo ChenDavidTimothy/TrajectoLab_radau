@@ -41,13 +41,31 @@ def objective(initial_time, final_time, initial_states, final_states, integrals,
 
 problem.set_objective("integral", objective)
 
+# Create an initial guess for the hypersensitive problem
+initial_guess = InitialGuess(
+    initial_time_variable=0.0,
+    terminal_time_variable=40.0,
+    states=[
+        np.array([[1.5, 1.4, 1.3, 1.2, 1.1, 1.0, 0.9, 0.8, 0.7]]),
+        np.array([[0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.0, -0.1]]),
+        np.array([[-0.1, -0.2, -0.3, -0.4, -0.5, -0.6, -0.7, -0.8, 1.0]])
+    ],
+    controls=[
+        np.array([[0.1, 0.1, 0.1, 0.1, 0.1, 0.0, 0.0, 0.0]]),
+        np.array([[0.0, 0.0, 0.0, 0.0, 0.0, -0.1, -0.1, -0.1]]),
+        np.array([[-0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1]])
+    ],
+    integrals=[1.0]
+)
+
 # Configure the adaptive solver with appropriate settings
 adaptive_solver = RadauDirectSolver(
     mesh_method=PHSAdaptive(
         error_tolerance=1e-3,
         max_iterations=30,
         min_polynomial_degree=4,
-        max_polynomial_degree=8
+        max_polynomial_degree=8,
+        initial_guess=initial_guess
     ),
     nlp_options={'ipopt.print_level': 0, 'ipopt.sb': 'yes', 'print_time': 0, 'ipopt.max_iter': 200}
 )
@@ -68,25 +86,6 @@ if solution.success:
     solution.plot()
 else:
     print(f"Solution failed: {solution.message}")
-
-# Fixed mesh solver with same settings
-print("Solving with fixed mesh...")
-# Create an initial guess for the hypersensitive problem
-initial_guess = InitialGuess(
-    initial_time_variable=0.0,
-    terminal_time_variable=40.0,
-    states=[
-        np.array([[1.5, 1.4, 1.3, 1.2, 1.1, 1.0, 0.9, 0.8, 0.7]]),
-        np.array([[0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.0, -0.1]]),
-        np.array([[-0.1, -0.2, -0.3, -0.4, -0.5, -0.6, -0.7, -0.8, 1.0]])
-    ],
-    controls=[
-        np.array([[0.1, 0.1, 0.1, 0.1, 0.1, 0.0, 0.0, 0.0]]),
-        np.array([[0.0, 0.0, 0.0, 0.0, 0.0, -0.1, -0.1, -0.1]]),
-        np.array([[-0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1]])
-    ],
-    integrals=[1.0]
-)
 
 # Use the fixed mesh solver with the initial guess
 print("Solving with fixed mesh...")
