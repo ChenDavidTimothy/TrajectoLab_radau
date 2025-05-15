@@ -2,35 +2,16 @@ from abc import ABC, abstractmethod
 import numpy as np
 from typing import List, Optional, Dict, Any
 
-class AdaptiveBase(ABC):
-    """Abstract base class for mesh adaptation strategies."""
-    
+class AdaptiveBase(ABC):    
     def __init__(self, initial_guess=None):
-        """
-        Initialize the adaptive mesh strategy.
-        
-        Args:
-            initial_guess: Optional initial guess for the first iteration
-        """
         self.initial_guess = initial_guess
     
     @abstractmethod
     def run(self, problem, legacy_problem, initial_solution=None):
-        """Run the adaptive mesh refinement process."""
         pass
 
-class FixedMesh(AdaptiveBase):
-    """Fixed mesh strategy - solves the problem with the provided mesh."""
-    
+class FixedMesh(AdaptiveBase):    
     def __init__(self, polynomial_degrees=None, mesh_points=None, initial_guess=None):
-        """
-        Initialize the fixed mesh strategy.
-        
-        Args:
-            polynomial_degrees: List of polynomial degrees (number of collocation points) per interval.
-            mesh_points: List of mesh points in normalized time domain [-1, 1].
-            initial_guess: Optional initial guess to pass to the solver.
-        """
         super().__init__(initial_guess)  # Call parent constructor
         self.polynomial_degrees = polynomial_degrees or [4]
         
@@ -48,17 +29,6 @@ class FixedMesh(AdaptiveBase):
             raise ValueError("Mesh points must be strictly increasing.")
     
     def run(self, problem, legacy_problem, initial_solution=None):
-        """
-        Solve the problem with the fixed mesh.
-        
-        Args:
-            problem: The problem object.
-            legacy_problem: The legacy problem object for the solver.
-            initial_solution: Optional initial solution (not used).
-            
-        Returns:
-            The solution object.
-        """
         from trajectolab.direct_solver import solve_single_phase_radau_collocation
         
         # Update legacy problem with our mesh configuration

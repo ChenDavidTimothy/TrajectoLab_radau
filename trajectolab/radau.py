@@ -7,7 +7,6 @@ ZERO_TOLERANCE = 1e-12
 
 @dataclass
 class RadauBasisComponents:
-    """Class representing the mathematical components required for RPM method."""
     state_approximation_nodes: np.ndarray = None
     collocation_nodes: np.ndarray = None
     quadrature_weights: np.ndarray = None
@@ -17,13 +16,11 @@ class RadauBasisComponents:
 
 @dataclass
 class RadauNodesAndWeights:
-    """Class representing LGR nodes and weights."""
     state_approximation_nodes: np.ndarray = None
     collocation_nodes: np.ndarray = None
     quadrature_weights: np.ndarray = None
 
 def compute_legendre_gauss_radau_nodes_and_weights(num_collocation_nodes):
-    """Computes Legendre-Gauss-Radau (LGR) points and related data structures."""
     if not isinstance(num_collocation_nodes, int) or num_collocation_nodes < 1:
         raise ValueError("Number of collocation points must be an integer >= 1.")
 
@@ -58,7 +55,6 @@ def compute_legendre_gauss_radau_nodes_and_weights(num_collocation_nodes):
     )
 
 def compute_barycentric_weights(nodes):
-    """Computes barycentric weights for a given set of distinct nodes."""
     num_nodes = len(nodes)
     barycentric_weights = np.ones(num_nodes)
     nodes_array = np.asarray(nodes) 
@@ -73,7 +69,6 @@ def compute_barycentric_weights(nodes):
     return barycentric_weights
 
 def evaluate_lagrange_polynomial_at_point(polynomial_definition_nodes, barycentric_weights, evaluation_point_tau):
-    """Computes values of Lagrange polynomials at a point using barycentric formula."""
     num_polynomial_definition_nodes = len(polynomial_definition_nodes)
     lagrange_polynomial_values_at_evaluation_point = np.zeros(num_polynomial_definition_nodes)
 
@@ -105,7 +100,6 @@ def evaluate_lagrange_polynomial_at_point(polynomial_definition_nodes, barycentr
     return lagrange_polynomial_values_at_evaluation_point
 
 def compute_lagrange_derivative_coefficients_at_point(polynomial_definition_nodes, barycentric_weights, evaluation_point_tau):
-    """Computes derivatives of Lagrange polynomials at a point."""
     num_polynomial_definition_nodes = len(polynomial_definition_nodes)
     lagrange_derivative_coefficients = np.zeros(num_polynomial_definition_nodes)
     matched_node_index = -1
@@ -132,7 +126,6 @@ def compute_lagrange_derivative_coefficients_at_point(polynomial_definition_node
     return lagrange_derivative_coefficients
 
 def compute_radau_collocation_components(num_collocation_nodes):
-    """Computes components for Radau Pseudospectral Method based on LGR quadrature points."""
     lgr_components = compute_legendre_gauss_radau_nodes_and_weights(num_collocation_nodes)
     state_nodes = lgr_components.state_approximation_nodes
     collocation_nodes = lgr_components.collocation_nodes

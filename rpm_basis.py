@@ -7,7 +7,7 @@ from scipy.special import roots_jacobi # eval_jacobi removed as it was unused
 ZERO_TOLERANCE = 1e-12
 
 # ==============================================================================
-# LGR Nodes, Weights, and Basis/Collocation Points (GPOPS-II Style)
+# LGR Nodes, Weights, and Basis/Collocation Points
 # ==============================================================================
 
 @dataclass
@@ -28,34 +28,6 @@ class RadauNodesAndWeights:
     quadrature_weights: np.ndarray = None
 
 def compute_legendre_gauss_radau_nodes_and_weights(num_collocation_nodes):
-    """
-    Computes Legendre-Gauss-Radau (LGR) points and related data structures
-    according to the GPOPS-II conventions.
-
-    The interval is assumed to be tau in [-1, 1].
-
-    GPOPS-II Convention (as interpreted):
-    - num_collocation_nodes: The number of LGR collocation points (denoted Nk in gpops.txt).
-    - Collocation Points (Nk total): These are tau_1, ..., tau_Nk.
-        - tau_1 = -1.0
-        - tau_2, ..., tau_Nk are the Nk-1 roots of P_(Nk-1)^(0,1)(tau) if Nk > 1.
-          These are interior to (-1, 1).
-    - Basis Points (Nk+1 total): These are the Nk collocation points plus tau_(Nk+1) = +1.0.
-        So, state_approximation_nodes = [-1.0, interior_roots..., +1.0].
-    - LGR Quadrature Weights (Nk total): Corresponding to the Nk collocation points.
-      These are for an integral from -1 to +1.
-
-    Args:
-        num_collocation_nodes (int): The number of LGR collocation points (Nk in gpops.txt).
-                                     Must be >= 1.
-
-    Returns:
-        RadauNodesAndWeights: An object containing:
-            - state_approximation_nodes: (Nk+1,) numpy array of sorted basis points.
-            - collocation_nodes: (Nk,) numpy array of sorted LGR collocation points.
-            - quadrature_weights: (Nk,) numpy array of LGR quadrature weights
-                                  corresponding to the collocation_nodes.
-    """
     if not isinstance(num_collocation_nodes, int) or num_collocation_nodes < 1:
         raise ValueError("Number of collocation points (num_collocation_nodes) must be an integer >= 1.")
 
@@ -199,31 +171,10 @@ def _compute_lagrange_derivative_coefficients_at_point(polynomial_definition_nod
     return lagrange_derivative_coefficients
 
 # ==============================================================================
-# Public API Function (GPOPS-II Style)
+# Public API Function
 # ==============================================================================
 
 def compute_radau_collocation_components(num_collocation_nodes):
-    """
-    Computes components for Radau Pseudospectral Method based on LGR quadrature
-    points, following GPOPS-II conventions as interpreted from gpops.txt.
-
-    Args:
-        num_collocation_nodes (int): The number of LGR collocation points (Nk in gpops.txt).
-
-    Returns:
-        RadauBasisComponents: An object containing:
-            - differentiation_matrix: (Nk x (Nk+1)) differentiation matrix. Maps state values
-                          at state_approximation_nodes to derivatives at collocation_nodes.
-            - state_approximation_nodes: (Nk+1,) array of LGR basis points [-1, ..., +1].
-            - collocation_nodes: (Nk,) array of LGR collocation points [-1, ...).
-            - quadrature_weights: (Nk,) array of LGR weights corresponding
-                                    to collocation_nodes for integration on [-1,1].
-            - barycentric_weights_for_state_nodes: (Nk+1,) array of barycentric weights
-                                           for state_approximation_nodes.
-            - lagrange_at_tau_plus_one: (Nk+1,) array: L_j(+1) for basis polynomials L_j
-                               defined over state_approximation_nodes, evaluated at +1.
-                               Expected to be [0, ..., 0, 1] due to +1 being a basis point.
-    """
     # Parameter validation is already handled in compute_legendre_gauss_radau_nodes_and_weights
     
     lgr_components = compute_legendre_gauss_radau_nodes_and_weights(num_collocation_nodes)

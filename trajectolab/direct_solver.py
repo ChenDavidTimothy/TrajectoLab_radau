@@ -4,7 +4,6 @@ from typing import List, Dict, Any, Tuple, Optional, Union, Callable
 from trajectolab.radau import compute_radau_collocation_components
 
 class PathConstraint:
-    """Class representing a path constraint."""
     def __init__(self, val, min_val=None, max_val=None, equals=None):
         self.val = val
         self.min = min_val
@@ -12,7 +11,6 @@ class PathConstraint:
         self.equals = equals
 
 class EventConstraint:
-    """Class representing an event constraint."""
     def __init__(self, val, min_val=None, max_val=None, equals=None):
         self.val = val
         self.min = min_val
@@ -20,7 +18,6 @@ class EventConstraint:
         self.equals = equals
 
 class InitialGuess:
-    """Class representing initial guesses for the optimization problem."""
     def __init__(self, initial_time_variable=None, terminal_time_variable=None, 
                  states=None, controls=None, integrals=None):
         self.initial_time_variable = initial_time_variable
@@ -30,14 +27,12 @@ class InitialGuess:
         self.integrals = integrals
 
 class DefaultGuessValues:
-    """Class containing default values for initial guesses."""
     def __init__(self, state=0.0, control=0.0, integral=0.0):
         self.state = state
         self.control = control
         self.integral = integral
 
 class OptimalControlProblem:
-    """Class representing an optimal control problem definition."""
     def __init__(self, num_states, num_controls, dynamics_function, objective_function,
                  t0_bounds, tf_bounds, num_integrals=0, collocation_points_per_interval=None,
                  global_normalized_mesh_nodes=None, integral_integrand_function=None,
@@ -71,7 +66,6 @@ class OptimalControlProblem:
         self.solver_options = solver_options or {}
 
 class OptimalControlSolution:
-    """Class representing the solution to an optimal control problem."""
     def __init__(self):
         self.success = False
         self.message = "Solver not run yet."
@@ -93,7 +87,6 @@ class OptimalControlSolution:
         self.solved_control_trajectories_per_interval = None
 
 def _extract_integral_values(casadi_solution_object, opti_object, num_integrals):
-    """Helper function to extract integral values from solution."""
     if num_integrals == 0 or not hasattr(opti_object, 'integral_variables_object_reference') or opti_object.integral_variables_object_reference is None:
         return None
     
@@ -116,7 +109,6 @@ def _process_trajectory_points(
     initial_time, terminal_time, last_added_point, trajectory_times, 
     trajectory_values_lists, num_variables, is_state=True
 ):
-    """Process trajectory points for either states or controls."""
     if mesh_interval_index >= len(variables_list):
         print(f"Error: Variable list not found or incomplete for interval {mesh_interval_index}.")
         return last_added_point
@@ -156,9 +148,6 @@ def _extract_and_format_solution(
     num_collocation_nodes_per_interval: List[int],
     global_normalized_mesh_nodes: np.ndarray
 ) -> OptimalControlSolution:
-    """
-    Extracts and formats the solution from the CasADi solution object.
-    """
     solution = OptimalControlSolution()
     
     if casadi_solution_object is None:
@@ -261,7 +250,6 @@ def _extract_and_format_solution(
     return solution
 
 def _apply_constraint(opti, constraint):
-    """Apply a path or event constraint to the optimization problem."""
     if constraint.min is not None:
         opti.subject_to(constraint.val >= constraint.min)
     if constraint.max is not None:
@@ -270,7 +258,6 @@ def _apply_constraint(opti, constraint):
         opti.subject_to(constraint.val == constraint.equals)
 
 def _validate_dynamics_output(output, num_states):
-    """Validate and format the output from a dynamics function."""
     if isinstance(output, list):
         return ca.vertcat(*output) if output else ca.MX(num_states, 1)
     elif isinstance(output, ca.MX):
@@ -284,7 +271,6 @@ def _validate_dynamics_output(output, num_states):
     raise TypeError(f"Dynamics function output type not supported: {type(output)}")
 
 def _set_initial_value_for_integrals(opti, integral_vars, guess, num_integrals):
-    """Set initial values for integral variables."""
     if guess is None:
         return
         
@@ -301,11 +287,6 @@ def _set_initial_value_for_integrals(opti, integral_vars, guess, num_integrals):
         print(f"Warning: Invalid format/length for multiple integrals guess: {guess}")
 
 def solve_single_phase_radau_collocation(problem_definition: OptimalControlProblem) -> OptimalControlSolution:
-    """
-    Solves a single-phase optimal control problem using a multiple-interval
-    Radau Pseudospectral Method (RPM) based on GPOPS-II conventions.
-    This implementation uses VARIABLE SHARING for state continuity across mesh intervals.
-    """
     opti = ca.Opti()
 
     # --- Extract Problem Parameters ---

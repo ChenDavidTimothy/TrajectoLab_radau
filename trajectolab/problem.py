@@ -73,7 +73,6 @@ class Problem:
         return self
     
     def set_objective(self, objective_type, objective_func):
-        """Set the objective function for the problem."""
         # Auto-correct the objective type if it's referencing integrals
         if objective_type == "mayer" and self._num_integrals > 0:
             objective_type = "integral"
@@ -249,56 +248,3 @@ class Problem:
             return result
             
         return vectorized_path_constraints
-    
-def _create_vectorized_event_constraints(self):
-    """Create a function that handles all event constraints including boundary conditions."""
-    event_constraints = self._event_constraints
-    state_names = list(self._states.keys())
-    
-    def vectorized_event_constraints(t0, tf, x0, xf, q, params):
-        from trajectolab.direct_solver import EventConstraint
-        
-        result = []
-        
-        # Add initial and final state constraints
-        for i, name in enumerate(state_names):
-            state_info = self._states[name]
-            
-            # Handle initial constraints
-            if state_info.get('initial_constraint'):
-                constraint = state_info['initial_constraint']
-                if constraint.equals is not None:
-                    result.append(EventConstraint(
-                        val=x0[i],
-                        equals=constraint.equals
-                    ))
-                elif constraint.lower is not None or constraint.upper is not None:
-                    result.append(EventConstraint(
-                        val=x0[i],
-                        min_val=constraint.lower,
-                        max_val=constraint.upper
-                    ))
-            
-            # Handle final constraints
-            if state_info.get('final_constraint'):
-                constraint = state_info['final_constraint']
-                if constraint.equals is not None:
-                    result.append(EventConstraint(
-                        val=xf[i],
-                        equals=constraint.equals
-                    ))
-                elif constraint.lower is not None or constraint.upper is not None:
-                    result.append(EventConstraint(
-                        val=xf[i],
-                        min_val=constraint.lower,
-                        max_val=constraint.upper
-                    ))
-        
-        # Add user-defined event constraints
-        for constraint_func in event_constraints:
-            constraint = constraint_func(t0, tf, initial_states, final_states, q, params)
-            # (rest of processing for user constraints...)
-        
-        return result
-    
-    return vectorized_event_constraints

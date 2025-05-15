@@ -3,7 +3,6 @@ import numpy as np
 from typing import List, Optional, Union, Tuple, Any
 
 class IntervalData:
-    """Class representing data for a specific mesh interval."""
     def __init__(self, t_start=None, t_end=None, Nk=None,
                  time_states_segment=None, states_segment=None,
                  time_controls_segment=None, controls_segment=None):
@@ -16,17 +15,7 @@ class IntervalData:
         self.controls_segment = controls_segment if controls_segment is not None else []
 
 class SolutionProcessor:
-    """
-    Processes the solution from the optimal control solver
-    and provides easy access to common solution components and time-scaled data.
-    """
     def __init__(self, solution):
-        """
-        Initializes the SolutionProcessor with the solution data.
-
-        Args:
-            solution: The OptimalControlSolution object returned by the solver.
-        """
         # Initialize with default values
         self._solution = solution
         self.initial_time_variable = None
@@ -73,9 +62,6 @@ class SolutionProcessor:
         self._mesh_nodes_time_domain = self._calculate_mesh_nodes_time_domain()
 
     def _calculate_mesh_nodes_time_domain(self) -> Optional[np.ndarray]:
-        """
-        Calculates mesh node locations in the actual time domain [initial_time_variable, terminal_time_variable].
-        """
         if self.initial_time_variable is None or self.terminal_time_variable is None or self._mesh_nodes_tau_global is None:
             return None
 
@@ -85,52 +71,42 @@ class SolutionProcessor:
 
     @property
     def time_states(self) -> Optional[np.ndarray]:
-        """Time vector for state trajectories (dense output)."""
         return self._time_states
 
     @property
     def states(self) -> Optional[List[np.ndarray]]:
-        """List of state trajectories (each state is a NumPy array, dense output)."""
         return self._states
 
     @property
     def time_controls(self) -> Optional[np.ndarray]:
-        """Time vector for control trajectories (dense output)."""
         return self._time_controls
 
     @property
     def controls(self) -> Optional[List[np.ndarray]]:
-        """List of control trajectories (each control is a NumPy array, dense output)."""
         return self._controls
 
     @property
     def num_states(self) -> int:
-        """Number of states."""
         return len(self._states) if self._states is not None else 0
 
     @property
     def num_controls(self) -> int:
-        """Number of controls."""
         return len(self._controls) if self._controls is not None else 0
 
     @property
     def num_collocation_nodes_per_interval(self) -> Optional[List[int]]:
-        """List of polynomial degrees (number of collocation points) per interval."""
         return self._Nk_list
 
     @property
     def global_normalized_mesh_nodes(self) -> Optional[np.ndarray]:
-        """Mesh nodes in the normalized global tau domain [-1, 1]."""
         return self._mesh_nodes_tau_global
 
     @property
     def mesh_nodes_time_domain(self) -> Optional[np.ndarray]:
-        """Mesh nodes in the actual time domain [initial_time_variable, terminal_time_variable]."""
         return self._mesh_nodes_time_domain
 
     @property
     def num_intervals(self) -> int:
-        """Number of mesh intervals."""
         if self._Nk_list is not None:
             return len(self._Nk_list)
         elif self._mesh_nodes_tau_global is not None and len(self._mesh_nodes_tau_global) > 1:
@@ -138,37 +114,16 @@ class SolutionProcessor:
         return 0
 
     def get_state_trajectory(self, state_index: int) -> Optional[np.ndarray]:
-        """
-        Retrieves a specific state trajectory.
-
-        Args:
-            state_index: The 0-based index of the state.
-
-        Returns:
-            A NumPy array for the requested state trajectory, or None if unavailable.
-        """
         if self._states and 0 <= state_index < self.num_states:
             return self._states[state_index]
         return None
 
     def get_control_trajectory(self, control_index: int) -> Optional[np.ndarray]:
-        """
-        Retrieves a specific control trajectory.
-
-        Args:
-            control_index: The 0-based index of the control.
-
-        Returns:
-            A NumPy array for the requested control trajectory, or None if unavailable.
-        """
         if self._controls and 0 <= control_index < self.num_controls:
             return self._controls[control_index]
         return None
 
     def _extract_segment_data(self, time_array, data_arrays, interval_t_start, interval_t_end, epsilon=1e-9):
-        """
-        Helper function to extract time and data segments for a specific interval.
-        """
         if time_array is None or not data_arrays or len(time_array) == 0:
             return np.array([]), [np.array([]) for _ in range(len(data_arrays) if data_arrays else 1)]
             
@@ -196,17 +151,6 @@ class SolutionProcessor:
         return time_segment, data_segments
 
     def get_data_for_interval(self, interval_index: int) -> Optional[IntervalData]:
-        """
-        Extracts state, control, and time data corresponding to a specific mesh interval.
-        This is useful for interval-wise plotting or analysis.
-
-        Args:
-            interval_index: The 0-based index of the mesh interval.
-
-        Returns:
-            An IntervalData object containing data for the specified interval,
-            or None if data is insufficient or index is out of bounds.
-        """
         if not (self.num_intervals > 0 and 0 <= interval_index < self.num_intervals):
             return None
         if self._mesh_nodes_time_domain is None or self._Nk_list is None:
@@ -243,21 +187,11 @@ class SolutionProcessor:
         )
 
     def get_all_interval_data(self) -> List[Optional[IntervalData]]:
-        """
-        Retrieves data for all mesh intervals.
-
-        Returns:
-            A list of IntervalData objects, where each object contains data for an interval
-            as returned by get_data_for_interval().
-        """
         if self.num_intervals == 0:
             return []
         return [self.get_data_for_interval(i) for i in range(self.num_intervals)]
 
     def summary(self) -> str:
-        """
-        Provides a string summary of the solution, similar to the logs in the example scripts.
-        """
         if self._solution is None:
             return "--- Solution Data Not Available ---"
 

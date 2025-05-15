@@ -8,7 +8,6 @@ from trajectolab.radau import compute_radau_collocation_components, compute_bary
 
 @dataclass
 class AdaptiveParameters:
-    """Parameters for adaptive mesh refinement."""
     error_tolerance: float           # Error tolerance threshold (epsilon_tol)
     max_iterations: int              # Maximum number of refinement iterations (M_max_iterations)
     min_polynomial_degree: int       # Minimum polynomial degree allowed (N_min_poly_degree)
@@ -277,7 +276,6 @@ def calculate_relative_error_estimate(
 
 @dataclass
 class PRefineResult:
-    """Result of p-refinement."""
     actual_Nk_to_use: int
     was_p_successful: bool
     unconstrained_target_Nk: int

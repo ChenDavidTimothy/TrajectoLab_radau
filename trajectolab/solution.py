@@ -3,7 +3,6 @@ import matplotlib.pyplot as plt
 from typing import List, Dict, Optional, Union, Tuple, Any
 
 class IntervalData:
-    """Data for a specific mesh interval"""
     def __init__(self, t_start=None, t_end=None, Nk=None,
                  time_states_segment=None, states_segment=None,
                  time_controls_segment=None, controls_segment=None):
@@ -199,12 +198,6 @@ class Solution:
         return None
     
     def plot(self, figsize=(10, 8)):
-        """
-        Plot the solution with color-coded intervals.
-        
-        Args:
-            figsize: Figure size tuple (width, height)
-        """
         if not self.success:
             print("Cannot plot: Solution not successful")
             return
@@ -273,13 +266,6 @@ class Solution:
         plt.show()
         
     def plot_states(self, state_names=None, figsize=(10, 8)):
-        """
-        Plot specific state trajectories.
-        
-        Args:
-            state_names: List of state names to plot (default: all)
-            figsize: Figure size tuple (width, height)
-        """
         if not self.success:
             print("Cannot plot: Solution not successful")
             return
@@ -329,13 +315,6 @@ class Solution:
         plt.show()
         
     def plot_controls(self, control_names=None, figsize=(10, 8)):
-        """
-        Plot specific control trajectories.
-        
-        Args:
-            control_names: List of control names to plot (default: all)
-            figsize: Figure size tuple (width, height)
-        """
         if not self.success:
             print("Cannot plot: Solution not successful")
             return

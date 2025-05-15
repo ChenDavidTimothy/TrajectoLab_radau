@@ -316,17 +316,6 @@ def _set_initial_value_for_integrals(opti, integral_vars, guess, num_integrals):
         print(f"Warning: Invalid format/length for multiple integrals guess: {guess}")
 
 def solve_single_phase_radau_collocation(problem_definition: OptimalControlProblem) -> OptimalControlSolution:
-    """
-    Solves a single-phase optimal control problem using a multiple-interval
-    Radau Pseudospectral Method (RPM) based on GPOPS-II conventions.
-    This implementation uses VARIABLE SHARING for state continuity across mesh intervals.
-
-    Args:
-        problem_definition: An OptimalControlProblem object containing the problem definition.
-
-    Returns:
-        An OptimalControlSolution object containing the solution results.
-    """
     opti = ca.Opti()
 
     # --- Extract Problem Parameters ---
