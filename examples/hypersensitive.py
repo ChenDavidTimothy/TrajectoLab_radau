@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from trajectolab import Problem, Constraint, solve, PHSAdaptive, RadauDirectSolver, FixedMesh
+from trajectolab.direct_solver import InitialGuess
 
 # Define the hypersensitive problem
 problem = Problem("Hypersensitive Problem")
@@ -70,12 +71,32 @@ else:
 
 # Fixed mesh solver with same settings
 print("Solving with fixed mesh...")
+# Create an initial guess for the hypersensitive problem
+initial_guess = InitialGuess(
+    initial_time_variable=0.0,
+    terminal_time_variable=40.0,
+    states=[
+        np.array([[1.5, 1.4, 1.3, 1.2, 1.1, 1.0, 0.9, 0.8, 0.7]]),
+        np.array([[0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.0, -0.1]]),
+        np.array([[-0.1, -0.2, -0.3, -0.4, -0.5, -0.6, -0.7, -0.8, 1.0]])
+    ],
+    controls=[
+        np.array([[0.1, 0.1, 0.1, 0.1, 0.1, 0.0, 0.0, 0.0]]),
+        np.array([[0.0, 0.0, 0.0, 0.0, 0.0, -0.1, -0.1, -0.1]]),
+        np.array([[-0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1]])
+    ],
+    integrals=[1.0]
+)
+
+# Use the fixed mesh solver with the initial guess
+print("Solving with fixed mesh...")
 fixed_mesh_solver = RadauDirectSolver(
     mesh_method=FixedMesh(
-        polynomial_degrees=[8, 8, 8],
-        mesh_points=[-1.0, -1/3, 1/3, 1.0]
+        polynomial_degrees=[20, 8, 20],
+        mesh_points=[-1.0, -1/3, 1/3, 1.0],
+        initial_guess=initial_guess  # Pass the initial guess
     ),
-    nlp_options={'ipopt.print_level': 0, 'print_time': 0}
+    nlp_options={'ipopt.print_level': 0, 'ipopt.sb': 'yes', 'print_time': 0, 'ipopt.max_iter': 200}
 )
 
 fixed_solution = solve(problem, fixed_mesh_solver)

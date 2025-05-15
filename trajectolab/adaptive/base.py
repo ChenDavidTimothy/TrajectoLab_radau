@@ -13,15 +13,17 @@ class AdaptiveBase(ABC):
 class FixedMesh(AdaptiveBase):
     """Fixed mesh strategy - solves the problem with the provided mesh."""
     
-    def __init__(self, polynomial_degrees=None, mesh_points=None):
+    def __init__(self, polynomial_degrees=None, mesh_points=None, initial_guess=None):
         """
         Initialize the fixed mesh strategy.
         
         Args:
             polynomial_degrees: List of polynomial degrees (number of collocation points) per interval.
             mesh_points: List of mesh points in normalized time domain [-1, 1].
+            initial_guess: Optional initial guess to pass to the solver.
         """
         self.polynomial_degrees = polynomial_degrees or [4]
+        self.initial_guess = initial_guess
         
         if mesh_points is None:
             self.mesh_points = np.linspace(-1, 1, len(self.polynomial_degrees) + 1)
@@ -54,5 +56,9 @@ class FixedMesh(AdaptiveBase):
         legacy_problem.collocation_points_per_interval = self.polynomial_degrees
         legacy_problem.global_normalized_mesh_nodes = self.mesh_points
         
+        # Apply initial guess if provided
+        if hasattr(self, 'initial_guess') and self.initial_guess is not None:
+            legacy_problem.initial_guess = self.initial_guess
+        
         # Solve the problem
-        return solve_single_phase_radau_collocation(legacy_problem) 
+        return solve_single_phase_radau_collocation(legacy_problem)
