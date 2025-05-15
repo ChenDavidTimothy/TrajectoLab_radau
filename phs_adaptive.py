@@ -6,8 +6,6 @@ from dataclasses import dataclass
 from typing import Any, Callable, List, Optional, Union
 
 import numpy as np
-from scipy.integrate import solve_ivp
-
 from rpm_basis import (
     _compute_barycentric_weights,
     _evaluate_lagrange_polynomial_at_point,
@@ -21,6 +19,7 @@ from rpm_solver import (
     OptimalControlSolution,
     solve_single_phase_radau_collocation,
 )
+from scipy.integrate import solve_ivp
 
 
 @dataclass
