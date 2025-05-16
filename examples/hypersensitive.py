@@ -1,6 +1,6 @@
 import numpy as np
-import matplotlib.pyplot as plt
-from trajectolab import Problem, Constraint, solve, PHSAdaptive, RadauDirectSolver, FixedMesh
+
+from trajectolab import Constraint, FixedMesh, PHSAdaptive, Problem, RadauDirectSolver, solve
 from trajectolab.direct_solver import InitialGuess
 
 # Define the hypersensitive problem
@@ -11,21 +11,22 @@ problem.set_time_bounds(t0=0.0, tf=40.0)
 
 # Add state with boundary conditions
 problem.add_state(
-    name="x",
-    initial_constraint=Constraint(equals=1.5),
-    final_constraint=Constraint(equals=1.0)
+    name="x", initial_constraint=Constraint(equals=1.5), final_constraint=Constraint(equals=1.0)
 )
 
 # Add control
 problem.add_control(name="u")
 
+
 # Define dynamics - simple with symbolic expressions
 def dynamics(states, controls, time, params):
     x = states["x"]
     u = controls["u"]
-    return {"x": -x**3 + u}
+    return {"x": -(x**3) + u}
+
 
 problem.set_dynamics(dynamics)
+
 
 # Define objective integrand
 def objective_integrand(states, controls, time, params):
@@ -33,11 +34,14 @@ def objective_integrand(states, controls, time, params):
     u = controls["u"]
     return 0.5 * (x**2 + u**2)  # Don't use float() here!
 
+
 problem.add_integral(objective_integrand)
+
 
 # Define objective function - simple return of the integral
 def objective(initial_time, final_time, initial_states, final_states, integrals, params):
     return integrals[0]  # directly return the integral value
+
 
 problem.set_objective("integral", objective)
 
@@ -48,28 +52,28 @@ initial_guess = InitialGuess(
     states=[
         np.array([[1.5, 1.4, 1.3, 1.2, 1.1, 1.0, 0.9, 0.8, 0.7]]),
         np.array([[0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.0, -0.1]]),
-        np.array([[-0.1, -0.2, -0.3, -0.4, -0.5, -0.6, -0.7, -0.8, 1.0]])
+        np.array([[-0.1, -0.2, -0.3, -0.4, -0.5, -0.6, -0.7, -0.8, 1.0]]),
     ],
     controls=[
         np.array([[0.1, 0.1, 0.1, 0.1, 0.1, 0.0, 0.0, 0.0]]),
         np.array([[0.0, 0.0, 0.0, 0.0, 0.0, -0.1, -0.1, -0.1]]),
-        np.array([[-0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1]])
+        np.array([[-0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1]]),
     ],
-    integrals=[1.0]
+    integrals=[1.0],
 )
 
 # Configure the adaptive solver with appropriate settings
 adaptive_solver = RadauDirectSolver(
     mesh_method=PHSAdaptive(
         initial_polynomial_degrees=[8, 8, 8],
-        initial_mesh_points=[-1.0, -1/3, 1/3, 1.0],
+        initial_mesh_points=[-1.0, -1 / 3, 1 / 3, 1.0],
         error_tolerance=1e-3,
         max_iterations=30,
         min_polynomial_degree=4,
         max_polynomial_degree=8,
-        initial_guess=initial_guess
+        initial_guess=initial_guess,
     ),
-    nlp_options={'ipopt.print_level': 0, 'ipopt.sb': 'yes', 'print_time': 0, 'ipopt.max_iter': 200}
+    nlp_options={"ipopt.print_level": 0, "ipopt.sb": "yes", "print_time": 0, "ipopt.max_iter": 200},
 )
 
 print("Solving with adaptive mesh refinement...")
@@ -88,10 +92,10 @@ print("Solving with fixed mesh...")
 fixed_mesh_solver = RadauDirectSolver(
     mesh_method=FixedMesh(
         polynomial_degrees=[20, 8, 20],
-        mesh_points=[-1.0, -1/3, 1/3, 1.0],
-        initial_guess=initial_guess  # Pass the initial guess
+        mesh_points=[-1.0, -1 / 3, 1 / 3, 1.0],
+        initial_guess=initial_guess,  # Pass the initial guess
     ),
-    nlp_options={'ipopt.print_level': 0, 'ipopt.sb': 'yes', 'print_time': 0, 'ipopt.max_iter': 200}
+    nlp_options={"ipopt.print_level": 0, "ipopt.sb": "yes", "print_time": 0, "ipopt.max_iter": 200},
 )
 
 fixed_solution = solve(problem, fixed_mesh_solver)
