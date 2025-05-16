@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any, cast, Sequence
 
 import numpy as np
 from scipy.integrate import solve_ivp
@@ -981,7 +981,7 @@ class PHSAdaptive(AdaptiveBase):
 
     adaptive_params: AdaptiveParameters
     _initial_polynomial_degrees: list[int] | None
-    _initial_mesh_points: _FloatArray | None
+    _initial_mesh_points: Sequence[float] | _FloatArray | None
 
     def __init__(
         self,
@@ -992,7 +992,7 @@ class PHSAdaptive(AdaptiveBase):
         ode_solver_tolerance: float = 1e-7,
         num_error_sim_points: int = 40,
         initial_polynomial_degrees: list[int] | None = None,
-        initial_mesh_points: _FloatArray | None = None,
+        initial_mesh_points: Sequence[float] | _FloatArray | None = None,
         initial_guess: Any = None,  # Any here for InitialGuess type
     ) -> None:
         """
