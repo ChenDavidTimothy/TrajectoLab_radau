@@ -1,69 +1,69 @@
+"""
+Direct collocation solver for trajectory optimization problems.
+
+This module implements numerical methods for solving optimal control problems
+defined using the Problem class, with a focus on Radau collocation.
+"""
+
 import casadi as ca
 import numpy as np
+from collections.abc import Callable, Sequence
+from typing import Any, cast, TypeVar, List, Optional, Union
 
 from trajectolab.radau import compute_radau_collocation_components
-
-
-class PathConstraint:
-    def __init__(self, val, min_val=None, max_val=None, equals=None):
-        self.val = val
-        self.min = min_val
-        self.max = max_val
-        self.equals = equals
-
-
-class EventConstraint:
-    def __init__(self, val, min_val=None, max_val=None, equals=None):
-        self.val = val
-        self.min = min_val
-        self.max = max_val
-        self.equals = equals
-
-
-class InitialGuess:
-    def __init__(
-        self,
-        initial_time_variable=None,
-        terminal_time_variable=None,
-        states=None,
-        controls=None,
-        integrals=None,
-    ):
-        self.initial_time_variable = initial_time_variable
-        self.terminal_time_variable = terminal_time_variable
-        self.states = states or []
-        self.controls = controls or []
-        self.integrals = integrals
-
-
-class DefaultGuessValues:
-    def __init__(self, state=0.0, control=0.0, integral=0.0):
-        self.state = state
-        self.control = control
-        self.integral = integral
+from trajectolab.trajectolab_types import (
+    # Numeric types
+    _FloatArray,
+    _MeshPoints,
+    _TimePoint,
+    _TrajectoryTimePoints,
+    _TrajectoryStateValues,
+    _TrajectoryControlValues,
+    _IntegralValue,
+    # Parameter and dictionary types
+    _ParamDict,
+    # Direct solver specific types
+    _CasadiMX,
+    _CasadiOpti,
+    _CasadiSolution,
+    _SolverOptions,
+    # Direct solver constraint classes
+    PathConstraint,
+    EventConstraint,
+    # Initial guess classes
+    InitialGuess,
+    DefaultGuessValues,
+    # Direct solver function protocols
+    VectorizedDynamicsFunction,
+    VectorizedObjectiveFunction,
+    VectorizedIntegrandFunction,
+    _VectorizedPathConstraintFunc,
+    _VectorizedEventConstraintFunc,
+)
 
 
 class OptimalControlProblem:
+    """Definition of an optimal control problem in vectorized form."""
+
     def __init__(
         self,
-        num_states,
-        num_controls,
-        dynamics_function,
-        objective_function,
-        t0_bounds,
-        tf_bounds,
-        num_integrals=0,
-        collocation_points_per_interval=None,
-        global_normalized_mesh_nodes=None,
-        integral_integrand_function=None,
-        path_constraints_function=None,
-        event_constraints_function=None,
-        problem_parameters=None,
-        initial_guess=None,
-        default_initial_guess_values=None,
-        solver_options=None,
+        num_states: int,
+        num_controls: int,
+        dynamics_function: VectorizedDynamicsFunction,
+        objective_function: VectorizedObjectiveFunction,
+        t0_bounds: list[float],
+        tf_bounds: list[float],
+        num_integrals: int = 0,
+        collocation_points_per_interval: list[int] | None = None,
+        global_normalized_mesh_nodes: _MeshPoints | None = None,
+        integral_integrand_function: VectorizedIntegrandFunction | None = None,
+        path_constraints_function: _VectorizedPathConstraintFunc | None = None,
+        event_constraints_function: _VectorizedEventConstraintFunc | None = None,
+        problem_parameters: _ParamDict | None = None,
+        initial_guess: InitialGuess | None = None,
+        default_initial_guess_values: DefaultGuessValues | None = None,
+        solver_options: _SolverOptions | None = None,
     ):
-
         self.num_states = num_states
         self.num_controls = num_controls
         self.num_integrals = num_integrals
@@ -91,29 +91,33 @@ class OptimalControlProblem:
 
 
 class OptimalControlSolution:
+    """Results from solving an optimal control problem."""
+
     def __init__(self):
-        self.success = False
-        self.message = "Solver not run yet."
-        self.initial_time_variable = None
-        self.terminal_time_variable = None
-        self.objective = None
-        self.integrals = None
-        self.time_states = np.array([])
-        self.states = []
-        self.time_controls = np.array([])
-        self.controls = []
-        self.raw_solution = None
-        self.opti_object = None
-        self.num_collocation_nodes_per_interval = []
-        self.global_normalized_mesh_nodes = None
-        # Add these missing attributes
-        self.num_collocation_nodes_list_at_solve_time = None
-        self.global_mesh_nodes_at_solve_time = None
-        self.solved_state_trajectories_per_interval = None
-        self.solved_control_trajectories_per_interval = None
+        self.success: bool = False
+        self.message: str = "Solver not run yet."
+        self.initial_time_variable: float | None = None
+        self.terminal_time_variable: float | None = None
+        self.objective: float | None = None
+        self.integrals: _IntegralValue = None
+        self.time_states: _FloatArray = np.array([])
+        self.states: list[_FloatArray] = []
+        self.time_controls: _FloatArray = np.array([])
+        self.controls: list[_FloatArray] = []
+        self.raw_solution: _CasadiSolution | None = None
+        self.opti_object: _CasadiOpti | None = None
+        self.num_collocation_nodes_per_interval: list[int] = []
+        self.global_normalized_mesh_nodes: _MeshPoints | None = None
+        self.num_collocation_nodes_list_at_solve_time: list[int] | None = None
+        self.global_mesh_nodes_at_solve_time: _MeshPoints | None = None
+        self.solved_state_trajectories_per_interval: list[_FloatArray] | None = None
+        self.solved_control_trajectories_per_interval: list[_FloatArray] | None = None
 
 
-def _extract_integral_values(casadi_solution_object, opti_object, num_integrals):
+def _extract_integral_values(
+    casadi_solution_object: _CasadiSolution, opti_object: _CasadiOpti, num_integrals: int
+) -> _IntegralValue:
+    """Extract integral values from the CasADi solution."""
     if (
         num_integrals == 0
         or not hasattr(opti_object, "integral_variables_object_reference")
@@ -128,28 +132,31 @@ def _extract_integral_values(casadi_solution_object, opti_object, num_integrals)
         if isinstance(raw_value, ca.DM):
             if num_integrals == 1 and raw_value.shape == (1, 1):
                 return float(raw_value[0, 0])
-            return raw_value.toarray().flatten()
+            # Convert to list without using flatten directly on potential float
+            arr = raw_value.toarray()
+            return list(arr.reshape(-1))  # Safely reshape to 1D then convert to list
         return float(raw_value)  # Scalar case
     except Exception as e:
         print(f"Warning: Could not extract integral values: {e}")
-        return np.full(num_integrals, np.nan) if num_integrals > 1 else np.nan
+        return None
 
 
 def _process_trajectory_points(
-    mesh_interval_index,
-    casadi_solution_object,
-    opti_object,
-    variables_list,
-    local_tau_values,
-    global_normalized_mesh_nodes,
-    initial_time,
-    terminal_time,
-    last_added_point,
-    trajectory_times,
-    trajectory_values_lists,
-    num_variables,
-    is_state=True,
-):
+    mesh_interval_index: int,
+    casadi_solution_object: _CasadiSolution,
+    opti_object: _CasadiOpti,
+    variables_list: list[_CasadiMX],
+    local_tau_values: _FloatArray,
+    global_normalized_mesh_nodes: _MeshPoints,
+    initial_time: float,
+    terminal_time: float,
+    last_added_point: float,
+    trajectory_times: _TrajectoryTimePoints,
+    trajectory_values_lists: _TrajectoryStateValues | _TrajectoryControlValues,
+    num_variables: int,
+    is_state: bool = True,
+) -> float:
+    """Process trajectory points from the solution."""
     if mesh_interval_index >= len(variables_list):
         print(f"Error: Variable list not found or incomplete for interval {mesh_interval_index}.")
         return last_added_point
@@ -190,12 +197,13 @@ def _process_trajectory_points(
 
 
 def _extract_and_format_solution(
-    casadi_solution_object,
-    casadi_optimization_problem_object,
-    problem_definition,
-    num_collocation_nodes_per_interval,
-    global_normalized_mesh_nodes,
-):
+    casadi_solution_object: _CasadiSolution | None,
+    casadi_optimization_problem_object: _CasadiOpti,
+    problem_definition: OptimalControlProblem,
+    num_collocation_nodes_per_interval: list[int],
+    global_normalized_mesh_nodes: _MeshPoints,
+) -> OptimalControlSolution:
+    """Extract and format solution from CasADi solver output."""
     solution = OptimalControlSolution()
 
     if casadi_solution_object is None:
@@ -236,9 +244,21 @@ def _extract_and_format_solution(
     )
 
     # Process state trajectories
-    state_trajectory_times = []
-    state_trajectory_values = [[] for _ in range(num_states)]
-    last_time_point_added_to_state_trajectory = -np.inf
+    state_trajectory_times: _TrajectoryTimePoints = []
+    state_trajectory_values: _TrajectoryStateValues = [[] for _ in range(num_states)]
+    last_time_point_added_to_state_trajectory: float = -np.inf
+
+    # Make sure time values are not None before processing
+    init_time = (
+        float(0.0)
+        if solution.initial_time_variable is None
+        else float(solution.initial_time_variable)
+    )
+    term_time = (
+        float(1.0)
+        if solution.terminal_time_variable is None
+        else float(solution.terminal_time_variable)
+    )
 
     for mesh_interval_index in range(num_mesh_intervals):
         if not hasattr(
@@ -259,8 +279,8 @@ def _extract_and_format_solution(
                 mesh_interval_index
             ],
             global_normalized_mesh_nodes,
-            solution.initial_time_variable,
-            solution.terminal_time_variable,
+            init_time,
+            term_time,
             last_time_point_added_to_state_trajectory,
             state_trajectory_times,
             state_trajectory_values,
@@ -269,9 +289,9 @@ def _extract_and_format_solution(
         )
 
     # Process control trajectories
-    control_trajectory_times = []
-    control_trajectory_values = [[] for _ in range(num_controls)]
-    last_time_point_added_to_control_trajectory = -np.inf
+    control_trajectory_times: _TrajectoryTimePoints = []
+    control_trajectory_values: _TrajectoryControlValues = [[] for _ in range(num_controls)]
+    last_time_point_added_to_control_trajectory: float = -np.inf
 
     for mesh_interval_index in range(num_mesh_intervals):
         if not hasattr(
@@ -292,8 +312,8 @@ def _extract_and_format_solution(
                 mesh_interval_index
             ],
             global_normalized_mesh_nodes,
-            solution.initial_time_variable,
-            solution.terminal_time_variable,
+            init_time,
+            term_time,
             last_time_point_added_to_control_trajectory,
             control_trajectory_times,
             control_trajectory_values,
@@ -316,16 +336,21 @@ def _extract_and_format_solution(
     return solution
 
 
-def _apply_constraint(opti, constraint):
-    if constraint.min is not None:
+def _apply_constraint(opti: _CasadiOpti, constraint: PathConstraint | EventConstraint) -> None:
+    """Apply a constraint to the optimization problem."""
+    # Fix the None comparison errors by adding explicit checks
+    if constraint.min is not None and constraint.val is not None:
         opti.subject_to(constraint.val >= constraint.min)
-    if constraint.max is not None:
+    if constraint.max is not None and constraint.val is not None:
         opti.subject_to(constraint.val <= constraint.max)
-    if constraint.equals is not None:
+    if constraint.equals is not None and constraint.val is not None:
         opti.subject_to(constraint.val == constraint.equals)
 
 
-def _validate_dynamics_output(output, num_states):
+def _validate_dynamics_output(
+    output: list[float] | _FloatArray | _CasadiMX, num_states: int
+) -> _CasadiMX:
+    """Validate and convert dynamics function output to the correct format."""
     if isinstance(output, list):
         return ca.vertcat(*output) if output else ca.MX(num_states, 1)
     elif isinstance(output, ca.MX):
@@ -339,7 +364,13 @@ def _validate_dynamics_output(output, num_states):
     raise TypeError(f"Dynamics function output type not supported: {type(output)}")
 
 
-def _set_initial_value_for_integrals(opti, integral_vars, guess, num_integrals):
+def _set_initial_value_for_integrals(
+    opti: _CasadiOpti,
+    integral_vars: _CasadiMX,
+    guess: Sequence[float] | float | None,
+    num_integrals: int,
+) -> None:
+    """Set initial values for integral variables."""
     if guess is None:
         return
 
@@ -357,41 +388,65 @@ def _set_initial_value_for_integrals(opti, integral_vars, guess, num_integrals):
 
 
 def solve_single_phase_radau_collocation(
-    problem_definition,
-):
+    problem_definition: OptimalControlProblem,
+) -> OptimalControlSolution:
+    """
+    Solve an optimal control problem using Radau collocation.
+
+    Args:
+        problem_definition: The optimal control problem definition.
+
+    Returns:
+        Solution to the optimal control problem.
+    """
     opti = ca.Opti()
 
     # --- Extract Problem Parameters ---
-    num_states = problem_definition.num_states
-    num_controls = problem_definition.num_controls
-    num_integrals = problem_definition.num_integrals
+    num_states: int = problem_definition.num_states
+    num_controls: int = problem_definition.num_controls
+    num_integrals: int = problem_definition.num_integrals
 
     if not problem_definition.collocation_points_per_interval:
         raise ValueError("problem_definition must include 'collocation_points_per_interval'.")
 
-    num_collocation_nodes_per_interval = problem_definition.collocation_points_per_interval
+    num_collocation_nodes_per_interval: list[int] = (
+        problem_definition.collocation_points_per_interval
+    )
     if not isinstance(num_collocation_nodes_per_interval, list) or not all(
         isinstance(n, int) and n > 0 for n in num_collocation_nodes_per_interval
     ):
         raise ValueError("'collocation_points_per_interval' must be a list of positive integers.")
 
-    num_mesh_intervals = len(num_collocation_nodes_per_interval)
+    num_mesh_intervals: int = len(num_collocation_nodes_per_interval)
 
     # User-defined functions
-    dynamics_function = problem_definition.dynamics_function
-    objective_function = problem_definition.objective_function
-    path_constraints_function = problem_definition.path_constraints_function
-    event_constraints_function = problem_definition.event_constraints_function
-    integral_integrand_function = problem_definition.integral_integrand_function
-    problem_parameters = problem_definition.problem_parameters
+    dynamics_function: VectorizedDynamicsFunction = problem_definition.dynamics_function
+    objective_function: VectorizedObjectiveFunction = problem_definition.objective_function
+    path_constraints_function: _VectorizedPathConstraintFunc | None = (
+        problem_definition.path_constraints_function
+    )
+    event_constraints_function: _VectorizedEventConstraintFunc | None = (
+        problem_definition.event_constraints_function
+    )
+    integral_integrand_function: VectorizedIntegrandFunction | None = (
+        problem_definition.integral_integrand_function
+    )
+    problem_parameters: _ParamDict = problem_definition.problem_parameters
 
     # --- Decision Variables ---
     initial_time_variable = opti.variable()
     terminal_time_variable = opti.variable()
-    opti.subject_to(initial_time_variable >= problem_definition.t0_bounds[0])
-    opti.subject_to(initial_time_variable <= problem_definition.t0_bounds[1])
-    opti.subject_to(terminal_time_variable >= problem_definition.tf_bounds[0])
-    opti.subject_to(terminal_time_variable <= problem_definition.tf_bounds[1])
+
+    # Safe bounds checking
+    if problem_definition.t0_bounds and len(problem_definition.t0_bounds) >= 1:
+        opti.subject_to(initial_time_variable >= problem_definition.t0_bounds[0])
+    if problem_definition.t0_bounds and len(problem_definition.t0_bounds) >= 2:
+        opti.subject_to(initial_time_variable <= problem_definition.t0_bounds[1])
+    if problem_definition.tf_bounds and len(problem_definition.tf_bounds) >= 1:
+        opti.subject_to(terminal_time_variable >= problem_definition.tf_bounds[0])
+    if problem_definition.tf_bounds and len(problem_definition.tf_bounds) >= 2:
+        opti.subject_to(terminal_time_variable <= problem_definition.tf_bounds[1])
+
     opti.subject_to(terminal_time_variable > initial_time_variable + 1e-6)
 
     # --- Mesh Definition ---
@@ -399,7 +454,7 @@ def solve_single_phase_radau_collocation(
     user_mesh = problem_definition.global_normalized_mesh_nodes
 
     if user_mesh is not None:
-        global_normalized_mesh_nodes = np.array(user_mesh, dtype=float)
+        global_normalized_mesh_nodes = np.array(user_mesh, dtype=np.float64)
         if not (
             len(global_normalized_mesh_nodes) == num_mesh_intervals + 1
             and np.all(np.diff(global_normalized_mesh_nodes) > 1e-9)
@@ -412,8 +467,7 @@ def solve_single_phase_radau_collocation(
             )
     else:
         # Default to uniform distribution if not provided
-        global_normalized_mesh_nodes = np.linspace(-1, 1, num_mesh_intervals + 1)
-
+        global_normalized_mesh_nodes = np.linspace(-1, 1, num_mesh_intervals + 1, dtype=np.float64)
     # State Variables (Shared at global mesh points)
     state_at_global_mesh_nodes_variables = [
         opti.variable(num_states) for _ in range(num_mesh_intervals + 1)
@@ -437,8 +491,8 @@ def solve_single_phase_radau_collocation(
     accumulated_integral_expressions = (
         [ca.MX(0) for _ in range(num_integrals)] if num_integrals > 0 else []
     )
-    local_state_approximation_nodes_tau_all_intervals = []
-    local_collocation_nodes_tau_all_intervals = []
+    local_state_approximation_nodes_tau_all_intervals: list[_FloatArray] = []
+    local_collocation_nodes_tau_all_intervals: list[_FloatArray] = []
 
     # --- Assemble State Representations & Define Interval Constraints ---
     for mesh_interval_index in range(num_mesh_intervals):
@@ -585,7 +639,11 @@ def solve_single_phase_radau_collocation(
                 accumulated_integral_expressions[integral_index] += tau_to_time_scaling * quad_sum
 
     # Link integral decision variables to their computed values
-    if num_integrals > 0 and integral_integrand_function:
+    if (
+        num_integrals > 0
+        and integral_integrand_function
+        and integral_decision_variables is not None
+    ):
         if num_integrals == 1:
             opti.subject_to(integral_decision_variables == accumulated_integral_expressions[0])
         else:
@@ -722,10 +780,20 @@ def solve_single_phase_radau_collocation(
                                 guess_slice,
                             )
 
-        # Integrals
+        # Integrals - make sure we convert any numpy arrays to lists or scalars
         if ig.integrals is not None and integral_decision_variables is not None:
+            # Convert numpy array to list/float as needed
+            integral_guess: Sequence[float] | float | None
+            if isinstance(ig.integrals, np.ndarray):
+                if ig.integrals.size == 1:
+                    integral_guess = float(ig.integrals.item())
+                else:
+                    integral_guess = list(ig.integrals.flatten())
+            else:
+                integral_guess = ig.integrals
+
             _set_initial_value_for_integrals(
-                opti, integral_decision_variables, ig.integrals, num_integrals
+                opti, integral_decision_variables, integral_guess, num_integrals
             )
 
     # --- Configure Solver and Solve ---
@@ -762,7 +830,9 @@ def solve_single_phase_radau_collocation(
             global_normalized_mesh_nodes,
         )
         solution.num_collocation_nodes_list_at_solve_time = list(num_collocation_nodes_per_interval)
-        solution.global_mesh_nodes_at_solve_time = global_normalized_mesh_nodes.copy()
+        solution.global_mesh_nodes_at_solve_time = np.array(
+            global_normalized_mesh_nodes, dtype=np.float64
+        )
         return solution
     except RuntimeError as e:
         print(f"Error during NLP solution: {e}")
