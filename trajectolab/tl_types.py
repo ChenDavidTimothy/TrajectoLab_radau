@@ -12,7 +12,7 @@ from __future__ import (  # Ensures PathConstraint/EventConstraint resolve corre
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Any, TypeAlias
+from typing import Any, Protocol, TypeAlias, TypeVar
 
 import casadi as ca
 import numpy as np
@@ -153,3 +153,35 @@ _TrajectoryData: TypeAlias = list[
 # one per mesh interval: [num_variables, num_nodes_in_interval]
 _InitialGuessTrajectory: TypeAlias = list[_FloatMatrix]
 _InitialGuessIntegrals: TypeAlias = float | _FloatArray | list[float] | None
+
+# --- PHSAdaptive Types ---
+# Solution and legacy problem references without circular imports
+_LegacySolutionType: TypeAlias = Any  # Will be OptimalControlSolution
+_LegacyProblemType: TypeAlias = Any  # Will be OptimalControlProblem
+
+# For evaluator callables
+_StateEvaluator: TypeAlias = Callable[[float | _FloatArray], _FloatArray]
+_ControlEvaluator: TypeAlias = Callable[[float | _FloatArray], _FloatArray]
+
+# ODE solver related types
+_DynamicsRHSCallable: TypeAlias = Callable[[float, _FloatArray], _FloatArray]
+
+
+# Define a protocol for the ODE solver result
+class ODESolverResult(Protocol):
+    """Protocol for the result of ODE solvers like solve_ivp."""
+
+    y: _FloatMatrix
+    t: _FloatArray
+    success: bool
+    message: str
+
+
+# Make the ODESolverCallable more flexible with optional kwargs
+_ODESolverCallable: TypeAlias = Callable[..., ODESolverResult]
+
+# Gamma normalization factors type
+_GammaFactors: TypeAlias = _FloatArray
+
+# Type variable for generic functions
+T = TypeVar("T")

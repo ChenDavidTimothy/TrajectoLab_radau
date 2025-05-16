@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, Callable, List, Optional, Union
+from typing import Any, cast
 
 import numpy as np
 from scipy.integrate import solve_ivp
@@ -10,10 +10,22 @@ from trajectolab.radau import (
     compute_radau_collocation_components,
     evaluate_lagrange_polynomial_at_point,
 )
+from trajectolab.tl_types import (
+    _ControlEvaluator,
+    _FloatArray,
+    _FloatMatrix,
+    _GammaFactors,
+    _LegacyProblemType,
+    _LegacySolutionType,
+    _ODESolverCallable,
+    _StateEvaluator,
+)
 
 
 @dataclass
 class AdaptiveParameters:
+    """Parameters controlling the adaptive mesh refinement algorithm."""
+
     error_tolerance: float  # Error tolerance threshold (epsilon_tol)
     max_iterations: int  # Maximum number of refinement iterations (M_max_iterations)
     min_polynomial_degree: int  # Minimum polynomial degree allowed (N_min_poly_degree)
@@ -26,15 +38,15 @@ class AdaptiveParameters:
 class IntervalSimulationBundle:
     """Holds results from forward/backward simulations for error estimation."""
 
-    forward_simulation_local_tau_evaluation_points: Optional[np.ndarray] = None
-    state_trajectory_from_forward_simulation: Optional[np.ndarray] = None
-    nlp_state_trajectory_evaluated_at_forward_simulation_points: Optional[np.ndarray] = None
-    backward_simulation_local_tau_evaluation_points: Optional[np.ndarray] = None
-    state_trajectory_from_backward_simulation: Optional[np.ndarray] = None
-    nlp_state_trajectory_evaluated_at_backward_simulation_points: Optional[np.ndarray] = None
+    forward_simulation_local_tau_evaluation_points: _FloatArray | None = None
+    state_trajectory_from_forward_simulation: _FloatMatrix | None = None
+    nlp_state_trajectory_evaluated_at_forward_simulation_points: _FloatMatrix | None = None
+    backward_simulation_local_tau_evaluation_points: _FloatArray | None = None
+    state_trajectory_from_backward_simulation: _FloatMatrix | None = None
+    nlp_state_trajectory_evaluated_at_backward_simulation_points: _FloatMatrix | None = None
     are_forward_and_backward_simulations_successful: bool = True
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Ensure all ndarray fields are properly formatted as 2D arrays."""
         for field_name, field_val in self.__dict__.items():
             if not isinstance(field_val, np.ndarray) or field_val is None:
@@ -51,17 +63,17 @@ class IntervalSimulationBundle:
 
 def _extract_and_prepare_array(
     casadi_value: Any, expected_rows: int, expected_cols: int
-) -> np.ndarray:
+) -> _FloatMatrix:
     """Extracts numerical value from CasADi and ensures correct 2D shape."""
     # Convert to numpy array
     if hasattr(casadi_value, "to_DM"):
-        np_array = np.array(casadi_value.to_DM())
+        np_array = np.array(casadi_value.to_DM(), dtype=np.float64)
     else:
-        np_array = np.array(casadi_value)
+        np_array = np.array(casadi_value, dtype=np.float64)
 
     # Handle empty arrays for states/controls
     if expected_rows == 0:
-        return np.empty((0, expected_cols))
+        return np.empty((0, expected_cols), dtype=np.float64)
 
     # Ensure 2D shape
     if np_array.ndim == 1:
@@ -80,7 +92,7 @@ def _extract_and_prepare_array(
         if squeezed.ndim == 1 and expected_rows == 1 and len(squeezed) == expected_cols:
             np_array = squeezed.reshape(1, expected_cols)
 
-    return np_array
+    return np_array  # No cast needed, np_array is already the right type
 
 
 class PolynomialInterpolant:
@@ -89,16 +101,23 @@ class PolynomialInterpolant:
     using the barycentric formula.
     """
 
+    values_at_nodes: _FloatMatrix
+    nodes_array: _FloatArray
+    num_vars: int
+    num_nodes_val: int
+    num_nodes_pts: int
+    bary_weights: _FloatArray
+
     def __init__(
         self,
-        nodes: np.ndarray,
-        values: np.ndarray,
-        barycentric_weights: Optional[np.ndarray] = None,
-    ):
+        nodes: _FloatArray,
+        values: _FloatMatrix,
+        barycentric_weights: _FloatArray | None = None,
+    ) -> None:
         """Creates a Lagrange polynomial interpolant using barycentric formula."""
         # Convert to arrays if needed and ensure 2D values
         self.values_at_nodes = np.atleast_2d(values)
-        self.nodes_array = np.asarray(nodes)
+        self.nodes_array = np.asarray(nodes, dtype=np.float64)
         self.num_vars, self.num_nodes_val = self.values_at_nodes.shape
         self.num_nodes_pts = len(self.nodes_array)
 
@@ -111,17 +130,17 @@ class PolynomialInterpolant:
         self.bary_weights = (
             compute_barycentric_weights(self.nodes_array)
             if barycentric_weights is None
-            else np.asarray(barycentric_weights)
+            else np.asarray(barycentric_weights, dtype=np.float64)
         )
 
         if len(self.bary_weights) != self.num_nodes_pts:
             raise ValueError("Barycentric weights length does not match nodes length")
 
-    def __call__(self, points: Union[float, np.ndarray]) -> np.ndarray:
+    def __call__(self, points: float | _FloatArray) -> _FloatArray:
         """Evaluates the interpolant at the given point(s)."""
         is_scalar = np.isscalar(points)
         zeta_arr = np.atleast_1d(points)
-        result = np.zeros((self.num_vars, len(zeta_arr)))
+        result = np.zeros((self.num_vars, len(zeta_arr)), dtype=np.float64)
 
         for i, zeta in enumerate(zeta_arr):
             L_j = evaluate_lagrange_polynomial_at_point(self.nodes_array, self.bary_weights, zeta)
@@ -132,7 +151,7 @@ class PolynomialInterpolant:
 
 
 def get_polynomial_interpolant(
-    nodes: np.ndarray, values: np.ndarray, barycentric_weights: Optional[np.ndarray] = None
+    nodes: _FloatArray, values: _FloatMatrix, barycentric_weights: _FloatArray | None = None
 ) -> PolynomialInterpolant:
     """Creates a Lagrange polynomial interpolant using barycentric formula."""
     return PolynomialInterpolant(nodes, values, barycentric_weights)
@@ -140,11 +159,11 @@ def get_polynomial_interpolant(
 
 def _simulate_dynamics_for_error_estimation(
     interval_idx: int,
-    solution,
-    problem,
-    state_evaluator: Callable,
-    control_evaluator: Callable,
-    ode_solver: Callable = solve_ivp,
+    solution: _LegacySolutionType,
+    problem: _LegacyProblemType,
+    state_evaluator: _StateEvaluator,
+    control_evaluator: _ControlEvaluator,
+    ode_solver: _ODESolverCallable = solve_ivp,
     ode_rtol: float = 1e-7,
     n_eval_points: int = 50,
 ) -> IntervalSimulationBundle:
@@ -163,6 +182,8 @@ def _simulate_dynamics_for_error_estimation(
         return result
 
     num_states = problem.num_states
+    # Remove the unused variable warning by adding underscore
+    _num_controls = problem.num_controls
     dynamics_function = problem.dynamics_function
     problem_parameters = problem.problem_parameters
 
@@ -184,7 +205,7 @@ def _simulate_dynamics_for_error_estimation(
     beta_k0 = (tau_end + tau_start) / 2.0
     overall_scaling = alpha * beta_k
 
-    def dynamics_rhs(tau: float, state: np.ndarray) -> np.ndarray:
+    def dynamics_rhs(tau: float, state: _FloatArray) -> _FloatArray:
         """Right-hand side of dynamics ODE in local tau coordinates."""
         # Get control from interpolant
         control = control_evaluator(tau)
@@ -197,7 +218,7 @@ def _simulate_dynamics_for_error_estimation(
 
         # Evaluate dynamics
         state_deriv = dynamics_function(state, control, physical_time, problem_parameters)
-        state_deriv_np = np.array(state_deriv, dtype=float).flatten()
+        state_deriv_np = np.array(state_deriv, dtype=np.float64).flatten()
 
         if state_deriv_np.shape[0] != num_states:
             raise ValueError(
@@ -211,7 +232,9 @@ def _simulate_dynamics_for_error_estimation(
     if initial_state.ndim > 1:
         initial_state = initial_state.flatten()
 
-    fwd_tau_points = np.linspace(-1, 1, n_eval_points)
+    fwd_tau_points = np.linspace(-1, 1, n_eval_points, dtype=np.float64)
+
+    # Call solve_ivp with kwargs
     fwd_sim = ode_solver(
         dynamics_rhs,
         t_span=(-1, 1),
@@ -223,10 +246,12 @@ def _simulate_dynamics_for_error_estimation(
     )
 
     result.forward_simulation_local_tau_evaluation_points = fwd_tau_points
-    result.state_trajectory_from_forward_simulation = (
-        fwd_sim.y if fwd_sim.success else np.full((num_states, len(fwd_tau_points)), np.nan)
-    )
-    if not fwd_sim.success:
+    if fwd_sim.success:
+        result.state_trajectory_from_forward_simulation = fwd_sim.y
+    else:
+        result.state_trajectory_from_forward_simulation = np.full(
+            (num_states, len(fwd_tau_points)), np.nan, dtype=np.float64
+        )
         print(f"    Fwd IVP fail int {interval_idx}: {fwd_sim.message}")
 
     result.nlp_state_trajectory_evaluated_at_forward_simulation_points = state_evaluator(
@@ -238,7 +263,9 @@ def _simulate_dynamics_for_error_estimation(
     if terminal_state.ndim > 1:
         terminal_state = terminal_state.flatten()
 
-    bwd_tau_points = np.linspace(1, -1, n_eval_points)
+    bwd_tau_points = np.linspace(1, -1, n_eval_points, dtype=np.float64)
+
+    # Call solve_ivp with kwargs
     bwd_sim = ode_solver(
         dynamics_rhs,
         t_span=(1, -1),
@@ -249,13 +276,17 @@ def _simulate_dynamics_for_error_estimation(
         atol=ode_rtol * 1e-2,
     )
 
-    result.backward_simulation_local_tau_evaluation_points = np.flip(bwd_tau_points)
-    result.state_trajectory_from_backward_simulation = (
-        np.fliplr(bwd_sim.y)
-        if bwd_sim.success
-        else np.full((num_states, len(bwd_tau_points)), np.nan)
-    )
-    if not bwd_sim.success:
+    # Create the reversed tau points
+    sorted_bwd_tau_points = np.flip(bwd_tau_points)
+
+    if bwd_sim.success:
+        result.backward_simulation_local_tau_evaluation_points = sorted_bwd_tau_points
+        result.state_trajectory_from_backward_simulation = np.fliplr(bwd_sim.y)
+    else:
+        result.backward_simulation_local_tau_evaluation_points = sorted_bwd_tau_points
+        result.state_trajectory_from_backward_simulation = np.full(
+            (num_states, len(sorted_bwd_tau_points)), np.nan, dtype=np.float64
+        )
         print(f"    Bwd TVP fail int {interval_idx}: {bwd_sim.message}")
 
     result.nlp_state_trajectory_evaluated_at_backward_simulation_points = state_evaluator(
@@ -267,7 +298,7 @@ def _simulate_dynamics_for_error_estimation(
 
 
 def calculate_relative_error_estimate(
-    interval_idx: int, sim_bundle: IntervalSimulationBundle, gamma_factors: np.ndarray
+    interval_idx: int, sim_bundle: IntervalSimulationBundle, gamma_factors: _GammaFactors
 ) -> float:
     """Calculates the maximum relative error estimate for an interval."""
     # Check for failed simulations
@@ -297,7 +328,11 @@ def calculate_relative_error_estimate(
     )
 
     fwd_errors = gamma_factors * fwd_diff
-    max_fwd_errors = np.nanmax(fwd_errors, axis=1) if fwd_errors.size > 0 else np.zeros(num_states)
+    max_fwd_errors = (
+        np.nanmax(fwd_errors, axis=1)
+        if fwd_errors.size > 0
+        else np.zeros(num_states, dtype=np.float64)
+    )
 
     # Backward errors
     bwd_diff = np.abs(
@@ -309,7 +344,11 @@ def calculate_relative_error_estimate(
     )
 
     bwd_errors = gamma_factors * bwd_diff
-    max_bwd_errors = np.nanmax(bwd_errors, axis=1) if bwd_errors.size > 0 else np.zeros(num_states)
+    max_bwd_errors = (
+        np.nanmax(bwd_errors, axis=1)
+        if bwd_errors.size > 0
+        else np.zeros(num_states, dtype=np.float64)
+    )
 
     # Take maximum of forward and backward errors for each state
     max_errors_per_state = np.maximum(max_fwd_errors, max_bwd_errors)
@@ -332,6 +371,8 @@ def calculate_relative_error_estimate(
 
 @dataclass
 class PRefineResult:
+    """Result of polynomial degree refinement."""
+
     actual_Nk_to_use: int
     was_p_successful: bool
     unconstrained_target_Nk: int
@@ -371,7 +412,7 @@ def p_refine_interval(
 class HRefineResult:
     """Result of h-refinement."""
 
-    collocation_nodes_for_new_subintervals: List[int]
+    collocation_nodes_for_new_subintervals: list[int]
     num_new_subintervals: int
 
 
@@ -435,14 +476,14 @@ def _map_local_tau_from_interval_k_plus_1_to_equivalent_in_interval_k(
 
 def h_reduce_intervals(
     first_idx: int,
-    solution,
-    problem,
-    adaptive_params,
-    gamma_factors: np.ndarray,
-    state_evaluator_first: Callable,
-    control_evaluator_first: Optional[Callable],
-    state_evaluator_second: Callable,
-    control_evaluator_second: Optional[Callable],
+    solution: _LegacySolutionType,
+    problem: _LegacyProblemType,
+    adaptive_params: AdaptiveParameters,
+    gamma_factors: _GammaFactors,
+    state_evaluator_first: _StateEvaluator,
+    control_evaluator_first: _ControlEvaluator | None,
+    state_evaluator_second: _StateEvaluator,
+    control_evaluator_second: _ControlEvaluator | None,
 ) -> bool:
     """
     Checks if two adjacent intervals can be merged.
@@ -485,16 +526,18 @@ def h_reduce_intervals(
     scaling_k = alpha * beta_k
     scaling_kp1 = alpha * beta_kp1
 
-    def _get_control_value(control_evaluator: Optional[Callable], local_tau: float) -> np.ndarray:
+    def _get_control_value(
+        control_evaluator: _ControlEvaluator | None, local_tau: float
+    ) -> _FloatArray:
         """Get control value from evaluator, with clipping to handle boundary conditions."""
         if control_evaluator is None:
-            return np.array([])
+            return np.array([], dtype=np.float64)
 
         clipped_tau = np.clip(local_tau, -1.0, 1.0)
         u_val = control_evaluator(clipped_tau)
         return np.atleast_1d(u_val.squeeze())
 
-    def merged_fwd_rhs(local_tau_k: float, state: np.ndarray) -> np.ndarray:
+    def merged_fwd_rhs(local_tau_k: float, state: _FloatArray) -> _FloatArray:
         """RHS for merged domain forward simulation."""
         u_val = _get_control_value(control_evaluator_first, local_tau_k)
         state_clipped = np.clip(state, -1e6, 1e6)
@@ -504,11 +547,11 @@ def h_reduce_intervals(
         t_actual = alpha * global_tau + alpha_0
 
         f_rhs = dynamics_function(state_clipped, u_val, t_actual, problem_parameters)
-        f_rhs_np = np.array(f_rhs, dtype=float).flatten()
+        f_rhs_np = np.array(f_rhs, dtype=np.float64).flatten()
 
         return scaling_k * f_rhs_np
 
-    def merged_bwd_rhs(local_tau_kp1: float, state: np.ndarray) -> np.ndarray:
+    def merged_bwd_rhs(local_tau_kp1: float, state: _FloatArray) -> _FloatArray:
         """RHS for merged domain backward simulation."""
         u_val = _get_control_value(control_evaluator_second, local_tau_kp1)
         state_clipped = np.clip(state, -1e6, 1e6)
@@ -518,7 +561,7 @@ def h_reduce_intervals(
         t_actual = alpha * global_tau + alpha_0
 
         f_rhs = dynamics_function(state_clipped, u_val, t_actual, problem_parameters)
-        f_rhs_np = np.array(f_rhs, dtype=float).flatten()
+        f_rhs_np = np.array(f_rhs, dtype=np.float64).flatten()
 
         return scaling_kp1 * f_rhs_np
 
@@ -556,11 +599,16 @@ def h_reduce_intervals(
         ),
     )
     num_fwd_pts = max(2, num_fwd_pts)
-    fwd_tau_points = np.linspace(-1.0, target_end_tau_k, num_fwd_pts)
+    fwd_tau_points = np.linspace(-1.0, target_end_tau_k, num_fwd_pts, dtype=np.float64)
 
     print(
         f"      h-reduction: Starting Merged IVP sim from zeta_k=-1 to {target_end_tau_k:.3f} ({num_fwd_pts} pts)"
     )
+
+    # Define these upfront to ensure they're bound in all code paths
+    fwd_trajectory = np.full((num_states, num_fwd_pts), np.nan, dtype=np.float64)
+    fwd_sim_success = False
+
     try:
         fwd_sim = solve_ivp(
             merged_fwd_rhs,
@@ -571,18 +619,18 @@ def h_reduce_intervals(
             rtol=ode_rtol,
             atol=ode_atol,
         )
-        fwd_trajectory = (
-            fwd_sim.y if fwd_sim.success else np.full((num_states, len(fwd_tau_points)), np.nan)
-        )
-        if not fwd_sim.success:
+
+        if fwd_sim.success:
+            fwd_trajectory = fwd_sim.y
+            fwd_sim_success = True
+        else:
             print(f"      Merged IVP failed: {fwd_sim.message}")
     except Exception as e:
         print(f"      Exception during merged IVP simulation: {e}")
-        fwd_trajectory = np.full((num_states, len(fwd_tau_points)), np.nan)
 
     # Get terminal state for backward simulation
     try:
-        if Y_solved_list and (first_idx + 1) < len(Y_solved_list):
+        if Y_solved_list is not None and (first_idx + 1) < len(Y_solved_list):
             Xkp1_nlp = Y_solved_list[first_idx + 1]
         else:  # Fallback
             opti = solution.opti_object
@@ -610,11 +658,17 @@ def h_reduce_intervals(
         ),
     )
     num_bwd_pts = max(2, num_bwd_pts)
-    bwd_tau_points = np.linspace(1.0, target_end_tau_kp1, num_bwd_pts)
+    bwd_tau_points = np.linspace(1.0, target_end_tau_kp1, num_bwd_pts, dtype=np.float64)
+    sorted_bwd_tau_points = np.flip(bwd_tau_points)
 
     print(
         f"      h-reduction: Starting Merged TVP sim from zeta_kp1=1 to {target_end_tau_kp1:.3f} ({num_bwd_pts} pts)"
     )
+
+    # Define these upfront to ensure they're bound in all code paths
+    bwd_trajectory = np.full((num_states, num_bwd_pts), np.nan, dtype=np.float64)
+    bwd_sim_success = False
+
     try:
         bwd_sim = solve_ivp(
             merged_bwd_rhs,
@@ -625,28 +679,23 @@ def h_reduce_intervals(
             rtol=ode_rtol,
             atol=ode_atol,
         )
-        sorted_bwd_tau_points = np.flip(bwd_tau_points)
-        bwd_trajectory = (
-            np.fliplr(bwd_sim.y)
-            if bwd_sim.success
-            else np.full((num_states, len(sorted_bwd_tau_points)), np.nan)
-        )
-        if not bwd_sim.success:
+
+        if bwd_sim.success:
+            bwd_trajectory = np.fliplr(bwd_sim.y)
+            bwd_sim_success = True
+        else:
             print(f"      Merged TVP failed: {bwd_sim.message}")
     except Exception as e:
         print(f"      Exception during merged TVP simulation: {e}")
-        bwd_trajectory = np.full((num_states, len(sorted_bwd_tau_points)), np.nan)
 
     # For problems with no states, just check if simulations were successful
     if num_states == 0:
-        can_merge = (
-            "fwd_sim" in locals() and fwd_sim.success and "bwd_sim" in locals() and bwd_sim.success
-        )
+        can_merge = fwd_sim_success and bwd_sim_success
         print(f"      h-reduction check (no states): can_intervals_be_merged = {can_merge}")
         return can_merge
 
     # Calculate errors for merged domain
-    all_fwd_errors = []
+    all_fwd_errors: list[float] = []
     for i, zeta_k in enumerate(fwd_tau_points):
         X_sim = fwd_trajectory[:, i]
         if np.any(np.isnan(X_sim)):
@@ -666,9 +715,9 @@ def h_reduce_intervals(
 
         abs_diff = np.abs(X_sim - X_nlp)
         scaled_errors = gamma_factors.flatten() * abs_diff
-        all_fwd_errors.extend(list(scaled_errors))
+        all_fwd_errors.extend(scaled_errors.tolist())
 
-    all_bwd_errors = []
+    all_bwd_errors: list[float] = []
     for i, zeta_kp1 in enumerate(sorted_bwd_tau_points):
         X_sim = bwd_trajectory[:, i]
         if np.any(np.isnan(X_sim)):
@@ -688,7 +737,7 @@ def h_reduce_intervals(
 
         abs_diff = np.abs(X_sim - X_nlp)
         scaled_errors = gamma_factors.flatten() * abs_diff
-        all_bwd_errors.extend(list(scaled_errors))
+        all_bwd_errors.extend(scaled_errors.tolist())
 
     # Get maximum error for merged domain
     max_fwd_error = np.nanmax(all_fwd_errors) if all_fwd_errors else np.inf
@@ -757,12 +806,12 @@ def p_reduce_interval(
 
 
 def _generate_robust_default_initial_guess(
-    problem,
-    collocation_nodes_list: List[int],
-    initial_time_guess: Optional[float] = None,
-    terminal_time_guess: Optional[float] = None,
-    integral_values_guess: Optional[Union[float, np.ndarray]] = None,
-):
+    problem: _LegacyProblemType,
+    collocation_nodes_list: list[int],
+    initial_time_guess: float | None = None,
+    terminal_time_guess: float | None = None,
+    integral_values_guess: float | _FloatArray | None = None,
+) -> Any:  # Returns InitialGuess
     """Generates a robust default initial guess with correct dimensions."""
     from trajectolab.direct_solver import InitialGuess
 
@@ -775,19 +824,19 @@ def _generate_robust_default_initial_guess(
     default_control = getattr(problem.default_initial_guess_values, "control", 0.0)
 
     # Initialize state and control trajectories
-    states = []
-    controls = []
+    states: list[_FloatMatrix] = []
+    controls: list[_FloatMatrix] = []
 
     for _idx, Nk in enumerate(collocation_nodes_list):
         # State trajectory for this interval
-        state_traj = np.full((num_states, Nk + 1), default_state)
+        state_traj = np.full((num_states, Nk + 1), default_state, dtype=np.float64)
         states.append(state_traj)
 
         # Control trajectory for this interval
         if num_controls > 0:
-            control_traj = np.full((num_controls, Nk), default_control)
+            control_traj = np.full((num_controls, Nk), default_control, dtype=np.float64)
         else:
-            control_traj = np.empty((0, Nk))
+            control_traj = np.empty((0, Nk), dtype=np.float64)
         controls.append(control_traj)
 
     # Time variable guesses
@@ -818,9 +867,9 @@ def _generate_robust_default_initial_guess(
                     else float(raw_guess[0])
                 )
             elif isinstance(raw_guess, (list, np.ndarray)) and len(raw_guess) == num_integrals:
-                final_integral_guess = np.array(raw_guess)
+                final_integral_guess = np.array(raw_guess, dtype=np.float64)
             else:
-                final_integral_guess = np.full(num_integrals, default_integral)
+                final_integral_guess = np.full(num_integrals, default_integral, dtype=np.float64)
 
     return InitialGuess(
         initial_time_variable=initial_time_guess,
@@ -832,8 +881,11 @@ def _generate_robust_default_initial_guess(
 
 
 def _propagate_guess_from_previous(
-    prev_solution, problem, target_nodes_list: List[int], target_mesh: np.ndarray
-):
+    prev_solution: _LegacySolutionType,
+    problem: _LegacyProblemType,
+    target_nodes_list: list[int],
+    target_mesh: _FloatArray,
+) -> Any:  # Returns InitialGuess
     """Creates initial guess for current NLP, propagating from previous solution."""
     t0_prop = prev_solution.initial_time_variable
     tf_prop = prev_solution.terminal_time_variable
@@ -883,14 +935,16 @@ def _propagate_guess_from_previous(
     return guess
 
 
-def _calculate_gamma_normalizers(solution, problem) -> Optional[np.ndarray]:
+def _calculate_gamma_normalizers(
+    solution: _LegacySolutionType, problem: _LegacyProblemType
+) -> _GammaFactors | None:
     """Calculates gamma_i normalization factors for error estimation."""
     if not solution.success or solution.raw_solution is None:
         return None
 
     num_states = problem.num_states
     if num_states == 0:
-        return np.array([]).reshape(0, 1)  # No states, no gamma
+        return np.array([], dtype=np.float64).reshape(0, 1)  # No states, no gamma
 
     Y_solved_list = solution.solved_state_trajectories_per_interval
     if not Y_solved_list:
@@ -898,7 +952,7 @@ def _calculate_gamma_normalizers(solution, problem) -> Optional[np.ndarray]:
         return None
 
     # Find maximum absolute value for each state component
-    max_abs_values = np.zeros(num_states)
+    max_abs_values = np.zeros(num_states, dtype=np.float64)
     first_interval = True
 
     for Xk in Y_solved_list:
@@ -915,7 +969,8 @@ def _calculate_gamma_normalizers(solution, problem) -> Optional[np.ndarray]:
 
     # Calculate gamma factors
     gamma_denominator = 1.0 + max_abs_values
-    gamma_factors = 1.0 / np.maximum(gamma_denominator, 1e-12)  # Avoid division by zero
+    # Use np.float64 directly to avoid type mismatch
+    gamma_factors = 1.0 / np.maximum(gamma_denominator, np.float64(1e-12))  # Avoid division by zero
 
     return gamma_factors.reshape(-1, 1)
 
@@ -923,18 +978,22 @@ def _calculate_gamma_normalizers(solution, problem) -> Optional[np.ndarray]:
 class PHSAdaptive(AdaptiveBase):
     """Implements the PHS-Adaptive mesh refinement algorithm."""
 
+    adaptive_params: AdaptiveParameters
+    _initial_polynomial_degrees: list[int] | None
+    _initial_mesh_points: _FloatArray | None
+
     def __init__(
         self,
-        error_tolerance=1e-3,
-        max_iterations=30,
-        min_polynomial_degree=4,
-        max_polynomial_degree=16,
-        ode_solver_tolerance=1e-7,
-        num_error_sim_points=40,
-        initial_polynomial_degrees=None,
-        initial_mesh_points=None,
-        initial_guess=None,
-    ):
+        error_tolerance: float = 1e-3,
+        max_iterations: int = 30,
+        min_polynomial_degree: int = 4,
+        max_polynomial_degree: int = 16,
+        ode_solver_tolerance: float = 1e-7,
+        num_error_sim_points: int = 40,
+        initial_polynomial_degrees: list[int] | None = None,
+        initial_mesh_points: _FloatArray | None = None,
+        initial_guess: Any = None,  # Any here for InitialGuess type
+    ) -> None:
         """
         Initialize the PHS-Adaptive mesh refinement algorithm.
 
@@ -973,9 +1032,14 @@ class PHSAdaptive(AdaptiveBase):
         self._initial_polynomial_degrees = initial_polynomial_degrees
         self._initial_mesh_points = initial_mesh_points
 
-    def run(self, problem, legacy_problem, initial_solution=None):
+    def run(
+        self,
+        problem: Any,  # The user-facing problem
+        legacy_problem: _LegacyProblemType,
+        initial_solution: _LegacySolutionType | None = None,
+    ) -> _LegacySolutionType:
         """Run the PHS-Adaptive mesh refinement algorithm."""
-        # Extract adaptive parameters - FIXED complete parameter extraction
+        # Extract adaptive parameters
         error_tol = self.adaptive_params.error_tolerance
         max_iterations = self.adaptive_params.max_iterations
         N_min = self.adaptive_params.min_polynomial_degree
@@ -988,9 +1052,9 @@ class PHSAdaptive(AdaptiveBase):
             current_nodes_list = list(self._initial_polynomial_degrees)
 
             if self._initial_mesh_points is not None:
-                current_mesh = np.array(self._initial_mesh_points)
+                current_mesh = np.array(self._initial_mesh_points, dtype=np.float64)
             else:
-                current_mesh = np.linspace(-1, 1, len(current_nodes_list) + 1)
+                current_mesh = np.linspace(-1, 1, len(current_nodes_list) + 1, dtype=np.float64)
         # Fall back to problem defaults
         else:
             current_nodes_list = list(legacy_problem.collocation_points_per_interval)
@@ -1000,9 +1064,11 @@ class PHSAdaptive(AdaptiveBase):
                 current_nodes_list = [N_min]
 
             if legacy_problem.global_normalized_mesh_nodes is not None:
-                current_mesh = np.array(legacy_problem.global_normalized_mesh_nodes)
+                current_mesh = np.array(
+                    legacy_problem.global_normalized_mesh_nodes, dtype=np.float64
+                )
             else:
-                current_mesh = np.linspace(-1, 1, len(current_nodes_list) + 1)
+                current_mesh = np.linspace(-1, 1, len(current_nodes_list) + 1, dtype=np.float64)
 
         # Enforce node count limits
         for i in range(len(current_nodes_list)):
@@ -1034,7 +1100,7 @@ class PHSAdaptive(AdaptiveBase):
                     initial_guess = _generate_robust_default_initial_guess(
                         current_problem, current_nodes_list
                     )
-            elif not most_recent_solution or not most_recent_solution.success:
+            elif most_recent_solution is None or not most_recent_solution.success:
                 print("  Previous NLP failed. Using robust default initial guess.")
                 initial_guess = _generate_robust_default_initial_guess(
                     current_problem, current_nodes_list
@@ -1059,7 +1125,7 @@ class PHSAdaptive(AdaptiveBase):
                 )
                 print(f"  Error: {error_msg} Stopping.")
 
-                if most_recent_solution:
+                if most_recent_solution is not None:
                     most_recent_solution.message = error_msg
                     most_recent_solution.success = False
                     return most_recent_solution
@@ -1069,36 +1135,48 @@ class PHSAdaptive(AdaptiveBase):
 
             # Store solved trajectories for propagation and error estimation
             try:
-                opti = solution.opti_object
-                raw_sol = solution.raw_solution
+                # Check for None before accessing attributes
+                if solution.raw_solution is not None and solution.opti_object is not None:
+                    opti = solution.opti_object
+                    raw_sol = solution.raw_solution
 
-                # Extract state trajectories
-                solution.solved_state_trajectories_per_interval = [
-                    _extract_and_prepare_array(
-                        raw_sol.value(var), current_problem.num_states, current_nodes_list[i] + 1
-                    )
-                    for i, var in enumerate(
-                        opti.state_at_local_approximation_nodes_all_intervals_variables
-                    )
-                ]
+                    # Extract state trajectories if variables exist
+                    if hasattr(opti, "state_at_local_approximation_nodes_all_intervals_variables"):
+                        solution.solved_state_trajectories_per_interval = [
+                            _extract_and_prepare_array(
+                                raw_sol.value(var),
+                                current_problem.num_states,
+                                current_nodes_list[i] + 1,
+                            )
+                            for i, var in enumerate(
+                                opti.state_at_local_approximation_nodes_all_intervals_variables
+                            )
+                        ]
 
-                # Extract control trajectories
-                if current_problem.num_controls > 0:
-                    solution.solved_control_trajectories_per_interval = [
-                        _extract_and_prepare_array(
-                            raw_sol.value(var), current_problem.num_controls, current_nodes_list[i]
-                        )
-                        for i, var in enumerate(
-                            opti.control_at_local_collocation_nodes_all_intervals_variables
-                        )
-                    ]
+                    # Extract control trajectories if variables exist
+                    if current_problem.num_controls > 0 and hasattr(
+                        opti, "control_at_local_collocation_nodes_all_intervals_variables"
+                    ):
+                        solution.solved_control_trajectories_per_interval = [
+                            _extract_and_prepare_array(
+                                raw_sol.value(var),
+                                current_problem.num_controls,
+                                current_nodes_list[i],
+                            )
+                            for i, var in enumerate(
+                                opti.control_at_local_collocation_nodes_all_intervals_variables
+                            )
+                        ]
+                    else:
+                        solution.solved_control_trajectories_per_interval = [
+                            np.empty((0, current_nodes_list[i]), dtype=np.float64)
+                            for i in range(num_intervals)
+                        ]
                 else:
-                    solution.solved_control_trajectories_per_interval = [
-                        np.empty((0, current_nodes_list[i])) for i in range(num_intervals)
-                    ]
+                    raise ValueError("Raw solution or opti object is None")
 
-            except Exception as e:
-                error_msg = f"Failed to extract trajectories from NLP solution at iter {iteration}: {e}. Stopping."
+            except Exception as extract_error:
+                error_msg = f"Failed to extract trajectories from NLP solution at iter {iteration}: {extract_error}. Stopping."
                 print(f"  Error: {error_msg}")
                 solution.message = error_msg
                 solution.success = False
@@ -1119,10 +1197,10 @@ class PHSAdaptive(AdaptiveBase):
                 return solution
 
             # Create cache for basis components and polynomial interpolants
-            basis_cache = {}
-            control_weights_cache = {}
-            state_evaluators = [None] * num_intervals
-            control_evaluators = [None] * num_intervals
+            basis_cache: dict[int, Any] = {}
+            control_weights_cache: dict[int, _FloatArray] = {}
+            state_evaluators: list[_StateEvaluator | None] = [None] * num_intervals
+            control_evaluators: list[_ControlEvaluator | None] = [None] * num_intervals
 
             # Get solved trajectories
             states_list = solution.solved_state_trajectories_per_interval
@@ -1165,21 +1243,23 @@ class PHSAdaptive(AdaptiveBase):
                     else:
                         # Empty control interpolant
                         control_evaluators[k] = get_polynomial_interpolant(
-                            np.array([-1.0, 1.0]), np.empty((0, 2)), None
+                            np.array([-1.0, 1.0], dtype=np.float64),
+                            np.empty((0, 2), dtype=np.float64),
+                            None,
                         )
 
-                except Exception as e:
-                    print(f"  Warning: Error creating interpolant for interval {k}: {e}")
+                except Exception as interp_error:
+                    print(f"  Warning: Error creating interpolant for interval {k}: {interp_error}")
                     # Create fallback interpolants
                     if state_evaluators[k] is None:
                         state_evaluators[k] = get_polynomial_interpolant(
-                            np.array([-1.0, 1.0]),
-                            np.full((current_problem.num_states, 2), np.nan),
+                            np.array([-1.0, 1.0], dtype=np.float64),
+                            np.full((current_problem.num_states, 2), np.nan, dtype=np.float64),
                             None,
                         )
                     if control_evaluators[k] is None:
                         control_evaluators[k] = get_polynomial_interpolant(
-                            np.array([-1.0, 1.0]),
+                            np.array([-1.0, 1.0], dtype=np.float64),
                             np.full(
                                 (
                                     (
@@ -1190,12 +1270,13 @@ class PHSAdaptive(AdaptiveBase):
                                     2,
                                 ),
                                 np.nan,
+                                dtype=np.float64,
                             ),
                             None,
                         )
 
             # Calculate error estimates for each interval
-            errors = [np.inf] * num_intervals
+            errors: list[float] = [np.inf] * num_intervals
 
             for k in range(num_intervals):
                 print(f"  Starting error simulation for interval {k}...")
@@ -1222,10 +1303,13 @@ class PHSAdaptive(AdaptiveBase):
                     n_eval_points=num_sim_points,
                 )
 
-                # Calculate relative error
-                error = calculate_relative_error_estimate(
-                    k, sim_bundle, gamma_factors if current_problem.num_states > 0 else np.array([])
+                # Calculate relative error - make sure gamma_factors is not None
+                safe_gamma = (
+                    gamma_factors
+                    if gamma_factors is not None
+                    else np.ones((current_problem.num_states, 1), dtype=np.float64)
                 )
+                error = calculate_relative_error_estimate(k, sim_bundle, safe_gamma)
 
                 errors[k] = error
                 print(f"    Interval {k}: Nk={current_nodes_list[k]}, Error={error:.4e}")
@@ -1253,7 +1337,7 @@ class PHSAdaptive(AdaptiveBase):
                 return solution
 
             # Refine mesh for next iteration
-            next_nodes_list = []
+            next_nodes_list: list[int] = []
             next_mesh = [current_mesh[0]]
 
             k = 0
@@ -1289,7 +1373,7 @@ class PHSAdaptive(AdaptiveBase):
                         tau_start = current_mesh[k]
                         tau_end = current_mesh[k + 1]
                         new_nodes = np.linspace(
-                            tau_start, tau_end, h_result.num_new_subintervals + 1
+                            tau_start, tau_end, h_result.num_new_subintervals + 1, dtype=np.float64
                         )
                         next_mesh.extend(list(new_nodes[1:]))
                         k += 1
@@ -1309,7 +1393,7 @@ class PHSAdaptive(AdaptiveBase):
                                 f"      Interval {k+1} also has low error ({next_error:.2e}). Eligible for h-reduction."
                             )
 
-                            # Check if interpolants are available
+                            # Check if interpolants are non-None before passing to h_reduce_intervals
                             if (
                                 state_evaluators[k] is not None
                                 and state_evaluators[k + 1] is not None
@@ -1322,21 +1406,30 @@ class PHSAdaptive(AdaptiveBase):
                                 )
                             ):
 
+                                # Ensure we don't pass None to functions that can't handle it
+                                state_eval_first = cast(_StateEvaluator, state_evaluators[k])
+                                state_eval_second = cast(_StateEvaluator, state_evaluators[k + 1])
+                                control_eval_first = control_evaluators[k]
+                                control_eval_second = control_evaluators[k + 1]
+
+                                # Make sure gamma_factors is not None
+                                safe_gamma = (
+                                    gamma_factors
+                                    if gamma_factors is not None
+                                    else np.ones((current_problem.num_states, 1), dtype=np.float64)
+                                )
+
                                 # Attempt h-reduction (interval merging)
                                 can_merge = h_reduce_intervals(
                                     k,
                                     solution,
                                     current_problem,
                                     self.adaptive_params,
-                                    (
-                                        gamma_factors
-                                        if current_problem.num_states > 0
-                                        else np.array([])
-                                    ),
-                                    state_evaluators[k],
-                                    control_evaluators[k],
-                                    state_evaluators[k + 1],
-                                    control_evaluators[k + 1],
+                                    safe_gamma,
+                                    state_eval_first,
+                                    control_eval_first,
+                                    state_eval_second,
+                                    control_eval_second,
                                 )
                             else:
                                 print(
@@ -1374,69 +1467,68 @@ class PHSAdaptive(AdaptiveBase):
 
             # Update for next iteration
             current_nodes_list = next_nodes_list
-            current_mesh = np.array(next_mesh)
+            current_mesh = np.array(next_mesh, dtype=np.float64)
 
             # Perform mesh sanity checks
             early_return_solution = most_recent_solution
-            early_return_solution.num_collocation_nodes_per_interval = current_nodes_list
-            early_return_solution.global_normalized_mesh_nodes = current_mesh
+            if early_return_solution is not None:
+                early_return_solution.num_collocation_nodes_per_interval = current_nodes_list
+                early_return_solution.global_normalized_mesh_nodes = current_mesh
 
-            # Check for mesh inconsistencies
-            if not current_nodes_list and len(current_mesh) > 1:
-                error_msg = "Stopped due to mesh inconsistency (empty num_collocation_nodes_per_interval but mesh_nodes exist)."
-                print(f"  Error: {error_msg} Stopping.")
-                early_return_solution.message = error_msg
-                early_return_solution.success = False
-                return early_return_solution
-
-            if current_nodes_list and len(current_nodes_list) != (len(current_mesh) - 1):
-                error_msg = f"Mesh structure inconsistent. num_nodes_list len: {len(current_nodes_list)}, mesh_nodes len-1: {len(current_mesh)-1}."
-                print(f"  Error: {error_msg} Stopping.")
-                early_return_solution.message = error_msg
-                early_return_solution.success = False
-                return early_return_solution
-
-            if len(current_nodes_list) > 0:
-                # Check for duplicate mesh nodes
-                unique_nodes, counts = np.unique(
-                    np.round(current_mesh, decimals=12), return_counts=True
-                )
-                if np.any(counts > 1):
-                    duplicates = unique_nodes[counts > 1]
-                    error_msg = (
-                        f"Duplicate mesh nodes found: {duplicates}. Original nodes: {current_mesh}."
-                    )
+                # Check for mesh inconsistencies
+                if not current_nodes_list and len(current_mesh) > 1:
+                    error_msg = "Stopped due to mesh inconsistency (empty num_collocation_nodes_per_interval but mesh_nodes exist)."
                     print(f"  Error: {error_msg} Stopping.")
                     early_return_solution.message = error_msg
                     early_return_solution.success = False
                     return early_return_solution
 
-                # Check for non-increasing mesh nodes
-                if len(unique_nodes) > 1 and not np.all(np.diff(unique_nodes) > 1e-9):
-                    diffs = np.diff(unique_nodes)
-                    problem_indices = np.where(diffs <= 1e-9)[0]
-                    problem_pairs = (
-                        ", ".join(
-                            [
-                                f"({unique_nodes[i]:.3f}, {unique_nodes[i+1]:.3f})"
-                                for i in problem_indices
-                            ]
+                if current_nodes_list and len(current_nodes_list) != (len(current_mesh) - 1):
+                    error_msg = f"Mesh structure inconsistent. num_nodes_list len: {len(current_nodes_list)}, mesh_nodes len-1: {len(current_mesh)-1}."
+                    print(f"  Error: {error_msg} Stopping.")
+                    early_return_solution.message = error_msg
+                    early_return_solution.success = False
+                    return early_return_solution
+
+                if len(current_nodes_list) > 0:
+                    # Check for duplicate mesh nodes
+                    unique_nodes, counts = np.unique(
+                        np.round(current_mesh, decimals=12), return_counts=True
+                    )
+                    if np.any(counts > 1):
+                        duplicates = unique_nodes[counts > 1]
+                        error_msg = f"Duplicate mesh nodes found: {duplicates}. Original nodes: {current_mesh}."
+                        print(f"  Error: {error_msg} Stopping.")
+                        early_return_solution.message = error_msg
+                        early_return_solution.success = False
+                        return early_return_solution
+
+                    # Check for non-increasing mesh nodes
+                    if len(unique_nodes) > 1 and not np.all(np.diff(unique_nodes) > 1e-9):
+                        diffs = np.diff(unique_nodes)
+                        problem_indices = np.where(diffs <= 1e-9)[0]
+                        problem_pairs = (
+                            ", ".join(
+                                [
+                                    f"({unique_nodes[i]:.3f}, {unique_nodes[i+1]:.3f})"
+                                    for i in problem_indices
+                                ]
+                            )
+                            if problem_indices.size > 0
+                            else "N/A"
                         )
-                        if problem_indices.size > 0
-                        else "N/A"
-                    )
 
-                    error_msg = f"Mesh nodes not strictly increasing or interval too small. Problem pairs: {problem_pairs}. All nodes: {current_mesh}."
-                    print(f"  Error: {error_msg} Stopping.")
-                    early_return_solution.message = error_msg
-                    early_return_solution.success = False
-                    return early_return_solution
+                        error_msg = f"Mesh nodes not strictly increasing or interval too small. Problem pairs: {problem_pairs}. All nodes: {current_mesh}."
+                        print(f"  Error: {error_msg} Stopping.")
+                        early_return_solution.message = error_msg
+                        early_return_solution.success = False
+                        return early_return_solution
 
         # Max iterations reached without convergence
         max_iter_msg = f"Adaptive mesh refinement reached max iterations ({max_iterations}) without full convergence to tolerance {error_tol:.1e}."
         print(max_iter_msg)
 
-        if most_recent_solution:
+        if most_recent_solution is not None:
             most_recent_solution.message = max_iter_msg
             most_recent_solution.num_collocation_nodes_per_interval = current_nodes_list.copy()
             most_recent_solution.global_normalized_mesh_nodes = np.copy(current_mesh)
