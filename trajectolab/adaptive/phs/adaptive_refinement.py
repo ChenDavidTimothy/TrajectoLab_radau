@@ -2,7 +2,7 @@
 
 import logging
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Any, List, Optional
 
 import numpy as np
 
@@ -12,6 +12,7 @@ from trajectolab.adaptive.phs.adaptive_interpolation import (
     extract_and_prepare_array,
 )
 from trajectolab.trajectolab_types import (
+    AdaptiveParameters,
     CasADiDM,
     CasADiOpti,
     NumStates,

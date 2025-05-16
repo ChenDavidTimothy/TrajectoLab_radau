@@ -274,3 +274,16 @@ _EventConstraintFunc: TypeAlias = Callable[
 
 # ---- Constants (Original to this file) ----
 ZERO_TOLERANCE: float = 1e-12  # Tolerance for floating point comparisons
+
+
+# In trajectolab_types.py
+@dataclass
+class AdaptiveParameters:
+    """Parameters for adaptive mesh refinement."""
+
+    error_tolerance: float
+    max_iterations: int
+    min_polynomial_degree: int
+    max_polynomial_degree: int
+    ode_solver_tolerance: float = 1e-7
+    num_error_sim_points: int = 50

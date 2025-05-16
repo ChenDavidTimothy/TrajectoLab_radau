@@ -1,7 +1,6 @@
 """Core implementation of p-h-s adaptive mesh refinement for optimal control."""
 
 import logging
-from dataclasses import dataclass
 from typing import List, Optional, Union
 
 import numpy as np
@@ -26,8 +25,9 @@ from trajectolab.adaptive.phs.adaptive_refinement import (
     p_reduce_interval,
     p_refine_interval,
 )
-from trajectolab.radau import compute_radau_collocation_components
+from trajectolab.radau import compute_barycentric_weights, compute_radau_collocation_components
 from trajectolab.trajectolab_types import (
+    AdaptiveParameters,
     InitialGuess,
     OptimalControlProblem,
     OptimalControlSolution,
@@ -39,18 +39,6 @@ from trajectolab.trajectolab_types import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class AdaptiveParameters:
-    """Parameters for adaptive mesh refinement."""
-
-    error_tolerance: float
-    max_iterations: int
-    min_polynomial_degree: int
-    max_polynomial_degree: int
-    ode_solver_tolerance: float = 1e-7
-    num_error_sim_points: int = 50
 
 
 class PHSAdaptive(AdaptiveBase):
