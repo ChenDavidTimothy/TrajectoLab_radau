@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import cast
+from typing import Sequence, cast
 
 import casadi as ca
 import numpy as np
@@ -75,7 +75,7 @@ class OptimalControlProblem:
     integral_integrand_function: _IntegralIntegrandCallable | None
     path_constraints_function: _PathConstraintsCallable | None
     event_constraints_function: _EventConstraintsCallable | None
-    problem_parameters: _ProblemParameters | None
+    problem_parameters: _ProblemParameters  # Changed from _ProblemParameters | None
     initial_guess: InitialGuess | None
     default_initial_guess_values: DefaultGuessValues | None
     solver_options: dict[str, object] | None  # Changed Any to object
@@ -424,7 +424,7 @@ def _apply_constraint(opti: _CasadiOpti, constraint: PathConstraint | EventConst
 
 
 def _validate_dynamics_output(
-    output: list[_CasadiMX] | _CasadiMatrix, num_states: int
+    output: list[_CasadiMX] | _CasadiMatrix | Sequence[_CasadiMX], num_states: int
 ) -> _CasadiMX:
     """Validates and converts dynamics function output to the expected CasadiMX format."""
     if isinstance(output, list):
@@ -448,6 +448,9 @@ def _validate_dynamics_output(
             return result.T
         else:
             return result
+    elif isinstance(output, Sequence):
+        # Convert sequence to list and then process
+        return _validate_dynamics_output(list(output), num_states)
 
     raise TypeError(f"Dynamics function output type not supported: {type(output)}")
 
@@ -510,7 +513,7 @@ def solve_single_phase_radau_collocation(
     integral_integrand_function: _IntegralIntegrandCallable | None = (
         problem_definition.integral_integrand_function
     )
-    problem_parameters: _ProblemParameters | None = problem_definition.problem_parameters
+    problem_parameters: _ProblemParameters = problem_definition.problem_parameters
 
     initial_time_variable: _CasadiMX = opti.variable()
     terminal_time_variable: _CasadiMX = opti.variable()
@@ -646,8 +649,10 @@ def solve_single_phase_radau_collocation(
                 terminal_time_variable - initial_time_variable
             ) / 2 * global_colloc_tau_val + (terminal_time_variable + initial_time_variable) / 2
 
-            state_derivative_rhs: list[_CasadiMX] | _CasadiMX = dynamics_function(
-                state_at_colloc, control_at_colloc, physical_time_at_colloc, problem_parameters
+            state_derivative_rhs: list[_CasadiMX] | _CasadiMX | Sequence[_CasadiMX] = (
+                dynamics_function(
+                    state_at_colloc, control_at_colloc, physical_time_at_colloc, problem_parameters
+                )
             )
             state_derivative_rhs_vector: _CasadiMX = _validate_dynamics_output(
                 state_derivative_rhs, num_states
