@@ -225,7 +225,7 @@ def _simulate_dynamics_for_error_estimation(
                 f"Dynamics function output dimension mismatch. Expected {num_states}, got {state_deriv_np.shape[0]}."
             )
 
-        return overall_scaling * state_deriv_np
+        return cast(_FloatArray, overall_scaling * state_deriv_np)
 
     # Forward simulation (IVP)
     initial_state = state_evaluator(-1.0)
@@ -548,7 +548,7 @@ def h_reduce_intervals(
         f_rhs = dynamics_function(state_clipped, u_val, t_actual, problem_parameters)
         f_rhs_np = np.array(f_rhs, dtype=np.float64).flatten()
 
-        return scaling_k * f_rhs_np
+        return cast(_FloatArray, scaling_k * f_rhs_np)
 
     def merged_bwd_rhs(local_tau_kp1: float, state: _FloatArray) -> _FloatArray:
         """RHS for merged domain backward simulation."""
@@ -562,7 +562,7 @@ def h_reduce_intervals(
         f_rhs = dynamics_function(state_clipped, u_val, t_actual, problem_parameters)
         f_rhs_np = np.array(f_rhs, dtype=np.float64).flatten()
 
-        return scaling_kp1 * f_rhs_np
+        return cast(_FloatArray, scaling_kp1 * f_rhs_np)
 
     # Get state values at interval endpoints
     try:
@@ -726,8 +726,10 @@ def h_reduce_intervals(
         if -1.0 - 1e-9 <= zeta_kp1 <= 1.0:
             X_nlp = state_evaluator_second(zeta_kp1)
         else:
-            zeta_k = _map_local_tau_from_interval_k_plus_1_to_equivalent_in_interval_k(
-                zeta_kp1, tau_start_k, tau_shared, tau_end_kp1
+            zeta_k = np.float64(
+                _map_local_tau_from_interval_k_plus_1_to_equivalent_in_interval_k(
+                    zeta_kp1, tau_start_k, tau_shared, tau_end_kp1
+                )
             )
             X_nlp = state_evaluator_first(zeta_k)
 
@@ -1217,7 +1219,16 @@ class PHSAdaptive(AdaptiveBase):
                     basis = basis_cache[Nk]
 
                     # Create state interpolant
-                    state_data = states_list[k]
+                    if states_list is None:
+                        # Handle the None case - perhaps use a default state or raise an error
+                        print(
+                            f"Warning: states_list is None for interval {k}. Using default state."
+                        )
+                        state_data = np.zeros(
+                            (current_problem.num_states, Nk + 1), dtype=np.float64
+                        )
+                    else:
+                        state_data = states_list[k]
                     state_evaluators[k] = get_polynomial_interpolant(
                         basis.state_approximation_nodes,
                         state_data,
