@@ -162,57 +162,67 @@ class OptimalControlSolution:
         self.solved_control_trajectories_per_interval = None
 
 
-@overload
 def _extract_integral_values(
-    casadi_solution_object: _CasadiOptiSol,
-    opti_object: _CasadiOpti,
-    num_integrals: Literal[0],  # Explicitly for num_integrals == 0
-) -> None: ...
-
-
-@overload
-def _extract_integral_values(
-    casadi_solution_object: _CasadiOptiSol,
-    opti_object: _CasadiOpti,
-    num_integrals: Literal[1],  # Explicitly for num_integrals == 1
-) -> float: ...
-
-
-@overload
-def _extract_integral_values(
-    casadi_solution_object: _CasadiOptiSol,
-    opti_object: _CasadiOpti,
-    num_integrals: int,  # For num_integrals > 1
-) -> _FloatArray: ...
-
-
-def _extract_integral_values(
-    casadi_solution_object: _CasadiOptiSol,
-    opti_object: _CasadiOpti,
-    num_integrals: int,
+    casadi_solution_object: ca.OptiSol | None, opti_object: ca.Opti, num_integrals: int
 ) -> float | _FloatArray | None:
+    """Extract integral values from the CasADi solution."""
+
     if (
         num_integrals == 0
         or not hasattr(opti_object, "integral_variables_object_reference")
         or opti_object.integral_variables_object_reference is None
+        or casadi_solution_object is None
     ):
         return None
 
     try:
-        raw_value: _CasadiDM | float = casadi_solution_object.value(
-            opti_object.integral_variables_object_reference
-        )
+        raw_value = casadi_solution_object.value(opti_object.integral_variables_object_reference)
 
         if isinstance(raw_value, ca.DM):
-            if num_integrals == 1 and raw_value.shape == (1, 1):
-                return float(raw_value[0, 0])
-            return cast(_FloatArray, raw_value.toarray().flatten())
-        return float(raw_value)
+            np_array_value = np.asarray(raw_value.toarray())
+            if num_integrals == 1:
+                if np_array_value.size == 1:
+                    return float(np_array_value.item())
+                else:
+                    print(
+                        f"Warning: For num_integrals=1, CasADi DM value resulted in array shape {np_array_value.shape} "
+                        f"after toarray(). Attempting to use the first element."
+                    )
+                    if np_array_value.size > 0:
+                        return float(np_array_value.flatten()[0])
+                    else:
+                        print(
+                            "Warning: For num_integrals=1, CasADi DM value is empty after conversion."
+                        )
+                        return np.nan
+            else:
+                return cast(_FloatArray, np_array_value.flatten())
+
+        elif isinstance(raw_value, (float, int)):
+            if num_integrals == 1:
+                return float(raw_value)
+            else:
+                print(
+                    f"Warning: Expected array for {num_integrals} integrals, but CasADi value() returned scalar {raw_value}."
+                )
+                return np.full(num_integrals, np.nan, dtype=np.float64)
+        else:
+            print(
+                f"Warning: CasADi .value() returned an unexpected type: {type(raw_value)}. Value: {raw_value}"
+            )
+            if num_integrals > 1:
+                return np.full(num_integrals, np.nan, dtype=np.float64)
+            elif num_integrals == 1:
+                return np.nan
+            return None
+
     except Exception as e:
         print(f"Warning: Could not extract integral values: {e}")
         if num_integrals > 1:
             return np.full(num_integrals, np.nan, dtype=np.float64)
-        return np.nan  # Return a float NaN for single integral
+        elif num_integrals == 1:
+            return np.nan
+        return None
 
 
 def _process_trajectory_points(
