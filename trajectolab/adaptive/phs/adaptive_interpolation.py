@@ -49,7 +49,7 @@ def extract_and_prepare_array(
         if casadi_value.is_constant() and not casadi_value.is_symbolic():
             try:
                 dm_val = ca.DM(casadi_value)
-                np_array_intermediate = dm_val.toarray()
+                np_array_intermediate = np.array(dm_val.toarray(), dtype=np.float64)
             except Exception as e:
                 logger.warning(
                     f"Could not convert symbolic CasADi type {type(casadi_value)} to DM/numpy directly: {e}"
@@ -64,12 +64,12 @@ def extract_and_prepare_array(
         else:
             try:
                 dm_val = ca.DM(casadi_value)
-                np_array_intermediate = dm_val.toarray()
+                np_array_intermediate = np.array(dm_val.toarray(), dtype=np.float64)
             except Exception as e:
                 logger.warning(f"Could not convert non-symbolic CasADi type to DM/numpy: {e}")
                 np_array_intermediate = np.array([], dtype=np.float64)
-    elif isinstance(casadi_value, CasADiDM):
-        np_array_intermediate = casadi_value.toarray()
+    elif isinstance(casadi_value, ca.DM):  # Use the actual class instead of the type alias
+        np_array_intermediate = np.array(casadi_value.toarray(), dtype=np.float64)
     elif isinstance(casadi_value, np.ndarray):
         np_array_intermediate = casadi_value
     elif isinstance(casadi_value, (list, tuple)):

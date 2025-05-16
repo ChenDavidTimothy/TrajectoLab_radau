@@ -328,7 +328,7 @@ def _validate_dynamics_output(output: Any, num_states: int) -> _CasadiVector:
 def _set_initial_value_for_integrals(
     opti: ca.Opti,
     integral_vars: _CasadiScalar | _CasadiVector,
-    guess: float | Sequence[float] | None,
+    guess: float | Sequence[float] | np.ndarray | None,
     num_integrals: int,
 ) -> None:
     """Set initial values for integral variables."""

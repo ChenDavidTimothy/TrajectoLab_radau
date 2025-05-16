@@ -92,7 +92,7 @@ class InitialGuess:
     terminal_time_variable: float | None = None
     states: list[np.ndarray] | None = field(default_factory=list)  # Guess for state trajectory
     controls: list[np.ndarray] | None = field(default_factory=list)  # Guess for control trajectory
-    integrals: float | Sequence[float] | None = None  # Guess for integral values
+    integrals: float | Sequence[float] | np.ndarray | None = None  # Guess for integral values
 
 
 @dataclass
