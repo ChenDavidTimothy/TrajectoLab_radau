@@ -95,7 +95,11 @@ class OptimalControlProblem:
         Callable[[_CasadiVector, _CasadiVector, float, int, _ParamDict], float] | None
     ) = None
     path_constraints_function: (
-        Callable[[_CasadiVector, _CasadiVector, float, _ParamDict], list[PathConstraint]] | None
+        Callable[
+            [_CasadiVector, _CasadiVector, float, _ParamDict],
+            list[PathConstraint] | PathConstraint | None,
+        ]
+        | None  # Allow single item or None
     ) = None
     event_constraints_function: (
         Callable[
@@ -107,7 +111,7 @@ class OptimalControlProblem:
                 _CasadiScalar | Sequence[float] | None,
                 _ParamDict,
             ],
-            list[EventConstraint],
+            list[EventConstraint] | EventConstraint | None,  # Allow single item or None
         ]
         | None
     ) = None
@@ -158,15 +162,63 @@ def _extract_integral_values(
     try:
         raw_value = casadi_solution_object.value(opti_object.integral_variables_object_reference)
 
-        # Handle different possible return formats
         if isinstance(raw_value, ca.DM):
-            if num_integrals == 1 and raw_value.shape == (1, 1):
-                return float(raw_value[0, 0])
-            return cast(_FloatArray, raw_value.toarray().flatten())
-        return float(raw_value)  # Scalar case
+            # Convert DM to NumPy array. np.asarray ensures it's an ndarray,
+            # addressing Pylance's concern about .flatten() on a potential float.
+            np_array_value = np.asarray(raw_value.toarray())
+
+            if num_integrals == 1:
+                # For a single integral, aim to return a Python float.
+                if np_array_value.size == 1:
+                    return float(np_array_value.item())  # .item() extracts Python scalar
+                else:
+                    # This case means num_integrals is 1, but the DM was not a simple scalar.
+                    print(
+                        f"Warning: For num_integrals=1, CasADi DM value resulted in array shape {np_array_value.shape} "
+                        f"after toarray(). Attempting to use the first element."
+                    )
+                    if np_array_value.size > 0:  # Check if there's anything to flatten
+                        return float(np_array_value.flatten()[0])
+                    else:  # Empty array from DM
+                        print(
+                            "Warning: For num_integrals=1, CasADi DM value is empty after conversion."
+                        )
+                        return np.nan
+            else:  # num_integrals > 1 (num_integrals == 0 is handled before try-except)
+                # For multiple integrals, return a 1D NumPy array (_FloatArray)
+                return cast(_FloatArray, np_array_value.flatten())
+
+        elif isinstance(raw_value, (float, int)):  # raw_value was already a Python scalar
+            if num_integrals == 1:
+                return float(raw_value)
+            else:
+                # num_integrals > 1, but CasADi returned a single scalar. This is an inconsistency.
+                print(
+                    f"Warning: Expected array for {num_integrals} integrals, but CasADi value() returned scalar {raw_value}."
+                )
+                # Fallback consistent with the except block's behavior for multiple integrals
+                return np.full(num_integrals, np.nan, dtype=np.float64)
+        else:
+            # If raw_value is neither DM nor a Python scalar we recognize
+            print(
+                f"Warning: CasADi .value() returned an unexpected type: {type(raw_value)}. Value: {raw_value}"
+            )
+            if num_integrals > 1:
+                return np.full(num_integrals, np.nan, dtype=np.float64)
+            elif (
+                num_integrals == 1
+            ):  # Should be caught by num_integrals > 0 if it were to return array
+                return np.nan
+            return None  # num_integrals == 0 (already handled, but defensive)
+
     except Exception as e:
         print(f"Warning: Could not extract integral values: {e}")
-        return np.full(num_integrals, np.nan, dtype=np.float64) if num_integrals > 1 else np.nan
+        # Consistent fallback for errors
+        if num_integrals > 1:
+            return np.full(num_integrals, np.nan, dtype=np.float64)
+        elif num_integrals == 1:
+            return np.nan
+        return None  # num_integrals == 0
 
 
 def _process_trajectory_points(
@@ -606,21 +658,36 @@ def solve_single_phase_radau_collocation(
 
             # Apply path constraints if provided
             if path_constraints_function:
-                path_constraints = path_constraints_function(
+                path_constraints_output = path_constraints_function(
                     state_at_colloc,
                     control_at_colloc,
                     physical_time,
                     problem_parameters,
                 )
-                if not isinstance(path_constraints, list):
-                    path_constraints = [path_constraints]
 
-                for constraint in path_constraints:
-                    if isinstance(constraint, PathConstraint):
-                        _apply_constraint(opti, constraint)
+                processed_path_constraints: list[Any]
+                if isinstance(path_constraints_output, list):
+                    processed_path_constraints = path_constraints_output
+                elif path_constraints_output is None:
+                    processed_path_constraints = []
+                else:  # Single item returned
+                    processed_path_constraints = [path_constraints_output]
+
+                for constraint_item in processed_path_constraints:
+                    if isinstance(constraint_item, PathConstraint):
+                        _apply_constraint(opti, constraint_item)
                     else:
+                        # ** NOTE FOR ERROR 703 **
+                        # If you are getting an "Incompatible types in assignment" error
+                        # (EventConstraint to PathConstraint) on/around line 703,
+                        # it means your local file has an incorrect assignment HERE
+                        # like: some_var_typed_as_PathConstraint = constraint_item
+                        # Such a line MUST BE REMOVED. The `raise` below is the correct action.
+                        # Unreachable errors 701, 704, 705 would be consequences of this.
+                        actual_type = type(constraint_item).__name__
                         raise ValueError(
-                            "Path constraint function must return a list of PathConstraint objects"
+                            f"Item from path_constraints_function is of type '{actual_type}', "
+                            f"but 'PathConstraint' is expected. Value: {constraint_item}"
                         )
 
         # Handle integral calculation if needed
@@ -688,7 +755,7 @@ def solve_single_phase_radau_collocation(
 
     # Apply event constraints if provided
     if event_constraints_function:
-        event_constraints = event_constraints_function(
+        event_constraints_output = event_constraints_function(
             initial_time_variable,
             terminal_time_variable,
             initial_state,
@@ -697,15 +764,25 @@ def solve_single_phase_radau_collocation(
             problem_parameters,
         )
 
-        if not isinstance(event_constraints, list):
-            event_constraints = [event_constraints]
+        processed_event_constraints: list[Any]
+        if isinstance(event_constraints_output, list):
+            processed_event_constraints = event_constraints_output
+        elif event_constraints_output is None:
+            processed_event_constraints = []
+        else:  # Single item returned
+            processed_event_constraints = [event_constraints_output]
 
-        for constraint in event_constraints:
-            if isinstance(constraint, EventConstraint):
-                _apply_constraint(opti, constraint)
+        for constraint_item in processed_event_constraints:
+            if isinstance(constraint_item, EventConstraint):
+                _apply_constraint(opti, constraint_item)
             else:
+                # ** NOTE FOR ERROR 703 (if contextually here) **
+                # Similar to path constraints, an incorrect assignment
+                # in this block would cause the described errors.
+                actual_type = type(constraint_item).__name__
                 raise ValueError(
-                    "Event constraint function must return a list of EventConstraint objects"
+                    f"Item from event_constraints_function is of type '{actual_type}', "
+                    f"but 'EventConstraint' is expected. Value: {constraint_item}"
                 )
 
     # --- Set Initial Guesses ---
@@ -829,6 +906,10 @@ def solve_single_phase_radau_collocation(
     opti.symbolic_objective_function_reference = objective_value
 
     # Solve and extract solution
+    # Regarding error at line 616 (unreachable):
+    # If this 'try' block or opti.solve() is flagged as unreachable,
+    # ensure all preceding logic paths are valid and that MyPy can
+    # resolve types correctly. Fixing other type errors might resolve this.
     try:
         solver_solution: _CasadiSolution = opti.solve()
         print("NLP problem formulated and solver called successfully.")
