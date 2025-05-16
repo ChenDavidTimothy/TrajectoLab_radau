@@ -1,7 +1,14 @@
 import numpy as np
 
-from trajectolab import Constraint, FixedMesh, PHSAdaptive, Problem, RadauDirectSolver, solve
-from trajectolab.direct_solver import InitialGuess
+from trajectolab import (
+    Constraint,
+    FixedMesh,
+    InitialGuess,
+    PHSAdaptive,
+    Problem,
+    RadauDirectSolver,
+    solve,
+)
 
 # Define the hypersensitive problem
 problem = Problem("Hypersensitive Problem")
