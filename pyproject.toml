@@ -62,13 +62,40 @@ multi_line_output = 3
 
 [tool.mypy]
 python_version = "3.13"
+# Core type checking
 warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = false
-disallow_incomplete_defs = false
-exclude = [".venv", "venv", "build", "dist"]
-ignore_missing_imports = true
-follow_imports = "silent"
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+
+# Scientific computing accommodations
+disallow_untyped_defs = false  # Allow untyped functions for gradual adoption
+check_untyped_defs = true  # Still type check the bodies of untyped functions
+disallow_any_generics = false  # Needed for numpy compatibility
+disallow_subclassing_any = false  # Needed for scientific libraries
+
+# Numerical safety features
+strict_optional = true  # Catch None-related errors (critical for scientific code)
+no_implicit_optional = true  # No implicit Optional in unions
+
+# Library handling
+ignore_missing_imports = true  # Ignore missing stubs for scientific libraries
+follow_imports = "silent"  # Don't complain about followed imports
+
+# Project organization
+exclude = [".venv", "venv", "build", "dist", "__pycache__"]
+
+# Per-module configuration for incremental typing
+[[tool.mypy.overrides]]
+module = ["trajectolab.utils", "trajectolab.radau"]  # Core numerical modules
+disallow_untyped_defs = true  # Enforce full typing in core modules
+disallow_incomplete_defs = true
+
+[[tool.mypy.overrides]]
+module = "trajectolab.adaptive.*"  # Complex algorithmic code
+disallow_untyped_defs = false  # More flexibility in complex adaptive code
+check_untyped_defs = true
 
 [tool.ruff]
 line-length = 100
