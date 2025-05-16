@@ -1,4 +1,4 @@
-from typing import cast  # Retain cast for type checker hints
+from typing import cast, overload  # Retain cast for type checker hints
 
 import numpy as np
 
@@ -30,9 +30,17 @@ def linear_interpolation(
             f"Input arrays t and x must have the same shape. "
             f"Got t.shape={t.shape}, x.shape={x.shape}"
         )
+
+    # Ensure inputs have correct dtype for consistent output type
+    t_array = np.asarray(t, dtype=np.float64)
+    x_array = np.asarray(x, dtype=np.float64)
+    t_eval_array = np.asarray(t_eval, dtype=np.float64)
+
     # np.interp is efficient and handles various cases, including t_eval outside t's range.
-    result = np.interp(t_eval, t, x)
-    return cast(_FloatArray, result)
+    result = np.interp(t_eval_array, t_array, x_array)
+
+    # Ensure we return an array with float64 dtype
+    return np.asarray(result, dtype=np.float64)
 
 
 def uniform_mesh(num_intervals: int) -> _FloatArray:
@@ -148,6 +156,14 @@ def estimate_error(
     return max_error, mean_error, rms_error
 
 
+@overload
+def map_normalized_to_physical_time(tau: float, t0: float, tf: float) -> float: ...
+
+
+@overload
+def map_normalized_to_physical_time(tau: _FloatArray, t0: float, tf: float) -> _FloatArray: ...
+
+
 def map_normalized_to_physical_time(
     tau: float | _FloatArray, t0: float, tf: float
 ) -> float | _FloatArray:
@@ -175,7 +191,9 @@ def map_normalized_to_physical_time(
 
     if isinstance(tau, float):
         return float(physical_time)
-    return cast(_FloatArray, physical_time)
+
+    # Ensure correct dtype without using cast()
+    return np.asarray(physical_time, dtype=np.float64)
 
 
 def map_physical_to_normalized_time(

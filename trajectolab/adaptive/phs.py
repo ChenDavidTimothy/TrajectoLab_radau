@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, cast, Sequence
+from typing import Any, Sequence, cast
 
 import numpy as np
 from scipy.integrate import solve_ivp

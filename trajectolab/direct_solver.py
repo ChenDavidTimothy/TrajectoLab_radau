@@ -458,25 +458,54 @@ def _validate_dynamics_output(
 def _set_initial_value_for_integrals(
     opti: _CasadiOpti,
     integral_vars: _CasadiMX,
-    guess: float | _FloatArray | list[float] | None,  # Broadened guess type
+    guess: float | _FloatArray | list[float] | None,
     num_integrals: int,
 ) -> None:
+    """
+    Sets initial values for integral variables in the optimization problem.
+
+    Args:
+        opti: The CasADi Opti object
+        integral_vars: The CasADi MX variables for integrals
+        guess: The guess values for integrals (float, array, or list)
+        num_integrals: The number of integral variables
+    """
     if guess is None:
         return
 
+    # Handle single integral case
     if num_integrals == 1:
-        if isinstance(guess, (int, float)):  # int included for convenience
+        if isinstance(guess, (int, float)):
             opti.set_initial(integral_vars, float(guess))
-        elif isinstance(guess, (list, np.ndarray)) and np.array(guess).size == 1:
-            opti.set_initial(integral_vars, float(np.array(guess).item()))
+        elif isinstance(guess, (list, np.ndarray)):
+            guess_array = np.asarray(guess, dtype=np.float64)
+            if guess_array.size >= 1:
+                opti.set_initial(integral_vars, float(guess_array.flatten()[0]))
+            else:
+                print(f"Warning: Empty array provided for single integral guess")
         else:
-            print(f"Warning: Invalid format for single integral guess: {guess}")
-    elif isinstance(guess, (list, np.ndarray)) and np.array(guess).size == num_integrals:
-        # Ensure flat array for CasADi if it's a list of numbers or a 1D array
-        flat_guess = np.array(guess, dtype=np.float64).flatten()
-        opti.set_initial(integral_vars, flat_guess)
+            print(f"Warning: Unsupported type {type(guess)} for single integral guess")
+
+    # Handle multiple integrals case
+    elif isinstance(guess, (list, np.ndarray)):
+        guess_array = np.asarray(guess, dtype=np.float64).flatten()
+
+        if guess_array.size >= num_integrals:
+            # Take first num_integrals elements
+            opti.set_initial(integral_vars, guess_array[:num_integrals])
+        elif guess_array.size > 0:
+            # Pad with repeating pattern if needed
+            tiled_guess = np.tile(guess_array, int(np.ceil(num_integrals / guess_array.size)))
+            opti.set_initial(integral_vars, tiled_guess[:num_integrals])
+        else:
+            print(f"Warning: Empty array provided for multiple integrals guess")
+
+    # Handle scalar provided for multiple integrals
+    elif isinstance(guess, (int, float)):
+        opti.set_initial(integral_vars, np.full(num_integrals, float(guess), dtype=np.float64))
+
     else:
-        print(f"Warning: Invalid format/length for multiple integrals guess: {guess}")
+        print(f"Warning: Unsupported type {type(guess)} for multiple integrals guess")
 
 
 def solve_single_phase_radau_collocation(
