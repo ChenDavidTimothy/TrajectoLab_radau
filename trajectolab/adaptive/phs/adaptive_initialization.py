@@ -82,7 +82,7 @@ def generate_robust_default_initial_guess(
         elif problem.initial_guess and problem.initial_guess.integrals is not None:
             raw_problem_integrals = problem.initial_guess.integrals
             if isinstance(raw_problem_integrals, np.ndarray):
-                final_integrals_guess = list(raw_problem_integrals.astype(np.float64))
+                final_integrals_guess = [float(x) for x in raw_problem_integrals.astype(np.float64)]
             elif isinstance(raw_problem_integrals, (list, tuple)):
                 final_integrals_guess = [float(x) for x in raw_problem_integrals]
             elif isinstance(raw_problem_integrals, float):
