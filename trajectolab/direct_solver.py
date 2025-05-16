@@ -9,6 +9,7 @@ from .radau import RadauBasisComponents, compute_radau_collocation_components
 from .tl_types import (
     CasadiDM,
     CasadiMX,
+    CasadiMatrix,
     CasadiOpti,
     CasadiOptiSol,
     DynamicsCallable,
@@ -386,11 +387,13 @@ def _apply_constraint(opti: CasadiOpti, constraint: PathConstraint | EventConstr
         opti.subject_to(constraint.val == constraint.equals)
 
 
-def _validate_dynamics_output(output: list[CasadiMX] | CasadiMX, num_states: int) -> CasadiMX:
+def _validate_dynamics_output(output: list[CasadiMX] | CasadiMatrix, num_states: int) -> CasadiMX:
+    """Validates and converts dynamics function output to the expected CasadiMX format."""
     if isinstance(output, list):
-        return (
-            ca.vertcat(*output) if output else ca.MX(num_states, 1)
-        )  # Ensure empty list returns empty MX
+        # First convert result to MX if it's a DM
+        result = ca.vertcat(*output) if output else ca.MX(num_states, 1)
+        # Ensure result is MX type
+        return ca.MX(result) if isinstance(result, ca.DM) else result
     elif isinstance(output, ca.MX):
         if output.shape[1] == 1:
             return output
@@ -398,6 +401,16 @@ def _validate_dynamics_output(output: list[CasadiMX] | CasadiMX, num_states: int
             return output.T
         elif num_states == 1:  # Scalar MX for num_states=1
             return output
+    elif isinstance(output, ca.DM):
+        # Explicitly convert DM to MX
+        result = ca.MX(output)
+        if result.shape[1] == 1:
+            return result
+        elif result.shape[0] == 1 and num_states > 1:
+            return result.T
+        else:
+            return result
+
     raise TypeError(f"Dynamics function output type not supported: {type(output)}")
 
 

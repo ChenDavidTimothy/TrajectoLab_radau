@@ -43,6 +43,7 @@ ZERO_TOLERANCE: float = 1e-12
 # --- CasADi Type Aliases ---
 CasadiMX: TypeAlias = ca.MX
 CasadiDM: TypeAlias = ca.DM
+CasadiMatrix: TypeAlias = CasadiMX | CasadiDM  # Union type for any CasADi matrix
 CasadiOpti: TypeAlias = ca.Opti
 CasadiOptiSol: TypeAlias = ca.OptiSol
 
@@ -105,4 +106,4 @@ TrajectoryData: TypeAlias = list[
 # For initial guesses, states/controls are typically a list of 2D matrices,
 # one per mesh interval: [num_variables, num_nodes_in_interval]
 InitialGuessTrajectory: TypeAlias = list[FloatMatrix]
-InitialGuessIntegrals: TypeAlias = float | FloatArray
+InitialGuessIntegrals: TypeAlias = float | FloatArray | list[float] | None
