@@ -2,7 +2,7 @@
 
 import logging
 from dataclasses import dataclass
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Callable, Union
 
 import numpy as np
 
@@ -162,6 +162,49 @@ def p_reduce_interval(
     return PReduceResult(new_num_collocation_nodes=new_Nk, was_reduction_applied=was_reduced)
 
 
+def _get_control_value_for_h_reduction(
+    control_evaluator: Optional[Union[PolynomialInterpolant, Callable]], local_tau: float
+) -> _Vector:
+    """Get control value from evaluator, with proper handling for all return types."""
+    if control_evaluator is None:
+        return np.array([], dtype=np.float64)
+
+    try:
+        # Clip tau within valid interpolation range
+        clipped_tau = np.clip(local_tau, -1.0, 1.0)
+
+        # Get control value from interpolant
+        u_val = control_evaluator(clipped_tau)
+
+        # Handle different return types
+        if isinstance(u_val, (int, float, np.number)) or (
+            hasattr(u_val, "ndim") and u_val.ndim == 0
+        ):
+            # Convert scalar to array
+            return np.array([float(u_val)], dtype=np.float64)
+
+        # Handle numpy array returns
+        if isinstance(u_val, np.ndarray):
+            if u_val.ndim == 0:  # Scalar numpy array
+                return np.array([float(u_val)], dtype=np.float64)
+            elif u_val.ndim == 2 and u_val.shape[1] == 1:  # Column vector
+                return u_val.flatten()
+            elif u_val.ndim == 1:  # Vector already
+                return u_val
+            else:  # Other array shapes
+                return np.atleast_1d(u_val.flatten())
+
+        # Default fallback - try to convert to array
+        return np.atleast_1d(u_val)
+
+    except Exception as e:
+        logger.error(f"Error getting control: {e}")
+        # Return safe empty array with proper shape based on control_evaluator properties
+        if hasattr(control_evaluator, "num_vars") and control_evaluator.num_vars > 0:
+            return np.zeros(control_evaluator.num_vars, dtype=np.float64)
+        return np.array([], dtype=np.float64)
+
+
 def h_reduce_intervals(
     first_interval_idx: int,
     solution: OptimalControlSolution,
@@ -251,15 +294,6 @@ def h_reduce_intervals(
     scaling_k = alpha * beta_k
     scaling_kp1 = alpha * beta_kp1
 
-    def _get_control_value_for_h_reduction(
-        control_evaluator: PolynomialInterpolant, local_tau: _NormalizedTimePoint
-    ) -> _Vector:
-        if control_evaluator.num_vars == 0:
-            return np.array([], dtype=np.float64)
-        clipped_tau = np.clip(local_tau, -1.0, 1.0)
-        u_val_eval: Any = control_evaluator(clipped_tau)
-        return np.atleast_1d(u_val_eval.squeeze()).astype(np.float64)
-
     # RHS for forward simulation over the first part of the merged interval
     def merged_fwd_rhs_interval_k_domain(
         local_tau_k_domain: _NormalizedTimePoint, state_np: _Vector
@@ -308,6 +342,13 @@ def h_reduce_intervals(
         ):
             Xk_nlp_from_sol_states: _Matrix = solution.states[first_interval_idx]
             initial_state_fwd_sim = Xk_nlp_from_sol_states[:, 0].flatten().astype(np.float64)
+        elif (
+            hasattr(solution, "solved_state_trajectories_per_interval")
+            and solution.solved_state_trajectories_per_interval
+            and first_interval_idx < len(solution.solved_state_trajectories_per_interval)
+        ):
+            Xk_nlp = solution.solved_state_trajectories_per_interval[first_interval_idx]
+            initial_state_fwd_sim = Xk_nlp[:, 0].flatten()
         else:  # Fallback to opti object if solution.states not populated directly
             opti: Optional[CasADiOpti] = solution.opti_object
             raw_sol = solution.raw_solution
@@ -369,6 +410,13 @@ def h_reduce_intervals(
         ):
             Xkp1_nlp_from_sol_states: _Matrix = solution.states[first_interval_idx + 1]
             terminal_state_bwd_sim = Xkp1_nlp_from_sol_states[:, -1].flatten().astype(np.float64)
+        elif (
+            hasattr(solution, "solved_state_trajectories_per_interval")
+            and solution.solved_state_trajectories_per_interval
+            and (first_interval_idx + 1) < len(solution.solved_state_trajectories_per_interval)
+        ):
+            Xkp1_nlp = solution.solved_state_trajectories_per_interval[first_interval_idx + 1]
+            terminal_state_bwd_sim = Xkp1_nlp[:, -1].flatten()
         else:  # Fallback
             opti = solution.opti_object
             raw_sol = solution.raw_solution
@@ -438,21 +486,73 @@ def h_reduce_intervals(
 
     # Errors from forward simulation
     if fwd_sim_obj_k and fwd_sim_obj_k.success and fwd_trajectory_k.size > 0:
-        nlp_states_at_fwd_pts_k: _Matrix = state_evaluator_first_interval(
-            fwd_tau_points_interval_k_local
-        )
-        abs_diff_fwd = np.abs(fwd_trajectory_k - nlp_states_at_fwd_pts_k)
-        scaled_errors_fwd = gamma_factors.flatten()[:, np.newaxis] * abs_diff_fwd
-        all_errors_list.extend(list(scaled_errors_fwd.flatten()))
+        try:
+            nlp_states_at_fwd_pts_k: _Matrix = state_evaluator_first_interval(
+                fwd_tau_points_interval_k_local
+            )
+            # Convert to correct shape if needed
+            if isinstance(nlp_states_at_fwd_pts_k, (int, float, np.number)):
+                if num_states == 1:
+                    nlp_states_at_fwd_pts_k = np.full(
+                        (1, len(fwd_tau_points_interval_k_local)),
+                        float(nlp_states_at_fwd_pts_k),
+                        dtype=np.float64,
+                    )
+                else:
+                    logger.warning(
+                        f"      Expected matrix of shape ({num_states}, {len(fwd_tau_points_interval_k_local)}), got scalar"
+                    )
+                    nlp_states_at_fwd_pts_k = np.zeros(
+                        (num_states, len(fwd_tau_points_interval_k_local)), dtype=np.float64
+                    )
+            elif hasattr(nlp_states_at_fwd_pts_k, "ndim"):
+                if nlp_states_at_fwd_pts_k.ndim == 1:
+                    if num_states == 1:
+                        nlp_states_at_fwd_pts_k = nlp_states_at_fwd_pts_k.reshape(1, -1)
+                    elif len(nlp_states_at_fwd_pts_k) == num_states:
+                        # Single evaluation point, multiple states - reshape
+                        nlp_states_at_fwd_pts_k = nlp_states_at_fwd_pts_k.reshape(-1, 1)
+
+            abs_diff_fwd = np.abs(fwd_trajectory_k - nlp_states_at_fwd_pts_k)
+            scaled_errors_fwd = gamma_factors.flatten()[:, np.newaxis] * abs_diff_fwd
+            all_errors_list.extend(list(scaled_errors_fwd.flatten()))
+        except Exception as e:
+            logger.error(f"      h-reduction: Error calculating forward errors: {e}")
 
     # Errors from backward simulation
     if bwd_sim_obj_kp1 and bwd_sim_obj_kp1.success and bwd_trajectory_kp1_temp.size > 0:
-        nlp_states_at_bwd_pts_kp1: _Matrix = state_evaluator_second_interval(
-            sorted_bwd_tau_points_kp1_local
-        )
-        abs_diff_bwd = np.abs(bwd_trajectory_kp1_temp - nlp_states_at_bwd_pts_kp1)
-        scaled_errors_bwd = gamma_factors.flatten()[:, np.newaxis] * abs_diff_bwd
-        all_errors_list.extend(list(scaled_errors_bwd.flatten()))
+        try:
+            nlp_states_at_bwd_pts_kp1: _Matrix = state_evaluator_second_interval(
+                sorted_bwd_tau_points_kp1_local
+            )
+            # Convert to correct shape if needed
+            if isinstance(nlp_states_at_bwd_pts_kp1, (int, float, np.number)):
+                if num_states == 1:
+                    nlp_states_at_bwd_pts_kp1 = np.full(
+                        (1, len(sorted_bwd_tau_points_kp1_local)),
+                        float(nlp_states_at_bwd_pts_kp1),
+                        dtype=np.float64,
+                    )
+                else:
+                    logger.warning(
+                        f"      Expected matrix of shape ({num_states}, {len(sorted_bwd_tau_points_kp1_local)}), got scalar"
+                    )
+                    nlp_states_at_bwd_pts_kp1 = np.zeros(
+                        (num_states, len(sorted_bwd_tau_points_kp1_local)), dtype=np.float64
+                    )
+            elif hasattr(nlp_states_at_bwd_pts_kp1, "ndim"):
+                if nlp_states_at_bwd_pts_kp1.ndim == 1:
+                    if num_states == 1:
+                        nlp_states_at_bwd_pts_kp1 = nlp_states_at_bwd_pts_kp1.reshape(1, -1)
+                    elif len(nlp_states_at_bwd_pts_kp1) == num_states:
+                        # Single evaluation point, multiple states - reshape
+                        nlp_states_at_bwd_pts_kp1 = nlp_states_at_bwd_pts_kp1.reshape(-1, 1)
+
+            abs_diff_bwd = np.abs(bwd_trajectory_kp1_temp - nlp_states_at_bwd_pts_kp1)
+            scaled_errors_bwd = gamma_factors.flatten()[:, np.newaxis] * abs_diff_bwd
+            all_errors_list.extend(list(scaled_errors_bwd.flatten()))
+        except Exception as e:
+            logger.error(f"      h-reduction: Error calculating backward errors: {e}")
 
     if not all_errors_list:
         logger.warning("      h-reduction: No error values collected.")

@@ -1,7 +1,7 @@
 """Core implementation of p-h-s adaptive mesh refinement for optimal control."""
 
 import logging
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Any, Callable, Dict, Tuple
 
 import numpy as np
 
@@ -18,6 +18,7 @@ from trajectolab.adaptive.phs.adaptive_initialization import (
 from trajectolab.adaptive.phs.adaptive_interpolation import (
     PolynomialInterpolant,
     get_polynomial_interpolant,
+    dummy_evaluator,
 )
 from trajectolab.adaptive.phs.adaptive_refinement import (
     h_reduce_intervals,
@@ -115,7 +116,7 @@ class PHSAdaptive(AdaptiveBase):
         """Run the adaptive mesh refinement algorithm.
 
         Args:
-            legacy_problem_instance: Problem definition
+            legacy_problem: Problem definition in legacy format (for compatibility)
             initial_solution: Optional initial solution to start from
 
         Returns:
@@ -238,6 +239,10 @@ class PHSAdaptive(AdaptiveBase):
                 opti_obj = solved_ocp_solution_this_iter.opti_object
                 raw_casadi_sol = solved_ocp_solution_this_iter.raw_solution
 
+                # Store the solved state trajectories per interval for later use
+                solved_ocp_solution_this_iter.solved_state_trajectories_per_interval = []
+                solved_ocp_solution_this_iter.solved_control_trajectories_per_interval = []
+
                 if (
                     opti_obj
                     and raw_casadi_sol
@@ -250,15 +255,18 @@ class PHSAdaptive(AdaptiveBase):
                     for i, var_sx_or_mx in enumerate(
                         opti_obj.state_at_local_approximation_nodes_all_intervals_variables
                     ):
-                        val = raw_casadi_sol.value(var_sx_or_mx)
-                        temp_states_list.append(
-                            extract_and_prepare_array(
+                        if i < len(current_collocation_nodes_list):
+                            val = raw_casadi_sol.value(var_sx_or_mx)
+                            temp_states_arr = extract_and_prepare_array(
                                 val,
                                 current_ocp_definition.num_states,
                                 current_collocation_nodes_list[i] + 1,
                             )
-                        )
+                            temp_states_list.append(temp_states_arr)
                     solved_ocp_solution_this_iter.states = temp_states_list
+                    solved_ocp_solution_this_iter.solved_state_trajectories_per_interval = (
+                        temp_states_list
+                    )
                 elif current_ocp_definition.num_states > 0:
                     logger.warning("  Could not extract states from NLP solution object.")
                     solved_ocp_solution_this_iter.states = []
@@ -278,15 +286,18 @@ class PHSAdaptive(AdaptiveBase):
                         for i, var_sx_or_mx in enumerate(
                             opti_obj.control_at_local_collocation_nodes_all_intervals_variables
                         ):
-                            val = raw_casadi_sol.value(var_sx_or_mx)
-                            temp_controls_list.append(
-                                extract_and_prepare_array(
+                            if i < len(current_collocation_nodes_list):
+                                val = raw_casadi_sol.value(var_sx_or_mx)
+                                temp_controls_arr = extract_and_prepare_array(
                                     val,
                                     current_ocp_definition.num_controls,
                                     current_collocation_nodes_list[i],
                                 )
-                            )
+                                temp_controls_list.append(temp_controls_arr)
                         solved_ocp_solution_this_iter.controls = temp_controls_list
+                        solved_ocp_solution_this_iter.solved_control_trajectories_per_interval = (
+                            temp_controls_list
+                        )
                     else:
                         logger.warning("  Could not extract controls from NLP solution object.")
                         solved_ocp_solution_this_iter.controls = []
@@ -294,6 +305,9 @@ class PHSAdaptive(AdaptiveBase):
                     solved_ocp_solution_this_iter.controls = [
                         np.empty((0, nk), dtype=np.float64) for nk in current_collocation_nodes_list
                     ]
+                    solved_ocp_solution_this_iter.solved_control_trajectories_per_interval = (
+                        solved_ocp_solution_this_iter.controls
+                    )
 
             except Exception as e:
                 error_msg = f"Failed to extract trajectories: {e}. Stopping."
@@ -324,11 +338,11 @@ class PHSAdaptive(AdaptiveBase):
                 return most_recent_ocp_solution
 
             # Cache for Radau basis components
-            radau_basis_cache: dict[int, RadauBasisComponents] = {}
+            radau_basis_cache: Dict[int, RadauBasisComponents] = {}
 
             # Prepare interpolants for state and control trajectories
-            state_evaluators_list: List[PolynomialInterpolant] = [None] * num_intervals_K  # type: ignore
-            control_evaluators_list: List[PolynomialInterpolant] = [None] * num_intervals_K  # type: ignore
+            state_evaluators_list: List[PolynomialInterpolant] = []
+            control_evaluators_list: List[PolynomialInterpolant] = []
 
             # Create dummy interpolant for controls if no controls exist
             _dummy_control_interpolant_if_no_controls = None
@@ -357,35 +371,37 @@ class PHSAdaptive(AdaptiveBase):
                         state_values_k_interval: _FloatArray = most_recent_ocp_solution.states[
                             k_interval_idx
                         ]
-                        state_evaluators_list[k_interval_idx] = get_polynomial_interpolant(
+                        state_evaluator = get_polynomial_interpolant(
                             basis_comps.state_approximation_nodes,
                             state_values_k_interval,
                             basis_comps.barycentric_weights_for_state_nodes,
                         )
+                        state_evaluators_list.append(state_evaluator)
                     elif current_ocp_definition.num_states > 0:
                         logger.warning(f"  State trajectory missing for interval {k_interval_idx}.")
-                        empty_state_vals = np.full(
+                        empty_state_vals = np.zeros(
                             (
                                 current_ocp_definition.num_states,
                                 len(basis_comps.state_approximation_nodes),
                             ),
-                            np.nan,
                             dtype=np.float64,
                         )
-                        state_evaluators_list[k_interval_idx] = get_polynomial_interpolant(
+                        state_evaluator = get_polynomial_interpolant(
                             basis_comps.state_approximation_nodes,
                             empty_state_vals,
                             basis_comps.barycentric_weights_for_state_nodes,
                         )
+                        state_evaluators_list.append(state_evaluator)
                     else:  # num_states == 0
                         empty_state_vals = np.empty(
                             (0, len(basis_comps.state_approximation_nodes)), dtype=np.float64
                         )
-                        state_evaluators_list[k_interval_idx] = get_polynomial_interpolant(
+                        state_evaluator = get_polynomial_interpolant(
                             basis_comps.state_approximation_nodes,
                             empty_state_vals,
                             basis_comps.barycentric_weights_for_state_nodes,
                         )
+                        state_evaluators_list.append(state_evaluator)
 
                     # Control interpolant
                     if current_ocp_definition.num_controls > 0:
@@ -400,57 +416,64 @@ class PHSAdaptive(AdaptiveBase):
                             control_bary_weights = compute_barycentric_weights(
                                 basis_comps.collocation_nodes
                             )
-                            control_evaluators_list[k_interval_idx] = get_polynomial_interpolant(
+                            control_evaluator = get_polynomial_interpolant(
                                 basis_comps.collocation_nodes,
                                 control_values_k_interval,
                                 control_bary_weights,
                             )
+                            control_evaluators_list.append(control_evaluator)
                         else:  # Controls expected but missing
                             logger.warning(
                                 f"  Control trajectory missing for interval {k_interval_idx}."
                             )
-                            empty_ctrl_vals = np.full(
+                            empty_ctrl_vals = np.zeros(
                                 (
                                     current_ocp_definition.num_controls,
                                     len(basis_comps.collocation_nodes),
                                 ),
-                                np.nan,
                                 dtype=np.float64,
                             )
                             control_bary_weights = compute_barycentric_weights(
                                 basis_comps.collocation_nodes
                             )
-                            control_evaluators_list[k_interval_idx] = get_polynomial_interpolant(
+                            control_evaluator = get_polynomial_interpolant(
                                 basis_comps.collocation_nodes, empty_ctrl_vals, control_bary_weights
                             )
+                            control_evaluators_list.append(control_evaluator)
                     else:
-                        control_evaluators_list[k_interval_idx] = _dummy_control_interpolant_if_no_controls  # type: ignore
+                        control_evaluators_list.append(_dummy_control_interpolant_if_no_controls)
 
                 except Exception as e:
                     logger.error(f"  Error creating interpolant for interval {k_interval_idx}: {e}")
                     # Fallback to dummy interpolants
                     _dummy_nodes = np.array([-1.0, 1.0], dtype=np.float64)
-                    _s_vals = np.empty((current_ocp_definition.num_states, 2), dtype=np.float64)
-                    state_evaluators_list[k_interval_idx] = PolynomialInterpolant(
-                        _dummy_nodes, _s_vals
-                    )
+                    _s_vals = np.zeros((current_ocp_definition.num_states, 2), dtype=np.float64)
+                    state_evaluator = PolynomialInterpolant(_dummy_nodes, _s_vals)
+                    state_evaluators_list.append(state_evaluator)
+
                     if _dummy_control_interpolant_if_no_controls:
-                        control_evaluators_list[k_interval_idx] = (
-                            _dummy_control_interpolant_if_no_controls
-                        )
+                        control_evaluators_list.append(_dummy_control_interpolant_if_no_controls)
                     else:
-                        _c_vals = np.empty(
+                        _c_vals = np.zeros(
                             (current_ocp_definition.num_controls, 2), dtype=np.float64
                         )
-                        control_evaluators_list[k_interval_idx] = PolynomialInterpolant(
-                            _dummy_nodes, _c_vals
-                        )
+                        control_evaluators_list.append(PolynomialInterpolant(_dummy_nodes, _c_vals))
 
             # Estimate error for each interval
-            interval_error_estimates: List[float] = [np.inf] * num_intervals_K
+            interval_error_estimates: List[float] = []
 
             for k_interval_idx in range(num_intervals_K):
                 logger.info(f"  Starting error simulation for interval {k_interval_idx}...")
+
+                if k_interval_idx >= len(state_evaluators_list) or k_interval_idx >= len(
+                    control_evaluators_list
+                ):
+                    logger.warning(
+                        f"    Missing evaluators for interval {k_interval_idx}. Setting high error."
+                    )
+                    interval_error_estimates.append(np.inf)
+                    continue
+
                 sim_bundle = simulate_dynamics_for_error_estimation(
                     k_interval_idx,
                     most_recent_ocp_solution,
@@ -471,8 +494,8 @@ class PHSAdaptive(AdaptiveBase):
                         gamma_for_calc = gamma_factors_col_vec
                     else:
                         logger.warning(f"   Gamma factors invalid for interval {k_interval_idx}.")
-                        gamma_for_calc = np.full(
-                            (current_ocp_definition.num_states, 1), np.nan, dtype=np.float64
+                        gamma_for_calc = np.ones(
+                            (current_ocp_definition.num_states, 1), dtype=np.float64
                         )
                 else:
                     gamma_for_calc = np.empty((0, 1), dtype=np.float64)
@@ -480,7 +503,7 @@ class PHSAdaptive(AdaptiveBase):
                 error_val_this_interval = calculate_relative_error_estimate(
                     k_interval_idx, sim_bundle, gamma_for_calc
                 )
-                interval_error_estimates[k_interval_idx] = error_val_this_interval
+                interval_error_estimates.append(error_val_this_interval)
                 logger.info(
                     f"    Interval {k_interval_idx}: Nk={current_collocation_nodes_list[k_interval_idx]}, "
                     f"Error={error_val_this_interval:.4e}"
@@ -591,21 +614,35 @@ class PHSAdaptive(AdaptiveBase):
                                 )
                                 can_merge_flag = False
                             else:
-                                can_merge_flag = h_reduce_intervals(
-                                    current_interval_pointer,
-                                    most_recent_ocp_solution,
-                                    current_ocp_definition,
-                                    self.adaptive_params,
-                                    (
-                                        gamma_for_hr_calc
-                                        if gamma_for_hr_calc is not None
-                                        else np.empty((0, 1))
-                                    ),
-                                    state_evaluators_list[current_interval_pointer],
-                                    control_evaluators_list[current_interval_pointer],
-                                    state_evaluators_list[current_interval_pointer + 1],
-                                    control_evaluators_list[current_interval_pointer + 1],
-                                )
+                                # Ensure we have valid interpolants for both intervals
+                                if (
+                                    current_interval_pointer < len(state_evaluators_list)
+                                    and current_interval_pointer + 1 < len(state_evaluators_list)
+                                    and current_interval_pointer < len(control_evaluators_list)
+                                    and current_interval_pointer + 1 < len(control_evaluators_list)
+                                ):
+
+                                    can_merge_flag = h_reduce_intervals(
+                                        current_interval_pointer,
+                                        most_recent_ocp_solution,
+                                        current_ocp_definition,
+                                        self.adaptive_params,
+                                        (
+                                            gamma_for_hr_calc
+                                            if gamma_for_hr_calc is not None
+                                            else np.empty((0, 1))
+                                        ),
+                                        state_evaluators_list[current_interval_pointer],
+                                        control_evaluators_list[current_interval_pointer],
+                                        state_evaluators_list[current_interval_pointer + 1],
+                                        control_evaluators_list[current_interval_pointer + 1],
+                                    )
+                                else:
+                                    logger.warning(
+                                        "        Missing interpolants for h-reduction check"
+                                    )
+                                    can_merge_flag = False
+
                             if can_merge_flag:
                                 logger.info(
                                     f"      h-reduction approved. Merging intervals {current_interval_pointer} and {current_interval_pointer+1}."

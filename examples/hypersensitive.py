@@ -3,11 +3,11 @@ import numpy as np
 from trajectolab import (
     Constraint,
     FixedMesh,
+    InitialGuess,
     PHSAdaptive,
     Problem,
     RadauDirectSolver,
     solve,
-    InitialGuess,
 )
 
 # Define the hypersensitive problem
@@ -48,8 +48,8 @@ problem.add_integral(objective_integrand)
 
 
 # Define objective function - simple return of the integral
-def objective(initial_time, final_time, initial_states, final_states, integrals, params):
-    return integrals[0]  # directly return the integral value
+def objective(t0, tf, x0, xf, integrals, params):
+    return integrals[0]  # Only use what you need
 
 
 problem.set_objective("integral", objective)

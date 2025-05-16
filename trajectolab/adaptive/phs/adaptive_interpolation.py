@@ -45,6 +45,7 @@ def extract_and_prepare_array(
 
     np_array_intermediate: np.ndarray
 
+    # Convert to numpy array based on type
     if isinstance(casadi_value, (ca.MX, ca.SX)):
         if casadi_value.is_constant() and not casadi_value.is_symbolic():
             try:
@@ -68,13 +69,22 @@ def extract_and_prepare_array(
             except Exception as e:
                 logger.warning(f"Could not convert non-symbolic CasADi type to DM/numpy: {e}")
                 np_array_intermediate = np.array([], dtype=np.float64)
-    elif isinstance(casadi_value, ca.DM):  # Use the actual class instead of the type alias
+    elif isinstance(casadi_value, ca.DM):
         np_array_intermediate = np.array(casadi_value.toarray(), dtype=np.float64)
     elif isinstance(casadi_value, np.ndarray):
-        np_array_intermediate = casadi_value
+        np_array_intermediate = casadi_value.astype(np.float64)
     elif isinstance(casadi_value, (list, tuple)):
         np_array_intermediate = np.array(casadi_value, dtype=np.float64)
     else:
+        # Handle scalar values
+        if isinstance(casadi_value, (int, float, np.number)):
+            if expected_rows == 1 and expected_cols == 1:
+                return np.array([[float(casadi_value)]], dtype=np.float64)
+            elif expected_rows == 1:
+                return np.array([float(casadi_value)], dtype=np.float64).reshape(1, -1)
+            elif expected_cols == 1:
+                return np.array([float(casadi_value)], dtype=np.float64).reshape(-1, 1)
+
         raise TypeError(f"Unsupported type for casadi_value: {type(casadi_value)}")
 
     # Ensure float64
@@ -93,7 +103,9 @@ def extract_and_prepare_array(
         return np.empty((expected_rows, expected_cols), dtype=np.float64)
 
     # Ensure 2D shape
-    if np_array_intermediate.ndim == 1:
+    if np_array_intermediate.ndim == 0:  # Handle scalar value
+        np_array_intermediate = np.array([[float(np_array_intermediate)]], dtype=np.float64)
+    elif np_array_intermediate.ndim == 1:
         if expected_rows == 1 and (
             expected_cols == 0 or len(np_array_intermediate) == expected_cols
         ):
@@ -202,7 +214,9 @@ class PolynomialInterpolant:
         if self.num_nodes_pts > 0 and len(self.bary_weights) != self.num_nodes_pts:
             raise ValueError("Barycentric weights length does not match nodes length")
 
-    def __call__(self, points: Union[_NormalizedTimePoint, _Vector]) -> Union[_Matrix, _Vector]:
+    def __call__(
+        self, points: Union[_NormalizedTimePoint, _Vector]
+    ) -> Union[_Matrix, _Vector, float, np.number]:
         """Evaluate the interpolant at given points.
 
         Args:
@@ -235,7 +249,9 @@ class PolynomialInterpolant:
 
         if self.num_vars == 1:
             final_result_vector = result.flatten()
-            return final_result_vector[0] if is_scalar_input_point else final_result_vector
+            if is_scalar_input_point and len(final_result_vector) == 1:
+                return float(final_result_vector[0])  # Return scalar
+            return final_result_vector
 
         return result[:, 0] if is_scalar_input_point else result
 

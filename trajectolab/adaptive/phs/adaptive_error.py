@@ -151,125 +151,255 @@ def simulate_dynamics_for_error_estimation(
     overall_scaling = alpha * beta_k
 
     def dynamics_rhs(tau_local: _NormalizedTimePoint, state_np: _Vector) -> _Vector:
-        control_val_at_tau: Any = control_evaluator(tau_local)
+        """Right-hand side of dynamics ODE in local tau coordinates."""
+        # Get control from interpolant - handle any shape
+        try:
+            control_val_at_tau: Any = control_evaluator(tau_local)
+        except Exception as e:
+            logger.error(f"Error evaluating control at tau={tau_local}: {e}")
+            control_val_at_tau = np.zeros(control_evaluator.num_vars, dtype=np.float64)
 
+        num_controls = control_evaluator.num_vars
+
+        # Process control value to ensure correct shape
         control_np: _Vector
-        if control_evaluator.num_vars == 0:
+        if num_controls == 0:
             control_np = np.array([], dtype=np.float64)
-        elif control_val_at_tau.ndim == 2 and control_val_at_tau.shape[1] == 1:
-            control_np = control_val_at_tau.flatten()
-        elif control_val_at_tau.ndim == 1:
-            control_np = control_val_at_tau
+        elif isinstance(control_val_at_tau, (int, float, np.number)) or (
+            hasattr(control_val_at_tau, "ndim")
+            and (
+                control_val_at_tau.ndim == 0
+                or (isinstance(control_val_at_tau, np.ndarray) and control_val_at_tau.size == 1)
+            )
+        ):
+            # Handle scalar control value
+            if num_controls == 1:
+                control_np = np.array([float(control_val_at_tau)], dtype=np.float64)
+            else:
+                shape_info = getattr(control_val_at_tau, "shape", type(control_val_at_tau))
+                logger.warning(
+                    f"Scalar control value but num_controls={num_controls}, shape={shape_info}"
+                )
+                control_np = np.zeros(num_controls, dtype=np.float64)  # Safe default
+        elif hasattr(control_val_at_tau, "ndim"):
+            if control_val_at_tau.ndim == 2 and control_val_at_tau.shape[1] == 1:
+                control_np = control_val_at_tau.flatten()
+            elif control_val_at_tau.ndim == 1:
+                control_np = control_val_at_tau
+            else:
+                shape_info = getattr(control_val_at_tau, "shape", None)
+                logger.warning(f"Unexpected control shape from interpolant: {shape_info}")
+                control_np = np.zeros(num_controls, dtype=np.float64)  # Safe default
         else:
-            logger.error(f"Unexpected control shape from interpolant: {control_val_at_tau.shape}")
-            control_np = np.array([], dtype=np.float64)
+            # Unknown type fallback
+            shape_info = type(control_val_at_tau)
+            logger.warning(f"Control value has an unsupported type: {shape_info}")
+            control_np = np.zeros(num_controls, dtype=np.float64)  # Safe default
 
+        # Safety clip to avoid extremely large values
+        state_clipped_np = np.clip(state_np, -DEFAULT_STATE_CLIP_VALUE, DEFAULT_STATE_CLIP_VALUE)
+
+        # Transform to global coordinates and physical time
         global_tau_val: _NormalizedTimePoint = beta_k * tau_local + beta_k0
         physical_time: float = alpha * global_tau_val + alpha_0
 
-        state_ca = CasADiDM(state_np)
+        # Create CasADi DM objects for dynamics function
+        state_ca = CasADiDM(state_clipped_np)
         control_ca = CasADiDM(control_np)
 
-        state_deriv_symbolic = dynamics_function(
-            state_ca, control_ca, physical_time, problem_parameters
-        )
-        state_deriv_np_flat: _Vector = np.array(state_deriv_symbolic, dtype=np.float64).flatten()
-
-        if state_deriv_np_flat.shape[0] != num_states:
-            raise ValueError(
-                f"Dynamics function output dimension mismatch. Expected {num_states}, "
-                f"got {state_deriv_np_flat.shape[0]}."
+        # Evaluate dynamics function
+        try:
+            state_deriv_symbolic = dynamics_function(
+                state_ca, control_ca, physical_time, problem_parameters
             )
+            state_deriv_np_flat: _Vector = np.array(
+                state_deriv_symbolic, dtype=np.float64
+            ).flatten()
+        except Exception as e:
+            logger.error(f"Error in dynamics function at t={physical_time}: {e}")
+            state_deriv_np_flat = np.zeros(num_states, dtype=np.float64)
+
+        # Check dimensions
+        if state_deriv_np_flat.shape[0] != num_states:
+            logger.error(
+                f"Dynamics function output dimension mismatch. Expected {num_states}, "
+                f"got {state_deriv_np_flat.shape[0]}. Using zeros."
+            )
+            return np.zeros(num_states, dtype=np.float64)
+
         return overall_scaling * state_deriv_np_flat
 
     # Forward simulation
-    initial_state_val_matrix: Any = state_evaluator(-1.0)
-    initial_state: _Vector
-    if num_states == 0:
-        initial_state = np.array([], dtype=np.float64)
-    elif initial_state_val_matrix.ndim == 2 and initial_state_val_matrix.shape[1] == 1:
-        initial_state = initial_state_val_matrix.flatten()
-    elif initial_state_val_matrix.ndim == 1 and initial_state_val_matrix.size == num_states:
-        initial_state = initial_state_val_matrix
-    else:
-        logger.error(f"Unexpected initial_state_val_matrix shape: {initial_state_val_matrix.shape}")
-        initial_state = np.full(num_states, np.nan, dtype=np.float64)
+    try:
+        initial_state_val: Any = state_evaluator(-1.0)
+        initial_state: _Vector
+
+        if num_states == 0:
+            initial_state = np.array([], dtype=np.float64)
+        elif isinstance(initial_state_val, (int, float, np.number)) or (
+            hasattr(initial_state_val, "ndim") and initial_state_val.ndim == 0
+        ):
+            # Handle scalar value - turn it into a 1-element array
+            if num_states == 1:
+                initial_state = np.array([float(initial_state_val)], dtype=np.float64)
+            else:
+                logger.warning(f"Scalar initial_state_val but num_states={num_states}")
+                initial_state = np.zeros(num_states, dtype=np.float64)  # Use zeros for stability
+        elif (
+            hasattr(initial_state_val, "ndim")
+            and initial_state_val.ndim == 2
+            and initial_state_val.shape[1] == 1
+        ):
+            initial_state = initial_state_val.flatten()
+        elif (
+            hasattr(initial_state_val, "ndim")
+            and initial_state_val.ndim == 1
+            and initial_state_val.size == num_states
+        ):
+            initial_state = initial_state_val
+        else:
+            shape_info = getattr(initial_state_val, "shape", type(initial_state_val))
+            logger.warning(f"Unexpected initial_state_val shape: {shape_info}")
+            initial_state = np.zeros(num_states, dtype=np.float64)  # Use zeros for stability
+    except Exception as e:
+        logger.error(f"Error getting initial state: {e}")
+        initial_state = np.zeros(num_states, dtype=np.float64)  # Safe fallback
 
     fwd_tau_points_1d: _Vector = np.linspace(-1.0, 1.0, n_eval_points, dtype=np.float64)
-    fwd_sim = ode_solver(
-        dynamics_rhs,
-        t_span=(-1.0, 1.0),
-        y0=initial_state,
-        t_eval=fwd_tau_points_1d,
-        method="RK45",
-        rtol=ode_rtol,
-        atol=ode_rtol * 1e-2,
-    )
 
-    result.forward_simulation_local_tau_evaluation_points = fwd_tau_points_1d.reshape(1, -1)
-    result.state_trajectory_from_forward_simulation = (
-        fwd_sim.y.astype(np.float64)
-        if fwd_sim.success and hasattr(fwd_sim, "y")
-        else np.full((num_states, len(fwd_tau_points_1d)), np.nan, dtype=np.float64)
-    )
-    if not fwd_sim.success:
-        logger.warning(
-            f"    Fwd IVP fail int {interval_idx}: {getattr(fwd_sim, 'message', 'Unknown reason')}"
+    try:
+        fwd_sim = ode_solver(
+            dynamics_rhs,
+            t_span=(-1.0, 1.0),
+            y0=initial_state,
+            t_eval=fwd_tau_points_1d,
+            method="RK45",
+            rtol=ode_rtol,
+            atol=ode_rtol * 1e-2,
         )
 
-    nlp_fwd_eval_matrix: Any = state_evaluator(fwd_tau_points_1d)
-    result.nlp_state_trajectory_evaluated_at_forward_simulation_points = (
-        nlp_fwd_eval_matrix.reshape(num_states, -1)
-        if num_states > 0
-        else np.empty((0, len(fwd_tau_points_1d)), dtype=np.float64)
-    )
+        result.forward_simulation_local_tau_evaluation_points = fwd_tau_points_1d.reshape(1, -1)
+        result.state_trajectory_from_forward_simulation = (
+            fwd_sim.y.astype(np.float64)
+            if fwd_sim.success and hasattr(fwd_sim, "y")
+            else np.full((num_states, len(fwd_tau_points_1d)), np.nan, dtype=np.float64)
+        )
+        if not fwd_sim.success:
+            logger.warning(
+                f"    Fwd IVP fail int {interval_idx}: {getattr(fwd_sim, 'message', 'Unknown reason')}"
+            )
+    except Exception as e:
+        logger.error(f"Forward simulation failed: {e}")
+        result.forward_simulation_local_tau_evaluation_points = fwd_tau_points_1d.reshape(1, -1)
+        result.state_trajectory_from_forward_simulation = np.full(
+            (num_states, len(fwd_tau_points_1d)), np.nan, dtype=np.float64
+        )
+        fwd_sim = None  # Mark as failed
+
+    try:
+        nlp_fwd_eval_matrix: Any = state_evaluator(fwd_tau_points_1d)
+        result.nlp_state_trajectory_evaluated_at_forward_simulation_points = (
+            nlp_fwd_eval_matrix.reshape(num_states, -1)
+            if num_states > 0
+            else np.empty((0, len(fwd_tau_points_1d)), dtype=np.float64)
+        )
+    except Exception as e:
+        logger.error(f"Error evaluating NLP states for forward points: {e}")
+        result.nlp_state_trajectory_evaluated_at_forward_simulation_points = np.full(
+            (num_states, len(fwd_tau_points_1d)), np.nan, dtype=np.float64
+        )
 
     # Backward simulation
-    terminal_state_val_matrix: Any = state_evaluator(1.0)
-    terminal_state: _Vector
-    if num_states == 0:
-        terminal_state = np.array([], dtype=np.float64)
-    elif terminal_state_val_matrix.ndim == 2 and terminal_state_val_matrix.shape[1] == 1:
-        terminal_state = terminal_state_val_matrix.flatten()
-    elif terminal_state_val_matrix.ndim == 1 and terminal_state_val_matrix.size == num_states:
-        terminal_state = terminal_state_val_matrix
-    else:
-        logger.error(
-            f"Unexpected terminal_state_val_matrix shape: {terminal_state_val_matrix.shape}"
-        )
-        terminal_state = np.full(num_states, np.nan, dtype=np.float64)
+    try:
+        terminal_state_val: Any = state_evaluator(1.0)
+        terminal_state: _Vector
+
+        if num_states == 0:
+            terminal_state = np.array([], dtype=np.float64)
+        elif isinstance(terminal_state_val, (int, float, np.number)) or (
+            hasattr(terminal_state_val, "ndim") and terminal_state_val.ndim == 0
+        ):
+            # Handle scalar value - turn it into a 1-element array
+            if num_states == 1:
+                terminal_state = np.array([float(terminal_state_val)], dtype=np.float64)
+            else:
+                logger.warning(f"Scalar terminal_state_val but num_states={num_states}")
+                terminal_state = np.zeros(num_states, dtype=np.float64)  # Use zeros for stability
+        elif (
+            hasattr(terminal_state_val, "ndim")
+            and terminal_state_val.ndim == 2
+            and terminal_state_val.shape[1] == 1
+        ):
+            terminal_state = terminal_state_val.flatten()
+        elif (
+            hasattr(terminal_state_val, "ndim")
+            and terminal_state_val.ndim == 1
+            and terminal_state_val.size == num_states
+        ):
+            terminal_state = terminal_state_val
+        else:
+            shape_info = getattr(terminal_state_val, "shape", type(terminal_state_val))
+            logger.warning(f"Unexpected terminal_state_val shape: {shape_info}")
+            terminal_state = np.zeros(num_states, dtype=np.float64)  # Use zeros for stability
+    except Exception as e:
+        logger.error(f"Error getting terminal state: {e}")
+        terminal_state = np.zeros(num_states, dtype=np.float64)  # Safe fallback
 
     bwd_tau_points_1d: _Vector = np.linspace(1.0, -1.0, n_eval_points, dtype=np.float64)
-    bwd_sim = ode_solver(
-        dynamics_rhs,
-        t_span=(1.0, -1.0),
-        y0=terminal_state,
-        t_eval=bwd_tau_points_1d,
-        method="RK45",
-        rtol=ode_rtol,
-        atol=ode_rtol * 1e-2,
-    )
 
-    sorted_bwd_tau_points_1d: _Vector = np.flip(bwd_tau_points_1d).astype(np.float64)
-    result.backward_simulation_local_tau_evaluation_points = sorted_bwd_tau_points_1d.reshape(1, -1)
-    result.state_trajectory_from_backward_simulation = (
-        np.fliplr(bwd_sim.y).astype(np.float64)
-        if bwd_sim.success and hasattr(bwd_sim, "y")
-        else np.full((num_states, len(sorted_bwd_tau_points_1d)), np.nan, dtype=np.float64)
-    )
-    if not bwd_sim.success:
-        logger.warning(
-            f"    Bwd IVP fail int {interval_idx}: {getattr(bwd_sim, 'message', 'Unknown reason')}"
+    try:
+        bwd_sim = ode_solver(
+            dynamics_rhs,
+            t_span=(1.0, -1.0),
+            y0=terminal_state,
+            t_eval=bwd_tau_points_1d,
+            method="RK45",
+            rtol=ode_rtol,
+            atol=ode_rtol * 1e-2,
         )
 
-    nlp_bwd_eval_matrix: Any = state_evaluator(sorted_bwd_tau_points_1d)
-    result.nlp_state_trajectory_evaluated_at_backward_simulation_points = (
-        nlp_bwd_eval_matrix.reshape(num_states, -1)
-        if num_states > 0
-        else np.empty((0, len(sorted_bwd_tau_points_1d)), dtype=np.float64)
-    )
+        sorted_bwd_tau_points_1d: _Vector = np.flip(bwd_tau_points_1d).astype(np.float64)
+        result.backward_simulation_local_tau_evaluation_points = sorted_bwd_tau_points_1d.reshape(
+            1, -1
+        )
+        result.state_trajectory_from_backward_simulation = (
+            np.fliplr(bwd_sim.y).astype(np.float64)
+            if bwd_sim.success and hasattr(bwd_sim, "y")
+            else np.full((num_states, len(sorted_bwd_tau_points_1d)), np.nan, dtype=np.float64)
+        )
+        if not bwd_sim.success:
+            logger.warning(
+                f"    Bwd IVP fail int {interval_idx}: {getattr(bwd_sim, 'message', 'Unknown reason')}"
+            )
+    except Exception as e:
+        logger.error(f"Backward simulation failed: {e}")
+        sorted_bwd_tau_points_1d = np.flip(bwd_tau_points_1d).astype(np.float64)
+        result.backward_simulation_local_tau_evaluation_points = sorted_bwd_tau_points_1d.reshape(
+            1, -1
+        )
+        result.state_trajectory_from_backward_simulation = np.full(
+            (num_states, len(sorted_bwd_tau_points_1d)), np.nan, dtype=np.float64
+        )
+        bwd_sim = None  # Mark as failed
 
-    result.are_forward_and_backward_simulations_successful = fwd_sim.success and bwd_sim.success
+    try:
+        nlp_bwd_eval_matrix: Any = state_evaluator(sorted_bwd_tau_points_1d)
+        result.nlp_state_trajectory_evaluated_at_backward_simulation_points = (
+            nlp_bwd_eval_matrix.reshape(num_states, -1)
+            if num_states > 0
+            else np.empty((0, len(sorted_bwd_tau_points_1d)), dtype=np.float64)
+        )
+    except Exception as e:
+        logger.error(f"Error evaluating NLP states for backward points: {e}")
+        result.nlp_state_trajectory_evaluated_at_backward_simulation_points = np.full(
+            (num_states, len(sorted_bwd_tau_points_1d)), np.nan, dtype=np.float64
+        )
+
+    # Check if simulations were successful
+    fwd_success = fwd_sim is not None and hasattr(fwd_sim, "success") and fwd_sim.success
+    bwd_success = bwd_sim is not None and hasattr(bwd_sim, "success") and bwd_sim.success
+    result.are_forward_and_backward_simulations_successful = fwd_success and bwd_success
+
     return result
 
 
@@ -302,11 +432,32 @@ def calculate_relative_error_estimate(
     # Ensure gamma_factors is float64 and correct shape (N_states, 1)
     gamma_factors_col_vec = gamma_factors.astype(np.float64).reshape(num_states, 1)
 
+    # Print some debugging info to help understand data shapes
+    fwd_diff_shape = sim_bundle.state_trajectory_from_forward_simulation.shape
+    fwd_nlp_shape = sim_bundle.nlp_state_trajectory_evaluated_at_forward_simulation_points.shape
+    bwd_diff_shape = sim_bundle.state_trajectory_from_backward_simulation.shape
+    bwd_nlp_shape = sim_bundle.nlp_state_trajectory_evaluated_at_backward_simulation_points.shape
+
+    logger.debug(
+        f"Forward: sim={fwd_diff_shape}, nlp={fwd_nlp_shape}; Backward: sim={bwd_diff_shape}, nlp={bwd_nlp_shape}"
+    )
+
+    # Check for shape mismatches
+    if (fwd_diff_shape != fwd_nlp_shape) or (bwd_diff_shape != bwd_nlp_shape):
+        logger.warning(f"    Interval {interval_idx}: Shape mismatch in error calculation.")
+        return np.inf
+
     # Errors from forward simulation
     fwd_diff: _Matrix = np.abs(
         sim_bundle.state_trajectory_from_forward_simulation
         - sim_bundle.nlp_state_trajectory_evaluated_at_forward_simulation_points
     )
+    # Add debug output to see what's happening
+    max_raw_diff = np.nanmax(fwd_diff) if fwd_diff.size > 0 else 0.0
+    logger.debug(
+        f"    Debug: Forward differences shape: {fwd_diff.shape}, Max raw diff: {max_raw_diff}"
+    )
+
     fwd_errors: _Matrix = gamma_factors_col_vec * fwd_diff
     max_fwd_errors_per_state: _Vector = (
         np.nanmax(fwd_errors, axis=1)
@@ -319,6 +470,12 @@ def calculate_relative_error_estimate(
         sim_bundle.state_trajectory_from_backward_simulation
         - sim_bundle.nlp_state_trajectory_evaluated_at_backward_simulation_points
     )
+    # Add debug output
+    max_raw_diff = np.nanmax(bwd_diff) if bwd_diff.size > 0 else 0.0
+    logger.debug(
+        f"    Debug: Backward differences shape: {bwd_diff.shape}, Max raw diff: {max_raw_diff}"
+    )
+
     bwd_errors: _Matrix = gamma_factors_col_vec * bwd_diff
     max_bwd_errors_per_state: _Vector = (
         np.nanmax(bwd_errors, axis=1)
@@ -367,20 +524,41 @@ def calculate_gamma_normalizers(
     if num_states == 0:
         return np.array([]).reshape(0, 1).astype(np.float64)
 
-    if not solution.states:
-        logger.warning("    Gamma calculation failed - solution.states missing or empty.")
+    # Try to use solution.states first
+    if solution.states and len(solution.states) > 0:
+        # Find max absolute value for each state across all intervals
+        max_abs_values_per_state: _Vector = np.zeros(num_states, dtype=np.float64)
+
+        for Xk_trajectory_matrix in solution.states:
+            if Xk_trajectory_matrix.size == 0:
+                continue
+            max_abs_in_interval_k: _Vector = np.max(
+                np.abs(Xk_trajectory_matrix.astype(np.float64)), axis=1
+            )
+            max_abs_values_per_state = np.maximum(max_abs_values_per_state, max_abs_in_interval_k)
+    # Fallback to solved_state_trajectories_per_interval if available
+    elif (
+        hasattr(solution, "solved_state_trajectories_per_interval")
+        and solution.solved_state_trajectories_per_interval
+    ):
+        # Find maximum absolute value for each state component
+        max_abs_values_per_state = np.zeros(num_states, dtype=np.float64)
+        first_interval = True
+
+        for Xk in solution.solved_state_trajectories_per_interval:
+            if Xk.size == 0:
+                continue
+
+            max_abs_in_interval = np.max(np.abs(Xk), axis=1)
+
+            if first_interval:
+                max_abs_values_per_state = max_abs_in_interval
+                first_interval = False
+            else:
+                max_abs_values_per_state = np.maximum(max_abs_values_per_state, max_abs_in_interval)
+    else:
+        logger.warning("    Gamma calculation failed - no state trajectories available.")
         return None
-
-    # Find max absolute value for each state across all intervals
-    max_abs_values_per_state: _Vector = np.zeros(num_states, dtype=np.float64)
-
-    for Xk_trajectory_matrix in solution.states:
-        if Xk_trajectory_matrix.size == 0:
-            continue
-        max_abs_in_interval_k: _Vector = np.max(
-            np.abs(Xk_trajectory_matrix.astype(np.float64)), axis=1
-        )
-        max_abs_values_per_state = np.maximum(max_abs_values_per_state, max_abs_in_interval_k)
 
     # Normalization factor: gamma_i = 1 / (1 + max|x_i(t)|)
     gamma_denominator: _Vector = 1.0 + max_abs_values_per_state
