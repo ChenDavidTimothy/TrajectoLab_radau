@@ -163,7 +163,6 @@ def _simulate_dynamics_for_error_estimation(
         return result
 
     num_states = problem.num_states
-    num_controls = problem.num_controls
     dynamics_function = problem.dynamics_function
     problem_parameters = problem.problem_parameters
 
@@ -767,7 +766,6 @@ def _generate_robust_default_initial_guess(
     """Generates a robust default initial guess with correct dimensions."""
     from trajectolab.direct_solver import InitialGuess
 
-    num_intervals = len(collocation_nodes_list)
     num_states = problem.num_states
     num_controls = problem.num_controls
     num_integrals = problem.num_integrals
@@ -780,7 +778,7 @@ def _generate_robust_default_initial_guess(
     states = []
     controls = []
 
-    for idx, Nk in enumerate(collocation_nodes_list):
+    for _idx, Nk in enumerate(collocation_nodes_list):
         # State trajectory for this interval
         state_traj = np.full((num_states, Nk + 1), default_state)
         states.append(state_traj)

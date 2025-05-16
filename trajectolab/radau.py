@@ -1,39 +1,69 @@
 from dataclasses import dataclass
+from typing import TypeAlias, cast
 
 import numpy as np
-from scipy.special import roots_jacobi
+from numpy.typing import NDArray
+
+# Type aliases
+_FloatArray: TypeAlias = NDArray[np.float64]
 
 # Tolerance for floating point comparisons
-ZERO_TOLERANCE = 1e-12
+ZERO_TOLERANCE: float = 1e-12
 
 
 @dataclass
 class RadauBasisComponents:
-    state_approximation_nodes: np.ndarray = None
-    collocation_nodes: np.ndarray = None
-    quadrature_weights: np.ndarray = None
-    differentiation_matrix: np.ndarray = None
-    barycentric_weights_for_state_nodes: np.ndarray = None
-    lagrange_at_tau_plus_one: np.ndarray = None
+    state_approximation_nodes: _FloatArray = None
+    collocation_nodes: _FloatArray = None
+    quadrature_weights: _FloatArray = None
+    differentiation_matrix: _FloatArray = None
+    barycentric_weights_for_state_nodes: _FloatArray = None
+    lagrange_at_tau_plus_one: _FloatArray = None
+
+    def __post_init__(self) -> None:
+        # Initialize with empty arrays instead of None
+        if self.state_approximation_nodes is None:
+            self.state_approximation_nodes = np.array([], dtype=np.float64)
+        if self.collocation_nodes is None:
+            self.collocation_nodes = np.array([], dtype=np.float64)
+        if self.quadrature_weights is None:
+            self.quadrature_weights = np.array([], dtype=np.float64)
+        if self.differentiation_matrix is None:
+            self.differentiation_matrix = np.array([], dtype=np.float64)
+        if self.barycentric_weights_for_state_nodes is None:
+            self.barycentric_weights_for_state_nodes = np.array([], dtype=np.float64)
+        if self.lagrange_at_tau_plus_one is None:
+            self.lagrange_at_tau_plus_one = np.array([], dtype=np.float64)
 
 
 @dataclass
 class RadauNodesAndWeights:
-    state_approximation_nodes: np.ndarray = None
-    collocation_nodes: np.ndarray = None
-    quadrature_weights: np.ndarray = None
+    state_approximation_nodes: _FloatArray = None
+    collocation_nodes: _FloatArray = None
+    quadrature_weights: _FloatArray = None
+
+    def __post_init__(self) -> None:
+        # Initialize with empty arrays instead of None
+        if self.state_approximation_nodes is None:
+            self.state_approximation_nodes = np.array([], dtype=np.float64)
+        if self.collocation_nodes is None:
+            self.collocation_nodes = np.array([], dtype=np.float64)
+        if self.quadrature_weights is None:
+            self.quadrature_weights = np.array([], dtype=np.float64)
 
 
-def compute_legendre_gauss_radau_nodes_and_weights(num_collocation_nodes):
+def compute_legendre_gauss_radau_nodes_and_weights(
+    num_collocation_nodes: int,
+) -> RadauNodesAndWeights:
     if not isinstance(num_collocation_nodes, int) or num_collocation_nodes < 1:
         raise ValueError("Number of collocation points must be an integer >= 1.")
 
     # Initialize with the fixed left endpoint
-    collocation_nodes = np.array([-1.0])
+    collocation_nodes = np.array([-1.0], dtype=np.float64)
 
     if num_collocation_nodes == 1:
         # Only one collocation point case
-        quadrature_weights = np.array([2.0])
+        quadrature_weights = np.array([2.0], dtype=np.float64)
     else:
         # Multi-point case: compute interior roots and weights
         num_interior_roots = num_collocation_nodes - 1
@@ -46,11 +76,18 @@ def compute_legendre_gauss_radau_nodes_and_weights(num_collocation_nodes):
         left_endpoint_weight = 2.0 / (num_collocation_nodes**2)
 
         # Combine nodes and weights
-        collocation_nodes = np.concatenate([collocation_nodes, interior_roots])
-        quadrature_weights = np.concatenate([np.array([left_endpoint_weight]), interior_weights])
+        collocation_nodes = np.concatenate([collocation_nodes, cast(_FloatArray, interior_roots)])
+        quadrature_weights = np.concatenate(
+            [
+                np.array([left_endpoint_weight], dtype=np.float64),
+                cast(_FloatArray, interior_weights),
+            ]
+        )
 
     # Create state approximation nodes (collocation nodes + right endpoint)
-    state_approximation_nodes = np.concatenate([collocation_nodes, np.array([1.0])])
+    state_approximation_nodes = np.concatenate(
+        [collocation_nodes, np.array([1.0], dtype=np.float64)]
+    )
 
     return RadauNodesAndWeights(
         state_approximation_nodes=state_approximation_nodes,
@@ -59,31 +96,34 @@ def compute_legendre_gauss_radau_nodes_and_weights(num_collocation_nodes):
     )
 
 
-def compute_barycentric_weights(nodes):
+def compute_barycentric_weights(nodes: _FloatArray) -> _FloatArray:
     num_nodes = len(nodes)
-    barycentric_weights = np.ones(num_nodes)
-    nodes_array = np.asarray(nodes)
+    barycentric_weights = np.ones(num_nodes, dtype=np.float64)
+    nodes_array = np.asarray(nodes, dtype=np.float64)
 
     for j in range(num_nodes):
         node_differences = nodes_array[j] - np.delete(nodes_array, j)
         # Ensure no zero node_differences if nodes were extremely close
-        node_differences[np.abs(node_differences) < ZERO_TOLERANCE * 1e-1] = (
-            np.sign(node_differences[np.abs(node_differences) < ZERO_TOLERANCE * 1e-1])
-            * ZERO_TOLERANCE
-            * 1e-1
-            if np.any(node_differences[np.abs(node_differences) < ZERO_TOLERANCE * 1e-1] != 0)
-            else ZERO_TOLERANCE * 1e-1
-        )
+        mask = np.abs(node_differences) < ZERO_TOLERANCE * 1e-1
+        if np.any(mask):
+            direction = np.sign(node_differences[mask])
+            if not np.any(direction != 0):
+                direction = np.ones_like(node_differences[mask])
+            node_differences[mask] = direction * ZERO_TOLERANCE * 1e-1
         barycentric_weights[j] = 1.0 / np.prod(node_differences)
 
     return barycentric_weights
 
 
 def evaluate_lagrange_polynomial_at_point(
-    polynomial_definition_nodes, barycentric_weights, evaluation_point_tau
-):
+    polynomial_definition_nodes: _FloatArray,
+    barycentric_weights: _FloatArray,
+    evaluation_point_tau: float,
+) -> _FloatArray:
     num_polynomial_definition_nodes = len(polynomial_definition_nodes)
-    lagrange_polynomial_values_at_evaluation_point = np.zeros(num_polynomial_definition_nodes)
+    lagrange_polynomial_values_at_evaluation_point = np.zeros(
+        num_polynomial_definition_nodes, dtype=np.float64
+    )
 
     # Check if evaluation_point_tau is one of the nodes (within tolerance)
     for j in range(num_polynomial_definition_nodes):
@@ -92,7 +132,9 @@ def evaluate_lagrange_polynomial_at_point(
             return lagrange_polynomial_values_at_evaluation_point
 
     barycentric_sum_denominator = 0.0
-    weighted_inverse_evaluation_point_differences = np.zeros(num_polynomial_definition_nodes)
+    weighted_inverse_evaluation_point_differences = np.zeros(
+        num_polynomial_definition_nodes, dtype=np.float64
+    )
 
     for j in range(num_polynomial_definition_nodes):
         evaluation_point_difference_from_node = (
@@ -130,10 +172,12 @@ def evaluate_lagrange_polynomial_at_point(
 
 
 def compute_lagrange_derivative_coefficients_at_point(
-    polynomial_definition_nodes, barycentric_weights, evaluation_point_tau
-):
+    polynomial_definition_nodes: _FloatArray,
+    barycentric_weights: _FloatArray,
+    evaluation_point_tau: float,
+) -> _FloatArray:
     num_polynomial_definition_nodes = len(polynomial_definition_nodes)
-    lagrange_derivative_coefficients = np.zeros(num_polynomial_definition_nodes)
+    lagrange_derivative_coefficients = np.zeros(num_polynomial_definition_nodes, dtype=np.float64)
     matched_node_index = -1
 
     for current_node_index_for_match_check in range(num_polynomial_definition_nodes):
@@ -176,7 +220,7 @@ def compute_lagrange_derivative_coefficients_at_point(
     return lagrange_derivative_coefficients
 
 
-def compute_radau_collocation_components(num_collocation_nodes):
+def compute_radau_collocation_components(num_collocation_nodes: int) -> RadauBasisComponents:
     lgr_components = compute_legendre_gauss_radau_nodes_and_weights(num_collocation_nodes)
     state_nodes = lgr_components.state_approximation_nodes
     collocation_nodes = lgr_components.collocation_nodes
@@ -199,7 +243,7 @@ def compute_radau_collocation_components(num_collocation_nodes):
     bary_weights = compute_barycentric_weights(state_nodes)
 
     # Calculate Differentiation Matrix D
-    diff_matrix = np.zeros((num_actual_collocation_nodes, num_state_nodes))
+    diff_matrix = np.zeros((num_actual_collocation_nodes, num_state_nodes), dtype=np.float64)
 
     for collocation_node_index in range(num_actual_collocation_nodes):
         evaluation_point_at_collocation_node_tau = collocation_nodes[collocation_node_index]
@@ -208,7 +252,7 @@ def compute_radau_collocation_components(num_collocation_nodes):
         )
 
     # Calculate Lagrange Polynomial values at tau = +1
-    lagrange_at_tau_plus_one = np.zeros(num_state_nodes)
+    lagrange_at_tau_plus_one = np.zeros(num_state_nodes, dtype=np.float64)
 
     # Find index of +1.0 in state_nodes using np.isclose for robust floating point comparison
     tau_plus_one_indices = np.where(np.isclose(state_nodes, 1.0, atol=ZERO_TOLERANCE))[0]
@@ -234,3 +278,11 @@ def compute_radau_collocation_components(num_collocation_nodes):
         barycentric_weights_for_state_nodes=bary_weights,
         lagrange_at_tau_plus_one=lagrange_at_tau_plus_one,
     )
+
+
+# This function is not defined in the code but is used
+# Add this stub or import it if it's defined elsewhere
+def roots_jacobi(n: int, a: float, b: float, mu: bool = False) -> tuple:
+    from scipy.special import roots_jacobi as scipy_roots_jacobi
+
+    return scipy_roots_jacobi(n, a, b, mu)

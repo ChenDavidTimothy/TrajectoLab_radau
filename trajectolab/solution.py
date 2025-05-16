@@ -247,7 +247,7 @@ class Solution:
         row = 0
 
         # Plot states by interval
-        for i, name in enumerate(self._state_names):
+        for _i, name in enumerate(self._state_names):
             state_idx = self._get_state_index(name)
             for k, interval_data in enumerate(all_interval_data):
                 if (
@@ -267,7 +267,7 @@ class Solution:
             row += 1
 
         # Plot controls by interval
-        for i, name in enumerate(self._control_names):
+        for _i, name in enumerate(self._control_names):
             control_idx = self._get_control_index(name)
             for k, interval_data in enumerate(all_interval_data):
                 if (
