@@ -15,7 +15,6 @@ from trajectolab.trajectolab_types import (
     _ConstraintFunc,
     _ControlDict,
     _EventConstraintFunc,
-    _FloatArray,
     _ParamDict,
     _StateDict,
     _TimePoint,
@@ -109,7 +108,6 @@ class Problem:
 
     def set_objective(self, objective_type: str, objective_func: ObjectiveFunction) -> "Problem":
         """Set the objective function and type."""
-        # Auto-correct the objective type if it's referencing integrals
         if objective_type == "mayer" and self._num_integrals > 0:
             objective_type = "integral"
 
@@ -137,7 +135,6 @@ class Problem:
         """Convert to the legacy problem format for the solver."""
         from trajectolab.direct_solver import EventConstraint, OptimalControlProblem
 
-        # Create adapter functions
         vectorized_dynamics = self._create_vectorized_dynamics()
         vectorized_objective = self._create_vectorized_objective()
         vectorized_integrand = (
@@ -147,26 +144,30 @@ class Problem:
             self._create_vectorized_path_constraints() if self._path_constraints else None
         )
 
-        # Define auto-generated event constraints from state definitions
+        # MODIFIED: Signature of auto_event_constraints to align with solver expectations
         def auto_event_constraints(
             t0: float,
             tf: float,
-            x0: _FloatArray,
-            xf: _FloatArray,
-            q: Sequence[float] | float | None,
+            x0: Any,  # Was _FloatArray, solver provides CasADi-like vector
+            xf: Any,  # Was _FloatArray, solver provides CasADi-like vector
+            q: Any,  # Was Sequence[float] | float | None, solver may provide CasADi-like scalar
             params: _ParamDict,
         ):
             result = []
-
-            # Add initial state constraints
+            # Initial state constraints
             for i, name in enumerate(self._states.keys()):
                 state_def = self._states[name]
                 if state_def.get("initial_constraint"):
-                    constraint = state_def["initial_constraint"]
-                    if constraint is not None:  # Add explicit check
+                    constraint = state_def["initial_constraint"]  # This is problem_types.Constraint
+                    if constraint is not None:
+                        # x0[i] is now an element from the solver's vector (e.g., CasADi scalar)
+                        # constraint.lower/upper/equals are float | None
+                        # Assuming direct_solver.EventConstraint can handle float bounds as constants
                         result.append(
-                            EventConstraint(
-                                val=x0[i],
+                            EventConstraint(  # This is direct_solver.EventConstraint
+                                val=x0[
+                                    i
+                                ],  # Should be fine if x0[i] is CasADi-like and EventConstraint.val expects it
                                 min_val=constraint.lower,
                                 max_val=constraint.upper,
                                 equals=constraint.equals,
@@ -176,10 +177,10 @@ class Problem:
                 # Add final state constraints
                 if state_def.get("final_constraint"):
                     constraint = state_def["final_constraint"]
-                    if constraint is not None:  # Add explicit check
+                    if constraint is not None:
                         result.append(
                             EventConstraint(
-                                val=xf[i],
+                                val=xf[i],  # xf[i] is CasADi-like
                                 min_val=constraint.lower,
                                 max_val=constraint.upper,
                                 equals=constraint.equals,
@@ -188,40 +189,39 @@ class Problem:
 
             # Add custom event constraints
             for constraint_func in self._event_constraints:
-                # Create dictionaries for initial and final states
+                # Constructing StateDicts for user's function.
+                # If x0, xf are CasADi vectors, x0[i] etc. are CasADi scalars.
+                # _StateDict now allows 'Any' for values, so this is compatible.
                 initial_states: _StateDict = {
-                    name: float(x0[i]) for i, name in enumerate(self._states.keys())
+                    name: x0[i]
+                    for i, name in enumerate(self._states.keys())  # x0[i] could be symbolic
                 }
                 final_states: _StateDict = {
-                    name: float(xf[i]) for i, name in enumerate(self._states.keys())
+                    name: xf[i]
+                    for i, name in enumerate(self._states.keys())  # xf[i] could be symbolic
                 }
 
-                constraint = constraint_func(t0, tf, initial_states, final_states, q, params)
-                if isinstance(constraint, Constraint):
+                constraint_obj = constraint_func(t0, tf, initial_states, final_states, q, params)
+
+                processed_constraints = []
+                if isinstance(constraint_obj, Constraint):
+                    processed_constraints.append(constraint_obj)
+                else:  # Assuming it's a list of Constraints
+                    processed_constraints.extend(constraint_obj)
+
+                for c in processed_constraints:  # c is problem_types.Constraint
+                    # c.val can now be symbolic (due to trajectolab_types.Constraint change)
+                    # Assuming EventConstraint from direct_solver expects symbolic val
                     result.append(
                         EventConstraint(
-                            val=constraint.val,
-                            min_val=constraint.lower,
-                            max_val=constraint.upper,
-                            equals=constraint.equals,
+                            val=c.val,
+                            min_val=c.lower,
+                            max_val=c.upper,
+                            equals=c.equals,
                         )
                     )
-                else:
-                    result.extend(
-                        [
-                            EventConstraint(
-                                val=c.val,
-                                min_val=c.lower,
-                                max_val=c.upper,
-                                equals=c.equals,
-                            )
-                            for c in constraint
-                        ]
-                    )
-
             return result
 
-        # Create legacy problem with the auto event constraints
         return OptimalControlProblem(
             num_states=len(self._states),
             num_controls=len(self._controls),
@@ -232,12 +232,11 @@ class Problem:
             num_integrals=self._num_integrals,
             integral_integrand_function=vectorized_integrand,
             path_constraints_function=vectorized_path_constraints,
-            event_constraints_function=auto_event_constraints,
+            event_constraints_function=auto_event_constraints,  # Error 3 should be fixed by signature change
             problem_parameters=self._parameters,
         )
 
     def _create_vectorized_dynamics(self) -> Callable:
-        """Create a vectorized dynamics function for the solver."""
         if self._dynamics_func is None:
             raise ValueError("Dynamics function not set")
 
@@ -245,26 +244,24 @@ class Problem:
         state_names = list(self._states.keys())
         control_names = list(self._controls.keys())
 
+        # MODIFIED: states_vec, controls_vec are from solver, potentially CasADi-like
         def vectorized_dynamics(
-            states_vec: _FloatArray, controls_vec: _FloatArray, time: _TimePoint, params: _ParamDict
-        ) -> list[float]:
-            states_dict: _StateDict = {
-                name: float(states_vec[i]) for i, name in enumerate(state_names)
-            }
+            states_vec: Any, controls_vec: Any, time: _TimePoint, params: _ParamDict
+        ) -> list[Any]:  # Return list of CasADi-like scalars
+            # _StateDict and _ControlDict now allow Any (CasADi scalars)
+            states_dict: _StateDict = {name: states_vec[i] for i, name in enumerate(state_names)}
             controls_dict: _ControlDict = {
-                name: float(controls_vec[i]) for i, name in enumerate(control_names)
+                name: controls_vec[i] for i, name in enumerate(control_names)
             }
-
+            # User's dynamics_func receives dicts with CasADi scalars, returns dict with CasADi scalars
             result_dict = dynamics_func(states_dict, controls_dict, time, params)
-            # Ensure we return a list of float values, not ndarray or other types
-            result_vec = [float(result_dict[name]) for name in state_names]
-
+            # Ensure we return a list of values in correct order for the solver
+            result_vec = [result_dict[name] for name in state_names]
             return result_vec
 
         return vectorized_dynamics
 
     def _create_vectorized_objective(self) -> Callable:
-        """Create a vectorized objective function for the solver."""
         if self._objective_func is None:
             raise ValueError("Objective function not set")
 
@@ -272,61 +269,62 @@ class Problem:
         objective_type = self._objective_type
         state_names = list(self._states.keys())
 
+        # MODIFIED: x0, xf, q are from solver, potentially CasADi-like
         def vectorized_objective(
             t0: _TimePoint,
             tf: _TimePoint,
-            x0: _FloatArray,
-            xf: _FloatArray,
-            q: Sequence[float] | float | None,
+            x0: Any,  # Was _FloatArray
+            xf: Any,  # Was _FloatArray
+            q: Any,  # Was Sequence[float] | float | None
             params: _ParamDict,
-        ) -> float:
+        ) -> Any:  # Objective value could be CasADi scalar
             if objective_type == "mayer":
-                initial_states: _StateDict = {
-                    name: float(x0[i]) for i, name in enumerate(state_names)
+                initial_states: _StateDict = {  # Values can be CasADi symbolic
+                    name: x0[i] for i, name in enumerate(state_names)
                 }
-                final_states: _StateDict = {
-                    name: float(xf[i]) for i, name in enumerate(state_names)
+                final_states: _StateDict = {  # Values can be CasADi symbolic
+                    name: xf[i] for i, name in enumerate(state_names)
                 }
-                return float(objective_func(t0, tf, initial_states, final_states, q, params))
-            else:
-                # For integral objectives, just return the integral value
+                return objective_func(t0, tf, initial_states, final_states, q, params)
+            else:  # Integral objective
                 if q is None:
-                    return 0.0
-                if isinstance(q, (list, np.ndarray, Sequence)):
+                    return 0.0  # Or CasADi DM(0.0) if strict
+                # If q is a CasADi scalar (common for single integral objective) or sequence
+                if isinstance(
+                    q, (list, np.ndarray, Sequence)
+                ):  # Check if Sequence is appropriate for CasADi
                     if len(q) > 0:
-                        return float(q[0])
-                    return 0.0
-                # If q is already a scalar
-                return float(q)
+                        return q[0]  # q[0] could be CasADi scalar
+                    return 0.0  # Or CasADi DM(0.0)
+                return q  # q is already a scalar (potentially CasADi)
 
         return vectorized_objective
 
     def _create_vectorized_integrand(self) -> Callable:
-        """Create a vectorized integrand function for the solver."""
         integral_functions = self._integral_functions
         state_names = list(self._states.keys())
         control_names = list(self._controls.keys())
 
+        # MODIFIED: states_vec, controls_vec are from solver
         def vectorized_integrand(
-            states_vec: _FloatArray,
-            controls_vec: _FloatArray,
+            states_vec: Any,  # Was _FloatArray
+            controls_vec: Any,  # Was _FloatArray
             time: _TimePoint,
             integral_idx: int,
             params: _ParamDict,
-        ) -> float:
+        ) -> Any:  # Integrand value could be CasADi scalar
             if integral_idx >= len(integral_functions):
-                return 0.0  # Return a numeric value when no function exists
+                return 0.0  # Or CasADi DM(0.0)
 
-            states_dict: _StateDict = {
-                name: float(states_vec[i]) for i, name in enumerate(state_names)
+            states_dict: _StateDict = {  # Values can be CasADi symbolic
+                name: states_vec[i] for i, name in enumerate(state_names)
             }
-            controls_dict: _ControlDict = {
-                name: float(controls_vec[i]) for i, name in enumerate(control_names)
+            controls_dict: _ControlDict = {  # Values can be CasADi symbolic
+                name: controls_vec[i] for i, name in enumerate(control_names)
             }
-
-            # Return the result of the integrand function
+            # User's integral_func receives dicts with CasADi scalars, returns CasADi scalar
             result = integral_functions[integral_idx](states_dict, controls_dict, time, params)
-            return float(result)  # Ensure a float is returned
+            return result
 
         return vectorized_integrand
 
@@ -336,43 +334,42 @@ class Problem:
         state_names = list(self._states.keys())
         control_names = list(self._controls.keys())
 
+        # MODIFIED: states_vec, controls_vec are from solver
         def vectorized_path_constraints(
-            states_vec: _FloatArray, controls_vec: _FloatArray, time: _TimePoint, params: _ParamDict
+            states_vec: Any, controls_vec: Any, time: _TimePoint, params: _ParamDict
         ):
-            from trajectolab.direct_solver import PathConstraint
+            from trajectolab.direct_solver import PathConstraint  # direct_solver.PathConstraint
 
-            states_dict: _StateDict = {
-                name: float(states_vec[i]) for i, name in enumerate(state_names)
+            states_dict: _StateDict = {  # Values can be CasADi symbolic
+                name: states_vec[i] for i, name in enumerate(state_names)
             }
-            controls_dict: _ControlDict = {
-                name: float(controls_vec[i]) for i, name in enumerate(control_names)
+            controls_dict: _ControlDict = {  # Values can be CasADi symbolic
+                name: controls_vec[i] for i, name in enumerate(control_names)
             }
 
             result = []
             for constraint_func in path_constraints:
-                constraint = constraint_func(states_dict, controls_dict, time, params)
-                if isinstance(constraint, Constraint):
+                # constraint_func is user-defined, gets symbolic dicts, returns problem_types.Constraint
+                # where .val can now be symbolic due to trajectolab_types.Constraint change
+                constraint_obj = constraint_func(states_dict, controls_dict, time, params)
+
+                processed_constraints = []
+                if isinstance(constraint_obj, Constraint):  # problem_types.Constraint
+                    processed_constraints.append(constraint_obj)
+                else:  # Assuming list of problem_types.Constraint
+                    processed_constraints.extend(constraint_obj)
+
+                for c in processed_constraints:  # c is problem_types.Constraint
+                    # c.val can be symbolic. direct_solver.PathConstraint.val expects symbolic.
+                    # c.lower/upper/equals are float | None. Assuming PathConstraint handles float bounds.
                     result.append(
                         PathConstraint(
-                            val=constraint.val,
-                            min_val=constraint.lower,
-                            max_val=constraint.upper,
-                            equals=constraint.equals,
+                            val=c.val,  # Error 4/5 should be fixed
+                            min_val=c.lower,
+                            max_val=c.upper,
+                            equals=c.equals,
                         )
                     )
-                else:
-                    result.extend(
-                        [
-                            PathConstraint(
-                                val=c.val,
-                                min_val=c.lower,
-                                max_val=c.upper,
-                                equals=c.equals,
-                            )
-                            for c in constraint
-                        ]
-                    )
-
             return result
 
         return vectorized_path_constraints
