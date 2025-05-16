@@ -7,8 +7,8 @@ from trajectolab import (
     Problem,
     RadauDirectSolver,
     solve,
+    InitialGuess,
 )
-from trajectolab.direct_solver import InitialGuess
 
 # Define the hypersensitive problem
 problem = Problem("Hypersensitive Problem")

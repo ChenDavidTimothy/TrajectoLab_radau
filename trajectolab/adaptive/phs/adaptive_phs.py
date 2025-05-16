@@ -109,14 +109,12 @@ class PHSAdaptive(AdaptiveBase):
 
     def run(
         self,
-        problem: Optional[OptimalControlProblem],  # Unused parameter, kept for API compatibility
-        legacy_problem_instance: OptimalControlProblem,
+        legacy_problem: OptimalControlProblem,
         initial_solution: Optional[OptimalControlSolution] = None,
     ) -> OptimalControlSolution:
         """Run the adaptive mesh refinement algorithm.
 
         Args:
-            problem: Unused parameter, kept for API compatibility
             legacy_problem_instance: Problem definition
             initial_solution: Optional initial solution to start from
 
@@ -151,11 +149,11 @@ class PHSAdaptive(AdaptiveBase):
         else:
             # Fallback to problem's initial mesh or a single default interval
             current_collocation_nodes_list = list(
-                legacy_problem_instance.collocation_points_per_interval or [N_min]
+                legacy_problem.collocation_points_per_interval or [N_min]
             )
-            if legacy_problem_instance.global_normalized_mesh_nodes is not None:
+            if legacy_problem.global_normalized_mesh_nodes is not None:
                 current_global_mesh_tau = np.array(
-                    legacy_problem_instance.global_normalized_mesh_nodes, dtype=np.float64
+                    legacy_problem.global_normalized_mesh_nodes, dtype=np.float64
                 )
             else:
                 current_global_mesh_tau = np.linspace(
@@ -168,7 +166,7 @@ class PHSAdaptive(AdaptiveBase):
         ]
 
         # The OCP definition that will be modified in each iteration
-        current_ocp_definition: OptimalControlProblem = legacy_problem_instance
+        current_ocp_definition: OptimalControlProblem = legacy_problem
         most_recent_ocp_solution: Optional[OptimalControlSolution] = initial_solution
 
         for iteration_M in range(max_iter):

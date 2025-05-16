@@ -25,7 +25,7 @@ class RadauDirectSolver:
         legacy_problem.solver_options = self.nlp_options
 
         # Use the mesh method to solve the problem
-        legacy_solution = self.mesh_method.run(problem, legacy_problem, initial_solution)
+        legacy_solution = self.mesh_method.run(legacy_problem, initial_solution)
 
         # Create Solution object from legacy solution
         return Solution(legacy_solution, problem)
