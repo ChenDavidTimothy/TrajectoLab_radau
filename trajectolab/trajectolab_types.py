@@ -46,6 +46,15 @@ _CasadiVector: TypeAlias = ca.MX | ca.SX | ca.DM
 _CasadiMatrix: TypeAlias = ca.MX | ca.SX | ca.DM
 _CasadiSolution: TypeAlias = ca.OptiSol  # Type for CasADi's solver solution object
 
+# Add these explicit aliases if phs.py is to import them:
+CasADiDM: TypeAlias = ca.DM
+CasADiOpti: TypeAlias = ca.Opti  # For CasADi's optimization problem stack
+
+# ---- Semantic Integer Types (Optional but matches phs.py imports) ----
+NumStates: TypeAlias = int
+NumControls: TypeAlias = int
+NumIntegrals: TypeAlias = int
+
 # ---- Solver-Specific and Trajectory Types ---- (Moved from direct_solver.py)
 _SolverOptionsDict: TypeAlias = dict[str, Any]
 _CollocationPointsList: TypeAlias = list[int]
