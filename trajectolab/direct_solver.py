@@ -712,13 +712,13 @@ def solve_single_phase_radau_collocation(
                 problem_parameters,
             )
         )
-        constraints_to_apply = (
+        event_constraints_to_apply = (
             event_constraints_result
             if isinstance(event_constraints_result, list)
             else [event_constraints_result]
         )
-        for constraint in constraints_to_apply:
-            _apply_constraint(opti, constraint)
+        for event_constraint in event_constraints_to_apply:
+            _apply_constraint(opti, event_constraint)
 
     if problem_definition.initial_guess:
         ig: InitialGuess = problem_definition.initial_guess
