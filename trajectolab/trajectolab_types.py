@@ -6,6 +6,7 @@ with a focus on scientific computing patterns and trajectory optimization types.
 """
 
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from typing import Any, Protocol, TypeAlias
 
 import numpy as np
@@ -36,6 +37,13 @@ _ErrorTuple: TypeAlias = tuple[float, float, float]  # max_error, mean_error, rm
 _StateDict: TypeAlias = dict[str, float | _FloatArray]
 _ControlDict: TypeAlias = dict[str, float | _FloatArray]
 _ParamDict: TypeAlias = dict[str, Any]  # Parameters can be any type
+
+# ---- Collocation-Specific Types ----
+_CollocationNodes: TypeAlias = _Vector  # Nodes used for enforcing dynamics
+_StateNodes: TypeAlias = _Vector  # Nodes used for state approximation
+_QuadratureWeights: TypeAlias = _Vector  # Weights for numerical integration
+_DifferentiationMatrix: TypeAlias = _Matrix  # Maps state values to derivatives
+_BarycentricWeights: TypeAlias = _Vector  # Weights for barycentric interpolation
 
 
 # ---- Protocol Classes for Callback Functions ----
@@ -88,6 +96,28 @@ class Constraint:
         if equals is not None:
             self.lower = equals
             self.upper = equals
+
+
+# ---- Collocation Data Structures ----
+@dataclass
+class RadauNodesAndWeights:
+    """Basic nodes and weights for Radau collocation."""
+
+    state_approximation_nodes: _StateNodes
+    collocation_nodes: _CollocationNodes
+    quadrature_weights: _QuadratureWeights
+
+
+@dataclass
+class RadauBasisComponents:
+    """Complete set of components for Radau collocation."""
+
+    state_approximation_nodes: _StateNodes
+    collocation_nodes: _CollocationNodes
+    quadrature_weights: _QuadratureWeights
+    differentiation_matrix: _DifferentiationMatrix
+    barycentric_weights_for_state_nodes: _BarycentricWeights
+    lagrange_at_tau_plus_one: _Vector
 
 
 # ---- Constraint Function Types ----

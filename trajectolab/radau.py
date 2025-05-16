@@ -1,46 +1,58 @@
-from dataclasses import dataclass
+"""
+Radau collocation components for trajectory optimization.
+
+This module provides tools for generating Legendre-Gauss-Radau collocation
+nodes, weights, and associated matrices for use in direct transcription methods.
+"""
 
 import numpy as np
 from scipy.special import roots_jacobi
 
-# Tolerance for floating point comparisons
-ZERO_TOLERANCE = 1e-12
+from trajectolab.trajectolab_types import (  # Basic types; Collocation-specific types; Data structures
+    ZERO_TOLERANCE,
+    RadauBasisComponents,
+    RadauNodesAndWeights,
+    _BarycentricWeights,
+    _CollocationNodes,
+    _DifferentiationMatrix,
+    _NormalizedTimePoint,
+    _QuadratureWeights,
+    _StateNodes,
+    _Vector,
+)
 
 
-@dataclass
-class RadauBasisComponents:
-    state_approximation_nodes = None
-    collocation_nodes = None
-    quadrature_weights = None
-    differentiation_matrix = None
-    barycentric_weights_for_state_nodes = None
-    lagrange_at_tau_plus_one = None
+def compute_legendre_gauss_radau_nodes_and_weights(
+    num_collocation_nodes: int,
+) -> RadauNodesAndWeights:
+    """
+    Compute Legendre-Gauss-Radau nodes and weights.
 
+    Args:
+        num_collocation_nodes: Number of collocation points (including the fixed -1 point)
 
-@dataclass
-class RadauNodesAndWeights:
-    state_approximation_nodes = None
-    collocation_nodes = None
-    quadrature_weights = None
+    Returns:
+        RadauNodesAndWeights containing state approximation nodes, collocation nodes, and quadrature weights
 
-
-def compute_legendre_gauss_radau_nodes_and_weights(num_collocation_nodes):
+    Raises:
+        ValueError: If num_collocation_nodes is not a positive integer
+    """
     if not isinstance(num_collocation_nodes, int) or num_collocation_nodes < 1:
         raise ValueError("Number of collocation points must be an integer >= 1.")
 
     # Initialize with the fixed left endpoint
-    collocation_nodes = np.array([-1.0])
+    collocation_nodes: _CollocationNodes = np.array([-1.0])
 
     if num_collocation_nodes == 1:
         # Only one collocation point case
-        quadrature_weights = np.array([2.0])
+        quadrature_weights: _QuadratureWeights = np.array([2.0])
     else:
         # Multi-point case: compute interior roots and weights
         num_interior_roots = num_collocation_nodes - 1
         interior_roots, jacobi_weights, _ = roots_jacobi(num_interior_roots, 0, 1, mu=True)
 
         # Adjust Jacobi weights for standard Legendre measure
-        interior_weights = jacobi_weights / (1.0 + interior_roots)
+        interior_weights: _QuadratureWeights = jacobi_weights / (1.0 + interior_roots)
 
         # Weight for the -1 point
         left_endpoint_weight = 2.0 / (num_collocation_nodes**2)
@@ -50,7 +62,7 @@ def compute_legendre_gauss_radau_nodes_and_weights(num_collocation_nodes):
         quadrature_weights = np.concatenate([np.array([left_endpoint_weight]), interior_weights])
 
     # Create state approximation nodes (collocation nodes + right endpoint)
-    state_approximation_nodes = np.concatenate([collocation_nodes, np.array([1.0])])
+    state_approximation_nodes: _StateNodes = np.concatenate([collocation_nodes, np.array([1.0])])
 
     return RadauNodesAndWeights(
         state_approximation_nodes=state_approximation_nodes,
@@ -59,9 +71,18 @@ def compute_legendre_gauss_radau_nodes_and_weights(num_collocation_nodes):
     )
 
 
-def compute_barycentric_weights(nodes):
+def compute_barycentric_weights(nodes: _Vector) -> _BarycentricWeights:
+    """
+    Compute barycentric weights for Lagrange interpolation.
+
+    Args:
+        nodes: Interpolation nodes
+
+    Returns:
+        Barycentric weights for efficient Lagrange interpolation
+    """
     num_nodes = len(nodes)
-    barycentric_weights = np.ones(num_nodes)
+    barycentric_weights: _BarycentricWeights = np.ones(num_nodes)
     nodes_array = np.asarray(nodes)
 
     for j in range(num_nodes):
@@ -80,10 +101,25 @@ def compute_barycentric_weights(nodes):
 
 
 def evaluate_lagrange_polynomial_at_point(
-    polynomial_definition_nodes, barycentric_weights, evaluation_point_tau
-):
+    polynomial_definition_nodes: _Vector,
+    barycentric_weights: _BarycentricWeights,
+    evaluation_point_tau: _NormalizedTimePoint,
+) -> _Vector:
+    """
+    Evaluate all Lagrange basis polynomials at a specified point using barycentric formula.
+
+    Args:
+        polynomial_definition_nodes: Nodes defining the Lagrange polynomials
+        barycentric_weights: Precomputed barycentric weights
+        evaluation_point_tau: Point at which to evaluate the polynomials
+
+    Returns:
+        Values of all Lagrange polynomials at the specified point
+    """
     num_polynomial_definition_nodes = len(polynomial_definition_nodes)
-    lagrange_polynomial_values_at_evaluation_point = np.zeros(num_polynomial_definition_nodes)
+    lagrange_polynomial_values_at_evaluation_point: _Vector = np.zeros(
+        num_polynomial_definition_nodes
+    )
 
     # Check if evaluation_point_tau is one of the nodes (within tolerance)
     for j in range(num_polynomial_definition_nodes):
@@ -92,7 +128,9 @@ def evaluate_lagrange_polynomial_at_point(
             return lagrange_polynomial_values_at_evaluation_point
 
     barycentric_sum_denominator = 0.0
-    weighted_inverse_evaluation_point_differences = np.zeros(num_polynomial_definition_nodes)
+    weighted_inverse_evaluation_point_differences: _Vector = np.zeros(
+        num_polynomial_definition_nodes
+    )
 
     for j in range(num_polynomial_definition_nodes):
         evaluation_point_difference_from_node = (
@@ -130,10 +168,23 @@ def evaluate_lagrange_polynomial_at_point(
 
 
 def compute_lagrange_derivative_coefficients_at_point(
-    polynomial_definition_nodes, barycentric_weights, evaluation_point_tau
-):
+    polynomial_definition_nodes: _Vector,
+    barycentric_weights: _BarycentricWeights,
+    evaluation_point_tau: _NormalizedTimePoint,
+) -> _Vector:
+    """
+    Compute the derivatives of Lagrange polynomials at a specified point.
+
+    Args:
+        polynomial_definition_nodes: Nodes defining the Lagrange polynomials
+        barycentric_weights: Precomputed barycentric weights
+        evaluation_point_tau: Point at which to evaluate the polynomial derivatives
+
+    Returns:
+        Derivative coefficients for all Lagrange polynomials at the specified point
+    """
     num_polynomial_definition_nodes = len(polynomial_definition_nodes)
-    lagrange_derivative_coefficients = np.zeros(num_polynomial_definition_nodes)
+    lagrange_derivative_coefficients: _Vector = np.zeros(num_polynomial_definition_nodes)
     matched_node_index = -1
 
     for current_node_index_for_match_check in range(num_polynomial_definition_nodes):
@@ -176,7 +227,21 @@ def compute_lagrange_derivative_coefficients_at_point(
     return lagrange_derivative_coefficients
 
 
-def compute_radau_collocation_components(num_collocation_nodes):
+def compute_radau_collocation_components(num_collocation_nodes: int) -> RadauBasisComponents:
+    """
+    Compute all components needed for Radau collocation.
+
+    This includes nodes, weights, differentiation matrix, and Lagrange values at tau=+1.
+
+    Args:
+        num_collocation_nodes: Number of collocation points (including the fixed -1 point)
+
+    Returns:
+        Complete set of Radau collocation components
+
+    Raises:
+        ValueError: If there's a mismatch in the expected number of nodes
+    """
     lgr_components = compute_legendre_gauss_radau_nodes_and_weights(num_collocation_nodes)
     state_nodes = lgr_components.state_approximation_nodes
     collocation_nodes = lgr_components.collocation_nodes
@@ -196,19 +261,21 @@ def compute_radau_collocation_components(num_collocation_nodes):
         )
 
     # Calculate barycentric weights for the basis points
-    bary_weights = compute_barycentric_weights(state_nodes)
+    bary_weights: _BarycentricWeights = compute_barycentric_weights(state_nodes)
 
     # Calculate Differentiation Matrix D
-    diff_matrix = np.zeros((num_actual_collocation_nodes, num_state_nodes))
+    diff_matrix: _DifferentiationMatrix = np.zeros((num_actual_collocation_nodes, num_state_nodes))
 
     for collocation_node_index in range(num_actual_collocation_nodes):
-        evaluation_point_at_collocation_node_tau = collocation_nodes[collocation_node_index]
+        evaluation_point_at_collocation_node_tau: _NormalizedTimePoint = collocation_nodes[
+            collocation_node_index
+        ]
         diff_matrix[collocation_node_index, :] = compute_lagrange_derivative_coefficients_at_point(
             state_nodes, bary_weights, evaluation_point_at_collocation_node_tau
         )
 
     # Calculate Lagrange Polynomial values at tau = +1
-    lagrange_at_tau_plus_one = np.zeros(num_state_nodes)
+    lagrange_at_tau_plus_one: _Vector = np.zeros(num_state_nodes)
 
     # Find index of +1.0 in state_nodes using np.isclose for robust floating point comparison
     tau_plus_one_indices = np.where(np.isclose(state_nodes, 1.0, atol=ZERO_TOLERANCE))[0]
