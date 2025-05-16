@@ -10,8 +10,9 @@ from __future__ import (  # Ensures PathConstraint/EventConstraint resolve corre
     annotations,
 )
 
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Callable, TypeAlias
+from typing import Any, TypeAlias
 
 import casadi as ca
 import numpy as np
@@ -51,6 +52,51 @@ _CasadiOptiSol: TypeAlias = ca.OptiSol
 # --- Problem Structure Data Classes and Type Aliases ---
 _ProblemParameters: TypeAlias = dict[str, object]
 
+# Dictionary type aliases for Problem class
+_StateDictType: TypeAlias = dict[str, float | _CasadiMX]
+_ControlDictType: TypeAlias = dict[str, float | _CasadiMX]
+
+# Forward reference for Problem module's Constraint class
+# (without creating a duplicate class)
+# We'll use typing.Any initially and then import the actual Constraint class
+# when needed to avoid circular imports
+ConstraintType: TypeAlias = Any
+
+# User-facing function types for Problem class using ConstraintType as placeholder
+_DynamicsFuncType: TypeAlias = Callable[
+    [_StateDictType, _ControlDictType, float | _CasadiMX, _ProblemParameters | None], _StateDictType
+]
+_ObjectiveFuncType: TypeAlias = Callable[
+    [
+        float | _CasadiMX,
+        float | _CasadiMX,
+        _StateDictType,
+        _StateDictType,
+        float | _CasadiMX | None,
+        _ProblemParameters | None,
+    ],
+    float | _CasadiMX,
+]
+_IntegrandFuncType: TypeAlias = Callable[
+    [_StateDictType, _ControlDictType, float | _CasadiMX, _ProblemParameters | None],
+    float | _CasadiMX,
+]
+_ConstraintFuncType: TypeAlias = Callable[
+    [_StateDictType, _ControlDictType, float | _CasadiMX, _ProblemParameters | None],
+    "ConstraintType | list[ConstraintType]",
+]
+_EventConstraintFuncType: TypeAlias = Callable[
+    [
+        float | _CasadiMX,
+        float | _CasadiMX,
+        _StateDictType,
+        _StateDictType,
+        float | _CasadiMX | None,
+        _ProblemParameters | None,
+    ],
+    "ConstraintType | list[ConstraintType]",
+]
+
 
 @dataclass
 class PathConstraint:
@@ -71,29 +117,29 @@ class EventConstraint:
 # --- Callable Types for OptimalControlProblem ---
 # (state, control, time, params) -> state_derivative
 _DynamicsCallable: TypeAlias = Callable[
-    [_CasadiMX, _CasadiMX, _CasadiMX, _ProblemParameters | None],
-    list[_CasadiMX] | _CasadiMX,
+    [_CasadiMX, _CasadiMX, _CasadiMX, _ProblemParameters],
+    list[_CasadiMX] | _CasadiMX | Sequence[_CasadiMX],
 ]
 
 # (t0, tf, x0, xf, integrals, params) -> objective_value
 _ObjectiveCallable: TypeAlias = Callable[
-    [_CasadiMX, _CasadiMX, _CasadiMX, _CasadiMX, _CasadiMX | None, _ProblemParameters | None],
+    [_CasadiMX, _CasadiMX, _CasadiMX, _CasadiMX, _CasadiMX | None, _ProblemParameters],
     _CasadiMX,
 ]
 
 # (state, control, time, integral_idx, params) -> integrand_value
 _IntegralIntegrandCallable: TypeAlias = Callable[
-    [_CasadiMX, _CasadiMX, _CasadiMX, int, _ProblemParameters | None],
+    [_CasadiMX, _CasadiMX, _CasadiMX, int, _ProblemParameters],
     _CasadiMX,
 ]
 
 _PathConstraintsCallable: TypeAlias = Callable[
-    [_CasadiMX, _CasadiMX, _CasadiMX, _ProblemParameters | None],
+    [_CasadiMX, _CasadiMX, _CasadiMX, _ProblemParameters],
     list[PathConstraint] | PathConstraint,
 ]
 
 _EventConstraintsCallable: TypeAlias = Callable[
-    [_CasadiMX, _CasadiMX, _CasadiMX, _CasadiMX, _CasadiMX | None, _ProblemParameters | None],
+    [_CasadiMX, _CasadiMX, _CasadiMX, _CasadiMX, _CasadiMX | None, _ProblemParameters],
     list[EventConstraint] | EventConstraint,
 ]
 
