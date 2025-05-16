@@ -1087,20 +1087,6 @@ def p_reduce_interval(
         nodes_to_remove_float = float(current_Nk - N_min_degree)
     elif interval_error > 0:  # interval_error is > 0 and <= error_tol
         ratio = error_tol / interval_error  # ratio >= 1.0
-        # Original formula: delta = float(N_min_degree + N_max_degree - current_Nk)
-        # base_for_log = np.power(ratio, 1.0 / delta)
-        # nodes_to_remove_float = np.floor(np.log10(base_for_log))
-        # This heuristic seems complex and dependent on N_max.
-        # A simpler heuristic: if error is, e.g., 0.1 * tol, maybe remove 1 node.
-        # If error is 0.01 * tol, maybe remove 2 nodes. (logarithmic reduction)
-        # Let's use a simplified version or keep the original if its derivation is known.
-        # For now, let's simplify: reduce by 1 if error is < 0.5 * tol, etc.
-        # Or, more closely to the spirit:
-        # Try to estimate how many nodes could be removed.
-        # If ratio is large (error is very small), can remove more.
-        # log10(ratio) gives an order of magnitude.
-        # A simple approach: nodes_to_remove = floor(log10(error_tol / interval_error))
-        # This is similar to p_refine's heuristic in reverse.
         if ratio > 1.0:  # Ensure log argument is > 0
             nodes_to_remove_float = np.floor(
                 np.log10(ratio)
