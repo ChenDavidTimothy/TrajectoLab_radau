@@ -11,7 +11,7 @@ from __future__ import (  # Ensures PathConstraint/EventConstraint resolve corre
 )
 
 from dataclasses import dataclass
-from typing import Any, Callable, TypeAlias
+from typing import Callable, TypeAlias
 
 import casadi as ca
 import numpy as np
@@ -22,15 +22,15 @@ from numpy.typing import NDArray
 
 # Type alias for a 1D NumPy array of float64.
 # Represents vectors or sequences of floating-point numbers.
-FloatArray: TypeAlias = NDArray[np.float64]
+_FloatArray: TypeAlias = NDArray[np.float64]
 
 # Type alias for a 2D NumPy array of float64.
 # Represents matrices or other 2D grids of floating-point numbers.
-FloatMatrix: TypeAlias = NDArray[np.float64]
+_FloatMatrix: TypeAlias = NDArray[np.float64]
 
 # Type alias for a 1D NumPy array of integers.
 # Useful for indices, counts, or integer-valued parameters.
-IntArray: TypeAlias = NDArray[np_int_]
+_IntArray: TypeAlias = NDArray[np_int_]
 
 
 # --- Core Numerical Constants ---
@@ -41,20 +41,20 @@ ZERO_TOLERANCE: float = 1e-12
 
 
 # --- CasADi Type Aliases ---
-CasadiMX: TypeAlias = ca.MX
-CasadiDM: TypeAlias = ca.DM
-CasadiMatrix: TypeAlias = CasadiMX | CasadiDM  # Union type for any CasADi matrix
-CasadiOpti: TypeAlias = ca.Opti
-CasadiOptiSol: TypeAlias = ca.OptiSol
+_CasadiMX: TypeAlias = ca.MX
+_CasadiDM: TypeAlias = ca.DM
+_CasadiMatrix: TypeAlias = _CasadiMX | _CasadiDM  # Union type for any CasADi matrix
+_CasadiOpti: TypeAlias = ca.Opti
+_CasadiOptiSol: TypeAlias = ca.OptiSol
 
 
 # --- Problem Structure Data Classes and Type Aliases ---
-ProblemParameters: TypeAlias = dict[str, Any]
+_ProblemParameters: TypeAlias = dict[str, object]
 
 
 @dataclass
 class PathConstraint:
-    val: CasadiMX
+    val: _CasadiMX
     min_val: float | None = None
     max_val: float | None = None
     equals: float | None = None
@@ -62,7 +62,7 @@ class PathConstraint:
 
 @dataclass
 class EventConstraint:
-    val: CasadiMX
+    val: _CasadiMX
     min_val: float | None = None
     max_val: float | None = None
     equals: float | None = None
@@ -70,40 +70,40 @@ class EventConstraint:
 
 # --- Callable Types for OptimalControlProblem ---
 # (state, control, time, params) -> state_derivative
-DynamicsCallable: TypeAlias = Callable[
-    [CasadiMX, CasadiMX, CasadiMX, ProblemParameters | None],
-    list[CasadiMX] | CasadiMX,
+_DynamicsCallable: TypeAlias = Callable[
+    [_CasadiMX, _CasadiMX, _CasadiMX, _ProblemParameters | None],
+    list[_CasadiMX] | _CasadiMX,
 ]
 
 # (t0, tf, x0, xf, integrals, params) -> objective_value
-ObjectiveCallable: TypeAlias = Callable[
-    [CasadiMX, CasadiMX, CasadiMX, CasadiMX, CasadiMX | None, ProblemParameters | None],
-    CasadiMX,
+_ObjectiveCallable: TypeAlias = Callable[
+    [_CasadiMX, _CasadiMX, _CasadiMX, _CasadiMX, _CasadiMX | None, _ProblemParameters | None],
+    _CasadiMX,
 ]
 
 # (state, control, time, integral_idx, params) -> integrand_value
-IntegralIntegrandCallable: TypeAlias = Callable[
-    [CasadiMX, CasadiMX, CasadiMX, int, ProblemParameters | None],
-    CasadiMX,
+_IntegralIntegrandCallable: TypeAlias = Callable[
+    [_CasadiMX, _CasadiMX, _CasadiMX, int, _ProblemParameters | None],
+    _CasadiMX,
 ]
 
-PathConstraintsCallable: TypeAlias = Callable[
-    [CasadiMX, CasadiMX, CasadiMX, ProblemParameters | None],
+_PathConstraintsCallable: TypeAlias = Callable[
+    [_CasadiMX, _CasadiMX, _CasadiMX, _ProblemParameters | None],
     list[PathConstraint] | PathConstraint,
 ]
 
-EventConstraintsCallable: TypeAlias = Callable[
-    [CasadiMX, CasadiMX, CasadiMX, CasadiMX, CasadiMX | None, ProblemParameters | None],
+_EventConstraintsCallable: TypeAlias = Callable[
+    [_CasadiMX, _CasadiMX, _CasadiMX, _CasadiMX, _CasadiMX | None, _ProblemParameters | None],
     list[EventConstraint] | EventConstraint,
 ]
 
 # --- Helper Type Aliases for Trajectories and Guesses ---
-ListOfCasadiMX: TypeAlias = list[CasadiMX]
-TrajectoryData: TypeAlias = list[
-    FloatArray
+_ListOfCasadiMX: TypeAlias = list[_CasadiMX]
+_TrajectoryData: TypeAlias = list[
+    _FloatArray
 ]  # e.g., list of 1D arrays for each state/control component
 
 # For initial guesses, states/controls are typically a list of 2D matrices,
 # one per mesh interval: [num_variables, num_nodes_in_interval]
-InitialGuessTrajectory: TypeAlias = list[FloatMatrix]
-InitialGuessIntegrals: TypeAlias = float | FloatArray | list[float] | None
+_InitialGuessTrajectory: TypeAlias = list[_FloatMatrix]
+_InitialGuessIntegrals: TypeAlias = float | _FloatArray | list[float] | None

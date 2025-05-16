@@ -2,11 +2,13 @@ from typing import cast  # Retain cast for type checker hints
 
 import numpy as np
 
-# Import the centralized FloatArray type definition from tl_types.py
-from .tl_types import FloatArray  # Assuming tl_types.py is in the same directory/package
+# Import the centralized _FloatArray type definition from tl_types.py
+from .tl_types import _FloatArray  # Assuming tl_types.py is in the same directory/package
 
 
-def linear_interpolation(t: FloatArray, x: FloatArray, t_eval: float | FloatArray) -> FloatArray:
+def linear_interpolation(
+    t: _FloatArray, x: _FloatArray, t_eval: float | _FloatArray
+) -> _FloatArray:
     """
     Performs 1-D linear interpolation.
 
@@ -30,10 +32,10 @@ def linear_interpolation(t: FloatArray, x: FloatArray, t_eval: float | FloatArra
         )
     # np.interp is efficient and handles various cases, including t_eval outside t's range.
     result = np.interp(t_eval, t, x)
-    return cast(FloatArray, result)
+    return cast(_FloatArray, result)
 
 
-def uniform_mesh(num_intervals: int) -> FloatArray:
+def uniform_mesh(num_intervals: int) -> _FloatArray:
     """
     Creates a 1-D array (mesh) of evenly spaced points in the interval [-1, 1].
 
@@ -52,10 +54,10 @@ def uniform_mesh(num_intervals: int) -> FloatArray:
         raise ValueError("num_intervals must be a positive integer.")
 
     mesh_points = np.linspace(-1.0, 1.0, num_intervals + 1, dtype=np.float64)
-    return cast(FloatArray, mesh_points)
+    return cast(_FloatArray, mesh_points)
 
 
-def refine_around_point(mesh: FloatArray, point: float, num_new_intervals: int = 2) -> FloatArray:
+def refine_around_point(mesh: _FloatArray, point: float, num_new_intervals: int = 2) -> _FloatArray:
     """
     Refines a mesh by adding more points within the interval that contains a specific point.
 
@@ -101,11 +103,11 @@ def refine_around_point(mesh: FloatArray, point: float, num_new_intervals: int =
     # Construct the new mesh by concatenating parts of the old mesh with new_points.
     refined_mesh = np.concatenate([mesh[:interval_idx], new_points, mesh[interval_idx + 2 :]])
 
-    return cast(FloatArray, refined_mesh)
+    return cast(_FloatArray, refined_mesh)
 
 
 def estimate_error(
-    x_approx: FloatArray, x_ref: FloatArray, absolute: bool = False
+    x_approx: _FloatArray, x_ref: _FloatArray, absolute: bool = False
 ) -> tuple[float, float, float]:
     """
     Estimates error metrics (max, mean, RMS) between an approximate and a reference solution.
@@ -147,8 +149,8 @@ def estimate_error(
 
 
 def map_normalized_to_physical_time(
-    tau: float | FloatArray, t0: float, tf: float
-) -> float | FloatArray:
+    tau: float | _FloatArray, t0: float, tf: float
+) -> float | _FloatArray:
     """
     Maps time `tau` from a normalized domain (typically [-1, 1]) to a physical time [t0, tf].
 
@@ -159,7 +161,7 @@ def map_normalized_to_physical_time(
 
     Returns:
         The corresponding physical time value(s). Returns a Python float if `tau`
-        is a float, otherwise returns a NumPy array (FloatArray).
+        is a float, otherwise returns a NumPy array (_FloatArray).
 
     Raises:
         ValueError: If t0 and tf are the same, as this defines a zero-length interval.
@@ -173,12 +175,12 @@ def map_normalized_to_physical_time(
 
     if isinstance(tau, float):
         return float(physical_time)
-    return cast(FloatArray, physical_time)
+    return cast(_FloatArray, physical_time)
 
 
 def map_physical_to_normalized_time(
-    t: float | FloatArray, t0: float, tf: float
-) -> float | FloatArray:
+    t: float | _FloatArray, t0: float, tf: float
+) -> float | _FloatArray:
     """
     Maps physical time `t` from the interval [t0, tf] to a normalized time `tau`
     (typically in the interval [-1, 1]).
@@ -190,7 +192,7 @@ def map_physical_to_normalized_time(
 
     Returns:
         The corresponding normalized time value(s). Returns a Python float if `t`
-        is a float, otherwise returns a NumPy array (FloatArray).
+        is a float, otherwise returns a NumPy array (_FloatArray).
 
     Raises:
         ValueError: If t0 and tf are the same, leading to division by zero.
@@ -205,4 +207,4 @@ def map_physical_to_normalized_time(
 
     if isinstance(t, float):
         return float(normalized_time)
-    return cast(FloatArray, normalized_time)
+    return cast(_FloatArray, normalized_time)

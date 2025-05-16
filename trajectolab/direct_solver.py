@@ -1,49 +1,49 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Literal, cast, overload
 
 import casadi as ca
 import numpy as np
 
 from .radau import RadauBasisComponents, compute_radau_collocation_components
 from .tl_types import (
-    CasadiDM,
-    CasadiMatrix,
-    CasadiMX,
-    CasadiOpti,
-    CasadiOptiSol,
-    DynamicsCallable,
     EventConstraint,
-    EventConstraintsCallable,
-    FloatArray,
-    FloatMatrix,
-    InitialGuessIntegrals,
-    InitialGuessTrajectory,
-    IntegralIntegrandCallable,
-    ListOfCasadiMX,
-    ObjectiveCallable,
     PathConstraint,
-    PathConstraintsCallable,
-    ProblemParameters,
-    TrajectoryData,
+    _CasadiDM,
+    _CasadiMatrix,
+    _CasadiMX,
+    _CasadiOpti,
+    _CasadiOptiSol,
+    _DynamicsCallable,
+    _EventConstraintsCallable,
+    _FloatArray,
+    _FloatMatrix,
+    _InitialGuessIntegrals,
+    _InitialGuessTrajectory,
+    _IntegralIntegrandCallable,
+    _ListOfCasadiMX,
+    _ObjectiveCallable,
+    _PathConstraintsCallable,
+    _ProblemParameters,
+    _TrajectoryData,
 )
 
 
 class InitialGuess:
     initial_time_variable: float | None
     terminal_time_variable: float | None
-    states: InitialGuessTrajectory | None
-    controls: InitialGuessTrajectory | None
-    integrals: InitialGuessIntegrals | None
+    states: _InitialGuessTrajectory | None
+    controls: _InitialGuessTrajectory | None
+    integrals: _InitialGuessIntegrals | None
 
     def __init__(
         self,
         initial_time_variable: float | None = None,
         terminal_time_variable: float | None = None,
-        states: InitialGuessTrajectory | None = None,
-        controls: InitialGuessTrajectory | None = None,
-        integrals: InitialGuessIntegrals | None = None,
-    ):
+        states: _InitialGuessTrajectory | None = None,
+        controls: _InitialGuessTrajectory | None = None,
+        integrals: _InitialGuessIntegrals | None = None,
+    ) -> None:
         self.initial_time_variable = initial_time_variable
         self.terminal_time_variable = terminal_time_variable
         self.states = states or []
@@ -56,7 +56,7 @@ class DefaultGuessValues:
     control: float
     integral: float
 
-    def __init__(self, state: float = 0.0, control: float = 0.0, integral: float = 0.0):
+    def __init__(self, state: float = 0.0, control: float = 0.0, integral: float = 0.0) -> None:
         self.state = state
         self.control = control
         self.integral = integral
@@ -65,40 +65,40 @@ class DefaultGuessValues:
 class OptimalControlProblem:
     num_states: int
     num_controls: int
-    dynamics_function: DynamicsCallable
-    objective_function: ObjectiveCallable
+    dynamics_function: _DynamicsCallable
+    objective_function: _ObjectiveCallable
     t0_bounds: tuple[float, float]
     tf_bounds: tuple[float, float]
     num_integrals: int
     collocation_points_per_interval: list[int] | None
-    global_normalized_mesh_nodes: FloatArray | None
-    integral_integrand_function: IntegralIntegrandCallable | None
-    path_constraints_function: PathConstraintsCallable | None
-    event_constraints_function: EventConstraintsCallable | None
-    problem_parameters: ProblemParameters | None
+    global_normalized_mesh_nodes: _FloatArray | None
+    integral_integrand_function: _IntegralIntegrandCallable | None
+    path_constraints_function: _PathConstraintsCallable | None
+    event_constraints_function: _EventConstraintsCallable | None
+    problem_parameters: _ProblemParameters | None
     initial_guess: InitialGuess | None
     default_initial_guess_values: DefaultGuessValues | None
-    solver_options: dict[str, Any] | None  # Any is used for diverse solver options
+    solver_options: dict[str, object] | None  # Changed Any to object
 
     def __init__(
         self,
         num_states: int,
         num_controls: int,
-        dynamics_function: DynamicsCallable,
-        objective_function: ObjectiveCallable,
+        dynamics_function: _DynamicsCallable,
+        objective_function: _ObjectiveCallable,
         t0_bounds: tuple[float, float],
         tf_bounds: tuple[float, float],
         num_integrals: int = 0,
         collocation_points_per_interval: list[int] | None = None,
-        global_normalized_mesh_nodes: FloatArray | None = None,
-        integral_integrand_function: IntegralIntegrandCallable | None = None,
-        path_constraints_function: PathConstraintsCallable | None = None,
-        event_constraints_function: EventConstraintsCallable | None = None,
-        problem_parameters: ProblemParameters | None = None,
+        global_normalized_mesh_nodes: _FloatArray | None = None,
+        integral_integrand_function: _IntegralIntegrandCallable | None = None,
+        path_constraints_function: _PathConstraintsCallable | None = None,
+        event_constraints_function: _EventConstraintsCallable | None = None,
+        problem_parameters: _ProblemParameters | None = None,
         initial_guess: InitialGuess | None = None,
         default_initial_guess_values: DefaultGuessValues | None = None,
-        solver_options: dict[str, Any] | None = None,
-    ):
+        solver_options: dict[str, object] | None = None,  # Changed Any to object
+    ) -> None:
         self.num_states = num_states
         self.num_controls = num_controls
         self.num_integrals = num_integrals
@@ -126,20 +126,20 @@ class OptimalControlSolution:
     initial_time_variable: float | None
     terminal_time_variable: float | None
     objective: float | None
-    integrals: float | FloatArray | None
-    time_states: FloatArray
-    states: TrajectoryData
-    time_controls: FloatArray
-    controls: TrajectoryData
-    raw_solution: CasadiOptiSol | None
-    opti_object: CasadiOpti | None
+    integrals: float | _FloatArray | None
+    time_states: _FloatArray
+    states: _TrajectoryData
+    time_controls: _FloatArray
+    controls: _TrajectoryData
+    raw_solution: _CasadiOptiSol | None
+    opti_object: _CasadiOpti | None
     num_collocation_nodes_per_interval: list[int]
-    global_normalized_mesh_nodes: FloatArray | None
+    global_normalized_mesh_nodes: _FloatArray | None
     num_collocation_nodes_list_at_solve_time: list[int] | None
-    global_mesh_nodes_at_solve_time: FloatArray | None
+    global_mesh_nodes_at_solve_time: _FloatArray | None
     # These were not previously typed, adding example types
-    solved_state_trajectories_per_interval: list[FloatMatrix] | None  # Example
-    solved_control_trajectories_per_interval: list[FloatMatrix] | None  # Example
+    solved_state_trajectories_per_interval: list[_FloatMatrix] | None
+    solved_control_trajectories_per_interval: list[_FloatMatrix] | None
 
     def __init__(self) -> None:
         self.success = False
@@ -162,11 +162,35 @@ class OptimalControlSolution:
         self.solved_control_trajectories_per_interval = None
 
 
+@overload
 def _extract_integral_values(
-    casadi_solution_object: CasadiOptiSol,
-    opti_object: CasadiOpti,
+    casadi_solution_object: _CasadiOptiSol,
+    opti_object: _CasadiOpti,
+    num_integrals: Literal[0],  # Explicitly for num_integrals == 0
+) -> None: ...
+
+
+@overload
+def _extract_integral_values(
+    casadi_solution_object: _CasadiOptiSol,
+    opti_object: _CasadiOpti,
+    num_integrals: Literal[1],  # Explicitly for num_integrals == 1
+) -> float: ...
+
+
+@overload
+def _extract_integral_values(
+    casadi_solution_object: _CasadiOptiSol,
+    opti_object: _CasadiOpti,
+    num_integrals: int,  # For num_integrals > 1
+) -> _FloatArray: ...
+
+
+def _extract_integral_values(
+    casadi_solution_object: _CasadiOptiSol,
+    opti_object: _CasadiOpti,
     num_integrals: int,
-) -> float | FloatArray | None:
+) -> float | _FloatArray | None:
     if (
         num_integrals == 0
         or not hasattr(opti_object, "integral_variables_object_reference")
@@ -175,27 +199,29 @@ def _extract_integral_values(
         return None
 
     try:
-        raw_value: CasadiDM | float = casadi_solution_object.value(
+        raw_value: _CasadiDM | float = casadi_solution_object.value(
             opti_object.integral_variables_object_reference
         )
 
         if isinstance(raw_value, ca.DM):
             if num_integrals == 1 and raw_value.shape == (1, 1):
                 return float(raw_value[0, 0])
-            return raw_value.toarray().flatten()  # type: ignore[no-any-return]
+            return cast(_FloatArray, raw_value.toarray().flatten())
         return float(raw_value)
     except Exception as e:
         print(f"Warning: Could not extract integral values: {e}")
-        return np.full(num_integrals, np.nan) if num_integrals > 1 else np.nan
+        if num_integrals > 1:
+            return np.full(num_integrals, np.nan, dtype=np.float64)
+        return np.nan  # Return a float NaN for single integral
 
 
 def _process_trajectory_points(
     mesh_interval_index: int,
-    casadi_solution_object: CasadiOptiSol,
-    opti_object: CasadiOpti,  # Contains metadata and variable references
+    casadi_solution_object: _CasadiOptiSol,
+    opti_object: _CasadiOpti,  # Contains metadata and variable references
     variables_list_attr_name: str,  # Name of the attribute on opti_object holding variable list
     local_tau_nodes_attr_name: str,  # Name of the attribute on opti_object for local tau nodes
-    global_normalized_mesh_nodes: FloatArray,
+    global_normalized_mesh_nodes: _FloatArray,
     initial_time: float,
     terminal_time: float,
     last_added_point: float,
@@ -204,8 +230,8 @@ def _process_trajectory_points(
     num_variables: int,
     is_state: bool = True,
 ) -> float:
-    variables_list: ListOfCasadiMX = getattr(opti_object, variables_list_attr_name, [])
-    local_tau_values_all_intervals: list[FloatArray] = getattr(
+    variables_list: _ListOfCasadiMX = getattr(opti_object, variables_list_attr_name, [])
+    local_tau_values_all_intervals: list[_FloatArray] = getattr(
         opti_object, local_tau_nodes_attr_name, []
     )
 
@@ -217,12 +243,12 @@ def _process_trajectory_points(
         )
         return last_added_point
 
-    current_interval_variables: CasadiMX = variables_list[mesh_interval_index]
-    current_interval_local_tau_values: FloatArray = local_tau_values_all_intervals[
+    current_interval_variables: _CasadiMX = variables_list[mesh_interval_index]
+    current_interval_local_tau_values: _FloatArray = local_tau_values_all_intervals[
         mesh_interval_index
     ]
 
-    solved_values: FloatMatrix = casadi_solution_object.value(current_interval_variables)
+    solved_values: _FloatMatrix = casadi_solution_object.value(current_interval_variables)
     if num_variables == 1 and solved_values.ndim == 1:  # Ensure 2D for consistency
         solved_values = solved_values.reshape(1, -1)
 
@@ -261,11 +287,11 @@ def _process_trajectory_points(
 
 
 def _extract_and_format_solution(
-    casadi_solution_object: CasadiOptiSol | None,
-    casadi_optimization_problem_object: CasadiOpti,
+    casadi_solution_object: _CasadiOptiSol | None,
+    casadi_optimization_problem_object: _CasadiOpti,
     problem_definition: OptimalControlProblem,
     num_collocation_nodes_per_interval: list[int],
-    global_normalized_mesh_nodes: FloatArray,
+    global_normalized_mesh_nodes: _FloatArray,
 ) -> OptimalControlSolution:
     solution = OptimalControlSolution()
     solution.opti_object = casadi_optimization_problem_object  # Store opti object early
@@ -378,7 +404,7 @@ def _extract_and_format_solution(
     return solution
 
 
-def _apply_constraint(opti: CasadiOpti, constraint: PathConstraint | EventConstraint) -> None:
+def _apply_constraint(opti: _CasadiOpti, constraint: PathConstraint | EventConstraint) -> None:
     if constraint.min_val is not None:
         opti.subject_to(constraint.val >= constraint.min_val)
     if constraint.max_val is not None:
@@ -387,7 +413,9 @@ def _apply_constraint(opti: CasadiOpti, constraint: PathConstraint | EventConstr
         opti.subject_to(constraint.val == constraint.equals)
 
 
-def _validate_dynamics_output(output: list[CasadiMX] | CasadiMatrix, num_states: int) -> CasadiMX:
+def _validate_dynamics_output(
+    output: list[_CasadiMX] | _CasadiMatrix, num_states: int
+) -> _CasadiMX:
     """Validates and converts dynamics function output to the expected CasadiMX format."""
     if isinstance(output, list):
         # First convert result to MX if it's a DM
@@ -415,9 +443,9 @@ def _validate_dynamics_output(output: list[CasadiMX] | CasadiMatrix, num_states:
 
 
 def _set_initial_value_for_integrals(
-    opti: CasadiOpti,
-    integral_vars: CasadiMX,
-    guess: float | FloatArray | list[float] | None,  # Broadened guess type
+    opti: _CasadiOpti,
+    integral_vars: _CasadiMX,
+    guess: float | _FloatArray | list[float] | None,  # Broadened guess type
     num_integrals: int,
 ) -> None:
     if guess is None:
@@ -441,7 +469,7 @@ def _set_initial_value_for_integrals(
 def solve_single_phase_radau_collocation(
     problem_definition: OptimalControlProblem,
 ) -> OptimalControlSolution:
-    opti: CasadiOpti = ca.Opti()
+    opti: _CasadiOpti = ca.Opti()
 
     num_states: int = problem_definition.num_states
     num_controls: int = problem_definition.num_controls
@@ -461,21 +489,21 @@ def solve_single_phase_radau_collocation(
 
     num_mesh_intervals: int = len(num_collocation_nodes_per_interval)
 
-    dynamics_function: DynamicsCallable = problem_definition.dynamics_function
-    objective_function: ObjectiveCallable = problem_definition.objective_function
-    path_constraints_function: PathConstraintsCallable | None = (
+    dynamics_function: _DynamicsCallable = problem_definition.dynamics_function
+    objective_function: _ObjectiveCallable = problem_definition.objective_function
+    path_constraints_function: _PathConstraintsCallable | None = (
         problem_definition.path_constraints_function
     )
-    event_constraints_function: EventConstraintsCallable | None = (
+    event_constraints_function: _EventConstraintsCallable | None = (
         problem_definition.event_constraints_function
     )
-    integral_integrand_function: IntegralIntegrandCallable | None = (
+    integral_integrand_function: _IntegralIntegrandCallable | None = (
         problem_definition.integral_integrand_function
     )
-    problem_parameters: ProblemParameters | None = problem_definition.problem_parameters
+    problem_parameters: _ProblemParameters | None = problem_definition.problem_parameters
 
-    initial_time_variable: CasadiMX = opti.variable()
-    terminal_time_variable: CasadiMX = opti.variable()
+    initial_time_variable: _CasadiMX = opti.variable()
+    terminal_time_variable: _CasadiMX = opti.variable()
     opti.subject_to(initial_time_variable >= problem_definition.t0_bounds[0])
     opti.subject_to(initial_time_variable <= problem_definition.t0_bounds[1])
     opti.subject_to(terminal_time_variable >= problem_definition.tf_bounds[0])
@@ -484,8 +512,8 @@ def solve_single_phase_radau_collocation(
         terminal_time_variable > initial_time_variable + 1e-6
     )  # Ensure non-zero positive duration
 
-    user_mesh: FloatArray | None = problem_definition.global_normalized_mesh_nodes
-    global_normalized_mesh_nodes: FloatArray
+    user_mesh: _FloatArray | None = problem_definition.global_normalized_mesh_nodes
+    global_normalized_mesh_nodes: _FloatArray
     if user_mesh is not None:
         global_normalized_mesh_nodes = np.array(user_mesh, dtype=np.float64)
         if not (
@@ -502,39 +530,39 @@ def solve_single_phase_radau_collocation(
     else:
         global_normalized_mesh_nodes = np.linspace(-1, 1, num_mesh_intervals + 1, dtype=np.float64)
 
-    state_at_global_mesh_nodes_variables: ListOfCasadiMX = [
+    state_at_global_mesh_nodes_variables: _ListOfCasadiMX = [
         opti.variable(num_states) for _ in range(num_mesh_intervals + 1)
     ]
-    state_at_local_approximation_nodes_all_intervals_variables: list[CasadiMatrix] = []
-    state_at_interior_local_approximation_nodes_all_intervals_variables: list[CasadiMX | None] = []
+    state_at_local_approximation_nodes_all_intervals_variables: list[_CasadiMatrix] = []
+    state_at_interior_local_approximation_nodes_all_intervals_variables: list[_CasadiMX | None] = []
 
-    control_at_local_collocation_nodes_all_intervals_variables: ListOfCasadiMX = [
+    control_at_local_collocation_nodes_all_intervals_variables: _ListOfCasadiMX = [
         opti.variable(num_controls, num_collocation_nodes_per_interval[k])
         for k in range(num_mesh_intervals)
     ]
 
-    integral_decision_variables: CasadiMX | None = None
+    integral_decision_variables: _CasadiMX | None = None
     if num_integrals > 0:
         integral_decision_variables = (
             opti.variable(num_integrals) if num_integrals > 1 else opti.variable()
         )
 
-    accumulated_integral_expressions: list[CasadiMX] = (
+    accumulated_integral_expressions: list[_CasadiMX] = (
         [ca.MX(0) for _ in range(num_integrals)] if num_integrals > 0 else []
     )
-    local_state_approximation_nodes_tau_all_intervals: list[FloatArray] = []
-    local_collocation_nodes_tau_all_intervals: list[FloatArray] = []
+    local_state_approximation_nodes_tau_all_intervals: list[_FloatArray] = []
+    local_collocation_nodes_tau_all_intervals: list[_FloatArray] = []
 
     for mesh_interval_index in range(num_mesh_intervals):
         num_colloc_nodes: int = num_collocation_nodes_per_interval[mesh_interval_index]
-        current_interval_state_columns: list[CasadiMX] = [
+        current_interval_state_columns: list[_CasadiMX] = [
             ca.MX(num_states, 1) for _ in range(num_colloc_nodes + 1)
         ]
         current_interval_state_columns[0] = state_at_global_mesh_nodes_variables[
             mesh_interval_index
         ]
 
-        interior_nodes_var: CasadiMX | None = None
+        interior_nodes_var: _CasadiMX | None = None
         if num_colloc_nodes > 1:  # Only relevant if there are interior collocation points
             num_interior_nodes: int = (
                 num_colloc_nodes - 1
@@ -552,21 +580,21 @@ def solve_single_phase_radau_collocation(
             mesh_interval_index + 1
         ]
 
-        state_at_nodes: CasadiMatrix = ca.horzcat(*current_interval_state_columns)
+        state_at_nodes: _CasadiMatrix = ca.horzcat(*current_interval_state_columns)
         state_at_local_approximation_nodes_all_intervals_variables.append(state_at_nodes)
 
         basis_components: RadauBasisComponents = compute_radau_collocation_components(
             num_colloc_nodes
         )
-        state_nodes_tau: FloatArray = basis_components.state_approximation_nodes.flatten()
-        colloc_nodes_tau: FloatArray = basis_components.collocation_nodes.flatten()
-        quad_weights: FloatArray = basis_components.quadrature_weights.flatten()
-        diff_matrix: CasadiDM = ca.DM(basis_components.differentiation_matrix)  # Ensure it's DM
+        state_nodes_tau: _FloatArray = basis_components.state_approximation_nodes.flatten()
+        colloc_nodes_tau: _FloatArray = basis_components.collocation_nodes.flatten()
+        quad_weights: _FloatArray = basis_components.quadrature_weights.flatten()
+        diff_matrix: _CasadiDM = ca.DM(basis_components.differentiation_matrix)  # Ensure it's DM
 
         local_state_approximation_nodes_tau_all_intervals.append(state_nodes_tau)
         local_collocation_nodes_tau_all_intervals.append(colloc_nodes_tau)
 
-        state_derivative_at_colloc: CasadiMX = ca.mtimes(state_at_nodes, diff_matrix.T)
+        state_derivative_at_colloc: _CasadiMX = ca.mtimes(state_at_nodes, diff_matrix.T)
 
         global_segment_length: float = (
             global_normalized_mesh_nodes[mesh_interval_index + 1]
@@ -581,22 +609,22 @@ def solve_single_phase_radau_collocation(
         # and global_tau = global_tau_transform(local_tau)
         # d(physical_time)/d(local_tau) = ( (tf-t0)/2 ) * ( (global_tau_end - global_tau_start)/2 )
         # This original (tf-t0)*global_segment_length/4.0 is correct for mapping from local tau [-1,1] to physical time.
-        tau_to_time_scaling: CasadiMX = (
+        tau_to_time_scaling: _CasadiMX = (
             (terminal_time_variable - initial_time_variable) * global_segment_length / 4.0
         )
 
         for i_colloc in range(num_colloc_nodes):
-            state_at_colloc: CasadiMX = state_at_nodes[
+            state_at_colloc: _CasadiMX = state_at_nodes[
                 :, i_colloc
             ]  # This uses state approx nodes indexing
-            control_at_colloc: CasadiMX = (
+            control_at_colloc: _CasadiMX = (
                 control_at_local_collocation_nodes_all_intervals_variables[mesh_interval_index][
                     :, i_colloc
                 ]
             )
 
             local_colloc_tau_val: float = colloc_nodes_tau[i_colloc]
-            global_colloc_tau_val: CasadiMX = (
+            global_colloc_tau_val: _CasadiMX = (
                 global_segment_length / 2 * local_colloc_tau_val
                 + (
                     global_normalized_mesh_nodes[mesh_interval_index + 1]
@@ -604,14 +632,14 @@ def solve_single_phase_radau_collocation(
                 )
                 / 2
             )
-            physical_time_at_colloc: CasadiMX = (
+            physical_time_at_colloc: _CasadiMX = (
                 terminal_time_variable - initial_time_variable
             ) / 2 * global_colloc_tau_val + (terminal_time_variable + initial_time_variable) / 2
 
-            state_derivative_rhs: list[CasadiMX] | CasadiMX = dynamics_function(
+            state_derivative_rhs: list[_CasadiMX] | _CasadiMX = dynamics_function(
                 state_at_colloc, control_at_colloc, physical_time_at_colloc, problem_parameters
             )
-            state_derivative_rhs_vector: CasadiMX = _validate_dynamics_output(
+            state_derivative_rhs_vector: _CasadiMX = _validate_dynamics_output(
                 state_derivative_rhs, num_states
             )
 
@@ -639,19 +667,19 @@ def solve_single_phase_radau_collocation(
 
         if num_integrals > 0 and integral_integrand_function:
             for integral_index in range(num_integrals):
-                quad_sum: CasadiMX = ca.MX(0)
+                quad_sum: _CasadiMX = ca.MX(0)
                 for i_colloc in range(num_colloc_nodes):  # Sum over collocation points
-                    state_at_colloc_for_integral: CasadiMX = state_at_nodes[
+                    state_at_colloc_for_integral: _CasadiMX = state_at_nodes[
                         :, i_colloc
                     ]  # State at LGR node
-                    control_at_colloc_for_integral: CasadiMX = (
+                    control_at_colloc_for_integral: _CasadiMX = (
                         control_at_local_collocation_nodes_all_intervals_variables[
                             mesh_interval_index
                         ][:, i_colloc]
                     )
 
                     local_colloc_tau_val_for_integral: float = colloc_nodes_tau[i_colloc]
-                    global_colloc_tau_val_for_integral: CasadiMX = (
+                    global_colloc_tau_val_for_integral: _CasadiMX = (
                         global_segment_length / 2 * local_colloc_tau_val_for_integral
                         + (
                             global_normalized_mesh_nodes[mesh_interval_index + 1]
@@ -659,14 +687,14 @@ def solve_single_phase_radau_collocation(
                         )
                         / 2
                     )
-                    physical_time_at_colloc_for_integral: CasadiMX = (
+                    physical_time_at_colloc_for_integral: _CasadiMX = (
                         terminal_time_variable - initial_time_variable
                     ) / 2 * global_colloc_tau_val_for_integral + (
                         terminal_time_variable + initial_time_variable
                     ) / 2
 
                     weight: float = quad_weights[i_colloc]
-                    integrand_value: CasadiMX = integral_integrand_function(
+                    integrand_value: _CasadiMX = integral_integrand_function(
                         state_at_colloc_for_integral,
                         control_at_colloc_for_integral,
                         physical_time_at_colloc_for_integral,
@@ -689,10 +717,10 @@ def solve_single_phase_radau_collocation(
                     integral_decision_variables[i] == accumulated_integral_expressions[i]
                 )
 
-    initial_state: CasadiMX = state_at_global_mesh_nodes_variables[0]
-    terminal_state: CasadiMX = state_at_global_mesh_nodes_variables[num_mesh_intervals]
+    initial_state: _CasadiMX = state_at_global_mesh_nodes_variables[0]
+    terminal_state: _CasadiMX = state_at_global_mesh_nodes_variables[num_mesh_intervals]
 
-    objective_value: CasadiMX = objective_function(
+    objective_value: _CasadiMX = objective_function(
         initial_time_variable,
         terminal_time_variable,
         initial_state,
@@ -795,8 +823,8 @@ def solve_single_phase_radau_collocation(
                 if k < len(ig.controls) and isinstance(
                     ig.controls[k], np.ndarray
                 ):  # ig.controls[k] is FloatMatrix
-                    control_guess_k: FloatMatrix = ig.controls[k]
-                    target_var_k: CasadiMX = (
+                    control_guess_k: _FloatMatrix = ig.controls[k]
+                    target_var_k: _CasadiMX = (
                         control_at_local_collocation_nodes_all_intervals_variables[k]
                     )
                     nodes_needed_k: int = target_var_k.shape[
@@ -821,7 +849,8 @@ def solve_single_phase_radau_collocation(
                 opti, integral_decision_variables, ig.integrals, num_integrals
             )
 
-    solver_options_to_use: dict[str, Any] = problem_definition.solver_options or {}
+    # Changed: object instead of Any
+    solver_options_to_use: dict[str, object] = problem_definition.solver_options or {}
     opti.solver("ipopt", solver_options_to_use)
 
     # Store references for solution extraction
@@ -849,7 +878,7 @@ def solve_single_phase_radau_collocation(
 
     solution_obj: OptimalControlSolution
     try:
-        solver_solution: CasadiOptiSol = opti.solve()
+        solver_solution: _CasadiOptiSol = opti.solve()
         print("NLP problem formulated and solver called successfully.")
         solution_obj = _extract_and_format_solution(
             solver_solution,

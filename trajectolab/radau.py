@@ -5,7 +5,7 @@ from typing import Literal, cast, overload
 import numpy as np
 
 # Import centralized type definitions and constants
-from .tl_types import ZERO_TOLERANCE, FloatArray, FloatMatrix
+from .tl_types import ZERO_TOLERANCE, _FloatArray, _FloatMatrix
 
 # SciPy is a common dependency for such calculations, ensure it's available.
 
@@ -32,18 +32,18 @@ class RadauBasisComponents:
                                   state_approximation_nodes) evaluated at τ = +1.
     """
 
-    state_approximation_nodes: FloatArray = field(
+    state_approximation_nodes: _FloatArray = field(
         default_factory=lambda: np.array([], dtype=np.float64)
     )
-    collocation_nodes: FloatArray = field(default_factory=lambda: np.array([], dtype=np.float64))
-    quadrature_weights: FloatArray = field(default_factory=lambda: np.array([], dtype=np.float64))
-    differentiation_matrix: FloatMatrix = field(
+    collocation_nodes: _FloatArray = field(default_factory=lambda: np.array([], dtype=np.float64))
+    quadrature_weights: _FloatArray = field(default_factory=lambda: np.array([], dtype=np.float64))
+    differentiation_matrix: _FloatMatrix = field(
         default_factory=lambda: np.empty((0, 0), dtype=np.float64)
     )
-    barycentric_weights_for_state_nodes: FloatArray = field(
+    barycentric_weights_for_state_nodes: _FloatArray = field(
         default_factory=lambda: np.array([], dtype=np.float64)
     )
-    lagrange_at_tau_plus_one: FloatArray = field(
+    lagrange_at_tau_plus_one: _FloatArray = field(
         default_factory=lambda: np.array([], dtype=np.float64)
     )
 
@@ -56,9 +56,9 @@ class RadauNodesAndWeights:
     `compute_legendre_gauss_radau_nodes_and_weights`.
     """
 
-    state_approximation_nodes: FloatArray
-    collocation_nodes: FloatArray
-    quadrature_weights: FloatArray
+    state_approximation_nodes: _FloatArray
+    collocation_nodes: _FloatArray
+    quadrature_weights: _FloatArray
 
 
 # --- Gauss-Jacobi Quadrature Wrapper ---
@@ -67,23 +67,23 @@ class RadauNodesAndWeights:
 @overload
 def roots_jacobi(
     n: int, alpha: float, beta: float, mu: Literal[False]
-) -> tuple[FloatArray, FloatArray]: ...
+) -> tuple[_FloatArray, _FloatArray]: ...
 
 
 @overload
 def roots_jacobi(
     n: int, alpha: float, beta: float, mu: Literal[True]
-) -> tuple[FloatArray, FloatArray, float]: ...
+) -> tuple[_FloatArray, _FloatArray, float]: ...
 
 
 def roots_jacobi(
     n: int, alpha: float, beta: float, mu: bool = False
-) -> tuple[FloatArray, FloatArray] | tuple[FloatArray, FloatArray, float]:
+) -> tuple[_FloatArray, _FloatArray] | tuple[_FloatArray, _FloatArray, float]:
     """
     Computes Gauss-Jacobi quadrature nodes and weights.
 
     This is a wrapper around `scipy.special.roots_jacobi` to provide
-    consistent typing with FloatArray and handle the `mu` parameter's
+    consistent typing with _FloatArray and handle the `mu` parameter's
     return type variation.
 
     Args:
@@ -105,10 +105,10 @@ def roots_jacobi(
 
     if mu:
         x_val, w_val, mu_val = scipy_roots_jacobi_impl(n, alpha, beta, mu=True)
-        return cast(FloatArray, x_val), cast(FloatArray, w_val), float(mu_val)
+        return cast(_FloatArray, x_val), cast(_FloatArray, w_val), float(mu_val)
     else:
         x_val, w_val = scipy_roots_jacobi_impl(n, alpha, beta, mu=False)
-        return cast(FloatArray, x_val), cast(FloatArray, w_val)
+        return cast(_FloatArray, x_val), cast(_FloatArray, w_val)
 
 
 # --- Core Radau Collocation Computations ---
@@ -159,13 +159,13 @@ def compute_legendre_gauss_radau_nodes_and_weights(
     state_approximation_nodes = np.unique(state_approximation_nodes_temp)
 
     return RadauNodesAndWeights(
-        state_approximation_nodes=cast(FloatArray, state_approximation_nodes),
-        collocation_nodes=cast(FloatArray, final_collocation_nodes),
-        quadrature_weights=cast(FloatArray, final_quadrature_weights),
+        state_approximation_nodes=cast(_FloatArray, state_approximation_nodes),
+        collocation_nodes=cast(_FloatArray, final_collocation_nodes),
+        quadrature_weights=cast(_FloatArray, final_quadrature_weights),
     )
 
 
-def compute_barycentric_weights(nodes: FloatArray) -> FloatArray:
+def compute_barycentric_weights(nodes: _FloatArray) -> _FloatArray:
     """
     Computes barycentric weights for a given set of distinct nodes.
     w_j = 1 / product_{k!=j} (x_j - x_k)
@@ -185,7 +185,7 @@ def compute_barycentric_weights(nodes: FloatArray) -> FloatArray:
     if num_nodes == 1:
         return np.array([1.0], dtype=np.float64)
 
-    barycentric_weights: FloatArray = np.ones(num_nodes, dtype=np.float64)
+    barycentric_weights: _FloatArray = np.ones(num_nodes, dtype=np.float64)
 
     for j in range(num_nodes):
         other_nodes = np.delete(nodes, j)
@@ -219,10 +219,10 @@ def compute_barycentric_weights(nodes: FloatArray) -> FloatArray:
 
 
 def evaluate_lagrange_polynomial_at_point(
-    polynomial_definition_nodes: FloatArray,
-    barycentric_weights: FloatArray,
+    polynomial_definition_nodes: _FloatArray,
+    barycentric_weights: _FloatArray,
     evaluation_point_tau: float,
-) -> FloatArray:
+) -> _FloatArray:
     """
     Evaluates all Lagrange basis polynomials (defined by `polynomial_definition_nodes`)
     at a single `evaluation_point_tau` using the second (true) barycentric formula.
@@ -239,7 +239,7 @@ def evaluate_lagrange_polynomial_at_point(
     """
     num_nodes = len(polynomial_definition_nodes)
     # Explicitly type lagrange_values
-    lagrange_values: FloatArray = np.zeros(num_nodes, dtype=np.float64)
+    lagrange_values: _FloatArray = np.zeros(num_nodes, dtype=np.float64)
 
     for j in range(num_nodes):
         if abs(evaluation_point_tau - polynomial_definition_nodes[j]) < ZERO_TOLERANCE:
@@ -247,7 +247,7 @@ def evaluate_lagrange_polynomial_at_point(
             return lagrange_values
 
     # Explicitly type terms
-    terms: FloatArray = np.zeros(num_nodes, dtype=np.float64)
+    terms: _FloatArray = np.zeros(num_nodes, dtype=np.float64)
     for j in range(num_nodes):
         diff = evaluation_point_tau - polynomial_definition_nodes[j]
         if abs(diff) < ZERO_TOLERANCE:
@@ -268,17 +268,17 @@ def evaluate_lagrange_polynomial_at_point(
         )
         return lagrange_values
 
-    # Cast the RHS of the assignment to FloatArray to resolve Pylance inference issue
-    lagrange_values = cast(FloatArray, terms / sum_of_terms)
+    # Cast the RHS of the assignment to _FloatArray to resolve Pylance inference issue
+    lagrange_values = cast(_FloatArray, terms / sum_of_terms)
 
     return lagrange_values  # No need for another cast here if lagrange_values is correctly typed
 
 
 def compute_lagrange_derivative_coefficients_at_point(
-    polynomial_definition_nodes: FloatArray,
-    barycentric_weights: FloatArray,
+    polynomial_definition_nodes: _FloatArray,
+    barycentric_weights: _FloatArray,
     evaluation_point_tau: float,
-) -> FloatArray:
+) -> _FloatArray:
     """
     Computes coefficients of the derivative of Lagrange polynomials at a specific point.
     This is typically used to form rows of the differentiation matrix D_kj = L'_j(x_k).
@@ -292,7 +292,7 @@ def compute_lagrange_derivative_coefficients_at_point(
         A 1D array representing the j-th derivative L'_j(evaluation_point_tau).
     """
     num_nodes = len(polynomial_definition_nodes)
-    derivatives: FloatArray = np.zeros(num_nodes, dtype=np.float64)
+    derivatives: _FloatArray = np.zeros(num_nodes, dtype=np.float64)
 
     matched_node_idx_k = -1
     for i in range(num_nodes):
@@ -365,9 +365,9 @@ def compute_radau_collocation_components(
     """
     lgr_data = compute_legendre_gauss_radau_nodes_and_weights(num_collocation_nodes)
 
-    state_nodes: FloatArray = lgr_data.state_approximation_nodes
-    collocation_nodes: FloatArray = lgr_data.collocation_nodes
-    quadrature_weights: FloatArray = lgr_data.quadrature_weights
+    state_nodes: _FloatArray = lgr_data.state_approximation_nodes
+    collocation_nodes: _FloatArray = lgr_data.collocation_nodes
+    quadrature_weights: _FloatArray = lgr_data.quadrature_weights
 
     num_state_nodes = len(state_nodes)
     num_actual_collocation_nodes = len(collocation_nodes)
@@ -385,7 +385,7 @@ def compute_radau_collocation_components(
 
     bary_weights_state_nodes = compute_barycentric_weights(state_nodes)
 
-    diff_matrix: FloatMatrix = np.zeros(
+    diff_matrix: _FloatMatrix = np.zeros(
         (num_actual_collocation_nodes, num_state_nodes), dtype=np.float64
     )
     for i in range(num_actual_collocation_nodes):
@@ -402,7 +402,7 @@ def compute_radau_collocation_components(
         state_approximation_nodes=state_nodes,
         collocation_nodes=collocation_nodes,
         quadrature_weights=quadrature_weights,
-        differentiation_matrix=diff_matrix,  # Already FloatMatrix by initialization
+        differentiation_matrix=diff_matrix,  # Already _FloatMatrix by initialization
         barycentric_weights_for_state_nodes=bary_weights_state_nodes,
         lagrange_at_tau_plus_one=lagrange_at_tau_plus_one,
     )
