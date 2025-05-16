@@ -505,7 +505,7 @@ def solve_single_phase_radau_collocation(
     state_at_global_mesh_nodes_variables: ListOfCasadiMX = [
         opti.variable(num_states) for _ in range(num_mesh_intervals + 1)
     ]
-    state_at_local_approximation_nodes_all_intervals_variables: ListOfCasadiMX = []
+    state_at_local_approximation_nodes_all_intervals_variables: list[CasadiMatrix] = []
     state_at_interior_local_approximation_nodes_all_intervals_variables: list[CasadiMX | None] = []
 
     control_at_local_collocation_nodes_all_intervals_variables: ListOfCasadiMX = [
@@ -542,6 +542,7 @@ def solve_single_phase_radau_collocation(
             # interior approx nodes = num_colloc_nodes - 1
             if num_interior_nodes > 0:
                 interior_nodes_var = opti.variable(num_states, num_interior_nodes)
+                assert interior_nodes_var is not None
                 for i in range(num_interior_nodes):
                     current_interval_state_columns[i + 1] = interior_nodes_var[:, i]
         state_at_interior_local_approximation_nodes_all_intervals_variables.append(
@@ -551,7 +552,7 @@ def solve_single_phase_radau_collocation(
             mesh_interval_index + 1
         ]
 
-        state_at_nodes: CasadiMX = ca.horzcat(*current_interval_state_columns)
+        state_at_nodes: CasadiMatrix = ca.horzcat(*current_interval_state_columns)
         state_at_local_approximation_nodes_all_intervals_variables.append(state_at_nodes)
 
         basis_components: RadauBasisComponents = compute_radau_collocation_components(
