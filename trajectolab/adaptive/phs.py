@@ -9,6 +9,9 @@ from trajectolab.radau import (
     compute_radau_collocation_components,
     evaluate_lagrange_polynomial_at_point,
 )
+from trajectolab.trajectolab_types import (
+    InitialGuess,
+)
 
 
 @dataclass
@@ -811,8 +814,6 @@ def _generate_robust_default_initial_guess(
     integral_values_guess=None,
 ):
     """Generates a robust default initial guess with correct dimensions."""
-    from trajectolab.direct_solver import InitialGuess
-
     # Removed unused variable: num_intervals = len(collocation_nodes_list)
     num_states = problem.num_states
     num_controls = problem.num_controls
