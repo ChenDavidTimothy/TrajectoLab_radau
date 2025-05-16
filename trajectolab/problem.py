@@ -1,35 +1,53 @@
+"""
+Problem definition for trajectory optimization.
+"""
+
+from collections.abc import Callable, Sequence
+from typing import Any, Dict
+
 import numpy as np
 
-
-class Constraint:
-    def __init__(self, val=None, lower=None, upper=None, equals=None):
-        self.val = val
-        self.lower = lower
-        self.upper = upper
-        self.equals = equals
-
-        if equals is not None:
-            self.lower = equals
-            self.upper = equals
+from trajectolab.trajectolab_types import (
+    Constraint,
+    DynamicsFunction,
+    IntegrandFunction,
+    ObjectiveFunction,
+    _ConstraintFunc,
+    _ControlDict,
+    _EventConstraintFunc,
+    _FloatArray,
+    _ParamDict,
+    _StateDict,
+    _TimePoint,
+)
 
 
 class Problem:
-    def __init__(self, name="Unnamed Problem"):
-        self.name = name
-        self._states = {}
-        self._controls = {}
-        self._parameters = {}
-        self._t0_bounds = [0.0, 0.0]
-        self._tf_bounds = [1.0, 1.0]
-        self._dynamics_func = None
-        self._objective_type = None
-        self._objective_func = None
-        self._path_constraints = []
-        self._event_constraints = []
-        self._num_integrals = 0
-        self._integral_functions = []
+    """Defines an optimal control problem using a builder pattern."""
 
-    def set_time_bounds(self, t0=0.0, tf=1.0, t0_bounds=None, tf_bounds=None):
+    def __init__(self, name: str = "Unnamed Problem"):
+        self.name = name
+        self._states: Dict[str, Dict[str, Any]] = {}
+        self._controls: Dict[str, Dict[str, Any]] = {}
+        self._parameters: _ParamDict = {}
+        self._t0_bounds: list[float] = [0.0, 0.0]
+        self._tf_bounds: list[float] = [1.0, 1.0]
+        self._dynamics_func: DynamicsFunction | None = None
+        self._objective_type: str | None = None
+        self._objective_func: ObjectiveFunction | None = None
+        self._path_constraints: list[_ConstraintFunc] = []
+        self._event_constraints: list[_EventConstraintFunc] = []
+        self._num_integrals: int = 0
+        self._integral_functions: list[IntegrandFunction] = []
+
+    def set_time_bounds(
+        self,
+        t0: _TimePoint = 0.0,
+        tf: _TimePoint = 1.0,
+        t0_bounds: list[float] | None = None,
+        tf_bounds: list[float] | None = None,
+    ) -> "Problem":
+        """Set the time bounds for the problem."""
         if t0_bounds is None:
             t0_bounds = [t0, t0]
         if tf_bounds is None:
@@ -41,13 +59,14 @@ class Problem:
 
     def add_state(
         self,
-        name,
-        initial_constraint=None,
-        final_constraint=None,
-        bounds=None,
-        lower=None,
-        upper=None,
-    ):
+        name: str,
+        initial_constraint: Constraint | None = None,
+        final_constraint: Constraint | None = None,
+        bounds: tuple[float | None, float | None] | None = None,
+        lower: float | None = None,
+        upper: float | None = None,
+    ) -> "Problem":
+        """Add a state variable to the problem."""
         if bounds is not None:
             lower, upper = bounds
 
@@ -60,7 +79,14 @@ class Problem:
         }
         return self
 
-    def add_control(self, name, bounds=None, lower=None, upper=None):
+    def add_control(
+        self,
+        name: str,
+        bounds: tuple[float | None, float | None] | None = None,
+        lower: float | None = None,
+        upper: float | None = None,
+    ) -> "Problem":
+        """Add a control variable to the problem."""
         if bounds is not None:
             lower, upper = bounds
 
@@ -71,15 +97,18 @@ class Problem:
         }
         return self
 
-    def add_parameter(self, name, value):
+    def add_parameter(self, name: str, value: object) -> "Problem":
+        """Add a parameter to the problem."""
         self._parameters[name] = value
         return self
 
-    def set_dynamics(self, dynamics_func):
+    def set_dynamics(self, dynamics_func: DynamicsFunction) -> "Problem":
+        """Set the dynamics function for the problem."""
         self._dynamics_func = dynamics_func
         return self
 
-    def set_objective(self, objective_type, objective_func):
+    def set_objective(self, objective_type: str, objective_func: ObjectiveFunction) -> "Problem":
+        """Set the objective function and type."""
         # Auto-correct the objective type if it's referencing integrals
         if objective_type == "mayer" and self._num_integrals > 0:
             objective_type = "integral"
@@ -88,28 +117,45 @@ class Problem:
         self._objective_func = objective_func
         return self
 
-    def add_integral(self, integral_func):
+    def add_integral(self, integral_func: IntegrandFunction) -> "Problem":
+        """Add an integral term to the objective."""
         self._num_integrals += 1
         self._integral_functions.append(integral_func)
         return self
 
-    def add_path_constraint(self, constraint_func):
+    def add_path_constraint(self, constraint_func: _ConstraintFunc) -> "Problem":
+        """Add a path constraint to the problem."""
         self._path_constraints.append(constraint_func)
         return self
 
+    def add_event_constraint(self, constraint_func: _EventConstraintFunc) -> "Problem":
+        """Add an event constraint to the problem."""
+        self._event_constraints.append(constraint_func)
+        return self
+
     def _convert_to_legacy_problem(self):
+        """Convert to the legacy problem format for the solver."""
         from trajectolab.direct_solver import EventConstraint, OptimalControlProblem
 
         # Create adapter functions
         vectorized_dynamics = self._create_vectorized_dynamics()
         vectorized_objective = self._create_vectorized_objective()
-        vectorized_integrand = self._create_vectorized_integrand()
-        vectorized_path_constraints = self._create_vectorized_path_constraints()
+        vectorized_integrand = (
+            self._create_vectorized_integrand() if self._num_integrals > 0 else None
+        )
+        vectorized_path_constraints = (
+            self._create_vectorized_path_constraints() if self._path_constraints else None
+        )
 
-        # NEW: Add auto-generated event constraints from state definitions
-        # This creates a function that adds all the initial and final state constraints
-        def auto_event_constraints(t0, tf, x0, xf, q, params):
-
+        # Define auto-generated event constraints from state definitions
+        def auto_event_constraints(
+            t0: float,
+            tf: float,
+            x0: _FloatArray,
+            xf: _FloatArray,
+            q: Sequence[float] | float | None,
+            params: _ParamDict,
+        ):
             result = []
 
             # Add initial state constraints
@@ -117,37 +163,40 @@ class Problem:
                 state_def = self._states[name]
                 if state_def.get("initial_constraint"):
                     constraint = state_def["initial_constraint"]
-                    result.append(
-                        EventConstraint(
-                            val=x0[i],
-                            min_val=constraint.lower,
-                            max_val=constraint.upper,
-                            equals=constraint.equals,
+                    if constraint is not None:  # Add explicit check
+                        result.append(
+                            EventConstraint(
+                                val=x0[i],
+                                min_val=constraint.lower,
+                                max_val=constraint.upper,
+                                equals=constraint.equals,
+                            )
                         )
-                    )
 
                 # Add final state constraints
                 if state_def.get("final_constraint"):
                     constraint = state_def["final_constraint"]
-                    result.append(
-                        EventConstraint(
-                            val=xf[i],
-                            min_val=constraint.lower,
-                            max_val=constraint.upper,
-                            equals=constraint.equals,
+                    if constraint is not None:  # Add explicit check
+                        result.append(
+                            EventConstraint(
+                                val=xf[i],
+                                min_val=constraint.lower,
+                                max_val=constraint.upper,
+                                equals=constraint.equals,
+                            )
                         )
-                    )
 
             # Add custom event constraints
             for constraint_func in self._event_constraints:
-                constraint = constraint_func(
-                    t0,
-                    tf,
-                    {name: x0[i] for i, name in enumerate(self._states.keys())},
-                    {name: xf[i] for i, name in enumerate(self._states.keys())},
-                    q,
-                    params,
-                )
+                # Create dictionaries for initial and final states
+                initial_states: _StateDict = {
+                    name: float(x0[i]) for i, name in enumerate(self._states.keys())
+                }
+                final_states: _StateDict = {
+                    name: float(xf[i]) for i, name in enumerate(self._states.keys())
+                }
+
+                constraint = constraint_func(t0, tf, initial_states, final_states, q, params)
                 if isinstance(constraint, Constraint):
                     result.append(
                         EventConstraint(
@@ -181,73 +230,123 @@ class Problem:
             t0_bounds=self._t0_bounds,
             tf_bounds=self._tf_bounds,
             num_integrals=self._num_integrals,
-            integral_integrand_function=(vectorized_integrand if self._num_integrals > 0 else None),
-            path_constraints_function=(
-                vectorized_path_constraints if self._path_constraints else None
-            ),
-            event_constraints_function=auto_event_constraints,  # Always include auto constraints
+            integral_integrand_function=vectorized_integrand,
+            path_constraints_function=vectorized_path_constraints,
+            event_constraints_function=auto_event_constraints,
             problem_parameters=self._parameters,
         )
 
-    def _create_vectorized_dynamics(self):
+    def _create_vectorized_dynamics(self) -> Callable:
+        """Create a vectorized dynamics function for the solver."""
+        if self._dynamics_func is None:
+            raise ValueError("Dynamics function not set")
+
         dynamics_func = self._dynamics_func
         state_names = list(self._states.keys())
         control_names = list(self._controls.keys())
 
-        def vectorized_dynamics(states_vec, controls_vec, time, params):
-            states_dict = {name: states_vec[i] for i, name in enumerate(state_names)}
-            controls_dict = {name: controls_vec[i] for i, name in enumerate(control_names)}
+        def vectorized_dynamics(
+            states_vec: _FloatArray, controls_vec: _FloatArray, time: _TimePoint, params: _ParamDict
+        ) -> list[float]:
+            states_dict: _StateDict = {
+                name: float(states_vec[i]) for i, name in enumerate(state_names)
+            }
+            controls_dict: _ControlDict = {
+                name: float(controls_vec[i]) for i, name in enumerate(control_names)
+            }
 
             result_dict = dynamics_func(states_dict, controls_dict, time, params)
-            result_vec = [result_dict[name] for name in state_names]
+            # Ensure we return a list of float values, not ndarray or other types
+            result_vec = [float(result_dict[name]) for name in state_names]
 
             return result_vec
 
         return vectorized_dynamics
 
-    def _create_vectorized_objective(self):
+    def _create_vectorized_objective(self) -> Callable:
+        """Create a vectorized objective function for the solver."""
+        if self._objective_func is None:
+            raise ValueError("Objective function not set")
+
         objective_func = self._objective_func
         objective_type = self._objective_type
         state_names = list(self._states.keys())
 
-        def vectorized_objective(t0, tf, x0, xf, q, params):
+        def vectorized_objective(
+            t0: _TimePoint,
+            tf: _TimePoint,
+            x0: _FloatArray,
+            xf: _FloatArray,
+            q: Sequence[float] | float | None,
+            params: _ParamDict,
+        ) -> float:
             if objective_type == "mayer":
-                initial_states = {name: x0[i] for i, name in enumerate(state_names)}
-                final_states = {name: xf[i] for i, name in enumerate(state_names)}
-                return objective_func(t0, tf, initial_states, final_states, q, params)
+                initial_states: _StateDict = {
+                    name: float(x0[i]) for i, name in enumerate(state_names)
+                }
+                final_states: _StateDict = {
+                    name: float(xf[i]) for i, name in enumerate(state_names)
+                }
+                return float(objective_func(t0, tf, initial_states, final_states, q, params))
             else:
                 # For integral objectives, just return the integral value
-                return q[0] if isinstance(q, (list, np.ndarray)) and len(q) > 0 else q
+                if q is None:
+                    return 0.0
+                if isinstance(q, (list, np.ndarray, Sequence)):
+                    if len(q) > 0:
+                        return float(q[0])
+                    return 0.0
+                # If q is already a scalar
+                return float(q)
 
         return vectorized_objective
 
-    def _create_vectorized_integrand(self):
+    def _create_vectorized_integrand(self) -> Callable:
+        """Create a vectorized integrand function for the solver."""
         integral_functions = self._integral_functions
         state_names = list(self._states.keys())
         control_names = list(self._controls.keys())
 
-        def vectorized_integrand(states_vec, controls_vec, time, integral_idx, params):
+        def vectorized_integrand(
+            states_vec: _FloatArray,
+            controls_vec: _FloatArray,
+            time: _TimePoint,
+            integral_idx: int,
+            params: _ParamDict,
+        ) -> float:
             if integral_idx >= len(integral_functions):
                 return 0.0  # Return a numeric value when no function exists
 
-            states_dict = {name: states_vec[i] for i, name in enumerate(state_names)}
-            controls_dict = {name: controls_vec[i] for i, name in enumerate(control_names)}
+            states_dict: _StateDict = {
+                name: float(states_vec[i]) for i, name in enumerate(state_names)
+            }
+            controls_dict: _ControlDict = {
+                name: float(controls_vec[i]) for i, name in enumerate(control_names)
+            }
 
-            # Just return the result directly - DO NOT try to convert to float!
-            return integral_functions[integral_idx](states_dict, controls_dict, time, params)
+            # Return the result of the integrand function
+            result = integral_functions[integral_idx](states_dict, controls_dict, time, params)
+            return float(result)  # Ensure a float is returned
 
         return vectorized_integrand
 
-    def _create_vectorized_path_constraints(self):
+    def _create_vectorized_path_constraints(self) -> Callable:
+        """Create vectorized path constraints for the solver."""
         path_constraints = self._path_constraints
         state_names = list(self._states.keys())
         control_names = list(self._controls.keys())
 
-        def vectorized_path_constraints(states_vec, controls_vec, time, params):
+        def vectorized_path_constraints(
+            states_vec: _FloatArray, controls_vec: _FloatArray, time: _TimePoint, params: _ParamDict
+        ):
             from trajectolab.direct_solver import PathConstraint
 
-            states_dict = {name: states_vec[i] for i, name in enumerate(state_names)}
-            controls_dict = {name: controls_vec[i] for i, name in enumerate(control_names)}
+            states_dict: _StateDict = {
+                name: float(states_vec[i]) for i, name in enumerate(state_names)
+            }
+            controls_dict: _ControlDict = {
+                name: float(controls_vec[i]) for i, name in enumerate(control_names)
+            }
 
             result = []
             for constraint_func in path_constraints:

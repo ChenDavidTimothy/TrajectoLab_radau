@@ -5,7 +5,7 @@ This module contains all type aliases and protocols used throughout the library,
 with a focus on scientific computing patterns and trajectory optimization types.
 """
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import Any, Protocol, TypeAlias
 
 import numpy as np
@@ -67,6 +67,38 @@ class IntegrandFunction(Protocol):
     def __call__(
         self, states: _StateDict, controls: _ControlDict, time: float, params: _ParamDict
     ) -> float: ...
+
+
+# ---- Constraint Class and Related Types ----
+class Constraint:
+    """Represents a constraint with bounds or equality condition."""
+
+    def __init__(
+        self,
+        val: float | None = None,
+        lower: float | None = None,
+        upper: float | None = None,
+        equals: float | None = None,
+    ):
+        self.val = val
+        self.lower = lower
+        self.upper = upper
+        self.equals = equals
+
+        if equals is not None:
+            self.lower = equals
+            self.upper = equals
+
+
+# ---- Constraint Function Types ----
+_ConstraintFunc: TypeAlias = Callable[
+    [_StateDict, _ControlDict, float, _ParamDict], "Constraint | list[Constraint]"
+]
+
+_EventConstraintFunc: TypeAlias = Callable[
+    [float, float, _StateDict, _StateDict, float | Sequence[float] | None, _ParamDict],
+    "Constraint | list[Constraint]",
+]
 
 
 # ---- Constants ----
