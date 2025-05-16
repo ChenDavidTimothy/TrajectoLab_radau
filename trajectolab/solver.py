@@ -1,19 +1,26 @@
-from typing import Any, Dict, Optional
+from typing import TypeAlias
 
 from trajectolab.adaptive.base import AdaptiveBase
 from trajectolab.adaptive.phs import PHSAdaptive
 from trajectolab.problem import Problem
 from trajectolab.solution import Solution
+from trajectolab.direct_solver import OptimalControlSolution
+
+# Define a type alias for the legacy solution type
+_LegacySolutionType: TypeAlias = OptimalControlSolution
 
 
 class RadauDirectSolver:
+    mesh_method: AdaptiveBase
+    nlp_solver: str
+    nlp_options: dict[str, object]
 
     def __init__(
         self,
-        mesh_method: Optional[AdaptiveBase] = None,
+        mesh_method: AdaptiveBase | None = None,
         nlp_solver: str = "ipopt",
-        nlp_options: Optional[Dict[str, Any]] = None,
-    ):
+        nlp_options: dict[str, object] | None = None,
+    ) -> None:
         self.mesh_method = mesh_method or PHSAdaptive()
         self.nlp_solver = nlp_solver
         self.nlp_options = nlp_options or {
@@ -22,7 +29,9 @@ class RadauDirectSolver:
             "print_time": 0,
         }
 
-    def solve(self, problem: Problem, initial_solution=None) -> Solution:
+    def solve(
+        self, problem: Problem, initial_solution: _LegacySolutionType | None = None
+    ) -> Solution:
         # Convert the user-facing problem to the legacy format for the solver
         legacy_problem = problem._convert_to_legacy_problem()
 
@@ -36,7 +45,7 @@ class RadauDirectSolver:
         return Solution(legacy_solution, problem)
 
 
-def solve(problem: Problem, solver: Optional[RadauDirectSolver] = None) -> Solution:
+def solve(problem: Problem, solver: RadauDirectSolver | None = None) -> Solution:
     if solver is None:
         solver = RadauDirectSolver()
 

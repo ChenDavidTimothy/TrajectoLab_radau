@@ -6,7 +6,7 @@ of an optimal control problem.
 """
 
 from collections.abc import Callable, Iterable, Sequence  # For argument types
-from typing import Any  # For unknown external types like ProblemType and RawSolutionType
+from typing import Protocol, TypeAlias, Any
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -17,9 +17,18 @@ from matplotlib.lines import Line2D  # For type hinting Line2D objects
 # Using relative import consistent with other project files.
 from .tl_types import _FloatArray, _IntArray
 
-# For external types whose structure isn't defined within this scope.
-ProblemType = Any
-RawSolutionType = Any
+
+class ProblemProtocol(Protocol):
+    """Protocol defining the expected interface of a Problem object."""
+
+    _states: dict[str, dict[str, Any]]
+    _controls: dict[str, dict[str, Any]]
+    # Add other required attributes if needed
+
+
+# Now use this protocol instead of the concrete type
+ProblemType: TypeAlias = ProblemProtocol
+RawSolutionType: TypeAlias = Any  # Keep this as Any for now
 
 
 class IntervalData:
