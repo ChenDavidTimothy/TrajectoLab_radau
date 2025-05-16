@@ -8,8 +8,8 @@ import numpy as np
 from .radau import RadauBasisComponents, compute_radau_collocation_components
 from .tl_types import (
     CasadiDM,
-    CasadiMX,
     CasadiMatrix,
+    CasadiMX,
     CasadiOpti,
     CasadiOptiSol,
     DynamicsCallable,
