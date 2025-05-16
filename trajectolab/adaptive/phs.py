@@ -697,9 +697,7 @@ def h_reduce_intervals(
     max_error = max(max_fwd_error, max_bwd_error)
 
     if np.isnan(max_error):
-        print(
-            "      h-reduction check: max_error calculation resulted in NaN. Merge not approved."
-        )
+        print("      h-reduction check: max_error calculation resulted in NaN. Merge not approved.")
         max_error = np.inf
 
     print(f"      h-reduction check result: max_error = {max_error:.4e}")
