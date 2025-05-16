@@ -496,7 +496,6 @@ def h_reduce_intervals(
     num_sim_points = adaptive_params.num_error_sim_points
 
     num_states = problem.num_states
-    num_controls = problem.num_controls
     dynamics_function = problem.dynamics_function
     problem_parameters = problem.problem_parameters
 
