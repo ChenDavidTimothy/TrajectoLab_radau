@@ -88,12 +88,6 @@ class IntervalSimulationBundle:
                 current_val = current_val.astype(np.float64)
 
             if current_val.ndim == 1:
-                # Ensure 2D for _Matrix type, typically as a row vector (1, N)
-                # or column vector (N,1) if context implies.
-                # Here, default to (1,N) if it's for evaluation points,
-                # or needs specific reshape if it's state/control data.
-                # For safety, this bundle expects specific shapes from creation.
-                # This reshape is a fallback.
                 setattr(self, field_name, current_val.reshape(1, -1))
             elif current_val.ndim > 2:
                 raise ValueError(
@@ -905,26 +899,6 @@ def h_reduce_intervals(
         logger.error(f"      h-reduction failed: Error getting initial state for fwd sim: {e}")
         return False
 
-    # The forward simulation goes from local tau = -1 (start of k)
-    # to a point in k's local tau that corresponds to local tau = +1 in k+1 (end of k+1)
-    # This means we are simulating across the *entire merged span* but using interval k's local tau coordinates.
-    # This seems incorrect. The simulation should be split or use a unified coordinate system.
-    # Let's assume the original logic meant to simulate *only* the first interval, then *only* the second for error.
-    # For h-reduction, we need to simulate the *merged* interval.
-    # The current RHS functions are specific to their original interval's scaling.
-    # A more robust h-reduction would define a *new* interpolant over the merged interval [-1, 1]
-    # mapping to global tau [tau_start_k, tau_end_kp1].
-    # And simulate this new representation.
-
-    # Given the existing structure, it seems it simulates from start of k to end of k,
-    # then from end of k+1 to start of k+1, and compares with NLP states from BOTH intervals.
-
-    # For this elegance check, I will follow the existing structure's apparent intent:
-    # Simulate first interval fwd, second interval bwd, using their respective dynamics scalings.
-    # Then calculate errors against the NLP states from *both* intervals, mapped to the simulation points.
-
-    # Forward simulation for interval k
-    # target_end_tau_k = 1.0 (simulating only interval k)
     num_fwd_pts_k = max(2, num_sim_points // 2)  # Or num_sim_points if covering only one interval
     fwd_tau_points_interval_k_local: _Vector = np.linspace(
         -1.0, 1.0, num_fwd_pts_k, dtype=np.float64
