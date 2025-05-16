@@ -2,13 +2,15 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 
+from ..direct_solver import OptimalControlSolution
+
 
 class AdaptiveBase(ABC):
     def __init__(self, initial_guess=None):
         self.initial_guess = initial_guess
 
     @abstractmethod
-    def run(self, problem, legacy_problem, initial_solution=None):
+    def run(self, problem, legacy_problem, initial_solution=None) -> OptimalControlSolution:
         pass
 
 
@@ -32,7 +34,7 @@ class FixedMesh(AdaptiveBase):
         if not np.all(np.diff(self.mesh_points) > 0):
             raise ValueError("Mesh points must be strictly increasing.")
 
-    def run(self, problem, legacy_problem, initial_solution=None):
+    def run(self, problem, legacy_problem, initial_solution=None) -> OptimalControlSolution:
         from trajectolab.direct_solver import solve_single_phase_radau_collocation
 
         # Update legacy problem with our mesh configuration

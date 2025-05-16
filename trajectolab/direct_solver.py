@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal, cast, overload
+from typing import cast
 
 import casadi as ca
 import numpy as np

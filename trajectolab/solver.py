@@ -2,9 +2,9 @@ from typing import TypeAlias
 
 from trajectolab.adaptive.base import AdaptiveBase
 from trajectolab.adaptive.phs import PHSAdaptive
+from trajectolab.direct_solver import OptimalControlSolution
 from trajectolab.problem import Problem
 from trajectolab.solution import Solution
-from trajectolab.direct_solver import OptimalControlSolution
 
 # Define a type alias for the legacy solution type
 _LegacySolutionType: TypeAlias = OptimalControlSolution

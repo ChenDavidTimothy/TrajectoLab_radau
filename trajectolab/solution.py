@@ -6,7 +6,7 @@ of an optimal control problem.
 """
 
 from collections.abc import Callable, Iterable, Sequence  # For argument types
-from typing import Protocol, TypeAlias, Any
+from typing import Any, Protocol, TypeAlias
 
 import matplotlib.pyplot as plt
 import numpy as np
