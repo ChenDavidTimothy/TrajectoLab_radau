@@ -794,8 +794,12 @@ def h_reduce_intervals(
         )
 
         if bwd_sim.success:
-            # Cast to correct type to avoid mypy error
-            bwd_trajectory = cast(_FloatMatrix, np.fliplr(bwd_sim.y))
+            # Create a new array with explicit 2D shape
+            flipped_data = bwd_sim.y[:, ::-1]
+            # First ensure we have the right dimensions by accessing shape components
+            rows, cols = flipped_data.shape[0], flipped_data.shape[1]
+            # Then create a new array with explicit type
+            bwd_trajectory = np.array(flipped_data, dtype=np.float64).reshape(rows, cols)
             bwd_sim_success = True
         else:
             print(f"      Merged TVP failed: {bwd_sim.message}")
@@ -1303,7 +1307,11 @@ class PHSAdaptive(AdaptiveBase):
                         )
                         state_data = np.zeros((len(problem._states), Nk + 1), dtype=np.float64)
                     else:
-                        state_data = states_list[k]
+                        # Extract the data and ensure it's recognized as a 2D array
+                        orig_data = states_list[k]
+                        # Make the shape explicit to satisfy the type checker
+                        rows, cols = orig_data.shape[0], orig_data.shape[1]
+                        state_data = np.array(orig_data, dtype=np.float64).reshape(rows, cols)
                     state_evaluators[k] = get_polynomial_interpolant(
                         basis.state_approximation_nodes,
                         state_data,
