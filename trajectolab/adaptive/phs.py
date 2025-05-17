@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import Any, cast
 
+import casadi as ca
 import numpy as np
 from scipy.integrate import solve_ivp
 
@@ -26,12 +27,12 @@ from trajectolab.tl_types import (
 class AdaptiveParameters:
     """Parameters controlling the adaptive mesh refinement algorithm."""
 
-    error_tolerance: float  # Error tolerance threshold (epsilon_tol)
-    max_iterations: int  # Maximum number of refinement iterations (M_max_iterations)
-    min_polynomial_degree: int  # Minimum polynomial degree allowed (N_min_poly_degree)
-    max_polynomial_degree: int  # Maximum polynomial degree allowed (N_max_poly_degree)
-    ode_solver_tolerance: float = 1e-7  # ODE solver tolerance (ode_solver_tol)
-    num_error_sim_points: int = 50  # Number of points for error simulation
+    error_tolerance: float
+    max_iterations: int
+    min_polynomial_degree: int
+    max_polynomial_degree: int
+    ode_solver_tolerance: float = 1e-7
+    num_error_sim_points: int = 50
 
 
 @dataclass
@@ -51,7 +52,6 @@ class IntervalSimulationBundle:
         for field_name, field_val in self.__dict__.items():
             if not isinstance(field_val, np.ndarray) or field_val is None:
                 continue
-
             # Ensure 2D arrays
             if field_val.ndim == 1:
                 setattr(self, field_name, field_val.reshape(1, -1))
@@ -59,6 +59,64 @@ class IntervalSimulationBundle:
                 raise ValueError(
                     f"Field {field_name} must be 1D or 2D array, got {field_val.ndim}D."
                 )
+
+
+@dataclass
+class PRefineResult:
+    """Result of polynomial degree refinement."""
+
+    actual_Nk_to_use: int
+    was_p_successful: bool
+    unconstrained_target_Nk: int
+
+
+@dataclass
+class HRefineResult:
+    """Result of h-refinement."""
+
+    collocation_nodes_for_new_subintervals: list[int]
+    num_new_subintervals: int
+
+
+@dataclass
+class PReduceResult:
+    """Result of p-reduction."""
+
+    new_num_collocation_nodes: int
+    was_reduction_applied: bool
+
+
+# Create a NumPy-based dynamics adapter
+class NumPyDynamicsAdapter:
+    """Adapter to use CasADi dynamics with NumPy arrays for simulation."""
+
+    def __init__(self, casadi_dynamics_func: Any, problem_parameters: dict[str, Any]):
+        self.casadi_dynamics_func = casadi_dynamics_func
+        self.problem_parameters = problem_parameters
+
+    def __call__(self, state: _FloatArray, control: _FloatArray, time: float) -> _FloatArray:
+        """Convert NumPy arrays to CasADi, call dynamics, convert back to NumPy."""
+        # Convert inputs to CasADi
+        state_dm = ca.DM(state)
+        control_dm = ca.DM(control)
+        time_dm = ca.DM([time])
+
+        # Call CasADi dynamics function
+        result_casadi = self.casadi_dynamics_func(
+            state_dm, control_dm, time_dm, self.problem_parameters
+        )
+
+        # Convert result back to NumPy
+        if isinstance(result_casadi, ca.DM):
+            result_np = np.array(result_casadi.full(), dtype=np.float64).flatten()
+        else:
+            # Handle array of MX objects
+            dm_result = ca.DM.zeros(len(result_casadi), 1)  # Fixed: proper shape (n,1)
+            for i, item in enumerate(result_casadi):
+                dm_result[i] = ca.evalf(item)
+            result_np = np.array(dm_result.full(), dtype=np.float64).flatten()
+
+        return result_np
 
 
 def _extract_and_prepare_array(
@@ -92,7 +150,7 @@ def _extract_and_prepare_array(
         if squeezed.ndim == 1 and expected_rows == 1 and len(squeezed) == expected_cols:
             np_array = squeezed.reshape(1, expected_cols)
 
-    return np_array  # No cast needed, np_array is already the right type
+    return np_array
 
 
 class PolynomialInterpolant:
@@ -157,6 +215,54 @@ def get_polynomial_interpolant(
     return PolynomialInterpolant(nodes, values, barycentric_weights)
 
 
+# These mapping functions are essential for coordinate transformations
+def _map_global_normalized_tau_to_local_interval_tau(
+    global_tau: float, global_start: float, global_end: float
+) -> float:
+    """Maps global tau to local zeta in [-1, 1]. Inverse of Eq. 7 (mesh.txt)."""
+    beta = (global_end - global_start) / 2.0
+    beta0 = (global_end + global_start) / 2.0
+
+    if abs(beta) < 1e-12:
+        return 0.0
+
+    return (global_tau - beta0) / beta
+
+
+def _map_local_interval_tau_to_global_normalized_tau(
+    local_tau: float, global_start: float, global_end: float
+) -> float:
+    """Maps local zeta in [-1, 1] to global tau. Eq. 7 (mesh.txt)."""
+    beta = (global_end - global_start) / 2.0
+    beta0 = (global_end + global_start) / 2.0
+
+    return beta * local_tau + beta0
+
+
+def _map_local_tau_from_interval_k_to_equivalent_in_interval_k_plus_1(
+    local_tau_k: float, global_start_k: float, global_shared: float, global_end_kp1: float
+) -> float:
+    """Transforms zeta in interval k to zeta in interval k+1. Eq. 30 (mesh.txt)."""
+    global_tau = _map_local_interval_tau_to_global_normalized_tau(
+        local_tau_k, global_start_k, global_shared
+    )
+    return _map_global_normalized_tau_to_local_interval_tau(
+        global_tau, global_shared, global_end_kp1
+    )
+
+
+def _map_local_tau_from_interval_k_plus_1_to_equivalent_in_interval_k(
+    local_tau_kp1: float, global_start_k: float, global_shared: float, global_end_kp1: float
+) -> float:
+    """Transforms zeta in interval k+1 to zeta in interval k. Inverse of Eq. 30 (mesh.txt)."""
+    global_tau = _map_local_interval_tau_to_global_normalized_tau(
+        local_tau_kp1, global_shared, global_end_kp1
+    )
+    return _map_global_normalized_tau_to_local_interval_tau(
+        global_tau, global_start_k, global_shared
+    )
+
+
 def _simulate_dynamics_for_error_estimation(
     interval_idx: int,
     solution: OptimalControlSolution,
@@ -184,8 +290,11 @@ def _simulate_dynamics_for_error_estimation(
     num_states = len(problem._states)
     # Remove the unused variable warning by adding underscore
     _num_controls = len(problem._controls)
-    dynamics_function = problem.get_dynamics_function()
+    casadi_dynamics_function = problem.get_dynamics_function()
     problem_parameters = problem._parameters
+
+    # Create NumPy adapter for dynamics function
+    numpy_dynamics = NumPyDynamicsAdapter(casadi_dynamics_function, problem_parameters)
 
     # Time transformation parameters
     t0 = solution.initial_time_variable
@@ -229,9 +338,8 @@ def _simulate_dynamics_for_error_estimation(
         global_tau = beta_k * tau + beta_k0
         physical_time = alpha * global_tau + alpha_0
 
-        # Evaluate dynamics
-        state_deriv = dynamics_function(state, control, physical_time, problem_parameters)
-        state_deriv_np = np.array(state_deriv, dtype=np.float64).flatten()
+        # Use the NumPy dynamics adapter
+        state_deriv_np = numpy_dynamics(state, control, physical_time)
 
         if state_deriv_np.shape[0] != num_states:
             raise ValueError(
@@ -386,15 +494,6 @@ def calculate_relative_error_estimate(
     return float(max_error)
 
 
-@dataclass
-class PRefineResult:
-    """Result of polynomial degree refinement."""
-
-    actual_Nk_to_use: int
-    was_p_successful: bool
-    unconstrained_target_Nk: int
-
-
 def p_refine_interval(
     current_Nk: int, max_error: float, error_tol: float, N_max: int
 ) -> PRefineResult:
@@ -425,14 +524,6 @@ def p_refine_interval(
     )
 
 
-@dataclass
-class HRefineResult:
-    """Result of h-refinement."""
-
-    collocation_nodes_for_new_subintervals: list[int]
-    num_new_subintervals: int
-
-
 def h_refine_params(target_Nk: int, N_min: int) -> HRefineResult:
     """Determines parameters for h-refinement (splitting an interval)."""
     num_subintervals = max(2, int(np.ceil(target_Nk / N_min)))
@@ -444,51 +535,38 @@ def h_refine_params(target_Nk: int, N_min: int) -> HRefineResult:
     )
 
 
-def _map_global_normalized_tau_to_local_interval_tau(
-    global_tau: float, global_start: float, global_end: float
-) -> float:
-    """Maps global tau to local zeta in [-1, 1]. Inverse of Eq. 7 (mesh.txt)."""
-    beta = (global_end - global_start) / 2.0
-    beta0 = (global_end + global_start) / 2.0
+def p_reduce_interval(
+    current_Nk: int, max_error: float, error_tol: float, N_min: int, N_max: int
+) -> PReduceResult:
+    """Determines new polynomial degree for an interval using p-reduction."""
+    # Only reduce if error is below tolerance and current Nk > minimum
+    if max_error > error_tol or current_Nk <= N_min:
+        return PReduceResult(new_num_collocation_nodes=current_Nk, was_reduction_applied=False)
 
-    if abs(beta) < 1e-12:
-        return 0.0
+    # Calculate reduction control parameter delta
+    delta = float(N_min + N_max - current_Nk)
+    if abs(delta) < 1e-9:
+        delta = 1.0  # Avoid division by zero
 
-    return (global_tau - beta0) / beta
+    # Calculate number of nodes to remove
+    if max_error < 1e-16:  # Error is essentially zero
+        nodes_to_remove = current_Nk - N_min
+    else:
+        ratio = error_tol / max_error  # Should be >= 1
+        if ratio < 1.0:
+            nodes_to_remove = 0
+        else:
+            try:
+                log_arg = np.power(ratio, 1.0 / delta)
+                nodes_to_remove = np.floor(np.log10(log_arg)) if log_arg >= 1.0 else 0
+            except (ValueError, OverflowError, ZeroDivisionError):
+                nodes_to_remove = 0
 
+    nodes_to_remove = max(0, int(nodes_to_remove))
+    new_Nk = max(N_min, current_Nk - nodes_to_remove)
+    was_reduced = new_Nk < current_Nk
 
-def _map_local_interval_tau_to_global_normalized_tau(
-    local_tau: float, global_start: float, global_end: float
-) -> float:
-    """Maps local zeta in [-1, 1] to global tau. Eq. 7 (mesh.txt)."""
-    beta = (global_end - global_start) / 2.0
-    beta0 = (global_end + global_start) / 2.0
-
-    return beta * local_tau + beta0
-
-
-def _map_local_tau_from_interval_k_to_equivalent_in_interval_k_plus_1(
-    local_tau_k: float, global_start_k: float, global_shared: float, global_end_kp1: float
-) -> float:
-    """Transforms zeta in interval k to zeta in interval k+1. Eq. 30 (mesh.txt)."""
-    global_tau = _map_local_interval_tau_to_global_normalized_tau(
-        local_tau_k, global_start_k, global_shared
-    )
-    return _map_global_normalized_tau_to_local_interval_tau(
-        global_tau, global_shared, global_end_kp1
-    )
-
-
-def _map_local_tau_from_interval_k_plus_1_to_equivalent_in_interval_k(
-    local_tau_kp1: float, global_start_k: float, global_shared: float, global_end_kp1: float
-) -> float:
-    """Transforms zeta in interval k+1 to zeta in interval k. Inverse of Eq. 30 (mesh.txt)."""
-    global_tau = _map_local_interval_tau_to_global_normalized_tau(
-        local_tau_kp1, global_shared, global_end_kp1
-    )
-    return _map_global_normalized_tau_to_local_interval_tau(
-        global_tau, global_start_k, global_shared
-    )
+    return PReduceResult(new_num_collocation_nodes=new_Nk, was_reduction_applied=was_reduced)
 
 
 def h_reduce_intervals(
@@ -513,8 +591,11 @@ def h_reduce_intervals(
     num_sim_points = adaptive_params.num_error_sim_points
 
     num_states = len(problem._states)
-    dynamics_function = problem.get_dynamics_function()
+    casadi_dynamics_function = problem.get_dynamics_function()
     problem_parameters = problem._parameters
+
+    # Create NumPy adapter for dynamics function
+    numpy_dynamics = NumPyDynamicsAdapter(casadi_dynamics_function, problem_parameters)
 
     if solution.raw_solution is None:
         print("      h-reduction failed: Raw solution missing.")
@@ -572,9 +653,8 @@ def h_reduce_intervals(
         )
         t_actual = alpha * global_tau + alpha_0
 
-        f_rhs = dynamics_function(state_clipped, u_val, t_actual, problem_parameters)
-        f_rhs_np = np.array(f_rhs, dtype=np.float64).flatten()
-
+        # Use NumPy dynamics adapter
+        f_rhs_np = numpy_dynamics(state_clipped, u_val, t_actual)
         return cast(_FloatArray, scaling_k * f_rhs_np)
 
     def merged_bwd_rhs(local_tau_kp1: float, state: _FloatArray) -> _FloatArray:
@@ -586,9 +666,8 @@ def h_reduce_intervals(
         )
         t_actual = alpha * global_tau + alpha_0
 
-        f_rhs = dynamics_function(state_clipped, u_val, t_actual, problem_parameters)
-        f_rhs_np = np.array(f_rhs, dtype=np.float64).flatten()
-
+        # Use NumPy dynamics adapter
+        f_rhs_np = numpy_dynamics(state_clipped, u_val, t_actual)
         return cast(_FloatArray, scaling_kp1 * f_rhs_np)
 
     # Get state values at interval endpoints
@@ -798,48 +877,6 @@ def h_reduce_intervals(
         )
 
     return can_merge
-
-
-@dataclass
-class PReduceResult:
-    """Result of p-reduction."""
-
-    new_num_collocation_nodes: int
-    was_reduction_applied: bool
-
-
-def p_reduce_interval(
-    current_Nk: int, max_error: float, error_tol: float, N_min: int, N_max: int
-) -> PReduceResult:
-    """Determines new polynomial degree for an interval using p-reduction."""
-    # Only reduce if error is below tolerance and current Nk > minimum
-    if max_error > error_tol or current_Nk <= N_min:
-        return PReduceResult(new_num_collocation_nodes=current_Nk, was_reduction_applied=False)
-
-    # Calculate reduction control parameter delta
-    delta = float(N_min + N_max - current_Nk)
-    if abs(delta) < 1e-9:
-        delta = 1.0  # Avoid division by zero
-
-    # Calculate number of nodes to remove
-    if max_error < 1e-16:  # Error is essentially zero
-        nodes_to_remove = current_Nk - N_min
-    else:
-        ratio = error_tol / max_error  # Should be >= 1
-        if ratio < 1.0:
-            nodes_to_remove = 0
-        else:
-            try:
-                log_arg = np.power(ratio, 1.0 / delta)
-                nodes_to_remove = np.floor(np.log10(log_arg)) if log_arg >= 1.0 else 0
-            except (ValueError, OverflowError, ZeroDivisionError):
-                nodes_to_remove = 0
-
-    nodes_to_remove = max(0, int(nodes_to_remove))
-    new_Nk = max(N_min, current_Nk - nodes_to_remove)
-    was_reduced = new_Nk < current_Nk
-
-    return PReduceResult(new_num_collocation_nodes=new_Nk, was_reduction_applied=was_reduced)
 
 
 def _generate_robust_default_initial_guess(
@@ -1124,7 +1161,8 @@ class PHSAdaptive(AdaptiveBase):
 
             # Update problem definition with current mesh
             problem.collocation_points_per_interval = list(current_nodes_list)
-            problem.global_normalized_mesh_nodes = list(current_mesh)
+            # FIX: Convert list to NumPy array for global_normalized_mesh_nodes
+            problem.global_normalized_mesh_nodes = np.array(current_mesh, dtype=np.float64)
 
             # Modified: Generate initial guess
             if iteration == 0:
@@ -1585,7 +1623,6 @@ class PHSAdaptive(AdaptiveBase):
                 max_iter_msg + " No successful NLP solution obtained throughout iterations."
             )
             failed.num_collocation_nodes_per_interval = current_nodes_list
-            failed.global_normalized_mesh_nodes = (
-                current_mesh.tolist() if isinstance(current_mesh, np.ndarray) else current_mesh
-            )
+            # Ensure we use a numpy array for global_normalized_mesh_nodes
+            failed.global_normalized_mesh_nodes = np.array(current_mesh, dtype=np.float64)
             return failed
