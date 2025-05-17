@@ -2,7 +2,7 @@
 Main PHS adaptive algorithm implementation.
 """
 
-from typing import Any, Sequence, cast
+from typing import Sequence, cast
 
 import numpy as np
 
@@ -30,7 +30,11 @@ from trajectolab.adaptive.phs.refinement import (
     p_refine_interval,
 )
 from trajectolab.direct_solver import InitialGuess, OptimalControlSolution
-from trajectolab.radau import compute_barycentric_weights, compute_radau_collocation_components
+from trajectolab.radau import (
+    RadauBasisComponents,
+    compute_barycentric_weights,
+    compute_radau_collocation_components,
+)
 from trajectolab.tl_types import (
     ProblemProtocol,
     _ControlEvaluator,
@@ -254,7 +258,7 @@ class PHSAdaptive(AdaptiveBase):
                 return solution
 
             # Create cache for basis components and polynomial interpolants
-            basis_cache: dict[int, Any] = {}
+            basis_cache: dict[int, RadauBasisComponents] = {}
             control_weights_cache: dict[int, _FloatArray] = {}
             state_evaluators: list[_StateEvaluator | None] = [None] * num_intervals
             control_evaluators: list[_ControlEvaluator | None] = [None] * num_intervals
