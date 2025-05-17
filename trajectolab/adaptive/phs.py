@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, cast, Sequence
+from typing import Any, Sequence, cast
 
 import casadi as ca
 import numpy as np
