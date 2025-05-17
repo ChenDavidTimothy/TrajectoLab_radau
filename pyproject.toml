@@ -8,14 +8,13 @@ version = "0.1.0"
 description = "Optimal control framework using Radau Pseudospectral Method"
 authors = [{name = "TrajectoLab Authors"}]
 readme = "README.md"
-requires-python = ">=3.6"
+requires-python = ">=3.10"
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: Mathematics",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -100,7 +99,7 @@ check_untyped_defs = true
 [tool.ruff]
 line-length = 100
 target-version = "py39"
-select = [
+lint.select = [
     "E",  # pycodestyle errors
     "F",  # pyflakes errors
     "B",  # flake8-bugbear rules
@@ -109,7 +108,7 @@ select = [
     "C",  # flake8-comprehensions
     "N",  # pep8-naming
 ]
-ignore = [
+lint.ignore = [
     "E501",  # Line too long (handled by black)
     "C901",
     "N803",
@@ -127,7 +126,7 @@ exclude = [
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]  # Unused imports in __init__.py
 
-[tool.ruff.pydocstyle]
+[tool.ruff.lint.pydocstyle]
 convention = "google"
 
 [tool.pylint]

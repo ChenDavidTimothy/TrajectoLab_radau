@@ -10,17 +10,16 @@ setup(
         "numpy>=1.18.0",
         "matplotlib>=3.1.0",
         "scipy>=1.4.0",
-        "casadi>=3.5.0",  # CasADi is used for the optimization backend
-        "pandas>=1.0.0",  # Used for data export
+        "casadi>=3.5.0",
+        "pandas>=1.0.0",
     ],
-    python_requires=">=3.6",
+    python_requires=">=3.10",
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Science/Research",
         "Topic :: Scientific/Engineering :: Mathematics",
         "License :: OSI Approved :: MIT License",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
