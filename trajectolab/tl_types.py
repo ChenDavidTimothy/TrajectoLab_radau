@@ -6,7 +6,7 @@ This module centralizes custom type aliases, constants, and potentially
 more complex type structures as the project grows.
 """
 
-from __future__ import (  # Ensures PathConstraint/EventConstraint resolve correctly in Callables
+from __future__ import (
     annotations,
 )
 
@@ -58,8 +58,6 @@ _ControlDictType: TypeAlias = dict[str, float | _CasadiMX]
 
 # Forward reference for Problem module's Constraint class
 # (without creating a duplicate class)
-# We'll use typing.Any initially and then import the actual Constraint class
-# when needed to avoid circular imports
 ConstraintType: TypeAlias = Any
 
 # User-facing function types for Problem class using ConstraintType as placeholder
@@ -114,7 +112,7 @@ class EventConstraint:
     equals: float | None = None
 
 
-# --- Callable Types for OptimalControlProblem ---
+# --- Callable Types for Solver ---
 # (state, control, time, params) -> state_derivative
 _DynamicsCallable: TypeAlias = Callable[
     [_CasadiMX, _CasadiMX, _CasadiMX, _ProblemParameters],
@@ -145,20 +143,14 @@ _EventConstraintsCallable: TypeAlias = Callable[
 
 # --- Helper Type Aliases for Trajectories and Guesses ---
 _ListOfCasadiMX: TypeAlias = list[_CasadiMX]
-_TrajectoryData: TypeAlias = list[
-    _FloatArray
-]  # e.g., list of 1D arrays for each state/control component
+_TrajectoryData: TypeAlias = list[_FloatArray]  # List of 1D arrays for each state/control component
 
 # For initial guesses, states/controls are typically a list of 2D matrices,
 # one per mesh interval: [num_variables, num_nodes_in_interval]
 _InitialGuessTrajectory: TypeAlias = list[_FloatMatrix]
 _InitialGuessIntegrals: TypeAlias = float | _FloatArray | list[float] | None
 
-# --- PHSAdaptive Types ---
-# Solution and legacy problem references without circular imports
-_LegacySolutionType: TypeAlias = Any  # Will be OptimalControlSolution
-_LegacyProblemType: TypeAlias = Any  # Will be OptimalControlProblem
-
+# --- Types for Adaptive Mesh Refinement ---
 # For evaluator callables
 _StateEvaluator: TypeAlias = Callable[[float | _FloatArray], _FloatArray]
 _ControlEvaluator: TypeAlias = Callable[[float | _FloatArray], _FloatArray]
@@ -185,3 +177,32 @@ _GammaFactors: TypeAlias = _FloatArray
 
 # Type variable for generic functions
 T = TypeVar("T")
+
+
+# Protocol for Problem to avoid circular imports
+class ProblemProtocol(Protocol):
+    """Protocol defining the expected interface of a Problem object."""
+
+    name: str
+    _states: dict[str, dict[str, Any]]
+    _controls: dict[str, dict[str, Any]]
+    _parameters: _ProblemParameters
+    _t0_bounds: tuple[float, float]
+    _tf_bounds: tuple[float, float]
+    _dynamics_func: _DynamicsFuncType | None
+    _objective_type: str | None
+    _objective_func: _ObjectiveFuncType | None
+    _path_constraints: list[_ConstraintFuncType]
+    _event_constraints: list[_EventConstraintFuncType]
+    _num_integrals: int
+    _integral_functions: list[_IntegrandFuncType]
+    collocation_points_per_interval: list[int]
+    global_normalized_mesh_nodes: _FloatArray | None
+    initial_guess: Any
+    solver_options: dict[str, object]
+
+    def get_dynamics_function(self) -> _DynamicsCallable: ...
+    def get_objective_function(self) -> _ObjectiveCallable: ...
+    def get_integrand_function(self) -> _IntegralIntegrandCallable | None: ...
+    def get_path_constraints_function(self) -> _PathConstraintsCallable | None: ...
+    def get_event_constraints_function(self) -> _EventConstraintsCallable: ...

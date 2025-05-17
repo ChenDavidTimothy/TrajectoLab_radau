@@ -4,8 +4,7 @@ from typing import Any, cast
 
 import numpy as np
 
-# Import types from tl_types
-from .tl_types import (  # Import new types we added
+from .tl_types import (
     EventConstraint,
     PathConstraint,
     _CasadiMX,
@@ -13,6 +12,7 @@ from .tl_types import (  # Import new types we added
     _DynamicsCallable,
     _DynamicsFuncType,
     _EventConstraintFuncType,
+    _EventConstraintsCallable,
     _IntegralIntegrandCallable,
     _IntegrandFuncType,
     _ObjectiveCallable,
@@ -23,10 +23,15 @@ from .tl_types import (  # Import new types we added
 
 
 class Constraint:
-    val: Any  # Use Any since it can be None or CasADI values
-    lower: float | None
-    upper: float | None
-    equals: float | None
+    """
+    Represents a constraint on a state, control, or parameter.
+
+    Attributes:
+        val: The value being constrained
+        lower: Lower bound for the constraint
+        upper: Upper bound for the constraint
+        equals: Equality constraint value (sets both lower and upper to the same value)
+    """
 
     def __init__(
         self,
@@ -46,27 +51,18 @@ class Constraint:
 
 
 class Problem:
-    name: str
-    _states: dict[str, dict[str, Any]]
-    _controls: dict[str, dict[str, Any]]
-    _parameters: _ProblemParameters
-    _t0_bounds: tuple[float, float]
-    _tf_bounds: tuple[float, float]
-    _dynamics_func: _DynamicsFuncType | None
-    _objective_type: str | None
-    _objective_func: _ObjectiveFuncType | None
-    _path_constraints: list[_ConstraintFuncType]
-    _event_constraints: list[_EventConstraintFuncType]
-    _num_integrals: int
-    _integral_functions: list[_IntegrandFuncType]
+    """
+    Defines an optimal control problem with states, controls, parameters,
+    dynamics, objectives, and constraints.
+    """
 
     def __init__(self, name: str = "Unnamed Problem") -> None:
         self.name = name
         self._states = {}
         self._controls = {}
         self._parameters = {}
-        self._t0_bounds = (0.0, 0.0)  # Use tuple instead of list
-        self._tf_bounds = (1.0, 1.0)  # Use tuple instead of list
+        self._t0_bounds = (0.0, 0.0)
+        self._tf_bounds = (1.0, 1.0)
         self._dynamics_func = None
         self._objective_type = None
         self._objective_func = None
@@ -75,6 +71,13 @@ class Problem:
         self._num_integrals = 0
         self._integral_functions = []
 
+        # Solver configuration
+        self.collocation_points_per_interval = []
+        self.global_normalized_mesh_nodes = None
+        self.initial_guess = None
+        self.default_initial_guess_values = None
+        self.solver_options = {}
+
     def set_time_bounds(
         self,
         t0: float = 0.0,
@@ -82,10 +85,22 @@ class Problem:
         t0_bounds: tuple[float, float] | None = None,
         tf_bounds: tuple[float, float] | None = None,
     ) -> Problem:
+        """
+        Sets the bounds for the initial and final times of the optimal control problem.
+
+        Args:
+            t0: Initial time value
+            tf: Final time value
+            t0_bounds: Tuple (lower_bound, upper_bound) for initial time
+            tf_bounds: Tuple (lower_bound, upper_bound) for final time
+
+        Returns:
+            Self for method chaining
+        """
         if t0_bounds is None:
-            t0_bounds = (t0, t0)  # Use tuple instead of list
+            t0_bounds = (t0, t0)
         if tf_bounds is None:
-            tf_bounds = (tf, tf)  # Use tuple instead of list
+            tf_bounds = (tf, tf)
 
         self._t0_bounds = t0_bounds
         self._tf_bounds = tf_bounds
@@ -100,6 +115,20 @@ class Problem:
         lower: float | None = None,
         upper: float | None = None,
     ) -> Problem:
+        """
+        Adds a state variable to the optimal control problem.
+
+        Args:
+            name: Name of the state
+            initial_constraint: Constraint on the initial state
+            final_constraint: Constraint on the final state
+            bounds: Tuple (lower_bound, upper_bound) for the state
+            lower: Lower bound for the state
+            upper: Upper bound for the state
+
+        Returns:
+            Self for method chaining
+        """
         if bounds is not None:
             lower, upper = bounds
 
@@ -119,6 +148,18 @@ class Problem:
         lower: float | None = None,
         upper: float | None = None,
     ) -> Problem:
+        """
+        Adds a control variable to the optimal control problem.
+
+        Args:
+            name: Name of the control
+            bounds: Tuple (lower_bound, upper_bound) for the control
+            lower: Lower bound for the control
+            upper: Upper bound for the control
+
+        Returns:
+            Self for method chaining
+        """
         if bounds is not None:
             lower, upper = bounds
 
@@ -126,14 +167,44 @@ class Problem:
         return self
 
     def add_parameter(self, name: str, value: Any) -> Problem:
+        """
+        Adds a parameter to the optimal control problem.
+
+        Args:
+            name: Name of the parameter
+            value: Value of the parameter
+
+        Returns:
+            Self for method chaining
+        """
         self._parameters[name] = value
         return self
 
     def set_dynamics(self, dynamics_func: _DynamicsFuncType) -> Problem:
+        """
+        Sets the dynamics function for the optimal control problem.
+
+        Args:
+            dynamics_func: Function defining the system dynamics
+                function(states, controls, time, params) -> dict of state derivatives
+
+        Returns:
+            Self for method chaining
+        """
         self._dynamics_func = dynamics_func
         return self
 
     def set_objective(self, objective_type: str, objective_func: _ObjectiveFuncType) -> Problem:
+        """
+        Sets the objective function for the optimal control problem.
+
+        Args:
+            objective_type: Type of objective ('mayer' or 'integral')
+            objective_func: Function defining the objective
+
+        Returns:
+            Self for method chaining
+        """
         # Auto-correct the objective type if it's referencing integrals
         if objective_type == "mayer" and self._num_integrals > 0:
             objective_type = "integral"
@@ -143,139 +214,55 @@ class Problem:
         return self
 
     def add_integral(self, integral_func: _IntegrandFuncType) -> Problem:
+        """
+        Adds an integral term to the optimal control problem.
+
+        Args:
+            integral_func: Function defining the integrand
+
+        Returns:
+            Self for method chaining
+        """
         self._num_integrals += 1
         self._integral_functions.append(integral_func)
         return self
 
     def add_path_constraint(self, constraint_func: _ConstraintFuncType) -> Problem:
+        """
+        Adds a path constraint to the optimal control problem.
+
+        Args:
+            constraint_func: Function defining the path constraint
+
+        Returns:
+            Self for method chaining
+        """
         self._path_constraints.append(constraint_func)
         return self
 
     def add_event_constraint(self, constraint_func: _EventConstraintFuncType) -> Problem:
+        """
+        Adds an event constraint to the optimal control problem.
+
+        Args:
+            constraint_func: Function defining the event constraint
+
+        Returns:
+            Self for method chaining
+        """
         self._event_constraints.append(constraint_func)
         return self
 
-    def _convert_to_legacy_problem(
-        self,
-    ) -> Any:  # Returns OptimalControlProblem, using Any to avoid circular import
-        from trajectolab.direct_solver import EventConstraint, OptimalControlProblem
+    def get_dynamics_function(self) -> _DynamicsCallable:
+        """
+        Gets the vectorized dynamics function for the solver.
 
-        # Create adapter functions
-        vectorized_dynamics = self._create_vectorized_dynamics()
-        vectorized_objective = self._create_vectorized_objective()
-        vectorized_integrand = self._create_vectorized_integrand()
-        vectorized_path_constraints = self._create_vectorized_path_constraints()
+        Returns:
+            Vectorized dynamics function for use with CasADi solver
 
-        # Create function that adds initial and final state constraints
-        def auto_event_constraints(
-            t0: _CasadiMX,
-            tf: _CasadiMX,
-            x0: _CasadiMX,
-            xf: _CasadiMX,
-            q: _CasadiMX | None,
-            params: _ProblemParameters,
-        ) -> list[EventConstraint]:
-            # params is guaranteed to be non-None in this context
-            params = params or {}  # Default to empty dict if None
-            result: list[EventConstraint] = []
-
-            # Add initial state constraints
-            for i, name in enumerate(self._states.keys()):
-                state_def = self._states[name]
-                if state_def.get("initial_constraint"):
-                    constraint = state_def["initial_constraint"]
-                    if constraint is not None:  # Type narrowing
-                        # Make sure we have a valid value for the constraint
-                        if constraint.val is None:
-                            # Use x0[i] as the value if constraint.val is None
-                            val = x0[i]
-                        else:
-                            val = constraint.val
-
-                        result.append(
-                            EventConstraint(
-                                val=val,  # Use the valid value
-                                min_val=constraint.lower,
-                                max_val=constraint.upper,
-                                equals=constraint.equals,
-                            )
-                        )
-
-                # Add final state constraints
-                if state_def.get("final_constraint"):
-                    constraint = state_def["final_constraint"]
-                    if constraint is not None:  # Type narrowing
-                        # Make sure we have a valid value for the constraint
-                        if constraint.val is None:
-                            # Use xf[i] as the value if constraint.val is None
-                            val = xf[i]
-                        else:
-                            val = constraint.val
-
-                        result.append(
-                            EventConstraint(
-                                val=val,  # Use the valid value
-                                min_val=constraint.lower,
-                                max_val=constraint.upper,
-                                equals=constraint.equals,
-                            )
-                        )
-
-            # Add custom event constraints
-            for constraint_func in self._event_constraints:
-                # Use any to avoid type conflicts
-                constraint_result: Any = constraint_func(
-                    t0,
-                    tf,
-                    {name: x0[i] for i, name in enumerate(self._states.keys())},
-                    {name: xf[i] for i, name in enumerate(self._states.keys())},
-                    q,
-                    params,
-                )
-
-                # Handle different return types explicitly
-                if isinstance(constraint_result, Constraint):
-                    # Handle single constraint
-                    if constraint_result.val is not None:
-                        result.append(
-                            EventConstraint(
-                                val=constraint_result.val,
-                                min_val=constraint_result.lower,
-                                max_val=constraint_result.upper,
-                                equals=constraint_result.equals,
-                            )
-                        )
-                else:
-                    # Handle list of constraints
-                    constraint_list = constraint_result  # This is now known to be a list
-                    for c in constraint_list:
-                        if c.val is not None:  # Skip constraints with None values
-                            result.append(
-                                EventConstraint(
-                                    val=c.val, min_val=c.lower, max_val=c.upper, equals=c.equals
-                                )
-                            )
-
-            return result
-
-        # Create legacy problem with the auto event constraints
-        return OptimalControlProblem(
-            num_states=len(self._states),
-            num_controls=len(self._controls),
-            dynamics_function=vectorized_dynamics,
-            objective_function=vectorized_objective,
-            t0_bounds=self._t0_bounds,  # Removed redundant cast
-            tf_bounds=self._tf_bounds,
-            num_integrals=self._num_integrals,
-            integral_integrand_function=vectorized_integrand if self._num_integrals > 0 else None,
-            path_constraints_function=(
-                vectorized_path_constraints if self._path_constraints else None
-            ),
-            event_constraints_function=auto_event_constraints,  # Always include auto constraints
-            problem_parameters=self._parameters,
-        )
-
-    def _create_vectorized_dynamics(self) -> _DynamicsCallable:
+        Raises:
+            ValueError: If dynamics function has not been set
+        """
         if self._dynamics_func is None:
             raise ValueError("Dynamics function not set")
 
@@ -289,7 +276,6 @@ class Problem:
             time: _CasadiMX,
             params: _ProblemParameters,
         ) -> list[_CasadiMX]:
-            # params is guaranteed to be non-None in this context
             params = params or {}  # Default to empty dict if None
 
             states_dict = {name: states_vec[i] for i, name in enumerate(state_names)}
@@ -301,7 +287,16 @@ class Problem:
 
         return vectorized_dynamics
 
-    def _create_vectorized_objective(self) -> _ObjectiveCallable:
+    def get_objective_function(self) -> _ObjectiveCallable:
+        """
+        Gets the vectorized objective function for the solver.
+
+        Returns:
+            Vectorized objective function for use with CasADi solver
+
+        Raises:
+            ValueError: If objective function has not been set
+        """
         if self._objective_func is None:
             raise ValueError("Objective function not set")
 
@@ -317,13 +312,11 @@ class Problem:
             q: _CasadiMX | None,
             params: _ProblemParameters,
         ) -> _CasadiMX:
-            # params is guaranteed to be non-None in this context
             params = params or {}  # Default to empty dict if None
 
             if objective_type == "mayer":
                 initial_states = {name: x0[i] for i, name in enumerate(state_names)}
                 final_states = {name: xf[i] for i, name in enumerate(state_names)}
-                # Cast to _CasadiMX to ensure correct return type
                 return cast(
                     _CasadiMX, objective_func(t0, tf, initial_states, final_states, q, params)
                 )
@@ -331,14 +324,22 @@ class Problem:
                 # For integral objectives, just return the integral value
                 if q is None:
                     raise ValueError("Integral value q is None for integral objective")
-                # Cast to _CasadiMX to ensure correct return type
                 return cast(
                     _CasadiMX, q[0] if isinstance(q, (list, np.ndarray)) and len(q) > 0 else q
                 )
 
         return vectorized_objective
 
-    def _create_vectorized_integrand(self) -> _IntegralIntegrandCallable:
+    def get_integrand_function(self) -> _IntegralIntegrandCallable | None:
+        """
+        Gets the vectorized integrand function for the solver.
+
+        Returns:
+            Vectorized integrand function for use with CasADi solver, or None if no integrals
+        """
+        if not self._integral_functions:
+            return None
+
         integral_functions = self._integral_functions
         state_names = list(self._states.keys())
         control_names = list(self._controls.keys())
@@ -350,19 +351,14 @@ class Problem:
             integral_idx: int,
             params: _ProblemParameters,
         ) -> _CasadiMX:
-            # params is guaranteed to be non-None in this context
             params = params or {}  # Default to empty dict if None
 
             if integral_idx >= len(integral_functions):
-                return cast(
-                    _CasadiMX, 0.0
-                )  # Return a numeric value when no function exists, cast to _CasadiMX
+                return cast(_CasadiMX, 0.0)
 
             states_dict = {name: states_vec[i] for i, name in enumerate(state_names)}
             controls_dict = {name: controls_vec[i] for i, name in enumerate(control_names)}
 
-            # Just return the result directly - DO NOT try to convert to float!
-            # Cast to _CasadiMX to ensure correct return type
             return cast(
                 _CasadiMX,
                 integral_functions[integral_idx](states_dict, controls_dict, time, params),
@@ -370,11 +366,17 @@ class Problem:
 
         return vectorized_integrand
 
-    def _create_vectorized_path_constraints(self) -> _PathConstraintsCallable | None:
-        path_constraints = self._path_constraints
-        if not path_constraints:
+    def get_path_constraints_function(self) -> _PathConstraintsCallable | None:
+        """
+        Gets the vectorized path constraints function for the solver.
+
+        Returns:
+            Vectorized path constraints function for use with CasADi solver, or None if no path constraints
+        """
+        if not self._path_constraints:
             return None
 
+        path_constraints = self._path_constraints
         state_names = list(self._states.keys())
         control_names = list(self._controls.keys())
 
@@ -384,22 +386,16 @@ class Problem:
             time: _CasadiMX,
             params: _ProblemParameters,
         ) -> list[PathConstraint]:
-            # params is guaranteed to be non-None in this context
             params = params or {}  # Default to empty dict if None
-
-            from trajectolab.direct_solver import PathConstraint
 
             states_dict = {name: states_vec[i] for i, name in enumerate(state_names)}
             controls_dict = {name: controls_vec[i] for i, name in enumerate(control_names)}
 
             result: list[PathConstraint] = []
             for constraint_func in path_constraints:
-                # Use Any to avoid type conflicts
                 constraint_result: Any = constraint_func(states_dict, controls_dict, time, params)
 
-                # Handle different return types explicitly
                 if isinstance(constraint_result, Constraint):
-                    # Skip constraints with None values
                     if constraint_result.val is not None:
                         result.append(
                             PathConstraint(
@@ -410,10 +406,9 @@ class Problem:
                             )
                         )
                 else:
-                    # Handle list of constraints
-                    constraint_list = constraint_result  # This is now known to be a list
+                    constraint_list = constraint_result
                     for c in constraint_list:
-                        if c.val is not None:  # Skip constraints with None values
+                        if c.val is not None:
                             result.append(
                                 PathConstraint(
                                     val=c.val,
@@ -426,3 +421,97 @@ class Problem:
             return result
 
         return vectorized_path_constraints
+
+    def get_event_constraints_function(self) -> _EventConstraintsCallable:
+        """
+        Gets the vectorized event constraints function for the solver.
+
+        Returns:
+            Vectorized event constraints function for use with CasADi solver
+        """
+        state_names = list(self._states.keys())
+        event_constraints = self._event_constraints
+
+        def auto_event_constraints(
+            t0: _CasadiMX,
+            tf: _CasadiMX,
+            x0: _CasadiMX,
+            xf: _CasadiMX,
+            q: _CasadiMX | None,
+            params: _ProblemParameters,
+        ) -> list[EventConstraint]:
+            params = params or {}
+            result: list[EventConstraint] = []
+
+            # Add initial state constraints
+            for i, name in enumerate(self._states.keys()):
+                state_def = self._states[name]
+                if state_def.get("initial_constraint"):
+                    constraint = state_def["initial_constraint"]
+                    if constraint is not None:
+                        if constraint.val is None:
+                            val = x0[i]
+                        else:
+                            val = constraint.val
+
+                        result.append(
+                            EventConstraint(
+                                val=val,
+                                min_val=constraint.lower,
+                                max_val=constraint.upper,
+                                equals=constraint.equals,
+                            )
+                        )
+
+                # Add final state constraints
+                if state_def.get("final_constraint"):
+                    constraint = state_def["final_constraint"]
+                    if constraint is not None:
+                        if constraint.val is None:
+                            val = xf[i]
+                        else:
+                            val = constraint.val
+
+                        result.append(
+                            EventConstraint(
+                                val=val,
+                                min_val=constraint.lower,
+                                max_val=constraint.upper,
+                                equals=constraint.equals,
+                            )
+                        )
+
+            # Add custom event constraints
+            for constraint_func in event_constraints:
+                constraint_result: Any = constraint_func(
+                    t0,
+                    tf,
+                    {name: x0[i] for i, name in enumerate(state_names)},
+                    {name: xf[i] for i, name in enumerate(state_names)},
+                    q,
+                    params,
+                )
+
+                if isinstance(constraint_result, Constraint):
+                    if constraint_result.val is not None:
+                        result.append(
+                            EventConstraint(
+                                val=constraint_result.val,
+                                min_val=constraint_result.lower,
+                                max_val=constraint_result.upper,
+                                equals=constraint_result.equals,
+                            )
+                        )
+                else:
+                    constraint_list = constraint_result
+                    for c in constraint_list:
+                        if c.val is not None:
+                            result.append(
+                                EventConstraint(
+                                    val=c.val, min_val=c.lower, max_val=c.upper, equals=c.equals
+                                )
+                            )
+
+            return result
+
+        return auto_event_constraints

@@ -6,17 +6,35 @@ from ..direct_solver import OptimalControlSolution
 
 
 class AdaptiveBase(ABC):
+    """
+    Base class for adaptive mesh refinement algorithms.
+    """
+
     def __init__(self, initial_guess=None):
         self.initial_guess = initial_guess
 
     @abstractmethod
-    def run(self, problem, legacy_problem, initial_solution=None) -> OptimalControlSolution:
+    def run(self, problem, initial_solution=None) -> OptimalControlSolution:
+        """
+        Run the adaptive mesh refinement algorithm.
+
+        Args:
+            problem: The optimal control problem
+            initial_solution: Optional initial solution
+
+        Returns:
+            The optimal control solution
+        """
         pass
 
 
 class FixedMesh(AdaptiveBase):
+    """
+    Fixed mesh solver with specified polynomial degrees and mesh points.
+    """
+
     def __init__(self, polynomial_degrees=None, mesh_points=None, initial_guess=None):
-        super().__init__(initial_guess)  # Call parent constructor
+        super().__init__(initial_guess)
         self.polynomial_degrees = polynomial_degrees or [4]
 
         if mesh_points is None:
@@ -34,16 +52,26 @@ class FixedMesh(AdaptiveBase):
         if not np.all(np.diff(self.mesh_points) > 0):
             raise ValueError("Mesh points must be strictly increasing.")
 
-    def run(self, problem, legacy_problem, initial_solution=None) -> OptimalControlSolution:
+    def run(self, problem, initial_solution=None) -> OptimalControlSolution:
+        """
+        Run the fixed mesh solver.
+
+        Args:
+            problem: The optimal control problem
+            initial_solution: Optional initial solution
+
+        Returns:
+            The optimal control solution
+        """
         from trajectolab.direct_solver import solve_single_phase_radau_collocation
 
-        # Update legacy problem with our mesh configuration
-        legacy_problem.collocation_points_per_interval = self.polynomial_degrees
-        legacy_problem.global_normalized_mesh_nodes = self.mesh_points
+        # Update problem with mesh configuration
+        problem.collocation_points_per_interval = self.polynomial_degrees
+        problem.global_normalized_mesh_nodes = self.mesh_points
 
         # Apply initial guess if provided
         if self.initial_guess is not None:
-            legacy_problem.initial_guess = self.initial_guess
+            problem.initial_guess = self.initial_guess
 
         # Solve the problem
-        return solve_single_phase_radau_collocation(legacy_problem)
+        return solve_single_phase_radau_collocation(problem)

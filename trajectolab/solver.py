@@ -1,19 +1,22 @@
-from typing import TypeAlias
+from typing import cast
+
+import numpy as np
 
 from trajectolab.adaptive.base import AdaptiveBase
 from trajectolab.adaptive.phs import PHSAdaptive
-from trajectolab.direct_solver import OptimalControlSolution
+from trajectolab.direct_solver import solve_single_phase_radau_collocation
 from trajectolab.problem import Problem
 from trajectolab.solution import Solution
-
-# Define a type alias for the legacy solution type
-_LegacySolutionType: TypeAlias = OptimalControlSolution
+from trajectolab.tl_types import ProblemProtocol
 
 
 class RadauDirectSolver:
-    mesh_method: AdaptiveBase
-    nlp_solver: str
-    nlp_options: dict[str, object]
+    """
+    Solver for optimal control problems using the Radau Pseudospectral Method.
+
+    This solver provides interfaces to different mesh refinement techniques,
+    such as fixed-mesh collocation and adaptive mesh refinement.
+    """
 
     def __init__(
         self,
@@ -21,6 +24,14 @@ class RadauDirectSolver:
         nlp_solver: str = "ipopt",
         nlp_options: dict[str, object] | None = None,
     ) -> None:
+        """
+        Initialize the Radau direct solver.
+
+        Args:
+            mesh_method: Mesh refinement method to use (default: PHSAdaptive)
+            nlp_solver: Name of the NLP solver to use (default: "ipopt")
+            nlp_options: Dictionary of options to pass to the NLP solver
+        """
         self.mesh_method = mesh_method or PHSAdaptive()
         self.nlp_solver = nlp_solver
         self.nlp_options = nlp_options or {
@@ -29,23 +40,61 @@ class RadauDirectSolver:
             "print_time": 0,
         }
 
-    def solve(
-        self, problem: Problem, initial_solution: _LegacySolutionType | None = None
-    ) -> Solution:
-        # Convert the user-facing problem to the legacy format for the solver
-        legacy_problem = problem._convert_to_legacy_problem()
+    def solve(self, problem: Problem) -> Solution:
+        """
+        Solve the optimal control problem.
 
-        # Set solver options
-        legacy_problem.solver_options = self.nlp_options
+        Args:
+            problem: The optimal control problem to solve
 
-        # Use the mesh method to solve the problem
-        legacy_solution = self.mesh_method.run(problem, legacy_problem, initial_solution)
+        Returns:
+            Solution object containing the solution data
+        """
+        # Update problem with solver options
+        problem.solver_options = self.nlp_options
 
-        # Create Solution object from legacy solution
-        return Solution(legacy_solution, problem)
+        # Create a proper protocol-compatible version of the problem
+        # We need to use a dictionary-like approach to set attributes since
+        # the type annotations may be preventing direct assignment
+        protocol_problem = problem
+
+        # Handle mesh initialization if needed
+        if (
+            isinstance(problem.global_normalized_mesh_nodes, type(None))
+            and problem.collocation_points_per_interval
+        ):
+            # Create default mesh from collocation points
+            num_intervals = len(problem.collocation_points_per_interval)
+            mesh_nodes = np.linspace(-1.0, 1.0, num_intervals + 1, dtype=np.float64)
+
+            # Use setattr to bypass type checking constraints
+            # This safely sets the attribute even if the type system doesn't agree
+            protocol_problem.global_normalized_mesh_nodes = mesh_nodes
+
+        if self.mesh_method is not None:
+            # Use the mesh method to solve the problem
+            solution_data = self.mesh_method.run(cast(ProblemProtocol, protocol_problem))
+        else:
+            # If no mesh method is provided, solve directly
+            solution_data = solve_single_phase_radau_collocation(
+                cast(ProblemProtocol, protocol_problem)
+            )
+
+        # Create Solution object
+        return Solution(solution_data, cast(ProblemProtocol, protocol_problem))
 
 
 def solve(problem: Problem, solver: RadauDirectSolver | None = None) -> Solution:
+    """
+    Convenience function to solve an optimal control problem.
+
+    Args:
+        problem: The optimal control problem to solve
+        solver: Optional solver to use (default: new RadauDirectSolver instance)
+
+    Returns:
+        Solution object containing the solution data
+    """
     if solver is None:
         solver = RadauDirectSolver()
 

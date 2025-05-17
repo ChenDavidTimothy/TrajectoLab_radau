@@ -5,30 +5,15 @@ Defines classes to store and interact with the solution
 of an optimal control problem.
 """
 
-from collections.abc import Callable, Iterable, Sequence  # For argument types
-from typing import Any, Protocol, TypeAlias
+from collections.abc import Callable, Iterable, Sequence
 
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.axes import Axes as MplAxes  # For type hinting Axes objects
-from matplotlib.lines import Line2D  # For type hinting Line2D objects
+from matplotlib.axes import Axes as MplAxes
+from matplotlib.lines import Line2D
 
-# Assuming tl_types.py is in the same package or accessible.
-# Using relative import consistent with other project files.
-from .tl_types import _FloatArray, _IntArray
-
-
-class ProblemProtocol(Protocol):
-    """Protocol defining the expected interface of a Problem object."""
-
-    _states: dict[str, dict[str, Any]]
-    _controls: dict[str, dict[str, Any]]
-    # Add other required attributes if needed
-
-
-# Now use this protocol instead of the concrete type
-ProblemType: TypeAlias = ProblemProtocol
-RawSolutionType: TypeAlias = Any  # Keep this as Any for now
+from .direct_solver import OptimalControlSolution
+from .tl_types import ProblemProtocol, _FloatArray, _IntArray
 
 
 class IntervalData:
@@ -69,9 +54,11 @@ class IntervalData:
 class Solution:
     """Processes and provides access to the solution of an optimal control problem."""
 
-    def __init__(self, raw_solution: RawSolutionType | None, problem: ProblemType | None) -> None:
-        self._problem: ProblemType | None = problem
-        self._raw_solution: RawSolutionType | None = raw_solution
+    def __init__(
+        self, raw_solution: OptimalControlSolution | None, problem: ProblemProtocol | None
+    ) -> None:
+        self._problem: ProblemProtocol | None = problem
+        self._raw_solution: OptimalControlSolution | None = raw_solution
 
         self._state_names: list[str] = []
         if problem and hasattr(problem, "_states") and hasattr(problem._states, "keys"):
@@ -100,7 +87,7 @@ class Solution:
         if raw_solution:
             self._extract_solution_data(raw_solution)
 
-    def _extract_solution_data(self, raw_solution: RawSolutionType) -> None:
+    def _extract_solution_data(self, raw_solution: OptimalControlSolution) -> None:
         self.success = bool(getattr(raw_solution, "success", False))
         self.message = str(getattr(raw_solution, "message", "Unknown"))
 

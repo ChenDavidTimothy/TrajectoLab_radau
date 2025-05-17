@@ -9,6 +9,7 @@ from .radau import RadauBasisComponents, compute_radau_collocation_components
 from .tl_types import (
     EventConstraint,
     PathConstraint,
+    ProblemProtocol,
     _CasadiDM,
     _CasadiMatrix,
     _CasadiMX,
@@ -30,11 +31,9 @@ from .tl_types import (
 
 
 class InitialGuess:
-    initial_time_variable: float | None
-    terminal_time_variable: float | None
-    states: _InitialGuessTrajectory | None
-    controls: _InitialGuessTrajectory | None
-    integrals: _InitialGuessIntegrals | None
+    """
+    Initial guess for the optimal control problem.
+    """
 
     def __init__(
         self,
@@ -52,9 +51,9 @@ class InitialGuess:
 
 
 class DefaultGuessValues:
-    state: float
-    control: float
-    integral: float
+    """
+    Default values for initial guesses.
+    """
 
     def __init__(self, state: float = 0.0, control: float = 0.0, integral: float = 0.0) -> None:
         self.state = state
@@ -62,104 +61,30 @@ class DefaultGuessValues:
         self.integral = integral
 
 
-class OptimalControlProblem:
-    num_states: int
-    num_controls: int
-    dynamics_function: _DynamicsCallable
-    objective_function: _ObjectiveCallable
-    t0_bounds: tuple[float, float]
-    tf_bounds: tuple[float, float]
-    num_integrals: int
-    collocation_points_per_interval: list[int] | None
-    global_normalized_mesh_nodes: _FloatArray | None
-    integral_integrand_function: _IntegralIntegrandCallable | None
-    path_constraints_function: _PathConstraintsCallable | None
-    event_constraints_function: _EventConstraintsCallable | None
-    problem_parameters: _ProblemParameters  # Changed from _ProblemParameters | None
-    initial_guess: InitialGuess | None
-    default_initial_guess_values: DefaultGuessValues | None
-    solver_options: dict[str, object] | None  # Changed Any to object
-
-    def __init__(
-        self,
-        num_states: int,
-        num_controls: int,
-        dynamics_function: _DynamicsCallable,
-        objective_function: _ObjectiveCallable,
-        t0_bounds: tuple[float, float],
-        tf_bounds: tuple[float, float],
-        num_integrals: int = 0,
-        collocation_points_per_interval: list[int] | None = None,
-        global_normalized_mesh_nodes: _FloatArray | None = None,
-        integral_integrand_function: _IntegralIntegrandCallable | None = None,
-        path_constraints_function: _PathConstraintsCallable | None = None,
-        event_constraints_function: _EventConstraintsCallable | None = None,
-        problem_parameters: _ProblemParameters | None = None,
-        initial_guess: InitialGuess | None = None,
-        default_initial_guess_values: DefaultGuessValues | None = None,
-        solver_options: dict[str, object] | None = None,  # Changed Any to object
-    ) -> None:
-        self.num_states = num_states
-        self.num_controls = num_controls
-        self.num_integrals = num_integrals
-        self.collocation_points_per_interval = collocation_points_per_interval or []
-        self.global_normalized_mesh_nodes = global_normalized_mesh_nodes
-
-        self.dynamics_function = dynamics_function
-        self.objective_function = objective_function
-        self.integral_integrand_function = integral_integrand_function
-        self.path_constraints_function = path_constraints_function
-        self.event_constraints_function = event_constraints_function
-
-        self.t0_bounds = t0_bounds
-        self.tf_bounds = tf_bounds
-        self.problem_parameters = problem_parameters or {}
-
-        self.initial_guess = initial_guess
-        self.default_initial_guess_values = default_initial_guess_values or DefaultGuessValues()
-        self.solver_options = solver_options or {}
-
-
 class OptimalControlSolution:
-    success: bool
-    message: str
-    initial_time_variable: float | None
-    terminal_time_variable: float | None
-    objective: float | None
-    integrals: float | _FloatArray | None
-    time_states: _FloatArray
-    states: _TrajectoryData
-    time_controls: _FloatArray
-    controls: _TrajectoryData
-    raw_solution: _CasadiOptiSol | None
-    opti_object: _CasadiOpti | None
-    num_collocation_nodes_per_interval: list[int]
-    global_normalized_mesh_nodes: _FloatArray | None
-    num_collocation_nodes_list_at_solve_time: list[int] | None
-    global_mesh_nodes_at_solve_time: _FloatArray | None
-    # These were not previously typed, adding example types
-    solved_state_trajectories_per_interval: list[_FloatMatrix] | None
-    solved_control_trajectories_per_interval: list[_FloatMatrix] | None
+    """
+    Solution to an optimal control problem.
+    """
 
     def __init__(self) -> None:
-        self.success = False
-        self.message = "Solver not run yet."
-        self.initial_time_variable = None
-        self.terminal_time_variable = None
-        self.objective = None
-        self.integrals = None
-        self.time_states = np.array([], dtype=np.float64)
-        self.states = []
-        self.time_controls = np.array([], dtype=np.float64)
-        self.controls = []
-        self.raw_solution = None
-        self.opti_object = None
-        self.num_collocation_nodes_per_interval = []
-        self.global_normalized_mesh_nodes = None
-        self.num_collocation_nodes_list_at_solve_time = None
-        self.global_mesh_nodes_at_solve_time = None
-        self.solved_state_trajectories_per_interval = None
-        self.solved_control_trajectories_per_interval = None
+        self.success: bool = False
+        self.message: str = "Solver not run yet."
+        self.initial_time_variable: float | None = None
+        self.terminal_time_variable: float | None = None
+        self.objective: float | None = None
+        self.integrals: float | _FloatArray | None = None
+        self.time_states: _FloatArray = np.array([], dtype=np.float64)
+        self.states: _TrajectoryData = []
+        self.time_controls: _FloatArray = np.array([], dtype=np.float64)
+        self.controls: _TrajectoryData = []
+        self.raw_solution: _CasadiOptiSol | None = None
+        self.opti_object: _CasadiOpti | None = None
+        self.num_collocation_nodes_per_interval: list[int] = []
+        self.global_normalized_mesh_nodes: _FloatArray | None = None
+        self.num_collocation_nodes_list_at_solve_time: list[int] | None = None
+        self.global_mesh_nodes_at_solve_time: _FloatArray | None = None
+        self.solved_state_trajectories_per_interval: list[_FloatMatrix] | None = None
+        self.solved_control_trajectories_per_interval: list[_FloatMatrix] | None = None
 
 
 def _extract_integral_values(
@@ -299,7 +224,7 @@ def _process_trajectory_points(
 def _extract_and_format_solution(
     casadi_solution_object: _CasadiOptiSol | None,
     casadi_optimization_problem_object: _CasadiOpti,
-    problem_definition: OptimalControlProblem,
+    problem: ProblemProtocol,
     num_collocation_nodes_per_interval: list[int],
     global_normalized_mesh_nodes: _FloatArray,
 ) -> OptimalControlSolution:
@@ -314,9 +239,9 @@ def _extract_and_format_solution(
         return solution
 
     num_mesh_intervals: int = len(num_collocation_nodes_per_interval)
-    num_states: int = problem_definition.num_states
-    num_controls: int = problem_definition.num_controls
-    num_integrals: int = problem_definition.num_integrals
+    num_states: int = len(problem._states)
+    num_controls: int = len(problem._controls)
+    num_integrals: int = problem._num_integrals
 
     try:
         solution.initial_time_variable = float(
@@ -458,71 +383,48 @@ def _validate_dynamics_output(
 def _set_initial_value_for_integrals(
     opti: _CasadiOpti,
     integral_vars: _CasadiMX,
-    guess: float | _FloatArray | list[float] | None,
+    guess: float | _FloatArray | list[float] | None,  # Broadened guess type
     num_integrals: int,
 ) -> None:
-    """
-    Sets initial values for integral variables in the optimization problem.
-
-    Args:
-        opti: The CasADi Opti object
-        integral_vars: The CasADi MX variables for integrals
-        guess: The guess values for integrals (float, array, or list)
-        num_integrals: The number of integral variables
-    """
     if guess is None:
         return
 
-    # Handle single integral case
     if num_integrals == 1:
-        if isinstance(guess, (int, float)):
+        if isinstance(guess, (int, float)):  # int included for convenience
             opti.set_initial(integral_vars, float(guess))
-        elif isinstance(guess, (list, np.ndarray)):
-            guess_array = np.asarray(guess, dtype=np.float64)
-            if guess_array.size >= 1:
-                opti.set_initial(integral_vars, float(guess_array.flatten()[0]))
-            else:
-                print(f"Warning: Empty array provided for single integral guess")
+        elif isinstance(guess, (list, np.ndarray)) and np.array(guess).size == 1:
+            opti.set_initial(integral_vars, float(np.array(guess).item()))
         else:
-            print(f"Warning: Unsupported type {type(guess)} for single integral guess")
-
-    # Handle multiple integrals case
-    elif isinstance(guess, (list, np.ndarray)):
-        guess_array = np.asarray(guess, dtype=np.float64).flatten()
-
-        if guess_array.size >= num_integrals:
-            # Take first num_integrals elements
-            opti.set_initial(integral_vars, guess_array[:num_integrals])
-        elif guess_array.size > 0:
-            # Pad with repeating pattern if needed
-            tiled_guess = np.tile(guess_array, int(np.ceil(num_integrals / guess_array.size)))
-            opti.set_initial(integral_vars, tiled_guess[:num_integrals])
-        else:
-            print(f"Warning: Empty array provided for multiple integrals guess")
-
-    # Handle scalar provided for multiple integrals
-    elif isinstance(guess, (int, float)):
-        opti.set_initial(integral_vars, np.full(num_integrals, float(guess), dtype=np.float64))
-
+            print(f"Warning: Invalid format for single integral guess: {guess}")
+    elif isinstance(guess, (list, np.ndarray)) and np.array(guess).size == num_integrals:
+        # Ensure flat array for CasADi if it's a list of numbers or a 1D array
+        flat_guess = np.array(guess, dtype=np.float64).flatten()
+        opti.set_initial(integral_vars, flat_guess)
     else:
-        print(f"Warning: Unsupported type {type(guess)} for multiple integrals guess")
+        print(f"Warning: Invalid format/length for multiple integrals guess: {guess}")
 
 
-def solve_single_phase_radau_collocation(
-    problem_definition: OptimalControlProblem,
-) -> OptimalControlSolution:
+def solve_single_phase_radau_collocation(problem: ProblemProtocol) -> OptimalControlSolution:
+    """
+    Solves a single-phase optimal control problem using Radau pseudospectral collocation.
+
+    Args:
+        problem: The optimal control problem definition
+
+    Returns:
+        An OptimalControlSolution object containing the solution
+    """
     opti: _CasadiOpti = ca.Opti()
 
-    num_states: int = problem_definition.num_states
-    num_controls: int = problem_definition.num_controls
-    num_integrals: int = problem_definition.num_integrals
+    # Extract necessary problem data
+    num_states: int = len(problem._states)
+    num_controls: int = len(problem._controls)
+    num_integrals: int = problem._num_integrals
 
-    if not problem_definition.collocation_points_per_interval:
-        raise ValueError("problem_definition must include 'collocation_points_per_interval'.")
+    if not problem.collocation_points_per_interval:
+        raise ValueError("problem must include 'collocation_points_per_interval'.")
 
-    num_collocation_nodes_per_interval: list[int] = (
-        problem_definition.collocation_points_per_interval
-    )
+    num_collocation_nodes_per_interval: list[int] = problem.collocation_points_per_interval
     if not (
         isinstance(num_collocation_nodes_per_interval, list)
         and all(isinstance(n, int) and n > 0 for n in num_collocation_nodes_per_interval)
@@ -531,30 +433,31 @@ def solve_single_phase_radau_collocation(
 
     num_mesh_intervals: int = len(num_collocation_nodes_per_interval)
 
-    dynamics_function: _DynamicsCallable = problem_definition.dynamics_function
-    objective_function: _ObjectiveCallable = problem_definition.objective_function
+    # Get vectorized functions directly from problem
+    dynamics_function: _DynamicsCallable = problem.get_dynamics_function()
+    objective_function: _ObjectiveCallable = problem.get_objective_function()
     path_constraints_function: _PathConstraintsCallable | None = (
-        problem_definition.path_constraints_function
+        problem.get_path_constraints_function()
     )
     event_constraints_function: _EventConstraintsCallable | None = (
-        problem_definition.event_constraints_function
+        problem.get_event_constraints_function()
     )
     integral_integrand_function: _IntegralIntegrandCallable | None = (
-        problem_definition.integral_integrand_function
+        problem.get_integrand_function()
     )
-    problem_parameters: _ProblemParameters = problem_definition.problem_parameters
+    problem_parameters: _ProblemParameters = problem._parameters
 
     initial_time_variable: _CasadiMX = opti.variable()
     terminal_time_variable: _CasadiMX = opti.variable()
-    opti.subject_to(initial_time_variable >= problem_definition.t0_bounds[0])
-    opti.subject_to(initial_time_variable <= problem_definition.t0_bounds[1])
-    opti.subject_to(terminal_time_variable >= problem_definition.tf_bounds[0])
-    opti.subject_to(terminal_time_variable <= problem_definition.tf_bounds[1])
+    opti.subject_to(initial_time_variable >= problem._t0_bounds[0])
+    opti.subject_to(initial_time_variable <= problem._t0_bounds[1])
+    opti.subject_to(terminal_time_variable >= problem._tf_bounds[0])
+    opti.subject_to(terminal_time_variable <= problem._tf_bounds[1])
     opti.subject_to(
         terminal_time_variable > initial_time_variable + 1e-6
     )  # Ensure non-zero positive duration
 
-    user_mesh: _FloatArray | None = problem_definition.global_normalized_mesh_nodes
+    user_mesh: _FloatArray | None = problem.global_normalized_mesh_nodes
     global_normalized_mesh_nodes: _FloatArray
     if user_mesh is not None:
         global_normalized_mesh_nodes = np.array(user_mesh, dtype=np.float64)
@@ -793,8 +696,8 @@ def solve_single_phase_radau_collocation(
         for event_constraint in event_constraints_to_apply:
             _apply_constraint(opti, event_constraint)
 
-    if problem_definition.initial_guess:
-        ig: InitialGuess = problem_definition.initial_guess
+    if problem.initial_guess:
+        ig: InitialGuess = problem.initial_guess
 
         if ig.initial_time_variable is not None:
             opti.set_initial(initial_time_variable, ig.initial_time_variable)
@@ -893,8 +796,8 @@ def solve_single_phase_radau_collocation(
                 opti, integral_decision_variables, ig.integrals, num_integrals
             )
 
-    # Changed: object instead of Any
-    solver_options_to_use: dict[str, object] = problem_definition.solver_options or {}
+    # Set solver options
+    solver_options_to_use: dict[str, object] = problem.solver_options or {}
     opti.solver("ipopt", solver_options_to_use)
 
     # Store references for solution extraction
@@ -927,7 +830,7 @@ def solve_single_phase_radau_collocation(
         solution_obj = _extract_and_format_solution(
             solver_solution,
             opti,
-            problem_definition,
+            problem,
             num_collocation_nodes_per_interval,
             global_normalized_mesh_nodes,
         )
@@ -937,7 +840,7 @@ def solve_single_phase_radau_collocation(
         solution_obj = _extract_and_format_solution(
             None,  # Indicates solver failure or no solution
             opti,
-            problem_definition,
+            problem,
             num_collocation_nodes_per_interval,
             global_normalized_mesh_nodes,
         )
@@ -949,7 +852,6 @@ def solve_single_phase_radau_collocation(
             # Attempt to get debug values if solver failed after variables were set
             if hasattr(opti, "debug") and opti.debug is not None:
                 # Ensure variables are not None before trying to access .debug.value()
-                # (they are defined, but good practice)
                 if initial_time_variable is not None:
                     solution_obj.initial_time_variable = float(
                         opti.debug.value(initial_time_variable)

@@ -1,22 +1,22 @@
 from dataclasses import dataclass
-from typing import Any, Sequence, cast
+from typing import Any, cast
 
 import numpy as np
 from scipy.integrate import solve_ivp
 
 from trajectolab.adaptive.base import AdaptiveBase
+from trajectolab.direct_solver import InitialGuess, OptimalControlSolution
 from trajectolab.radau import (
     compute_barycentric_weights,
     compute_radau_collocation_components,
     evaluate_lagrange_polynomial_at_point,
 )
 from trajectolab.tl_types import (
+    ProblemProtocol,
     _ControlEvaluator,
     _FloatArray,
     _FloatMatrix,
     _GammaFactors,
-    _LegacyProblemType,
-    _LegacySolutionType,
     _ODESolverCallable,
     _StateEvaluator,
 )
@@ -159,8 +159,8 @@ def get_polynomial_interpolant(
 
 def _simulate_dynamics_for_error_estimation(
     interval_idx: int,
-    solution: _LegacySolutionType,
-    problem: _LegacyProblemType,
+    solution: OptimalControlSolution,
+    problem: ProblemProtocol,
     state_evaluator: _StateEvaluator,
     control_evaluator: _ControlEvaluator,
     ode_solver: _ODESolverCallable = solve_ivp,
@@ -181,11 +181,11 @@ def _simulate_dynamics_for_error_estimation(
         )
         return result
 
-    num_states = problem.num_states
+    num_states = len(problem._states)
     # Remove the unused variable warning by adding underscore
-    _num_controls = problem.num_controls
-    dynamics_function = problem.dynamics_function
-    problem_parameters = problem.problem_parameters
+    _num_controls = len(problem._controls)
+    dynamics_function = problem.get_dynamics_function()
+    problem_parameters = problem._parameters
 
     # Time transformation parameters
     t0 = solution.initial_time_variable
@@ -476,8 +476,8 @@ def _map_local_tau_from_interval_k_plus_1_to_equivalent_in_interval_k(
 
 def h_reduce_intervals(
     first_idx: int,
-    solution: _LegacySolutionType,
-    problem: _LegacyProblemType,
+    solution: OptimalControlSolution,
+    problem: ProblemProtocol,
     adaptive_params: AdaptiveParameters,
     gamma_factors: _GammaFactors,
     state_evaluator_first: _StateEvaluator,
@@ -495,9 +495,9 @@ def h_reduce_intervals(
     ode_atol = ode_rtol * 1e-1
     num_sim_points = adaptive_params.num_error_sim_points
 
-    num_states = problem.num_states
-    dynamics_function = problem.dynamics_function
-    problem_parameters = problem.problem_parameters
+    num_states = len(problem._states)
+    dynamics_function = problem.get_dynamics_function()
+    problem_parameters = problem._parameters
 
     if solution.raw_solution is None:
         print("      h-reduction failed: Raw solution missing.")
@@ -807,22 +807,28 @@ def p_reduce_interval(
 
 
 def _generate_robust_default_initial_guess(
-    problem: _LegacyProblemType,
+    problem: ProblemProtocol,
     collocation_nodes_list: list[int],
     initial_time_guess: float | None = None,
     terminal_time_guess: float | None = None,
     integral_values_guess: float | _FloatArray | None = None,
-) -> Any:  # Returns InitialGuess
+) -> InitialGuess:
     """Generates a robust default initial guess with correct dimensions."""
-    from trajectolab.direct_solver import InitialGuess
-
-    num_states = problem.num_states
-    num_controls = problem.num_controls
-    num_integrals = problem.num_integrals
+    num_states = len(problem._states)
+    num_controls = len(problem._controls)
+    num_integrals = problem._num_integrals
 
     # Get default values
-    default_state = getattr(problem.default_initial_guess_values, "state", 0.0)
-    default_control = getattr(problem.default_initial_guess_values, "control", 0.0)
+    default_state = 0.0
+    default_control = 0.0
+    default_integral = 0.0
+
+    # Get default values from problem.default_initial_guess_values if available
+    default_guess_values = getattr(problem, "default_initial_guess_values", None)
+    if default_guess_values:
+        default_state = getattr(default_guess_values, "state", 0.0)
+        default_control = getattr(default_guess_values, "control", 0.0)
+        default_integral = getattr(default_guess_values, "integral", 0.0)
 
     # Initialize state and control trajectories
     states: list[_FloatMatrix] = []
@@ -853,7 +859,6 @@ def _generate_robust_default_initial_guess(
         if integral_values_guess is not None:
             final_integral_guess = integral_values_guess
         else:
-            default_integral = getattr(problem.default_initial_guess_values, "integral", 0.0)
             if problem.initial_guess and problem.initial_guess.integrals is not None:
                 raw_guess = problem.initial_guess.integrals
             else:
@@ -882,11 +887,11 @@ def _generate_robust_default_initial_guess(
 
 
 def _propagate_guess_from_previous(
-    prev_solution: _LegacySolutionType,
-    problem: _LegacyProblemType,
+    prev_solution: OptimalControlSolution,
+    problem: ProblemProtocol,
     target_nodes_list: list[int],
     target_mesh: _FloatArray,
-) -> Any:  # Returns InitialGuess
+) -> InitialGuess:
     """Creates initial guess for current NLP, propagating from previous solution."""
     t0_prop = prev_solution.initial_time_variable
     tf_prop = prev_solution.terminal_time_variable
@@ -937,13 +942,13 @@ def _propagate_guess_from_previous(
 
 
 def _calculate_gamma_normalizers(
-    solution: _LegacySolutionType, problem: _LegacyProblemType
+    solution: OptimalControlSolution, problem: ProblemProtocol
 ) -> _GammaFactors | None:
     """Calculates gamma_i normalization factors for error estimation."""
     if not solution.success or solution.raw_solution is None:
         return None
 
-    num_states = problem.num_states
+    num_states = len(problem._states)
     if num_states == 0:
         return np.array([], dtype=np.float64).reshape(0, 1)  # No states, no gamma
 
@@ -981,7 +986,7 @@ class PHSAdaptive(AdaptiveBase):
 
     adaptive_params: AdaptiveParameters
     _initial_polynomial_degrees: list[int] | None
-    _initial_mesh_points: Sequence[float] | _FloatArray | None
+    _initial_mesh_points: _FloatArray | None
 
     def __init__(
         self,
@@ -992,8 +997,8 @@ class PHSAdaptive(AdaptiveBase):
         ode_solver_tolerance: float = 1e-7,
         num_error_sim_points: int = 40,
         initial_polynomial_degrees: list[int] | None = None,
-        initial_mesh_points: Sequence[float] | _FloatArray | None = None,
-        initial_guess: Any = None,  # Any here for InitialGuess type
+        initial_mesh_points: _FloatArray | None = None,
+        initial_guess: InitialGuess | None = None,
     ) -> None:
         """
         Initialize the PHS-Adaptive mesh refinement algorithm.
@@ -1035,10 +1040,9 @@ class PHSAdaptive(AdaptiveBase):
 
     def run(
         self,
-        problem: Any,  # The user-facing problem
-        legacy_problem: _LegacyProblemType,
-        initial_solution: _LegacySolutionType | None = None,
-    ) -> _LegacySolutionType:
+        problem: ProblemProtocol,
+        initial_solution: OptimalControlSolution | None = None,
+    ) -> OptimalControlSolution:
         """Run the PHS-Adaptive mesh refinement algorithm."""
         # Extract adaptive parameters
         error_tol = self.adaptive_params.error_tolerance
@@ -1058,16 +1062,14 @@ class PHSAdaptive(AdaptiveBase):
                 current_mesh = np.linspace(-1, 1, len(current_nodes_list) + 1, dtype=np.float64)
         # Fall back to problem defaults
         else:
-            current_nodes_list = list(legacy_problem.collocation_points_per_interval)
+            current_nodes_list = list(problem.collocation_points_per_interval)
 
             # Ensure we have at least one interval with minimum polynomial degree
             if not current_nodes_list:
                 current_nodes_list = [N_min]
 
-            if legacy_problem.global_normalized_mesh_nodes is not None:
-                current_mesh = np.array(
-                    legacy_problem.global_normalized_mesh_nodes, dtype=np.float64
-                )
+            if problem.global_normalized_mesh_nodes is not None:
+                current_mesh = np.array(problem.global_normalized_mesh_nodes, dtype=np.float64)
             else:
                 current_mesh = np.linspace(-1, 1, len(current_nodes_list) + 1, dtype=np.float64)
 
@@ -1075,8 +1077,7 @@ class PHSAdaptive(AdaptiveBase):
         for i in range(len(current_nodes_list)):
             current_nodes_list[i] = max(N_min, min(N_max, current_nodes_list[i]))
 
-        # Create problem definition for current iteration
-        current_problem = legacy_problem
+        # Keep track of most recent solution
         most_recent_solution = initial_solution
         from trajectolab.direct_solver import solve_single_phase_radau_collocation
 
@@ -1086,8 +1087,8 @@ class PHSAdaptive(AdaptiveBase):
             num_intervals = len(current_nodes_list)
 
             # Update problem definition with current mesh
-            current_problem.collocation_points_per_interval = list(current_nodes_list)
-            current_problem.global_normalized_mesh_nodes = list(current_mesh)
+            problem.collocation_points_per_interval = list(current_nodes_list)
+            problem.global_normalized_mesh_nodes = list(current_mesh)
 
             # Modified: Generate initial guess
             if iteration == 0:
@@ -1099,26 +1100,24 @@ class PHSAdaptive(AdaptiveBase):
                 else:
                     print("  No user-provided initial guess. Using robust default.")
                     initial_guess = _generate_robust_default_initial_guess(
-                        current_problem, current_nodes_list
+                        problem, current_nodes_list
                     )
             elif most_recent_solution is None or not most_recent_solution.success:
                 print("  Previous NLP failed. Using robust default initial guess.")
-                initial_guess = _generate_robust_default_initial_guess(
-                    current_problem, current_nodes_list
-                )
+                initial_guess = _generate_robust_default_initial_guess(problem, current_nodes_list)
             else:
                 # Propagate from previous solution for subsequent iterations
                 initial_guess = _propagate_guess_from_previous(
-                    most_recent_solution, current_problem, current_nodes_list, current_mesh
+                    most_recent_solution, problem, current_nodes_list, current_mesh
                 )
-            current_problem.initial_guess = initial_guess
+            problem.initial_guess = initial_guess
 
             # Log current mesh configuration
             print(f"  Mesh K={num_intervals}, num_nodes_per_interval = {current_nodes_list}")
             print(f"  Mesh nodes_tau_global = {np.array2string(current_mesh, precision=3)}")
 
             # Solve optimal control problem
-            solution = solve_single_phase_radau_collocation(current_problem)
+            solution = solve_single_phase_radau_collocation(problem)
 
             if not solution.success:
                 error_msg = f"NLP solver failed in adaptive iteration {iteration}. " + (
@@ -1146,7 +1145,7 @@ class PHSAdaptive(AdaptiveBase):
                         solution.solved_state_trajectories_per_interval = [
                             _extract_and_prepare_array(
                                 raw_sol.value(var),
-                                current_problem.num_states,
+                                len(problem._states),
                                 current_nodes_list[i] + 1,
                             )
                             for i, var in enumerate(
@@ -1155,13 +1154,13 @@ class PHSAdaptive(AdaptiveBase):
                         ]
 
                     # Extract control trajectories if variables exist
-                    if current_problem.num_controls > 0 and hasattr(
+                    if len(problem._controls) > 0 and hasattr(
                         opti, "control_at_local_collocation_nodes_all_intervals_variables"
                     ):
                         solution.solved_control_trajectories_per_interval = [
                             _extract_and_prepare_array(
                                 raw_sol.value(var),
-                                current_problem.num_controls,
+                                len(problem._controls),
                                 current_nodes_list[i],
                             )
                             for i, var in enumerate(
@@ -1189,8 +1188,8 @@ class PHSAdaptive(AdaptiveBase):
             most_recent_solution.global_mesh_nodes_at_solve_time = np.copy(current_mesh)
 
             # Calculate gamma normalization factors
-            gamma_factors = _calculate_gamma_normalizers(solution, current_problem)
-            if gamma_factors is None and current_problem.num_states > 0:
+            gamma_factors = _calculate_gamma_normalizers(solution, problem)
+            if gamma_factors is None and len(problem._states) > 0:
                 error_msg = f"Failed to calculate gamma normalizers at iter {iteration}. Stopping."
                 print(f"  Error: {error_msg}")
                 solution.message = error_msg
@@ -1224,9 +1223,7 @@ class PHSAdaptive(AdaptiveBase):
                         print(
                             f"Warning: states_list is None for interval {k}. Using default state."
                         )
-                        state_data = np.zeros(
-                            (current_problem.num_states, Nk + 1), dtype=np.float64
-                        )
+                        state_data = np.zeros((len(problem._states), Nk + 1), dtype=np.float64)
                     else:
                         state_data = states_list[k]
                     state_evaluators[k] = get_polynomial_interpolant(
@@ -1236,7 +1233,7 @@ class PHSAdaptive(AdaptiveBase):
                     )
 
                     # Create control interpolant
-                    if current_problem.num_controls > 0:
+                    if len(problem._controls) > 0:
                         control_data = controls_list[k]
 
                         # Use cache for control weights
@@ -1264,7 +1261,7 @@ class PHSAdaptive(AdaptiveBase):
                     if state_evaluators[k] is None:
                         state_evaluators[k] = get_polynomial_interpolant(
                             np.array([-1.0, 1.0], dtype=np.float64),
-                            np.full((current_problem.num_states, 2), np.nan, dtype=np.float64),
+                            np.full((len(problem._states), 2), np.nan, dtype=np.float64),
                             None,
                         )
                     if control_evaluators[k] is None:
@@ -1272,11 +1269,7 @@ class PHSAdaptive(AdaptiveBase):
                             np.array([-1.0, 1.0], dtype=np.float64),
                             np.full(
                                 (
-                                    (
-                                        current_problem.num_controls
-                                        if current_problem.num_controls > 0
-                                        else 0
-                                    ),
+                                    (len(problem._controls) if len(problem._controls) > 0 else 0),
                                     2,
                                 ),
                                 np.nan,
@@ -1306,7 +1299,7 @@ class PHSAdaptive(AdaptiveBase):
                 sim_bundle = _simulate_dynamics_for_error_estimation(
                     k,
                     solution,
-                    current_problem,
+                    problem,
                     state_eval,
                     control_eval,
                     ode_rtol=ode_rtol,
@@ -1317,7 +1310,7 @@ class PHSAdaptive(AdaptiveBase):
                 safe_gamma = (
                     gamma_factors
                     if gamma_factors is not None
-                    else np.ones((current_problem.num_states, 1), dtype=np.float64)
+                    else np.ones((len(problem._states), 1), dtype=np.float64)
                 )
                 error = calculate_relative_error_estimate(k, sim_bundle, safe_gamma)
 
@@ -1408,7 +1401,7 @@ class PHSAdaptive(AdaptiveBase):
                                 state_evaluators[k] is not None
                                 and state_evaluators[k + 1] is not None
                                 and (
-                                    current_problem.num_controls == 0
+                                    len(problem._controls) == 0
                                     or (
                                         control_evaluators[k] is not None
                                         and control_evaluators[k + 1] is not None
@@ -1426,14 +1419,14 @@ class PHSAdaptive(AdaptiveBase):
                                 safe_gamma = (
                                     gamma_factors
                                     if gamma_factors is not None
-                                    else np.ones((current_problem.num_states, 1), dtype=np.float64)
+                                    else np.ones((len(problem._states), 1), dtype=np.float64)
                                 )
 
                                 # Attempt h-reduction (interval merging)
                                 can_merge = h_reduce_intervals(
                                     k,
                                     solution,
-                                    current_problem,
+                                    problem,
                                     self.adaptive_params,
                                     safe_gamma,
                                     state_eval_first,
