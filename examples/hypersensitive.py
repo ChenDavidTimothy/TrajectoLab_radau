@@ -25,8 +25,8 @@ problem.add_state(
 problem.add_control(name="u")
 
 
-# Define dynamics - simple with symbolic expressions
-def dynamics(states, controls, time, params):
+# Define dynamics - no need to include time and params if not used
+def dynamics(states, controls):
     x = states["x"]
     u = controls["u"]
     return {"x": -(x**3) + u}
@@ -35,18 +35,18 @@ def dynamics(states, controls, time, params):
 problem.set_dynamics(dynamics)
 
 
-# Define objective integrand
-def objective_integrand(states, controls, time, params):
+# Define objective integrand - no need to include time and params if not used
+def objective_integrand(states, controls):
     x = states["x"]
     u = controls["u"]
-    return 0.5 * (x**2 + u**2)  # Don't use float() here!
+    return 0.5 * (x**2 + u**2)
 
 
 problem.add_integral(objective_integrand)
 
 
-# Define objective function - simple return of the integral
-def objective(initial_time, final_time, initial_states, final_states, integrals, params):
+# Define objective function - only need to include the integrals parameter
+def objective(integrals):
     return integrals[0]  # directly return the integral value
 
 

@@ -100,7 +100,7 @@ _EventConstraintFuncType: TypeAlias = Callable[
 
 @dataclass
 class PathConstraint:
-    val: _CasadiMX
+    val: _CasadiMX | float
     min_val: float | None = None
     max_val: float | None = None
     equals: float | None = None
@@ -108,7 +108,7 @@ class PathConstraint:
 
 @dataclass
 class EventConstraint:
-    val: _CasadiMX
+    val: _CasadiMX | float
     min_val: float | None = None
     max_val: float | None = None
     equals: float | None = None
