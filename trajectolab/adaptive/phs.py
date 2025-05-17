@@ -111,7 +111,7 @@ class NumPyDynamicsAdapter:
             result_np = np.array(result_casadi.full(), dtype=np.float64).flatten()
         else:
             # Handle array of MX objects
-            dm_result = ca.DM.zeros(len(result_casadi), 1)  # Fixed: proper shape (n,1)
+            dm_result = ca.DM(len(result_casadi), 1)
             for i, item in enumerate(result_casadi):
                 dm_result[i] = ca.evalf(item)
             result_np = np.array(dm_result.full(), dtype=np.float64).flatten()
