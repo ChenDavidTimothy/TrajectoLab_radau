@@ -2,7 +2,6 @@
 Numerical utilities for the PHS adaptive algorithm.
 """
 
-
 import numpy as np
 
 from trajectolab.radau import (

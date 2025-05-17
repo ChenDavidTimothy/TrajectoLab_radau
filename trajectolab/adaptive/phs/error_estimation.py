@@ -8,6 +8,7 @@ import numpy as np
 from scipy.integrate import solve_ivp
 
 from trajectolab.adaptive.phs.data_structures import IntervalSimulationBundle, NumPyDynamicsAdapter
+from trajectolab.direct_solver import OptimalControlSolution
 from trajectolab.tl_types import (
     ProblemProtocol,
     _ControlEvaluator,

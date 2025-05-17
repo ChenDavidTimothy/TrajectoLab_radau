@@ -4,7 +4,7 @@ Initial guess generation for the PHS adaptive algorithm.
 
 import numpy as np
 
-from trajectolab.direct_solver import InitialGuess
+from trajectolab.direct_solver import InitialGuess, OptimalControlSolution
 from trajectolab.tl_types import (
     ProblemProtocol,
     _FloatArray,

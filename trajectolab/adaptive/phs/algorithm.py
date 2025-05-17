@@ -2,7 +2,7 @@
 Main PHS adaptive algorithm implementation.
 """
 
-from typing import Sequence, cast
+from typing import Any, Sequence, cast
 
 import numpy as np
 

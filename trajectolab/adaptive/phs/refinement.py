@@ -17,6 +17,7 @@ from trajectolab.adaptive.phs.numerical import (
     map_local_tau_from_interval_k_plus_1_to_equivalent_in_interval_k,
     map_local_tau_from_interval_k_to_equivalent_in_interval_k_plus_1,
 )
+from trajectolab.direct_solver import OptimalControlSolution
 from trajectolab.tl_types import (
     ProblemProtocol,
     _ControlEvaluator,
