@@ -13,6 +13,7 @@ from .tl_types import (
     _DynamicsFuncType,
     _EventConstraintFuncType,
     _EventConstraintsCallable,
+    _FloatArray,
     _IntegralIntegrandCallable,
     _IntegrandFuncType,
     _ObjectiveCallable,
@@ -58,25 +59,25 @@ class Problem:
 
     def __init__(self, name: str = "Unnamed Problem") -> None:
         self.name = name
-        self._states = {}
-        self._controls = {}
-        self._parameters = {}
-        self._t0_bounds = (0.0, 0.0)
-        self._tf_bounds = (1.0, 1.0)
-        self._dynamics_func = None
-        self._objective_type = None
-        self._objective_func = None
-        self._path_constraints = []
-        self._event_constraints = []
-        self._num_integrals = 0
-        self._integral_functions = []
+        self._states: dict[str, dict[str, Any]] = {}
+        self._controls: dict[str, dict[str, Any]] = {}
+        self._parameters: _ProblemParameters = {}
+        self._t0_bounds: tuple[float, float] = (0.0, 0.0)
+        self._tf_bounds: tuple[float, float] = (1.0, 1.0)
+        self._dynamics_func: _DynamicsFuncType | None = None
+        self._objective_type: str | None = None
+        self._objective_func: _ObjectiveFuncType | None = None
+        self._path_constraints: list[_ConstraintFuncType] = []
+        self._event_constraints: list[_EventConstraintFuncType] = []
+        self._num_integrals: int = 0
+        self._integral_functions: list[_IntegrandFuncType] = []
 
         # Solver configuration
-        self.collocation_points_per_interval = []
-        self.global_normalized_mesh_nodes = None
-        self.initial_guess = None
-        self.default_initial_guess_values = None
-        self.solver_options = {}
+        self.collocation_points_per_interval: list[int] = []
+        self.global_normalized_mesh_nodes: _FloatArray | None = None
+        self.initial_guess: Any = None
+        self.default_initial_guess_values: Any = None
+        self.solver_options: dict[str, Any] = {}
 
     def set_time_bounds(
         self,
@@ -405,7 +406,7 @@ class Problem:
                                 equals=constraint_result.equals,
                             )
                         )
-                else:
+                elif isinstance(constraint_result, list):
                     constraint_list = constraint_result
                     for c in constraint_list:
                         if c.val is not None:
@@ -502,7 +503,7 @@ class Problem:
                                 equals=constraint_result.equals,
                             )
                         )
-                else:
+                elif isinstance(constraint_result, list):
                     constraint_list = constraint_result
                     for c in constraint_list:
                         if c.val is not None:
