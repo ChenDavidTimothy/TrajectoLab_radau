@@ -60,6 +60,8 @@ _ControlDictType: TypeAlias = dict[str, float | _CasadiMX]
 # (without creating a duplicate class)
 ConstraintType: TypeAlias = Any
 
+_ConstraintValue: TypeAlias = _CasadiMX | float | _FloatArray
+
 # User-facing function types for Problem class using ConstraintType as placeholder
 _DynamicsFuncType: TypeAlias = Callable[
     [_StateDictType, _ControlDictType, float | _CasadiMX, _ProblemParameters | None], _StateDictType

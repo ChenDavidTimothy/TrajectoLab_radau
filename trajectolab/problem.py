@@ -9,6 +9,7 @@ from .tl_types import (
     PathConstraint,
     _CasadiMX,
     _ConstraintFuncType,
+    _ConstraintValue,
     _DynamicsCallable,
     _DynamicsFuncType,
     _EventConstraintFuncType,
@@ -36,7 +37,7 @@ class Constraint:
 
     def __init__(
         self,
-        val: Any = None,
+        val: _ConstraintValue | None = None,
         lower: float | None = None,
         upper: float | None = None,
         equals: float | None = None,
@@ -400,7 +401,7 @@ class Problem:
                     if constraint_result.val is not None:
                         result.append(
                             PathConstraint(
-                                val=constraint_result.val,
+                                val=cast(_CasadiMX, constraint_result.val),  # Add cast here
                                 min_val=constraint_result.lower,
                                 max_val=constraint_result.upper,
                                 equals=constraint_result.equals,
@@ -497,7 +498,7 @@ class Problem:
                     if constraint_result.val is not None:
                         result.append(
                             EventConstraint(
-                                val=constraint_result.val,
+                                val=cast(_CasadiMX, constraint_result.val),  # Add cast here
                                 min_val=constraint_result.lower,
                                 max_val=constraint_result.upper,
                                 equals=constraint_result.equals,
