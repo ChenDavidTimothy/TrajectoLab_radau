@@ -4,7 +4,6 @@ import numpy as np
 
 from trajectolab.adaptive.base import AdaptiveBase
 from trajectolab.adaptive.phs import PHSAdaptive
-from trajectolab.direct_solver import solve_single_phase_radau_collocation
 from trajectolab.problem import Problem
 from trajectolab.solution import Solution
 from trajectolab.tl_types import ProblemProtocol
@@ -41,21 +40,10 @@ class RadauDirectSolver:
         }
 
     def solve(self, problem: Problem) -> Solution:
-        """
-        Solve the optimal control problem.
-
-        Args:
-            problem: The optimal control problem to solve
-
-        Returns:
-            Solution object containing the solution data
-        """
         # Update problem with solver options
         problem.solver_options = self.nlp_options
 
         # Create a proper protocol-compatible version of the problem
-        # We need to use a dictionary-like approach to set attributes since
-        # the type annotations may be preventing direct assignment
         protocol_problem = problem
 
         # Handle mesh initialization if needed
@@ -68,17 +56,10 @@ class RadauDirectSolver:
             mesh_nodes = np.linspace(-1.0, 1.0, num_intervals + 1, dtype=np.float64)
 
             # Use setattr to bypass type checking constraints
-            # This safely sets the attribute even if the type system doesn't agree
             protocol_problem.global_normalized_mesh_nodes = mesh_nodes
 
-        if self.mesh_method is not None:
-            # Use the mesh method to solve the problem
-            solution_data = self.mesh_method.run(cast(ProblemProtocol, protocol_problem))
-        else:
-            # If no mesh method is provided, solve directly
-            solution_data = solve_single_phase_radau_collocation(
-                cast(ProblemProtocol, protocol_problem)
-            )
+        # Always use the mesh method (which is never None due to initialization)
+        solution_data = self.mesh_method.run(cast(ProblemProtocol, protocol_problem))
 
         # Create Solution object
         return Solution(solution_data, cast(ProblemProtocol, protocol_problem))
