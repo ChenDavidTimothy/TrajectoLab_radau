@@ -1,15 +1,10 @@
 """
-tl_types.py
-
-Core type definitions for the TrajectoLab project.
-This module centralizes custom type aliases, constants, and potentially
-more complex type structures as the project grows.
+Core type definitions for the TrajectoLab project with symbolic support.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
 from typing import Any, Protocol, TypeAlias, TypeVar
 
 import casadi as ca
@@ -18,47 +13,82 @@ from numpy import int_ as np_int_
 from numpy.typing import NDArray
 
 # --- Core Numerical Type Aliases ---
-
-# Type alias for a 1D NumPy array of float64.
-# Represents vectors or sequences of floating-point numbers.
 _FloatArray: TypeAlias = NDArray[np.float64]
-
-# Type alias for a 2D NumPy array of float64.
-# Represents matrices or other 2D grids of floating-point numbers.
 _FloatMatrix: TypeAlias = NDArray[np.float64]
-
-# Type alias for a 1D NumPy array of integers.
-# Useful for indices, counts, or integer-valued parameters.
 _IntArray: TypeAlias = NDArray[np_int_]
 
+# --- Core Symbolic Type Aliases ---
+_SymType: TypeAlias = ca.MX
+_SymExpr: TypeAlias = ca.MX | float | int
 
 # --- Core Numerical Constants ---
-
-# Standard tolerance for floating-point comparisons to zero.
-# Used to handle precision issues in numerical algorithms.
 ZERO_TOLERANCE: float = 1e-12
-
 
 # --- CasADi Type Aliases ---
 _CasadiMX: TypeAlias = ca.MX
 _CasadiDM: TypeAlias = ca.DM
-_CasadiMatrix: TypeAlias = _CasadiMX | _CasadiDM  # Union type for any CasADi matrix
+_CasadiMatrix: TypeAlias = _CasadiMX | _CasadiDM
 _CasadiOpti: TypeAlias = ca.Opti
 _CasadiOptiSol: TypeAlias = ca.OptiSol
-
+_CasadiFunction: TypeAlias = ca.Function
 
 # --- Problem Structure Data Classes and Type Aliases ---
 _ProblemParameters: TypeAlias = dict[str, object]
 
-# Dictionary type aliases for Problem class
+# Dictionary type aliases for Problem class - keep for compatibility
 _StateDictType: TypeAlias = dict[str, float | _CasadiMX]
 _ControlDictType: TypeAlias = dict[str, float | _CasadiMX]
 
 # Forward reference for Problem module's Constraint class
-# (without creating a duplicate class)
 ConstraintType: TypeAlias = Any
 
 _ConstraintValue: TypeAlias = _CasadiMX | float | _FloatArray
+
+
+# --- Constraints ---
+class PathConstraint:
+    """Path constraint for the solver."""
+
+    def __init__(
+        self,
+        val: _CasadiMX | float,
+        min_val: float | None = None,
+        max_val: float | None = None,
+        equals: float | None = None,
+    ) -> None:
+        self.val = val
+        self.min_val = min_val
+        self.max_val = max_val
+        self.equals = equals
+
+
+class EventConstraint:
+    """Event constraint for the solver."""
+
+    def __init__(
+        self,
+        val: _CasadiMX | float,
+        min_val: float | None = None,
+        max_val: float | None = None,
+        equals: float | None = None,
+    ) -> None:
+        self.val = val
+        self.min_val = min_val
+        self.max_val = max_val
+        self.equals = equals
+
+
+# --- Function Protocol Classes for Symbolic Problem Description ---
+class TimeVariable(Protocol):
+    """Protocol for time variable with initial/final properties."""
+
+    @property
+    def initial(self) -> _SymType: ...
+
+    @property
+    def final(self) -> _SymType: ...
+
+    def __call__(self) -> _SymType: ...
 
 
 # --- Function Protocol Classes for User-Facing APIs ---
@@ -178,22 +208,6 @@ _ConstraintFuncType: TypeAlias = ConstraintFuncProtocol
 _EventConstraintFuncType: TypeAlias = EventConstraintFuncProtocol
 
 
-@dataclass
-class PathConstraint:
-    val: _CasadiMX | float
-    min_val: float | None = None
-    max_val: float | None = None
-    equals: float | None = None
-
-
-@dataclass
-class EventConstraint:
-    val: _CasadiMX | float
-    min_val: float | None = None
-    max_val: float | None = None
-    equals: float | None = None
-
-
 # --- Callable Types for Solver ---
 # (state, control, time, params) -> state_derivative
 _DynamicsCallable: TypeAlias = Callable[
@@ -271,20 +285,28 @@ class ProblemProtocol(Protocol):
     _parameters: _ProblemParameters
     _t0_bounds: tuple[float, float]
     _tf_bounds: tuple[float, float]
-    _dynamics_func: _DynamicsFuncType | None
-    _objective_type: str | None
-    _objective_func: _ObjectiveFuncType | None
-    _path_constraints: list[_ConstraintFuncType]
-    _event_constraints: list[_EventConstraintFuncType]
     _num_integrals: int
-    _integral_functions: list[_IntegrandFuncType]
     collocation_points_per_interval: list[int]
     global_normalized_mesh_nodes: _FloatArray | None
     initial_guess: Any
     solver_options: dict[str, object]
 
+    # Symbolic attributes
+    _sym_states: dict[str, _SymType]
+    _sym_controls: dict[str, _SymType]
+    _sym_parameters: dict[str, _SymType]
+    _sym_time: _SymType | None
+    _sym_time_initial: _SymType | None
+    _sym_time_final: _SymType | None
+    _dynamics_expressions: dict[_SymType, _SymExpr]
+    _objective_expression: _SymExpr | None
+    _objective_type: str | None
+    _constraints: list[_SymExpr]
+    _integral_expressions: list[_SymExpr]
+    _integral_symbols: list[_SymType]
+
     def get_dynamics_function(self) -> _DynamicsCallable: ...
     def get_objective_function(self) -> _ObjectiveCallable: ...
     def get_integrand_function(self) -> _IntegralIntegrandCallable | None: ...
     def get_path_constraints_function(self) -> _PathConstraintsCallable | None: ...
-    def get_event_constraints_function(self) -> _EventConstraintsCallable: ...
+    def get_event_constraints_function(self) -> _EventConstraintsCallable | None: ...

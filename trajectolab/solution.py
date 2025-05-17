@@ -13,7 +13,7 @@ from matplotlib.axes import Axes as MplAxes
 from matplotlib.lines import Line2D
 
 from .direct_solver import OptimalControlSolution
-from .tl_types import ProblemProtocol, _FloatArray, _IntArray
+from .tl_types import ProblemProtocol, _FloatArray, _IntArray, _SymType
 
 
 class IntervalData:
@@ -67,6 +67,19 @@ class Solution:
         self._control_names: list[str] = []
         if problem and hasattr(problem, "_controls") and hasattr(problem._controls, "keys"):
             self._control_names = list(problem._controls.keys())
+
+        # Map to store symbolic variables to their names
+        self._sym_state_map: dict[_SymType, str] = {}
+        self._sym_control_map: dict[_SymType, str] = {}
+
+        # If the problem has symbolic variables, create mappings
+        if problem and hasattr(problem, "_sym_states"):
+            for name, sym in problem._sym_states.items():
+                self._sym_state_map[sym] = name
+
+        if problem and hasattr(problem, "_sym_controls"):
+            for name, sym in problem._sym_controls.items():
+                self._sym_control_map[sym] = name
 
         self.success: bool = False
         self.message: str = "No solution data"
@@ -185,8 +198,35 @@ class Solution:
             return None
 
     def get_state_trajectory(
-        self, state_name_or_index: str | int
+        self, state_name_or_index: str | int | _SymType
     ) -> tuple[_FloatArray, _FloatArray]:
+        """
+        Get state trajectory data.
+
+        Args:
+            state_name_or_index: State name, index, or symbolic variable
+
+        Returns:
+            Tuple of (time_array, value_array)
+        """
+        # Handle symbolic variable case
+        if hasattr(state_name_or_index, "is_symbolic") or (
+            hasattr(state_name_or_index, "is_constant")
+            and not (isinstance(state_name_or_index, (int, str, float)))
+        ):
+            sym_var = state_name_or_index
+            if sym_var in self._sym_state_map:
+                state_name_or_index = self._sym_state_map[sym_var]
+            else:
+                # Search through the problem if the map is not populated
+                if self._problem and hasattr(self._problem, "_sym_states"):
+                    for name, var in self._problem._sym_states.items():
+                        if var is sym_var:
+                            state_name_or_index = name
+                            self._sym_state_map[sym_var] = name
+                            break
+
+        # Proceed with standard lookup
         index = self._get_state_index(state_name_or_index)
         empty_arr = np.array([], dtype=np.float64)
         time_arr = self._time_states if self._time_states is not None else empty_arr
@@ -196,8 +236,35 @@ class Solution:
         return time_arr, self._states[index]
 
     def get_control_trajectory(
-        self, control_name_or_index: str | int
+        self, control_name_or_index: str | int | _SymType
     ) -> tuple[_FloatArray, _FloatArray]:
+        """
+        Get control trajectory data.
+
+        Args:
+            control_name_or_index: Control name, index, or symbolic variable
+
+        Returns:
+            Tuple of (time_array, value_array)
+        """
+        # Handle symbolic variable case
+        if hasattr(control_name_or_index, "is_symbolic") or (
+            hasattr(control_name_or_index, "is_constant")
+            and not (isinstance(control_name_or_index, (int, str, float)))
+        ):
+            sym_var = control_name_or_index
+            if sym_var in self._sym_control_map:
+                control_name_or_index = self._sym_control_map[sym_var]
+            else:
+                # Search through the problem if the map is not populated
+                if self._problem and hasattr(self._problem, "_sym_controls"):
+                    for name, var in self._problem._sym_controls.items():
+                        if var is sym_var:
+                            control_name_or_index = name
+                            self._sym_control_map[sym_var] = name
+                            break
+
+        # Proceed with standard lookup
         index = self._get_control_index(control_name_or_index)
         empty_arr = np.array([], dtype=np.float64)
         time_arr = self._time_controls if self._time_controls is not None else empty_arr
@@ -207,16 +274,70 @@ class Solution:
         return time_arr, self._controls[index]
 
     def interpolate_state(
-        self, state_name_or_index: str | int, time_point: float | _FloatArray
+        self, state_name_or_index: str | int | _SymType, time_point: float | _FloatArray
     ) -> float | _FloatArray | None:
+        """
+        Interpolate state value at specified time point(s).
+
+        Args:
+            state_name_or_index: State name, index, or symbolic variable
+            time_point: Time point(s) to interpolate at
+
+        Returns:
+            Interpolated state value(s)
+        """
+        # Handle symbolic variable case
+        if hasattr(state_name_or_index, "is_symbolic") or (
+            hasattr(state_name_or_index, "is_constant")
+            and not (isinstance(state_name_or_index, (int, str, float)))
+        ):
+            sym_var = state_name_or_index
+            if sym_var in self._sym_state_map:
+                state_name_or_index = self._sym_state_map[sym_var]
+            else:
+                # Search through the problem if the map is not populated
+                if self._problem and hasattr(self._problem, "_sym_states"):
+                    for name, var in self._problem._sym_states.items():
+                        if var is sym_var:
+                            state_name_or_index = name
+                            self._sym_state_map[sym_var] = name
+                            break
+
         time, values = self.get_state_trajectory(state_name_or_index)
         if time.size == 0 or values.size == 0:
             return None
         return np.interp(time_point, time, values)
 
     def interpolate_control(
-        self, control_name_or_index: str | int, time_point: float | _FloatArray
+        self, control_name_or_index: str | int | _SymType, time_point: float | _FloatArray
     ) -> float | _FloatArray | None:
+        """
+        Interpolate control value at specified time point(s).
+
+        Args:
+            control_name_or_index: Control name, index, or symbolic variable
+            time_point: Time point(s) to interpolate at
+
+        Returns:
+            Interpolated control value(s)
+        """
+        # Handle symbolic variable case
+        if hasattr(control_name_or_index, "is_symbolic") or (
+            hasattr(control_name_or_index, "is_constant")
+            and not (isinstance(control_name_or_index, (int, str, float)))
+        ):
+            sym_var = control_name_or_index
+            if sym_var in self._sym_control_map:
+                control_name_or_index = self._sym_control_map[sym_var]
+            else:
+                # Search through the problem if the map is not populated
+                if self._problem and hasattr(self._problem, "_sym_controls"):
+                    for name, var in self._problem._sym_controls.items():
+                        if var is sym_var:
+                            control_name_or_index = name
+                            self._sym_control_map[sym_var] = name
+                            break
+
         time, values = self.get_control_trajectory(control_name_or_index)
         if time.size == 0 or values.size == 0:
             return None
@@ -394,26 +515,102 @@ class Solution:
         plt.show()
 
     def plot_states(
-        self, state_names: Iterable[str] | None = None, figsize: tuple[float, float] = (10.0, 8.0)
+        self,
+        state_names: Iterable[str | _SymType] | None = None,
+        figsize: tuple[float, float] = (10.0, 8.0),
     ) -> None:
-        self._plot_variables(
-            variable_type="state",
-            variable_names_to_plot=state_names,
-            all_variable_names=self._state_names,
-            get_index_func=self._get_state_index,
-            figsize=figsize,
-        )
+        """
+        Plot specific state trajectories.
+
+        Args:
+            state_names: Names or symbolic variables of states to plot
+            figsize: Figure size
+        """
+        # Convert symbolic variables to names
+        processed_names: list[str] = []
+        if state_names is not None:
+            for state in state_names:
+                if hasattr(state, "is_symbolic") or (
+                    hasattr(state, "is_constant") and not isinstance(state, (int, str, float))
+                ):
+                    sym_var = state
+                    if sym_var in self._sym_state_map:
+                        processed_names.append(self._sym_state_map[sym_var])
+                    else:
+                        # Search through problem
+                        if self._problem and hasattr(self._problem, "_sym_states"):
+                            for name, var in self._problem._sym_states.items():
+                                if var is sym_var:
+                                    processed_names.append(name)
+                                    self._sym_state_map[sym_var] = name
+                                    break
+                elif isinstance(state, str):
+                    processed_names.append(state)
+
+            self._plot_variables(
+                variable_type="state",
+                variable_names_to_plot=processed_names,
+                all_variable_names=self._state_names,
+                get_index_func=self._get_state_index,
+                figsize=figsize,
+            )
+        else:
+            self._plot_variables(
+                variable_type="state",
+                variable_names_to_plot=None,
+                all_variable_names=self._state_names,
+                get_index_func=self._get_state_index,
+                figsize=figsize,
+            )
 
     def plot_controls(
-        self, control_names: Iterable[str] | None = None, figsize: tuple[float, float] = (10.0, 8.0)
+        self,
+        control_names: Iterable[str | _SymType] | None = None,
+        figsize: tuple[float, float] = (10.0, 8.0),
     ) -> None:
-        self._plot_variables(
-            variable_type="control",
-            variable_names_to_plot=control_names,
-            all_variable_names=self._control_names,
-            get_index_func=self._get_control_index,
-            figsize=figsize,
-        )
+        """
+        Plot specific control trajectories.
+
+        Args:
+            control_names: Names or symbolic variables of controls to plot
+            figsize: Figure size
+        """
+        # Convert symbolic variables to names
+        processed_names: list[str] = []
+        if control_names is not None:
+            for control in control_names:
+                if hasattr(control, "is_symbolic") or (
+                    hasattr(control, "is_constant") and not isinstance(control, (int, str, float))
+                ):
+                    sym_var = control
+                    if sym_var in self._sym_control_map:
+                        processed_names.append(self._sym_control_map[sym_var])
+                    else:
+                        # Search through problem
+                        if self._problem and hasattr(self._problem, "_sym_controls"):
+                            for name, var in self._problem._sym_controls.items():
+                                if var is sym_var:
+                                    processed_names.append(name)
+                                    self._sym_control_map[sym_var] = name
+                                    break
+                elif isinstance(control, str):
+                    processed_names.append(control)
+
+            self._plot_variables(
+                variable_type="control",
+                variable_names_to_plot=processed_names,
+                all_variable_names=self._control_names,
+                get_index_func=self._get_control_index,
+                figsize=figsize,
+            )
+        else:
+            self._plot_variables(
+                variable_type="control",
+                variable_names_to_plot=None,
+                all_variable_names=self._control_names,
+                get_index_func=self._get_control_index,
+                figsize=figsize,
+            )
 
     def _plot_variables(
         self,
@@ -529,3 +726,103 @@ class Solution:
         )
         plt.tight_layout(rect=rect_val)
         plt.show()
+
+    def get_symbolic_trajectory(self, var: _SymType) -> tuple[_FloatArray, _FloatArray]:
+        """
+        Get the trajectory for a symbolic variable.
+
+        Args:
+            var: Symbolic variable
+
+        Returns:
+            Tuple of (time_array, value_array)
+        """
+        # First check if the variable is in our maps
+        if var in self._sym_state_map:
+            return self.get_state_trajectory(self._sym_state_map[var])
+        elif var in self._sym_control_map:
+            return self.get_control_trajectory(self._sym_control_map[var])
+
+        # Identify the variable by searching the problem
+        var_name = None
+        var_type = None
+
+        # Check state variables
+        if self._problem:
+            for name, sym in self._problem._sym_states.items():
+                if var is sym:
+                    var_name = name
+                    var_type = "state"
+                    # Update our map for future use
+                    self._sym_state_map[var] = name
+                    break
+
+            # Check control variables
+            if var_name is None:
+                for name, sym in self._problem._sym_controls.items():
+                    if var is sym:
+                        var_name = name
+                        var_type = "control"
+                        # Update our map for future use
+                        self._sym_control_map[var] = name
+                        break
+
+        # Return trajectory based on type
+        if var_type == "state":
+            return self.get_state_trajectory(var_name)
+        elif var_type == "control":
+            return self.get_control_trajectory(var_name)
+        else:
+            empty_arr = np.array([], dtype=np.float64)
+            return empty_arr, empty_arr
+
+    def interpolate_symbolic(
+        self, var: _SymType, time_point: float | _FloatArray
+    ) -> float | _FloatArray | None:
+        """
+        Interpolate the value of a symbolic variable at given time points.
+
+        Args:
+            var: Symbolic variable
+            time_point: Time point(s) to interpolate at
+
+        Returns:
+            Interpolated value(s)
+        """
+        # First check if the variable is in our maps
+        if var in self._sym_state_map:
+            return self.interpolate_state(self._sym_state_map[var], time_point)
+        elif var in self._sym_control_map:
+            return self.interpolate_control(self._sym_control_map[var], time_point)
+
+        # Identify the variable by searching the problem
+        var_name = None
+        var_type = None
+
+        # Check state variables
+        if self._problem:
+            for name, sym in self._problem._sym_states.items():
+                if var is sym:
+                    var_name = name
+                    var_type = "state"
+                    # Update our map for future use
+                    self._sym_state_map[var] = name
+                    break
+
+            # Check control variables
+            if var_name is None:
+                for name, sym in self._problem._sym_controls.items():
+                    if var is sym:
+                        var_name = name
+                        var_type = "control"
+                        # Update our map for future use
+                        self._sym_control_map[var] = name
+                        break
+
+        # Interpolate based on type
+        if var_type == "state":
+            return self.interpolate_state(var_name, time_point)
+        elif var_type == "control":
+            return self.interpolate_control(var_name, time_point)
+        else:
+            return None
