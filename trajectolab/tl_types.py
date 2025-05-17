@@ -6,9 +6,7 @@ This module centralizes custom type aliases, constants, and potentially
 more complex type structures as the project grows.
 """
 
-from __future__ import (
-    annotations,
-)
+from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -62,40 +60,122 @@ ConstraintType: TypeAlias = Any
 
 _ConstraintValue: TypeAlias = _CasadiMX | float | _FloatArray
 
-# User-facing function types for Problem class using ConstraintType as placeholder
-_DynamicsFuncType: TypeAlias = Callable[
-    [_StateDictType, _ControlDictType, float | _CasadiMX, _ProblemParameters | None], _StateDictType
-]
-_ObjectiveFuncType: TypeAlias = Callable[
-    [
-        float | _CasadiMX,
-        float | _CasadiMX,
-        _StateDictType,
-        _StateDictType,
-        float | _CasadiMX | None,
-        _ProblemParameters | None,
-    ],
-    float | _CasadiMX,
-]
-_IntegrandFuncType: TypeAlias = Callable[
-    [_StateDictType, _ControlDictType, float | _CasadiMX, _ProblemParameters | None],
-    float | _CasadiMX,
-]
-_ConstraintFuncType: TypeAlias = Callable[
-    [_StateDictType, _ControlDictType, float | _CasadiMX, _ProblemParameters | None],
-    "ConstraintType | list[ConstraintType]",
-]
-_EventConstraintFuncType: TypeAlias = Callable[
-    [
-        float | _CasadiMX,
-        float | _CasadiMX,
-        _StateDictType,
-        _StateDictType,
-        float | _CasadiMX | None,
-        _ProblemParameters | None,
-    ],
-    "ConstraintType | list[ConstraintType]",
-]
+
+# --- Function Protocol Classes for User-Facing APIs ---
+# These protocols allow for flexible parameter signatures while enforcing return types
+
+
+class DynamicsFuncProtocol(Protocol):
+    """Protocol for user-defined dynamics functions."""
+
+    def __call__(
+        self, states: _StateDictType, controls: _ControlDictType, *args: Any, **kwargs: Any
+    ) -> _StateDictType:
+        """
+        Defines the dynamics of the system.
+
+        Args:
+            states: Dictionary of state variables
+            controls: Dictionary of control variables
+            *args: Additional positional arguments (e.g., time)
+            **kwargs: Additional keyword arguments (e.g., parameters)
+
+        Returns:
+            Dictionary of state derivatives
+        """
+        ...
+
+
+class ObjectiveFuncProtocol(Protocol):
+    """Protocol for user-defined objective functions."""
+
+    def __call__(self, *args: Any, **kwargs: Any) -> float | _CasadiMX:
+        """
+        Defines the objective function to minimize.
+
+        Args can include:
+            initial_time: Initial time
+            final_time: Final time
+            initial_states: Dictionary of initial state values
+            final_states: Dictionary of final state values
+            integrals: Integral values (if using integral objective)
+            params: Problem parameters
+
+        Returns:
+            Objective value to minimize
+        """
+        ...
+
+
+class IntegrandFuncProtocol(Protocol):
+    """Protocol for user-defined integral functions."""
+
+    def __call__(
+        self, states: _StateDictType, controls: _ControlDictType, *args: Any, **kwargs: Any
+    ) -> float | _CasadiMX:
+        """
+        Defines the integrand for an integral cost term.
+
+        Args:
+            states: Dictionary of state variables
+            controls: Dictionary of control variables
+            *args: Additional positional arguments (e.g., time)
+            **kwargs: Additional keyword arguments (e.g., parameters)
+
+        Returns:
+            Integrand value
+        """
+        ...
+
+
+class ConstraintFuncProtocol(Protocol):
+    """Protocol for user-defined path constraint functions."""
+
+    def __call__(
+        self, states: _StateDictType, controls: _ControlDictType, *args: Any, **kwargs: Any
+    ) -> ConstraintType | list[ConstraintType]:
+        """
+        Defines path constraints.
+
+        Args:
+            states: Dictionary of state variables
+            controls: Dictionary of control variables
+            *args: Additional positional arguments (e.g., time)
+            **kwargs: Additional keyword arguments (e.g., parameters)
+
+        Returns:
+            Constraint or list of constraints
+        """
+        ...
+
+
+class EventConstraintFuncProtocol(Protocol):
+    """Protocol for user-defined event constraint functions."""
+
+    def __call__(self, *args: Any, **kwargs: Any) -> ConstraintType | list[ConstraintType]:
+        """
+        Defines event (boundary) constraints.
+
+        Args can include:
+            initial_time: Initial time
+            final_time: Final time
+            initial_states: Dictionary of initial state values
+            final_states: Dictionary of final state values
+            integrals: Integral values
+            params: Problem parameters
+
+        Returns:
+            Constraint or list of constraints
+        """
+        ...
+
+
+# User-facing function types using Protocol classes
+_DynamicsFuncType: TypeAlias = DynamicsFuncProtocol
+_ObjectiveFuncType: TypeAlias = ObjectiveFuncProtocol
+_IntegrandFuncType: TypeAlias = IntegrandFuncProtocol
+_ConstraintFuncType: TypeAlias = ConstraintFuncProtocol
+_EventConstraintFuncType: TypeAlias = EventConstraintFuncProtocol
 
 
 @dataclass

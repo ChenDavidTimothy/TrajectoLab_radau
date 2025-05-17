@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import inspect
-from typing import Any, Callable  # Removed 'cast' as it's not used in the final version
+from typing import Any, Callable
 
 import casadi as ca
 import numpy as np
@@ -23,18 +23,27 @@ from .tl_types import (
     _ObjectiveFuncType,
     _PathConstraintsCallable,
     _ProblemParameters,
+    _StateDictType,
+    _ControlDictType,
 )
-
-# if not using explicit casts.
 
 
 def adapt_function_call(func: Callable, **kwargs: Any) -> Any:
+    """
+    Adapts function calls by filtering kwargs to match the function's signature.
+    This allows functions to accept only the parameters they need.
+    """
     sig = inspect.signature(func)
     filtered_kwargs = {name: value for name, value in kwargs.items() if name in sig.parameters}
     return func(**filtered_kwargs)
 
 
 class Constraint:
+    """
+    Represents a constraint in an optimal control problem.
+    Can be used for both path and event constraints.
+    """
+
     def __init__(
         self,
         val: _ConstraintValue | None = None,
@@ -53,6 +62,14 @@ class Constraint:
 
 
 class Problem:
+    """
+    Defines an optimal control problem to be solved.
+
+    This class allows users to define states, controls, dynamics, objectives,
+    constraints, and other aspects of an optimal control problem with an
+    intuitive interface.
+    """
+
     def __init__(self, name: str = "Unnamed Problem") -> None:
         self.name = name
         self._states: dict[str, dict[str, Any]] = {}
@@ -80,6 +97,18 @@ class Problem:
         t0_bounds: tuple[float, float] | None = None,
         tf_bounds: tuple[float, float] | None = None,
     ) -> Problem:
+        """
+        Sets the time bounds for the problem.
+
+        Args:
+            t0: Initial time
+            tf: Final time
+            t0_bounds: Allowable range for initial time (t0, t0) if fixed
+            tf_bounds: Allowable range for final time (tf, tf) if fixed
+
+        Returns:
+            Self for method chaining
+        """
         if t0_bounds is None:
             t0_bounds = (t0, t0)
         if tf_bounds is None:
@@ -97,6 +126,20 @@ class Problem:
         lower: float | None = None,
         upper: float | None = None,
     ) -> Problem:
+        """
+        Adds a state variable to the problem.
+
+        Args:
+            name: Name of the state variable
+            initial_constraint: Constraint on the initial value
+            final_constraint: Constraint on the final value
+            bounds: (lower, upper) tuple for state bounds
+            lower: Lower bound (alternative to bounds)
+            upper: Upper bound (alternative to bounds)
+
+        Returns:
+            Self for method chaining
+        """
         if bounds is not None:
             lower, upper = bounds
         self._states[name] = {
@@ -115,20 +158,64 @@ class Problem:
         lower: float | None = None,
         upper: float | None = None,
     ) -> Problem:
+        """
+        Adds a control variable to the problem.
+
+        Args:
+            name: Name of the control variable
+            bounds: (lower, upper) tuple for control bounds
+            lower: Lower bound (alternative to bounds)
+            upper: Upper bound (alternative to bounds)
+
+        Returns:
+            Self for method chaining
+        """
         if bounds is not None:
             lower, upper = bounds
         self._controls[name] = {"index": len(self._controls), "lower": lower, "upper": upper}
         return self
 
     def add_parameter(self, name: str, value: Any) -> Problem:
+        """
+        Adds a parameter to the problem.
+
+        Args:
+            name: Name of the parameter
+            value: Value of the parameter
+
+        Returns:
+            Self for method chaining
+        """
         self._parameters[name] = value
         return self
 
     def set_dynamics(self, dynamics_func: _DynamicsFuncType) -> Problem:
+        """
+        Sets the dynamics function for the problem.
+
+        The dynamics function can have a flexible signature but must accept
+        at least 'states' and 'controls' parameters.
+
+        Args:
+            dynamics_func: Function defining the dynamics
+
+        Returns:
+            Self for method chaining
+        """
         self._dynamics_func = dynamics_func
         return self
 
     def set_objective(self, objective_type: str, objective_func: _ObjectiveFuncType) -> Problem:
+        """
+        Sets the objective function for the problem.
+
+        Args:
+            objective_type: Type of objective ('mayer' or 'integral')
+            objective_func: Function defining the objective
+
+        Returns:
+            Self for method chaining
+        """
         if objective_type == "mayer" and self._num_integrals > 0:
             objective_type = "integral"
         self._objective_type = objective_type
@@ -136,19 +223,59 @@ class Problem:
         return self
 
     def add_integral(self, integral_func: _IntegrandFuncType) -> Problem:
+        """
+        Adds an integral cost term to the problem.
+
+        The integral function can have a flexible signature but must accept
+        at least 'states' and 'controls' parameters.
+
+        Args:
+            integral_func: Function defining the integrand
+
+        Returns:
+            Self for method chaining
+        """
         self._num_integrals += 1
         self._integral_functions.append(integral_func)
         return self
 
     def add_path_constraint(self, constraint_func: _ConstraintFuncType) -> Problem:
+        """
+        Adds a path constraint to the problem.
+
+        The constraint function can have a flexible signature but must accept
+        at least 'states' and 'controls' parameters.
+
+        Args:
+            constraint_func: Function defining the path constraint
+
+        Returns:
+            Self for method chaining
+        """
         self._path_constraints.append(constraint_func)
         return self
 
     def add_event_constraint(self, constraint_func: _EventConstraintFuncType) -> Problem:
+        """
+        Adds an event constraint to the problem.
+
+        Args:
+            constraint_func: Function defining the event constraint
+
+        Returns:
+            Self for method chaining
+        """
         self._event_constraints.append(constraint_func)
         return self
 
     def get_dynamics_function(self) -> _DynamicsCallable:
+        """
+        Creates a vectorized dynamics function for the solver.
+
+        Returns:
+            Function that maps (state_vector, control_vector, time, params)
+            to state derivative vector
+        """
         if self._dynamics_func is None:
             raise ValueError("Dynamics function not set")
         dynamics_func = self._dynamics_func
@@ -173,6 +300,12 @@ class Problem:
         return vectorized_dynamics
 
     def get_objective_function(self) -> _ObjectiveCallable:
+        """
+        Creates a vectorized objective function for the solver.
+
+        Returns:
+            Function that maps (t0, tf, x0_vec, xf_vec, q, params) to objective value
+        """
         if self._objective_func is None:
             raise ValueError("Objective function not set")
         objective_func = self._objective_func
@@ -182,8 +315,8 @@ class Problem:
         def vectorized_objective(
             t0: _CasadiMX,
             tf: _CasadiMX,
-            x0_vec: _CasadiMX,  # Changed from x0 to x0_vec for clarity
-            xf_vec: _CasadiMX,  # Changed from xf to xf_vec for clarity
+            x0_vec: _CasadiMX,
+            xf_vec: _CasadiMX,
             q: _CasadiMX | None,
             params: _ProblemParameters,
         ) -> _CasadiMX:
@@ -211,6 +344,13 @@ class Problem:
         return vectorized_objective
 
     def get_integrand_function(self) -> _IntegralIntegrandCallable | None:
+        """
+        Creates a vectorized integrand function for the solver.
+
+        Returns:
+            Function that maps (state_vector, control_vector, time, integral_idx, params)
+            to integrand value or None if no integrals are defined
+        """
         if not self._integral_functions:
             return None
         integral_functions = self._integral_functions
@@ -241,6 +381,13 @@ class Problem:
         return vectorized_integrand
 
     def get_path_constraints_function(self) -> _PathConstraintsCallable | None:
+        """
+        Creates a vectorized path constraints function for the solver.
+
+        Returns:
+            Function that maps (state_vector, control_vector, time, params)
+            to list of path constraints or None if no path constraints are defined
+        """
         has_explicit_path_constraints = bool(self._path_constraints)
         # Add more conditions if states/controls can define path constraints directly
         # For example:
@@ -302,6 +449,13 @@ class Problem:
         return vectorized_path_constraints
 
     def get_event_constraints_function(self) -> _EventConstraintsCallable | None:
+        """
+        Creates a vectorized event constraints function for the solver.
+
+        Returns:
+            Function that maps (t0, tf, x0_vec, xf_vec, q, params)
+            to list of event constraints or None if no event constraints are defined
+        """
         has_explicit_event_constraints = bool(self._event_constraints)
         has_state_boundary_constraints = any(
             s.get("initial_constraint") or s.get("final_constraint") for s in self._states.values()

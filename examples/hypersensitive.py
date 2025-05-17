@@ -14,7 +14,7 @@ from trajectolab import (
 problem = Problem("Hypersensitive Problem")
 
 # Set time bounds - fixed endpoints for hypersensitive problem
-problem.set_time_bounds(t0=0.0, tf=40.0)
+problem.set_time_bounds(t0=0.0, tf=5000.0)
 
 # Add state with boundary conditions
 problem.add_state(
@@ -74,7 +74,7 @@ adaptive_solver = RadauDirectSolver(
     mesh_method=PHSAdaptive(
         initial_polynomial_degrees=[8, 8, 8],
         initial_mesh_points=[-1.0, -1 / 3, 1 / 3, 1.0],
-        error_tolerance=1e-3,
+        error_tolerance=4e-8,
         max_iterations=30,
         min_polynomial_degree=4,
         max_polynomial_degree=8,
