@@ -1,4 +1,4 @@
-from trajectolab import PHSAdaptive, Problem, RadauDirectSolver, solve
+from trajectolab import PHSAdaptive, FixedMesh, Problem, RadauDirectSolver, solve
 
 # Define the hypersensitive problem using the symbolic API
 problem = Problem("Hypersensitive Problem")
@@ -55,3 +55,21 @@ if solution.success:
     solution.plot()
 else:
     print(f"Solution failed: {solution.message}")
+
+# Use the fixed mesh solver with the initial guess
+print("Solving with fixed mesh...")
+fixed_mesh_solver = RadauDirectSolver(
+    mesh_method=FixedMesh(
+        polynomial_degrees=[20, 8, 20],
+        mesh_points=[-1.0, -1 / 3, 1 / 3, 1.0],
+    ),
+    nlp_options={"ipopt.print_level": 0, "ipopt.sb": "yes", "print_time": 0, "ipopt.max_iter": 200},
+)
+
+fixed_solution = solve(problem, fixed_mesh_solver)
+
+if fixed_solution.success:
+    print(f"Fixed mesh solution successful! Objective: {fixed_solution.objective:.6f}")
+    fixed_solution.plot()
+else:
+    print(f"Fixed mesh solution failed: {fixed_solution.message}")
