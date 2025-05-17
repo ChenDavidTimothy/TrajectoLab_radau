@@ -190,10 +190,23 @@ def _simulate_dynamics_for_error_estimation(
     # Time transformation parameters
     t0 = solution.initial_time_variable
     tf = solution.terminal_time_variable
+
+    # Check for None before arithmetic operations
+    if t0 is None or tf is None:
+        print(
+            f"    Warning: Initial or terminal time is None for interval {interval_idx}. Skipping simulation."
+        )
+        return result
+
     alpha = (tf - t0) / 2.0
     alpha_0 = (tf + t0) / 2.0
 
+    # Check if global_mesh is None before indexing
     global_mesh = solution.global_normalized_mesh_nodes
+    if global_mesh is None:
+        print(f"    Warning: Global mesh is None for interval {interval_idx}. Skipping simulation.")
+        return result
+
     tau_start = global_mesh[interval_idx]
     tau_end = global_mesh[interval_idx + 1]
 
@@ -280,17 +293,21 @@ def _simulate_dynamics_for_error_estimation(
     sorted_bwd_tau_points = np.flip(bwd_tau_points)
 
     if bwd_sim.success:
-        result.backward_simulation_local_tau_evaluation_points = sorted_bwd_tau_points
+        result.backward_simulation_local_tau_evaluation_points = np.array(
+            sorted_bwd_tau_points, dtype=np.float64
+        )
         result.state_trajectory_from_backward_simulation = np.fliplr(bwd_sim.y)
     else:
-        result.backward_simulation_local_tau_evaluation_points = sorted_bwd_tau_points
+        result.backward_simulation_local_tau_evaluation_points = np.array(
+            sorted_bwd_tau_points, dtype=np.float64
+        )
         result.state_trajectory_from_backward_simulation = np.full(
             (num_states, len(sorted_bwd_tau_points)), np.nan, dtype=np.float64
         )
         print(f"    Bwd TVP fail int {interval_idx}: {bwd_sim.message}")
 
     result.nlp_state_trajectory_evaluated_at_backward_simulation_points = state_evaluator(
-        result.backward_simulation_local_tau_evaluation_points
+        sorted_bwd_tau_points
     )
 
     result.are_forward_and_backward_simulations_successful = fwd_sim.success and bwd_sim.success
@@ -505,6 +522,10 @@ def h_reduce_intervals(
 
     # Extract mesh and time information
     global_mesh = solution.global_normalized_mesh_nodes
+    if global_mesh is None:
+        print("      h-reduction failed: Global mesh is None.")
+        return False
+
     tau_start_k = global_mesh[first_idx]
     tau_shared = global_mesh[first_idx + 1]
     tau_end_kp1 = global_mesh[first_idx + 2]
@@ -519,6 +540,12 @@ def h_reduce_intervals(
     # Time transformation parameters
     t0 = solution.initial_time_variable
     tf = solution.terminal_time_variable
+
+    # Check for None values before arithmetic operations
+    if t0 is None or tf is None:
+        print("      h-reduction failed: Initial or terminal time is None.")
+        return False
+
     alpha = (tf - t0) / 2.0
     alpha_0 = (tf + t0) / 2.0
 
@@ -575,6 +602,10 @@ def h_reduce_intervals(
         else:  # Fallback
             opti = solution.opti_object
             raw_sol = solution.raw_solution
+            if opti is None or raw_sol is None:
+                print("      h-reduction failed: opti or raw_sol is None.")
+                return False
+
             Xk_nlp_raw = raw_sol.value(
                 opti.state_at_local_approximation_nodes_all_intervals_variables[first_idx]
             )
@@ -634,6 +665,10 @@ def h_reduce_intervals(
         else:  # Fallback
             opti = solution.opti_object
             raw_sol = solution.raw_solution
+            if opti is None or raw_sol is None:
+                print("      h-reduction failed: opti or raw_sol is None.")
+                return False
+
             Xkp1_nlp_raw = raw_sol.value(
                 opti.state_at_local_approximation_nodes_all_intervals_variables[first_idx + 1]
             )
@@ -680,7 +715,8 @@ def h_reduce_intervals(
         )
 
         if bwd_sim.success:
-            bwd_trajectory = np.fliplr(bwd_sim.y)
+            # Cast to correct type to avoid mypy error
+            bwd_trajectory = cast(_FloatMatrix, np.fliplr(bwd_sim.y))
             bwd_sim_success = True
         else:
             print(f"      Merged TVP failed: {bwd_sim.message}")
@@ -1136,44 +1172,48 @@ class PHSAdaptive(AdaptiveBase):
             # Store solved trajectories for propagation and error estimation
             try:
                 # Check for None before accessing attributes
-                if solution.raw_solution is not None and solution.opti_object is not None:
-                    opti = solution.opti_object
-                    raw_sol = solution.raw_solution
+                if solution.raw_solution is None or solution.opti_object is None:
+                    error_msg = f"Failed to extract trajectories from NLP solution at iter {iteration}: Raw solution or opti object is None. Stopping."
+                    print(f"  Error: {error_msg}")
+                    solution.message = error_msg
+                    solution.success = False
+                    return solution
 
-                    # Extract state trajectories if variables exist
-                    if hasattr(opti, "state_at_local_approximation_nodes_all_intervals_variables"):
-                        solution.solved_state_trajectories_per_interval = [
-                            _extract_and_prepare_array(
-                                raw_sol.value(var),
-                                len(problem._states),
-                                current_nodes_list[i] + 1,
-                            )
-                            for i, var in enumerate(
-                                opti.state_at_local_approximation_nodes_all_intervals_variables
-                            )
-                        ]
+                opti = solution.opti_object
+                raw_sol = solution.raw_solution
 
-                    # Extract control trajectories if variables exist
-                    if len(problem._controls) > 0 and hasattr(
-                        opti, "control_at_local_collocation_nodes_all_intervals_variables"
-                    ):
-                        solution.solved_control_trajectories_per_interval = [
-                            _extract_and_prepare_array(
-                                raw_sol.value(var),
-                                len(problem._controls),
-                                current_nodes_list[i],
-                            )
-                            for i, var in enumerate(
-                                opti.control_at_local_collocation_nodes_all_intervals_variables
-                            )
-                        ]
-                    else:
-                        solution.solved_control_trajectories_per_interval = [
-                            np.empty((0, current_nodes_list[i]), dtype=np.float64)
-                            for i in range(num_intervals)
-                        ]
+                # Extract state trajectories if variables exist
+                if hasattr(opti, "state_at_local_approximation_nodes_all_intervals_variables"):
+                    solution.solved_state_trajectories_per_interval = [
+                        _extract_and_prepare_array(
+                            raw_sol.value(var),
+                            len(problem._states),
+                            current_nodes_list[i] + 1,
+                        )
+                        for i, var in enumerate(
+                            opti.state_at_local_approximation_nodes_all_intervals_variables
+                        )
+                    ]
+
+                # Extract control trajectories if variables exist
+                if len(problem._controls) > 0 and hasattr(
+                    opti, "control_at_local_collocation_nodes_all_intervals_variables"
+                ):
+                    solution.solved_control_trajectories_per_interval = [
+                        _extract_and_prepare_array(
+                            raw_sol.value(var),
+                            len(problem._controls),
+                            current_nodes_list[i],
+                        )
+                        for i, var in enumerate(
+                            opti.control_at_local_collocation_nodes_all_intervals_variables
+                        )
+                    ]
                 else:
-                    raise ValueError("Raw solution or opti object is None")
+                    solution.solved_control_trajectories_per_interval = [
+                        np.empty((0, current_nodes_list[i]), dtype=np.float64)
+                        for i in range(num_intervals)
+                    ]
 
             except Exception as extract_error:
                 error_msg = f"Failed to extract trajectories from NLP solution at iter {iteration}: {extract_error}. Stopping."
