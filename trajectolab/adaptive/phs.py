@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any, cast, Sequence
 
 import casadi as ca
 import numpy as np
@@ -1059,7 +1059,7 @@ class PHSAdaptive(AdaptiveBase):
 
     adaptive_params: AdaptiveParameters
     _initial_polynomial_degrees: list[int] | None
-    _initial_mesh_points: _FloatArray | None
+    _initial_mesh_points: Sequence[float] | _FloatArray | None
 
     def __init__(
         self,
@@ -1070,7 +1070,7 @@ class PHSAdaptive(AdaptiveBase):
         ode_solver_tolerance: float = 1e-7,
         num_error_sim_points: int = 40,
         initial_polynomial_degrees: list[int] | None = None,
-        initial_mesh_points: _FloatArray | None = None,
+        initial_mesh_points: Sequence[float] | _FloatArray | None = None,
         initial_guess: InitialGuess | None = None,
     ) -> None:
         """
