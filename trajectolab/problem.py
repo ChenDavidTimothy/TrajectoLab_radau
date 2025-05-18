@@ -370,7 +370,7 @@ class Problem:
         Returns:
             True if expression contains the symbol
         """
-        if isinstance(expr, (int, float)):
+        if isinstance(expr, int | float):
             return False
 
         # Use CasADi's depends_on to check dependency
@@ -402,7 +402,7 @@ class Problem:
         # Find which category this variable belongs to
         for name, sym in self._sym_states.items():
             if var is sym:
-                if isinstance(value, (int, float)):
+                if isinstance(value, int | float):
                     # Create array matching expected format
                     if (
                         not hasattr(self.initial_guess, "states")
@@ -439,7 +439,7 @@ class Problem:
         # Check controls
         for name, sym in self._sym_controls.items():
             if var is sym:
-                if isinstance(value, (int, float)):
+                if isinstance(value, int | float):
                     # Create array matching expected format
                     if (
                         not hasattr(self.initial_guess, "controls")

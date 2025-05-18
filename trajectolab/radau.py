@@ -149,7 +149,7 @@ def compute_legendre_gauss_radau_nodes_and_weights(
         interior_weights = jacobi_weights / (1.0 + interior_roots)
         left_endpoint_weight = 2.0 / (num_collocation_nodes**2)
         collocation_nodes_list.extend(list(interior_roots))
-        quadrature_weights_list = [left_endpoint_weight] + list(interior_weights)
+        quadrature_weights_list = [left_endpoint_weight, *list(interior_weights)]
 
     final_collocation_nodes = np.array(collocation_nodes_list, dtype=np.float64)
     final_quadrature_weights = np.array(quadrature_weights_list, dtype=np.float64)

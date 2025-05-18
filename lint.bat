@@ -8,7 +8,17 @@ echo ===========================================================================
 set "OVERALL_SUCCESS=1"
 
 echo.
-echo [1/3] Running Ruff for linting and auto-fixes...
+echo [1/4] Running Ruff for unsafe auto-fixes (includes imports)...
+python -m ruff check --fix --unsafe-fixes .
+if !errorlevel! neq 0 (
+    echo WARNING: Ruff unsafe fixes found issues!
+    set "OVERALL_SUCCESS=0"
+) else (
+    echo ✓ Ruff unsafe fixes passed
+)
+
+echo.
+echo [2/4] Running Ruff for standard auto-fixes...
 python -m ruff check --fix .
 if !errorlevel! neq 0 (
     echo WARNING: Ruff linting found issues!
@@ -18,7 +28,7 @@ if !errorlevel! neq 0 (
 )
 
 echo.
-echo [2/3] Running Ruff for code formatting...
+echo [3/4] Running Ruff for code formatting...
 python -m ruff format .
 if !errorlevel! neq 0 (
     echo WARNING: Ruff formatting found issues!
@@ -28,7 +38,7 @@ if !errorlevel! neq 0 (
 )
 
 echo.
-echo [3/3] Running MyPy for type checking...
+echo [4/4] Running MyPy for type checking...
 python -m mypy --exclude build trajectolab
 if !errorlevel! neq 0 (
     echo WARNING: MyPy type checking found issues!

@@ -124,7 +124,7 @@ def _extract_integral_values(
             else:
                 return cast(_FloatArray, np_array_value.flatten())
 
-        elif isinstance(raw_value, (float, int)):
+        elif isinstance(raw_value, float | int):
             if num_integrals == 1:
                 return float(raw_value)
             else:
@@ -391,13 +391,13 @@ def _set_initial_value_for_integrals(
         return
 
     if num_integrals == 1:
-        if isinstance(guess, (int, float)):  # int included for convenience
+        if isinstance(guess, int | float):  # int included for convenience
             opti.set_initial(integral_vars, float(guess))
-        elif isinstance(guess, (list, np.ndarray)) and np.array(guess).size == 1:
+        elif isinstance(guess, list | np.ndarray) and np.array(guess).size == 1:
             opti.set_initial(integral_vars, float(np.array(guess).item()))
         else:
             print(f"Warning: Invalid format for single integral guess: {guess}")
-    elif isinstance(guess, (list, np.ndarray)) and np.array(guess).size == num_integrals:
+    elif isinstance(guess, list | np.ndarray) and np.array(guess).size == num_integrals:
         # Ensure flat array for CasADi if it's a list of numbers or a 1D array
         flat_guess = np.array(guess, dtype=np.float64).flatten()
         opti.set_initial(integral_vars, flat_guess)

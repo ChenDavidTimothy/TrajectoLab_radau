@@ -212,7 +212,7 @@ class Solution:
         # Handle symbolic variable case
         if hasattr(state_name_or_index, "is_symbolic") or (
             hasattr(state_name_or_index, "is_constant")
-            and not (isinstance(state_name_or_index, (int, str, float)))
+            and not (isinstance(state_name_or_index, int | str | float))
         ):
             sym_var = state_name_or_index
             if sym_var in self._sym_state_map:
@@ -250,7 +250,7 @@ class Solution:
         # Handle symbolic variable case
         if hasattr(control_name_or_index, "is_symbolic") or (
             hasattr(control_name_or_index, "is_constant")
-            and not (isinstance(control_name_or_index, (int, str, float)))
+            and not (isinstance(control_name_or_index, int | str | float))
         ):
             sym_var = control_name_or_index
             if sym_var in self._sym_control_map:
@@ -289,7 +289,7 @@ class Solution:
         # Handle symbolic variable case
         if hasattr(state_name_or_index, "is_symbolic") or (
             hasattr(state_name_or_index, "is_constant")
-            and not (isinstance(state_name_or_index, (int, str, float)))
+            and not (isinstance(state_name_or_index, int | str | float))
         ):
             sym_var = state_name_or_index
             if sym_var in self._sym_state_map:
@@ -324,7 +324,7 @@ class Solution:
         # Handle symbolic variable case
         if hasattr(control_name_or_index, "is_symbolic") or (
             hasattr(control_name_or_index, "is_constant")
-            and not (isinstance(control_name_or_index, (int, str, float)))
+            and not (isinstance(control_name_or_index, int | str | float))
         ):
             sym_var = control_name_or_index
             if sym_var in self._sym_control_map:
@@ -531,7 +531,7 @@ class Solution:
         if state_names is not None:
             for state in state_names:
                 if hasattr(state, "is_symbolic") or (
-                    hasattr(state, "is_constant") and not isinstance(state, (int, str, float))
+                    hasattr(state, "is_constant") and not isinstance(state, int | str | float)
                 ):
                     sym_var = state
                     if sym_var in self._sym_state_map:
@@ -580,7 +580,7 @@ class Solution:
         if control_names is not None:
             for control in control_names:
                 if hasattr(control, "is_symbolic") or (
-                    hasattr(control, "is_constant") and not isinstance(control, (int, str, float))
+                    hasattr(control, "is_constant") and not isinstance(control, int | str | float)
                 ):
                     sym_var = control
                     if sym_var in self._sym_control_map:

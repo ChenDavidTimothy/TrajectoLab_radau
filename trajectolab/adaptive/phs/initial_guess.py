@@ -81,10 +81,10 @@ def generate_robust_default_initial_guess(
             if num_integrals == 1:
                 final_integral_guess = (
                     float(raw_guess)
-                    if not isinstance(raw_guess, (list, np.ndarray))
+                    if not isinstance(raw_guess, list | np.ndarray)
                     else float(raw_guess[0])
                 )
-            elif isinstance(raw_guess, (list, np.ndarray)) and len(raw_guess) == num_integrals:
+            elif isinstance(raw_guess, list | np.ndarray) and len(raw_guess) == num_integrals:
                 final_integral_guess = np.array(raw_guess, dtype=np.float64)
             else:
                 final_integral_guess = np.full(num_integrals, default_integral, dtype=np.float64)

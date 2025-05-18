@@ -16,10 +16,24 @@
             "problemMatcher": []
         },
         {
-            "label": "Ruff: Fix",
+            "label": "Ruff: Fix (Safe)",
             "type": "shell",
             "command": "python",
             "args": ["-m", "ruff", "check", "--fix", "."],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Ruff: Fix (Unsafe)",
+            "type": "shell",
+            "command": "python",
+            "args": ["-m", "ruff", "check", "--fix", "--unsafe-fixes", "."],
             "group": "build",
             "presentation": {
                 "echo": true,
@@ -61,7 +75,8 @@
             "label": "Run All Checks",
             "dependsOrder": "sequence",
             "dependsOn": [
-                "Ruff: Fix",
+                "Ruff: Fix (Unsafe)",
+                "Ruff: Fix (Safe)",
                 "Ruff: Format",
                 "MyPy: Type Check"
             ],
