@@ -1,6 +1,6 @@
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Literal, cast, overload
+from typing import Literal, cast, overload
 
 import numpy as np
 from scipy.special import roots_jacobi as _scipy_roots_jacobi
@@ -56,10 +56,9 @@ def roots_jacobi(
     n: int, alpha: float, beta: float, mu: bool = False
 ) -> tuple[FloatArray, FloatArray] | tuple[FloatArray, FloatArray, float]:
     if mu:
-        # Explicitly type the scipy function result
         result = _scipy_roots_jacobi(n, alpha, beta, mu=True)
-        x_val: np.ndarray[Any, Any] = result[0]
-        w_val: np.ndarray[Any, Any] = result[1]
+        x_val = result[0]
+        w_val = result[1]
         mu_val: float = result[2]
         return (
             cast(FloatArray, x_val.astype(np.float64)),
@@ -67,10 +66,9 @@ def roots_jacobi(
             float(mu_val),
         )
     else:
-        # Explicitly type the scipy function result
         result = _scipy_roots_jacobi(n, alpha, beta, mu=False)
-        x_val: np.ndarray[Any, Any] = result[0]
-        w_val: np.ndarray[Any, Any] = result[1]
+        x_val = result[0]
+        w_val = result[1]
         return (
             cast(FloatArray, x_val.astype(np.float64)),
             cast(FloatArray, w_val.astype(np.float64)),
