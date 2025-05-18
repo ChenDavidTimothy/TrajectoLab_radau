@@ -1,8 +1,14 @@
 from abc import ABC, abstractmethod
+from typing import TypeAlias
 
 import numpy as np
 
 from ..direct_solver import OptimalControlSolution
+from ..tl_types import ProblemProtocol
+
+
+# Type alias for initial solutions
+_InitialSolution: TypeAlias = OptimalControlSolution | None
 
 
 class AdaptiveBase(ABC):
@@ -10,11 +16,13 @@ class AdaptiveBase(ABC):
     Base class for adaptive mesh refinement algorithms.
     """
 
-    def __init__(self, initial_guess=None):
+    def __init__(self, initial_guess=None) -> None:
         self.initial_guess = initial_guess
 
     @abstractmethod
-    def run(self, problem, initial_solution=None) -> OptimalControlSolution:
+    def run(
+        self, problem: ProblemProtocol, initial_solution: _InitialSolution = None
+    ) -> OptimalControlSolution:
         """
         Run the adaptive mesh refinement algorithm.
 
@@ -33,7 +41,12 @@ class FixedMesh(AdaptiveBase):
     Fixed mesh solver with specified polynomial degrees and mesh points.
     """
 
-    def __init__(self, polynomial_degrees=None, mesh_points=None, initial_guess=None):
+    def __init__(
+        self,
+        polynomial_degrees: list[int] | None = None,
+        mesh_points: list[float] | np.ndarray | None = None,
+        initial_guess=None,
+    ) -> None:
         super().__init__(initial_guess)
         self.polynomial_degrees = polynomial_degrees or [4]
 
@@ -52,7 +65,9 @@ class FixedMesh(AdaptiveBase):
         if not np.all(np.diff(self.mesh_points) > 0):
             raise ValueError("Mesh points must be strictly increasing.")
 
-    def run(self, problem, initial_solution=None) -> OptimalControlSolution:
+    def run(
+        self, problem: ProblemProtocol, initial_solution: _InitialSolution = None
+    ) -> OptimalControlSolution:
         """
         Run the fixed mesh solver.
 

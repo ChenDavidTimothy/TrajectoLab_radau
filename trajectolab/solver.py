@@ -4,6 +4,7 @@ import numpy as np
 
 from trajectolab.adaptive.base import AdaptiveBase
 from trajectolab.adaptive.phs import PHSAdaptive
+from trajectolab.direct_solver import OptimalControlSolution
 from trajectolab.problem import Problem
 from trajectolab.solution import Solution
 from trajectolab.tl_types import ProblemProtocol
@@ -31,7 +32,7 @@ class RadauDirectSolver:
             nlp_solver: Name of the NLP solver to use (default: "ipopt")
             nlp_options: Dictionary of options to pass to the NLP solver
         """
-        self.mesh_method = mesh_method or PHSAdaptive()
+        self.mesh_method: AdaptiveBase = mesh_method or PHSAdaptive()
         self.nlp_solver = nlp_solver
         self.nlp_options = nlp_options or {
             "ipopt.print_level": 0,
@@ -58,8 +59,10 @@ class RadauDirectSolver:
             # Use setattr to bypass type checking constraints
             protocol_problem.global_normalized_mesh_nodes = mesh_nodes
 
-        # Always use the mesh method (which is never None due to initialization)
-        solution_data = self.mesh_method.run(cast(ProblemProtocol, protocol_problem))
+        # The mesh method is guaranteed to be AdaptiveBase (never None) due to initialization
+        solution_data: OptimalControlSolution = self.mesh_method.run(
+            cast(ProblemProtocol, protocol_problem)
+        )
 
         # Create Solution object
         return Solution(solution_data, cast(ProblemProtocol, protocol_problem))
