@@ -185,9 +185,9 @@ class Problem:
         self, initial: float = 0.0, final: float | None = None, free_final: bool = False
     ) -> TimeVariableImpl:
         # Create symbolic variables for time, initial time, and final time
-        sym_time = ca.MX.sym("t", 1)
-        sym_t0 = ca.MX.sym("t0", 1)
-        sym_tf = ca.MX.sym("tf", 1)
+        sym_time = ca.MX.sym("t", 1)  # type: ignore[arg-type]
+        sym_t0 = ca.MX.sym("t0", 1)  # type: ignore[arg-type]
+        sym_tf = ca.MX.sym("tf", 1)  # type: ignore[arg-type]
 
         # Store the time bounds
         t0_bounds = (initial, initial)  # Fixed initial time
@@ -221,7 +221,7 @@ class Problem:
         lower: float | None = None,
         upper: float | None = None,
     ) -> SymType:
-        sym_var = ca.MX.sym(name, 1)
+        sym_var = ca.MX.sym(name, 1)  # type: ignore[arg-type]
 
         # Store metadata
         self._states[name] = {
@@ -238,7 +238,7 @@ class Problem:
         return sym_var
 
     def control(self, name: str, lower: float | None = None, upper: float | None = None) -> SymType:
-        sym_var = ca.MX.sym(name, 1)
+        sym_var = ca.MX.sym(name, 1)  # type: ignore[arg-type]
 
         # Store metadata
         self._controls[name] = {"index": len(self._controls), "lower": lower, "upper": upper}
@@ -249,7 +249,7 @@ class Problem:
         return sym_var
 
     def parameter(self, name: str, value: Any) -> SymType:
-        sym_var = ca.MX.sym(name, 1)
+        sym_var = ca.MX.sym(name, 1)  # type: ignore[arg-type]
 
         # Store parameter value
         self._parameters[name] = value
@@ -277,7 +277,7 @@ class Problem:
     def add_integral(self, integrand_expr: SymExpr) -> SymType:
         # Create symbolic variable for the integral
         integral_name = f"integral_{len(self._integral_expressions)}"
-        integral_sym = ca.MX.sym(integral_name, 1)
+        integral_sym = ca.MX.sym(integral_name, 1)  # type: ignore[arg-type]
 
         # Store the integrand expression
         self._integral_expressions.append(integrand_expr)
@@ -306,7 +306,7 @@ class Problem:
             return False
 
         # Use CasADi's depends_on to check dependency
-        return bool(ca.depends_on(expr, symbol))  # type: ignore
+        return bool(ca.depends_on(expr, symbol))  # type: ignore[attr-defined]
 
     def subject_to(self, constraint_expr: SymExpr) -> None:
         self._constraints.append(constraint_expr)
@@ -412,7 +412,7 @@ class Problem:
         # Create combined vector for CasADi function input
         states_vec = ca.vertcat(*state_syms) if state_syms else ca.MX()
         controls_vec = ca.vertcat(*control_syms) if control_syms else ca.MX()
-        time = self._sym_time if self._sym_time is not None else ca.MX.sym("t", 1)
+        time = self._sym_time if self._sym_time is not None else ca.MX.sym("t", 1)  # type: ignore[arg-type]
         param_syms = ca.vertcat(*self._sym_parameters.values()) if self._sym_parameters else ca.MX()
 
         # Create output vector in same order as state_syms
@@ -452,11 +452,16 @@ class Problem:
             result = dynamics_func(states_vec, controls_vec, time, param_vec)
             if result is None:
                 return []
+
+            # Handle CasADi function result properly
+            # CasADi functions return a list/tuple, we want the first element which is the output vector
+            dynamics_output = result[0] if isinstance(result, list | tuple) else result
+
             # Convert to list of MX elements
-            num_states = result.size1()
+            num_states = int(dynamics_output.size1())  # type: ignore[attr-defined]
             result_list: list[CasadiMX] = []
-            for i in range(int(num_states)):
-                result_list.append(cast(CasadiMX, result[i]))
+            for i in range(num_states):
+                result_list.append(cast(CasadiMX, dynamics_output[i]))
 
             return result_list
 
@@ -473,15 +478,15 @@ class Problem:
         ]
 
         # Create inputs for the function
-        t0 = self._sym_time_initial if self._sym_time_initial is not None else ca.MX.sym("t0", 1)
-        tf = self._sym_time_final if self._sym_time_final is not None else ca.MX.sym("tf", 1)
-        x0_vec = ca.vertcat(*[ca.MX.sym(f"x0_{i}", 1) for i in range(len(state_syms))])
-        xf_vec = ca.vertcat(*[ca.MX.sym(f"xf_{i}", 1) for i in range(len(state_syms))])
-        q = ca.vertcat(*self._integral_symbols) if self._integral_symbols else ca.MX.sym("q", 1)
+        t0 = self._sym_time_initial if self._sym_time_initial is not None else ca.MX.sym("t0", 1)  # type: ignore[arg-type]
+        tf = self._sym_time_final if self._sym_time_final is not None else ca.MX.sym("tf", 1)  # type: ignore[arg-type]
+        x0_vec = ca.vertcat(*[ca.MX.sym(f"x0_{i}", 1) for i in range(len(state_syms))])  # type: ignore[arg-type]
+        xf_vec = ca.vertcat(*[ca.MX.sym(f"xf_{i}", 1) for i in range(len(state_syms))])  # type: ignore[arg-type]
+        q = ca.vertcat(*self._integral_symbols) if self._integral_symbols else ca.MX.sym("q", 1)  # type: ignore[arg-type]
         param_syms = (
             ca.vertcat(*self._sym_parameters.values())
             if self._sym_parameters
-            else ca.MX.sym("p", 0)
+            else ca.MX.sym("p", 0)  # type: ignore[arg-type]
         )
 
         # Create a substitution map for the objective expression
@@ -526,15 +531,22 @@ class Problem:
             # Extract parameter values in correct order
             param_values = []
             for name in self._sym_parameters:
-                param_values.append(float(params.get(name, 0.0)))
+                param_val = params.get(name, 0.0)
+                try:
+                    param_values.append(float(param_val))
+                except (TypeError, ValueError):
+                    param_values.append(0.0)
 
             param_vec = ca.DM(param_values) if param_values else ca.DM()
 
             # If q is None but we need it, create zero vector
-            q_val = q if q is not None else ca.DM.zeros(len(self._integral_symbols), 1)
+            q_val = q if q is not None else ca.DM.zeros(len(self._integral_symbols), 1)  # type: ignore[arg-type]
 
             # Call CasADi function
-            return obj_func(t0, tf, x0_vec, xf_vec, q_val, param_vec)
+            result = obj_func(t0, tf, x0_vec, xf_vec, q_val, param_vec)
+            # Handle CasADi function result properly
+            obj_output = result[0] if isinstance(result, list | tuple) else result
+            return cast(CasadiMX, obj_output)
 
         return vectorized_objective
 
@@ -555,11 +567,11 @@ class Problem:
         # Create combined vector for CasADi function input
         states_vec = ca.vertcat(*state_syms) if state_syms else ca.MX()
         controls_vec = ca.vertcat(*control_syms) if control_syms else ca.MX()
-        time = self._sym_time if self._sym_time is not None else ca.MX.sym("t", 1)
+        time = self._sym_time if self._sym_time is not None else ca.MX.sym("t", 1)  # type: ignore[arg-type]
         param_syms = (
             ca.vertcat(*self._sym_parameters.values())
             if self._sym_parameters
-            else ca.MX.sym("p", 0)
+            else ca.MX.sym("p", 0)  # type: ignore[arg-type]
         )
 
         # Create separate CasADi functions for each integrand
@@ -588,9 +600,10 @@ class Problem:
             param_vec = ca.DM(param_values) if param_values else ca.DM()
 
             # Call appropriate CasADi function
-            return cast(
-                CasadiMX, integrand_funcs[integral_idx](states_vec, controls_vec, time, param_vec)
-            )
+            result = integrand_funcs[integral_idx](states_vec, controls_vec, time, param_vec)
+            # Handle CasADi function result properly
+            integrand_output = result[0] if isinstance(result, list | tuple) else result
+            return cast(CasadiMX, integrand_output)
 
         return vectorized_integrand
 
@@ -598,26 +611,38 @@ class Problem:
         # Path constraints only depend on states, controls and time (t)
         # Not on initial/final specific values (t0/tf)
         depends_on_t0_tf = (
-            self._sym_time_initial is not None and ca.depends_on(expr, self._sym_time_initial)
-        ) or (self._sym_time_final is not None and ca.depends_on(expr, self._sym_time_final))
+            self._sym_time_initial is not None and ca.depends_on(expr, self._sym_time_initial)  # type: ignore[attr-defined]
+        ) or (self._sym_time_final is not None and ca.depends_on(expr, self._sym_time_final))  # type: ignore[attr-defined]
 
         return not depends_on_t0_tf
 
     def _symbolic_constraint_to_path_constraint(self, expr: SymExpr) -> PathConstraint:
         # Handle equality constraints: expr == value
-        if isinstance(expr, ca.MX) and expr.is_op(ca.OP_EQ):
+        if (
+            isinstance(expr, ca.MX)
+            and hasattr(expr, "is_op")
+            and expr.is_op(getattr(ca, "OP_EQ", "eq"))
+        ):
             lhs = expr.dep(0)
             rhs = expr.dep(1)
             return PathConstraint(val=lhs - rhs, equals=0.0)
 
         # Handle inequality constraints: expr <= value or expr >= value
-        elif isinstance(expr, ca.MX) and expr.is_op(ca.OP_LE):
+        elif (
+            isinstance(expr, ca.MX)
+            and hasattr(expr, "is_op")
+            and expr.is_op(getattr(ca, "OP_LE", "le"))
+        ):
             lhs = expr.dep(0)
             rhs = expr.dep(1)
             # Reformulate as lhs - rhs <= 0 to handle symbolic rhs
             return PathConstraint(val=lhs - rhs, max_val=0.0)
 
-        elif isinstance(expr, ca.MX) and expr.is_op(ca.OP_GE):
+        elif (
+            isinstance(expr, ca.MX)
+            and hasattr(expr, "is_op")
+            and expr.is_op(getattr(ca, "OP_GE", "ge"))
+        ):
             lhs = expr.dep(0)
             rhs = expr.dep(1)
             # Reformulate as lhs - rhs >= 0 to handle symbolic rhs
@@ -628,19 +653,31 @@ class Problem:
 
     def _symbolic_constraint_to_event_constraint(self, expr: SymExpr) -> EventConstraint:
         # Handle equality constraints: expr == value
-        if isinstance(expr, ca.MX) and expr.is_op(ca.OP_EQ):
+        if (
+            isinstance(expr, ca.MX)
+            and hasattr(expr, "is_op")
+            and expr.is_op(getattr(ca, "OP_EQ", "eq"))
+        ):
             lhs = expr.dep(0)
             rhs = expr.dep(1)
             return EventConstraint(val=lhs - rhs, equals=0.0)
 
         # Handle inequality constraints: expr <= value or expr >= value
-        elif isinstance(expr, ca.MX) and expr.is_op(ca.OP_LE):
+        elif (
+            isinstance(expr, ca.MX)
+            and hasattr(expr, "is_op")
+            and expr.is_op(getattr(ca, "OP_LE", "le"))
+        ):
             lhs = expr.dep(0)
             rhs = expr.dep(1)
             # Reformulate as lhs - rhs <= 0 to handle symbolic rhs
             return EventConstraint(val=lhs - rhs, max_val=0.0)
 
-        elif isinstance(expr, ca.MX) and expr.is_op(ca.OP_GE):
+        elif (
+            isinstance(expr, ca.MX)
+            and hasattr(expr, "is_op")
+            and expr.is_op(getattr(ca, "OP_GE", "ge"))
+        ):
             lhs = expr.dep(0)
             rhs = expr.dep(1)
             # Reformulate as lhs - rhs >= 0 to handle symbolic rhs
