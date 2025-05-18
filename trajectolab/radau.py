@@ -3,22 +3,10 @@ from dataclasses import dataclass, field
 from typing import Any, Literal, cast, overload
 
 import numpy as np
+from scipy.special import roots_jacobi as _scipy_roots_jacobi
 
 # Import centralized type definitions and constants
 from .tl_types import ZERO_TOLERANCE, FloatArray, FloatMatrix
-
-
-# Import scipy with proper typing
-try:
-    from scipy.special import roots_jacobi as _scipy_roots_jacobi  # type: ignore[import]
-
-    # Type annotation for scipy function to avoid unknown type warnings
-    _scipy_roots_jacobi: Any
-except ImportError:
-    _scipy_roots_jacobi = None
-
-# Use a regular variable name instead of a constant
-_scipy_available = _scipy_roots_jacobi is not None
 
 
 # --- Dataclasses for Structured Radau Components ---
@@ -67,10 +55,6 @@ def roots_jacobi(
 def roots_jacobi(
     n: int, alpha: float, beta: float, mu: bool = False
 ) -> tuple[FloatArray, FloatArray] | tuple[FloatArray, FloatArray, float]:
-    if not _scipy_available or _scipy_roots_jacobi is None:
-        logging.error("SciPy is required for roots_jacobi. Please install it: pip install scipy")
-        raise ImportError("SciPy is required but not available")
-
     if mu:
         # Explicitly type the scipy function result
         result = _scipy_roots_jacobi(n, alpha, beta, mu=True)
