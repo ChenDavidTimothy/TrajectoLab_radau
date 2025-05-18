@@ -3,8 +3,8 @@ from typing import TypeAlias
 
 import numpy as np
 
-from ..direct_solver import OptimalControlSolution
-from ..tl_types import ProblemProtocol
+from ..direct_solver import InitialGuess, OptimalControlSolution
+from ..tl_types import FloatArray, ProblemProtocol
 
 
 # Type alias for initial solutions
@@ -16,7 +16,7 @@ class AdaptiveBase(ABC):
     Base class for adaptive mesh refinement algorithms.
     """
 
-    def __init__(self, initial_guess=None) -> None:
+    def __init__(self, initial_guess: InitialGuess | None = None) -> None:
         self.initial_guess = initial_guess
 
     @abstractmethod
@@ -44,16 +44,18 @@ class FixedMesh(AdaptiveBase):
     def __init__(
         self,
         polynomial_degrees: list[int] | None = None,
-        mesh_points: list[float] | np.ndarray | None = None,
-        initial_guess=None,
+        mesh_points: list[float] | FloatArray | None = None,
+        initial_guess: InitialGuess | None = None,
     ) -> None:
         super().__init__(initial_guess)
         self.polynomial_degrees = polynomial_degrees or [4]
 
         if mesh_points is None:
-            self.mesh_points = np.linspace(-1, 1, len(self.polynomial_degrees) + 1)
+            self.mesh_points = np.linspace(
+                -1, 1, len(self.polynomial_degrees) + 1, dtype=np.float64
+            )
         else:
-            self.mesh_points = np.array(mesh_points)
+            self.mesh_points = np.array(mesh_points, dtype=np.float64)
 
         # Validate mesh
         if len(self.polynomial_degrees) != len(self.mesh_points) - 1:
