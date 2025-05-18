@@ -27,7 +27,7 @@ problem.minimize(integral_var)
 
 # EXPLICITLY set the initial mesh for adaptive algorithm
 initial_polynomial_degrees = [8, 8, 8]
-initial_mesh_points = np.array([-1.0, -1 / 3, 1 / 3, 1.0])
+initial_mesh_points = [-1.0, -1 / 3, 1 / 3, 1.0]
 problem.set_mesh(initial_polynomial_degrees, initial_mesh_points)
 
 # OPTIONALLY provide initial guess (not required)
@@ -65,7 +65,10 @@ solution = solve(problem, adaptive_solver)
 if solution.success:
     print(f"Successfully solved! Objective: {solution.objective:.6f}")
     print(f"Final mesh intervals: {solution.polynomial_degrees}")
-    print(f"Mesh points: {np.array2string(solution.mesh_points, precision=3)}")
+    if solution.mesh_points is not None:
+        print(f"Mesh points: {np.array2string(solution.mesh_points, precision=3)}")
+    else:
+        print("Mesh points: None")
 
     # Get state trajectory using the symbolic variable
     t_vals, x_vals = solution.get_symbolic_trajectory(x)
