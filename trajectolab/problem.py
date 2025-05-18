@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, Optional, Union
+from typing import Any, TypeAlias, cast
 
 import casadi as ca
 import numpy as np
@@ -17,89 +17,110 @@ from .tl_types import (
 )
 
 
-class TimeVariableImpl:
-    """
-    Symbolic time variable with initial and final time properties.
-    """
+# Local type aliases for improved readability
+_SymStateDict: TypeAlias = dict[str, SymType]
+_SymControlDict: TypeAlias = dict[str, SymType]
+_SymParameterDict: TypeAlias = dict[str, SymType]
+_StateMetadata: TypeAlias = dict[str, Any]
+_ControlMetadata: TypeAlias = dict[str, Any]
+_ConstraintList: TypeAlias = list[SymExpr]
+_IntegralExprList: TypeAlias = list[SymExpr]
+_IntegralSymList: TypeAlias = list[SymType]
+_DynamicsExprs: TypeAlias = dict[SymType, SymExpr]
 
-    def __init__(self, sym_var: SymType, sym_initial: SymType, sym_final: SymType):
+# Callback function type aliases
+_DynamicsCallback: TypeAlias = Callable[
+    [CasadiMX, CasadiMX, CasadiMX, ProblemParameters], list[CasadiMX] | CasadiMX
+]
+_ObjectiveCallback: TypeAlias = Callable[
+    [CasadiMX, CasadiMX, CasadiMX, CasadiMX, CasadiMX | None, ProblemParameters], CasadiMX
+]
+_IntegrandCallback: TypeAlias = Callable[
+    [CasadiMX, CasadiMX, CasadiMX, int, ProblemParameters], CasadiMX
+]
+_PathConstraintsCallback: TypeAlias = Callable[
+    [CasadiMX, CasadiMX, CasadiMX, ProblemParameters], list[PathConstraint]
+]
+_EventConstraintsCallback: TypeAlias = Callable[
+    [CasadiMX, CasadiMX, CasadiMX, CasadiMX, CasadiMX | None, ProblemParameters],
+    list[EventConstraint],
+]
+
+# Initial guess types
+_InitialGuessValue: TypeAlias = float | FloatArray
+
+
+class TimeVariableImpl:
+    def __init__(self, sym_var: SymType, sym_initial: SymType, sym_final: SymType) -> None:
         self._sym_var = sym_var
         self._sym_initial = sym_initial
         self._sym_final = sym_final
 
-    def __call__(self, other=None):
-        """Return the time symbol when called with no arguments."""
+    def __call__(self, other: Any = None) -> SymType:
         if other is None:
             return self._sym_var
         raise NotImplementedError("Time indexing not yet implemented")
 
     @property
     def initial(self) -> SymType:
-        """Get initial time symbol."""
         return self._sym_initial
 
     @property
     def final(self) -> SymType:
-        """Get final time symbol."""
         return self._sym_final
 
-    # Allow direct use in expressions
-    def __add__(self, other):
+    # Arithmetic operators
+    def __add__(self, other: Any) -> SymType:
         return self._sym_var + other
 
-    def __radd__(self, other):
+    def __radd__(self, other: Any) -> SymType:
         return other + self._sym_var
 
-    def __sub__(self, other):
+    def __sub__(self, other: Any) -> SymType:
         return self._sym_var - other
 
-    def __rsub__(self, other):
+    def __rsub__(self, other: Any) -> SymType:
         return other - self._sym_var
 
-    def __mul__(self, other):
+    def __mul__(self, other: Any) -> SymType:
         return self._sym_var * other
 
-    def __rmul__(self, other):
+    def __rmul__(self, other: Any) -> SymType:
         return other * self._sym_var
 
-    def __truediv__(self, other):
+    def __truediv__(self, other: Any) -> SymType:
         return self._sym_var / other
 
-    def __rtruediv__(self, other):
+    def __rtruediv__(self, other: Any) -> SymType:
         return other / self._sym_var
 
-    def __pow__(self, other):
+    def __pow__(self, other: Any) -> SymType:
         return self._sym_var**other
 
-    def __neg__(self):
-        return -self._sym_var
+    def __neg__(self) -> SymType:
+        return cast(SymType, -self._sym_var)
 
     # Comparison operators
-    def __lt__(self, other):
+    def __lt__(self, other: Any) -> SymType:
         return self._sym_var < other
 
-    def __le__(self, other):
+    def __le__(self, other: Any) -> SymType:
         return self._sym_var <= other
 
-    def __gt__(self, other):
+    def __gt__(self, other: Any) -> SymType:
         return self._sym_var > other
 
-    def __ge__(self, other):
+    def __ge__(self, other: Any) -> SymType:
         return self._sym_var >= other
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> SymType:  # type: ignore[override]
         return self._sym_var == other
 
-    def __ne__(self, other):
+    def __ne__(self, other: Any) -> SymType:  # type: ignore[override]
         return self._sym_var != other
 
 
 class Constraint:
-    """
-    Represents a constraint in an optimal control problem.
-    Can be used for both path and event constraints.
-    """
-
     def __init__(
         self,
         val: SymExpr | None = None,
@@ -118,35 +139,31 @@ class Constraint:
 
 
 class Problem:
-    """
-    Defines an optimal control problem using symbolic expressions.
-    """
-
     def __init__(self, name: str = "Unnamed Problem") -> None:
         self.name = name
 
         # Symbolic variables
-        self._sym_states: dict[str, SymType] = {}
-        self._sym_controls: dict[str, SymType] = {}
-        self._sym_parameters: dict[str, SymType] = {}
-        self._sym_time: Optional[SymType] = None
-        self._sym_time_initial: Optional[SymType] = None
-        self._sym_time_final: Optional[SymType] = None
+        self._sym_states: _SymStateDict = {}
+        self._sym_controls: _SymControlDict = {}
+        self._sym_parameters: _SymParameterDict = {}
+        self._sym_time: SymType | None = None
+        self._sym_time_initial: SymType | None = None
+        self._sym_time_final: SymType | None = None
 
         # Store state and control metadata
-        self._states: dict[str, dict[str, Any]] = {}
-        self._controls: dict[str, dict[str, Any]] = {}
+        self._states: dict[str, _StateMetadata] = {}
+        self._controls: dict[str, _ControlMetadata] = {}
         self._parameters: ProblemParameters = {}
 
         # Expressions for dynamics, objectives, and constraints
-        self._dynamics_expressions: dict[SymType, SymExpr] = {}
-        self._objective_expression: Optional[SymExpr] = None
-        self._objective_type: Optional[str] = None
-        self._constraints: list[SymExpr] = []
+        self._dynamics_expressions: _DynamicsExprs = {}
+        self._objective_expression: SymExpr | None = None
+        self._objective_type: str | None = None
+        self._constraints: _ConstraintList = []
 
         # Integral expressions and symbols
-        self._integral_expressions: list[SymExpr] = []
-        self._integral_symbols: list[SymType] = []
+        self._integral_expressions: _IntegralExprList = []
+        self._integral_symbols: _IntegralSymList = []
         self._num_integrals: int = 0
 
         # Time bounds
@@ -155,27 +172,18 @@ class Problem:
 
         # Mesh configuration
         self.collocation_points_per_interval: list[int] = []
-        self.global_normalized_mesh_nodes: Optional[FloatArray] = None
+        self.global_normalized_mesh_nodes: FloatArray | None = None
 
         # Initial guess and solver options
-        self.initial_guess: Any = None
+        from .direct_solver import InitialGuess
+
+        self.initial_guess: InitialGuess | None = None
         self.default_initial_guess_values: Any = None
         self.solver_options: dict[str, Any] = {}
 
     def time(
         self, initial: float = 0.0, final: float | None = None, free_final: bool = False
     ) -> TimeVariableImpl:
-        """
-        Create symbolic time variable with initial/final values.
-
-        Args:
-            initial: Initial time value
-            final: Final time value (None means free)
-            free_final: Whether final time is free or fixed
-
-        Returns:
-            TimeVariable with initial and final time properties
-        """
         # Create symbolic variables for time, initial time, and final time
         sym_time = ca.MX.sym("t", 1)
         sym_t0 = ca.MX.sym("t0", 1)
@@ -213,19 +221,6 @@ class Problem:
         lower: float | None = None,
         upper: float | None = None,
     ) -> SymType:
-        """
-        Create a symbolic state variable with boundary conditions.
-
-        Args:
-            name: State variable name
-            initial: Initial value constraint
-            final: Final value constraint
-            lower: Lower bound
-            upper: Upper bound
-
-        Returns:
-            Symbolic state variable
-        """
         sym_var = ca.MX.sym(name, 1)
 
         # Store metadata
@@ -243,17 +238,6 @@ class Problem:
         return sym_var
 
     def control(self, name: str, lower: float | None = None, upper: float | None = None) -> SymType:
-        """
-        Create a symbolic control variable with bounds.
-
-        Args:
-            name: Control variable name
-            lower: Lower bound
-            upper: Upper bound
-
-        Returns:
-            Symbolic control variable
-        """
         sym_var = ca.MX.sym(name, 1)
 
         # Store metadata
@@ -265,16 +249,6 @@ class Problem:
         return sym_var
 
     def parameter(self, name: str, value: Any) -> SymType:
-        """
-        Create a symbolic parameter with a value.
-
-        Args:
-            name: Parameter name
-            value: Parameter value
-
-        Returns:
-            Symbolic parameter variable
-        """
         sym_var = ca.MX.sym(name, 1)
 
         # Store parameter value
@@ -286,12 +260,6 @@ class Problem:
         return sym_var
 
     def dynamics(self, dynamics_dict: dict[SymType, SymExpr]) -> None:
-        """
-        Set system dynamics using symbolic expressions.
-
-        Args:
-            dynamics_dict: Dictionary mapping state variables to their derivatives
-        """
         self._dynamics_expressions = dynamics_dict
 
         # Verify all keys correspond to defined state variables
@@ -307,15 +275,6 @@ class Problem:
                 raise ValueError("Dynamics provided for undefined state variable")
 
     def add_integral(self, integrand_expr: SymExpr) -> SymType:
-        """
-        Add an integral cost term to the problem.
-
-        Args:
-            integrand_expr: Expression to be integrated
-
-        Returns:
-            Symbolic variable representing the integral value
-        """
         # Create symbolic variable for the integral
         integral_name = f"integral_{len(self._integral_expressions)}"
         integral_sym = ca.MX.sym(integral_name, 1)
@@ -330,25 +289,10 @@ class Problem:
         return integral_sym
 
     def minimize(self, objective_expr: SymExpr) -> None:
-        """
-        Set objective function to minimize.
-
-        Args:
-            objective_expr: Expression to minimize
-        """
         self._objective_expression = objective_expr
         self._objective_type = self._determine_objective_type(objective_expr)
 
     def _determine_objective_type(self, expr: SymExpr) -> str:
-        """
-        Determine objective type based on expression structure.
-
-        Args:
-            expr: Objective expression
-
-        Returns:
-            'integral' or 'mayer' based on expression content
-        """
         # Check if expression contains any integral symbols
         for integral_sym in self._integral_symbols:
             if self._expression_contains_symbol(expr, integral_sym):
@@ -358,39 +302,16 @@ class Problem:
         return "mayer"
 
     def _expression_contains_symbol(self, expr: SymExpr, symbol: SymType) -> bool:
-        """
-        Check if an expression contains a specific symbol.
-
-        Args:
-            expr: Expression to check
-            symbol: Symbol to look for
-
-        Returns:
-            True if expression contains the symbol
-        """
         if isinstance(expr, int | float):
             return False
 
         # Use CasADi's depends_on to check dependency
-        return bool(ca.depends_on(expr, symbol))
+        return bool(ca.depends_on(expr, symbol))  # type: ignore
 
     def subject_to(self, constraint_expr: SymExpr) -> None:
-        """
-        Add a constraint to the problem.
-
-        Args:
-            constraint_expr: Constraint expression (e.g., x >= 0)
-        """
         self._constraints.append(constraint_expr)
 
-    def set_initial_guess(self, var: SymType, value: Union[float, np.ndarray]) -> None:
-        """
-        Set initial guess for a symbolic variable.
-
-        Args:
-            var: Symbolic variable
-            value: Initial guess value (scalar or array)
-        """
+    def set_initial_guess(self, var: SymType, value: _InitialGuessValue) -> None:
         from .direct_solver import InitialGuess
 
         # Initialize initial_guess if needed
@@ -402,10 +323,7 @@ class Problem:
             if var is sym:
                 if isinstance(value, int | float):
                     # Create array matching expected format
-                    if (
-                        not hasattr(self.initial_guess, "states")
-                        or self.initial_guess.states is None
-                    ):
+                    if not self.initial_guess.states:
                         self.initial_guess.states = []
 
                     # Create default guesses for all intervals
@@ -430,9 +348,14 @@ class Problem:
                         interval_guess[idx, :] = value
 
                     return
-                elif isinstance(value, np.ndarray):
-                    # TODO: Handle array value case
-                    pass
+                else:
+                    # Convert to proper FloatArray
+                    float_array = value.astype(np.float64)
+                    # TODO: Handle array value case properly; here we set the initial guess for this state using the converted array
+                    idx = self._states[name]["index"]
+                    for interval_guess in self.initial_guess.states:
+                        interval_guess[idx, :] = float_array
+                    return
 
         # Check controls
         for name, sym in self._sym_controls.items():
@@ -441,7 +364,7 @@ class Problem:
                     # Create array matching expected format
                     if (
                         not hasattr(self.initial_guess, "controls")
-                        or self.initial_guess.controls is None
+                        or not self.initial_guess.controls
                     ):
                         self.initial_guess.controls = []
 
@@ -467,20 +390,15 @@ class Problem:
                         interval_guess[idx, :] = value
 
                     return
-                elif isinstance(value, np.ndarray):
-                    # TODO: Handle array value case
+                else:
+                    # Convert to proper FloatArray
+                    float_array = value.astype(np.float64)
+                    # TODO: Handle array value case properly
                     pass
 
     # Conversion methods for solver compatibility
 
-    def get_dynamics_function(self) -> Callable:
-        """
-        Convert symbolic dynamics to a function compatible with solver.
-
-        Returns:
-            Function that maps (state_vector, control_vector, time, params)
-            to state derivative vector
-        """
+    def get_dynamics_function(self) -> _DynamicsCallback:
         # Gather all state and control symbols in order
         state_syms = [
             self._sym_states[name]
@@ -521,33 +439,30 @@ class Problem:
             params: ProblemParameters,
         ) -> list[CasadiMX]:
             # Extract parameter values in correct order
-            param_values = []
+            param_values: list[float] = []
             for name in self._sym_parameters:
-                param_values.append(params.get(name, 0.0))
+                value = params.get(name, 0.0)
+                if not isinstance(value, int | float):
+                    value = 0.0
+                param_values.append(float(value))
 
             param_vec = ca.DM(param_values) if param_values else ca.DM()
 
             # Call CasADi function and convert to list
             result = dynamics_func(states_vec, controls_vec, time, param_vec)
-
+            if result is None:
+                return []
             # Convert to list of MX elements
             num_states = result.size1()
-            result_list = []
-            for i in range(num_states):
-                result_list.append(result[i])
+            result_list: list[CasadiMX] = []
+            for i in range(int(num_states)):
+                result_list.append(cast(CasadiMX, result[i]))
 
             return result_list
 
         return vectorized_dynamics
 
-    def get_objective_function(self) -> Callable:
-        """
-        Convert symbolic objective to a function compatible with solver.
-
-        Returns:
-            Function that maps (t0, tf, x0_vec, xf_vec, q, params)
-            to objective value
-        """
+    def get_objective_function(self) -> _ObjectiveCallback:
         if self._objective_expression is None:
             raise ValueError("Objective expression not defined")
 
@@ -611,7 +526,7 @@ class Problem:
             # Extract parameter values in correct order
             param_values = []
             for name in self._sym_parameters:
-                param_values.append(params.get(name, 0.0))
+                param_values.append(float(params.get(name, 0.0)))
 
             param_vec = ca.DM(param_values) if param_values else ca.DM()
 
@@ -623,14 +538,7 @@ class Problem:
 
         return vectorized_objective
 
-    def get_integrand_function(self) -> Callable | None:
-        """
-        Convert symbolic integrand expressions to a function compatible with solver.
-
-        Returns:
-            Function that maps (state_vector, control_vector, time, integral_idx, params)
-            to integrand value or None if no integrals are defined
-        """
+    def get_integrand_function(self) -> _IntegrandCallback | None:
         if not self._integral_expressions:
             return None
 
@@ -680,20 +588,13 @@ class Problem:
             param_vec = ca.DM(param_values) if param_values else ca.DM()
 
             # Call appropriate CasADi function
-            return integrand_funcs[integral_idx](states_vec, controls_vec, time, param_vec)
+            return cast(
+                CasadiMX, integrand_funcs[integral_idx](states_vec, controls_vec, time, param_vec)
+            )
 
         return vectorized_integrand
 
     def _is_path_constraint(self, expr: SymExpr) -> bool:
-        """
-        Determine if constraint is a path constraint.
-
-        Args:
-            expr: Constraint expression
-
-        Returns:
-            True if constraint is a path constraint
-        """
         # Path constraints only depend on states, controls and time (t)
         # Not on initial/final specific values (t0/tf)
         depends_on_t0_tf = (
@@ -703,15 +604,6 @@ class Problem:
         return not depends_on_t0_tf
 
     def _symbolic_constraint_to_path_constraint(self, expr: SymExpr) -> PathConstraint:
-        """
-        Convert symbolic constraint to PathConstraint object.
-
-        Args:
-            expr: Constraint expression
-
-        Returns:
-            PathConstraint object
-        """
         # Handle equality constraints: expr == value
         if isinstance(expr, ca.MX) and expr.is_op(ca.OP_EQ):
             lhs = expr.dep(0)
@@ -735,15 +627,6 @@ class Problem:
         return PathConstraint(val=expr, equals=0.0)
 
     def _symbolic_constraint_to_event_constraint(self, expr: SymExpr) -> EventConstraint:
-        """
-        Convert symbolic constraint to EventConstraint object.
-
-        Args:
-            expr: Constraint expression
-
-        Returns:
-            EventConstraint object
-        """
         # Handle equality constraints: expr == value
         if isinstance(expr, ca.MX) and expr.is_op(ca.OP_EQ):
             lhs = expr.dep(0)
@@ -766,14 +649,7 @@ class Problem:
         # Default case
         return EventConstraint(val=expr, equals=0.0)
 
-    def get_path_constraints_function(self) -> Callable | None:
-        """
-        Convert symbolic path constraints to a function compatible with solver.
-
-        Returns:
-            Function that maps (state_vector, control_vector, time, params)
-            to list of path constraints
-        """
+    def get_path_constraints_function(self) -> _PathConstraintsCallback | None:
         # Filter constraints
         path_constraints = [expr for expr in self._constraints if self._is_path_constraint(expr)]
 
@@ -859,25 +735,12 @@ class Problem:
         return vectorized_path_constraints
 
     def _has_initial_or_final_state_constraints(self) -> bool:
-        """
-        Check if problem has initial or final state constraints.
-
-        Returns:
-            True if any states have initial or final constraints
-        """
         return any(
             s.get("initial_constraint") is not None or s.get("final_constraint") is not None
             for s in self._states.values()
         )
 
-    def get_event_constraints_function(self) -> Callable | None:
-        """
-        Convert symbolic event constraints to a function compatible with solver.
-
-        Returns:
-            Function that maps (t0, tf, x0_vec, xf_vec, q, params)
-            to list of event constraints
-        """
+    def get_event_constraints_function(self) -> _EventConstraintsCallback | None:
         # Filter constraints
         event_constraints = [
             expr for expr in self._constraints if not self._is_path_constraint(expr)
