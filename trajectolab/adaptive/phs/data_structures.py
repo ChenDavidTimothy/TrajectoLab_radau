@@ -8,7 +8,7 @@ from typing import Any, cast
 import casadi as ca
 import numpy as np
 
-from trajectolab.tl_types import _FloatArray, _FloatMatrix
+from trajectolab.tl_types import FloatArray, FloatMatrix
 
 
 __all__ = [
@@ -37,12 +37,12 @@ class AdaptiveParameters:
 class IntervalSimulationBundle:
     """Holds results from forward/backward simulations for error estimation."""
 
-    forward_simulation_local_tau_evaluation_points: _FloatArray | None = None
-    state_trajectory_from_forward_simulation: _FloatMatrix | None = None
-    nlp_state_trajectory_evaluated_at_forward_simulation_points: _FloatMatrix | None = None
-    backward_simulation_local_tau_evaluation_points: _FloatArray | None = None
-    state_trajectory_from_backward_simulation: _FloatMatrix | None = None
-    nlp_state_trajectory_evaluated_at_backward_simulation_points: _FloatMatrix | None = None
+    forward_simulation_local_tau_evaluation_points: FloatArray | None = None
+    state_trajectory_from_forward_simulation: FloatMatrix | None = None
+    nlp_state_trajectory_evaluated_at_forward_simulation_points: FloatMatrix | None = None
+    backward_simulation_local_tau_evaluation_points: FloatArray | None = None
+    state_trajectory_from_backward_simulation: FloatMatrix | None = None
+    nlp_state_trajectory_evaluated_at_backward_simulation_points: FloatMatrix | None = None
     are_forward_and_backward_simulations_successful: bool = True
 
     def __post_init__(self) -> None:
@@ -91,7 +91,7 @@ class NumPyDynamicsAdapter:
         self.casadi_dynamics_func = casadi_dynamics_func
         self.problem_parameters = problem_parameters
 
-    def __call__(self, state: _FloatArray, control: _FloatArray, time: float) -> _FloatArray:
+    def __call__(self, state: FloatArray, control: FloatArray, time: float) -> FloatArray:
         """Convert NumPy arrays to CasADi, call dynamics, convert back to NumPy."""
         # Convert inputs to CasADi
         state_dm = ca.DM(state)
@@ -113,12 +113,12 @@ class NumPyDynamicsAdapter:
                 dm_result[i] = ca.evalf(item)
             result_np = np.array(dm_result.full(), dtype=np.float64).flatten()
 
-        return cast(_FloatArray, result_np)
+        return cast(FloatArray, result_np)
 
 
 def _extract_and_prepare_array(
     casadi_value: Any, expected_rows: int, expected_cols: int
-) -> _FloatMatrix:
+) -> FloatMatrix:
     """Extracts numerical value from CasADi and ensures correct 2D shape."""
     # Convert to numpy array
     if hasattr(casadi_value, "to_DM"):

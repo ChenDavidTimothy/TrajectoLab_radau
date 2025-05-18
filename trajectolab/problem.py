@@ -7,13 +7,13 @@ import casadi as ca
 import numpy as np
 
 from .tl_types import (
+    CasadiMX,
     EventConstraint,
+    FloatArray,
     PathConstraint,
-    _CasadiMX,
-    _FloatArray,
-    _ProblemParameters,
-    _SymExpr,
-    _SymType,
+    ProblemParameters,
+    SymExpr,
+    SymType,
 )
 
 
@@ -22,7 +22,7 @@ class TimeVariableImpl:
     Symbolic time variable with initial and final time properties.
     """
 
-    def __init__(self, sym_var: _SymType, sym_initial: _SymType, sym_final: _SymType):
+    def __init__(self, sym_var: SymType, sym_initial: SymType, sym_final: SymType):
         self._sym_var = sym_var
         self._sym_initial = sym_initial
         self._sym_final = sym_final
@@ -34,12 +34,12 @@ class TimeVariableImpl:
         raise NotImplementedError("Time indexing not yet implemented")
 
     @property
-    def initial(self) -> _SymType:
+    def initial(self) -> SymType:
         """Get initial time symbol."""
         return self._sym_initial
 
     @property
-    def final(self) -> _SymType:
+    def final(self) -> SymType:
         """Get final time symbol."""
         return self._sym_final
 
@@ -102,7 +102,7 @@ class Constraint:
 
     def __init__(
         self,
-        val: _SymExpr | None = None,
+        val: SymExpr | None = None,
         lower: float | None = None,
         upper: float | None = None,
         equals: float | None = None,
@@ -126,27 +126,27 @@ class Problem:
         self.name = name
 
         # Symbolic variables
-        self._sym_states: dict[str, _SymType] = {}
-        self._sym_controls: dict[str, _SymType] = {}
-        self._sym_parameters: dict[str, _SymType] = {}
-        self._sym_time: Optional[_SymType] = None
-        self._sym_time_initial: Optional[_SymType] = None
-        self._sym_time_final: Optional[_SymType] = None
+        self._sym_states: dict[str, SymType] = {}
+        self._sym_controls: dict[str, SymType] = {}
+        self._sym_parameters: dict[str, SymType] = {}
+        self._sym_time: Optional[SymType] = None
+        self._sym_time_initial: Optional[SymType] = None
+        self._sym_time_final: Optional[SymType] = None
 
         # Store state and control metadata
         self._states: dict[str, dict[str, Any]] = {}
         self._controls: dict[str, dict[str, Any]] = {}
-        self._parameters: _ProblemParameters = {}
+        self._parameters: ProblemParameters = {}
 
         # Expressions for dynamics, objectives, and constraints
-        self._dynamics_expressions: dict[_SymType, _SymExpr] = {}
-        self._objective_expression: Optional[_SymExpr] = None
+        self._dynamics_expressions: dict[SymType, SymExpr] = {}
+        self._objective_expression: Optional[SymExpr] = None
         self._objective_type: Optional[str] = None
-        self._constraints: list[_SymExpr] = []
+        self._constraints: list[SymExpr] = []
 
         # Integral expressions and symbols
-        self._integral_expressions: list[_SymExpr] = []
-        self._integral_symbols: list[_SymType] = []
+        self._integral_expressions: list[SymExpr] = []
+        self._integral_symbols: list[SymType] = []
         self._num_integrals: int = 0
 
         # Time bounds
@@ -155,7 +155,7 @@ class Problem:
 
         # Mesh configuration
         self.collocation_points_per_interval: list[int] = []
-        self.global_normalized_mesh_nodes: Optional[_FloatArray] = None
+        self.global_normalized_mesh_nodes: Optional[FloatArray] = None
 
         # Initial guess and solver options
         self.initial_guess: Any = None
@@ -212,7 +212,7 @@ class Problem:
         final: float | None = None,
         lower: float | None = None,
         upper: float | None = None,
-    ) -> _SymType:
+    ) -> SymType:
         """
         Create a symbolic state variable with boundary conditions.
 
@@ -242,9 +242,7 @@ class Problem:
 
         return sym_var
 
-    def control(
-        self, name: str, lower: float | None = None, upper: float | None = None
-    ) -> _SymType:
+    def control(self, name: str, lower: float | None = None, upper: float | None = None) -> SymType:
         """
         Create a symbolic control variable with bounds.
 
@@ -266,7 +264,7 @@ class Problem:
 
         return sym_var
 
-    def parameter(self, name: str, value: Any) -> _SymType:
+    def parameter(self, name: str, value: Any) -> SymType:
         """
         Create a symbolic parameter with a value.
 
@@ -287,7 +285,7 @@ class Problem:
 
         return sym_var
 
-    def dynamics(self, dynamics_dict: dict[_SymType, _SymExpr]) -> None:
+    def dynamics(self, dynamics_dict: dict[SymType, SymExpr]) -> None:
         """
         Set system dynamics using symbolic expressions.
 
@@ -308,7 +306,7 @@ class Problem:
             if not found:
                 raise ValueError("Dynamics provided for undefined state variable")
 
-    def add_integral(self, integrand_expr: _SymExpr) -> _SymType:
+    def add_integral(self, integrand_expr: SymExpr) -> SymType:
         """
         Add an integral cost term to the problem.
 
@@ -331,7 +329,7 @@ class Problem:
 
         return integral_sym
 
-    def minimize(self, objective_expr: _SymExpr) -> None:
+    def minimize(self, objective_expr: SymExpr) -> None:
         """
         Set objective function to minimize.
 
@@ -341,7 +339,7 @@ class Problem:
         self._objective_expression = objective_expr
         self._objective_type = self._determine_objective_type(objective_expr)
 
-    def _determine_objective_type(self, expr: _SymExpr) -> str:
+    def _determine_objective_type(self, expr: SymExpr) -> str:
         """
         Determine objective type based on expression structure.
 
@@ -359,7 +357,7 @@ class Problem:
         # Default to Mayer
         return "mayer"
 
-    def _expression_contains_symbol(self, expr: _SymExpr, symbol: _SymType) -> bool:
+    def _expression_contains_symbol(self, expr: SymExpr, symbol: SymType) -> bool:
         """
         Check if an expression contains a specific symbol.
 
@@ -376,7 +374,7 @@ class Problem:
         # Use CasADi's depends_on to check dependency
         return bool(ca.depends_on(expr, symbol))
 
-    def subject_to(self, constraint_expr: _SymExpr) -> None:
+    def subject_to(self, constraint_expr: SymExpr) -> None:
         """
         Add a constraint to the problem.
 
@@ -385,7 +383,7 @@ class Problem:
         """
         self._constraints.append(constraint_expr)
 
-    def set_initial_guess(self, var: _SymType, value: Union[float, np.ndarray]) -> None:
+    def set_initial_guess(self, var: SymType, value: Union[float, np.ndarray]) -> None:
         """
         Set initial guess for a symbolic variable.
 
@@ -517,11 +515,11 @@ class Problem:
 
         # Create wrapper function that matches existing API
         def vectorized_dynamics(
-            states_vec: _CasadiMX,
-            controls_vec: _CasadiMX,
-            time: _CasadiMX,
-            params: _ProblemParameters,
-        ) -> list[_CasadiMX]:
+            states_vec: CasadiMX,
+            controls_vec: CasadiMX,
+            time: CasadiMX,
+            params: ProblemParameters,
+        ) -> list[CasadiMX]:
             # Extract parameter values in correct order
             param_values = []
             for name in self._sym_parameters:
@@ -603,13 +601,13 @@ class Problem:
 
         # Create wrapper function that matches existing API
         def vectorized_objective(
-            t0: _CasadiMX,
-            tf: _CasadiMX,
-            x0_vec: _CasadiMX,
-            xf_vec: _CasadiMX,
-            q: _CasadiMX | None,
-            params: _ProblemParameters,
-        ) -> _CasadiMX:
+            t0: CasadiMX,
+            tf: CasadiMX,
+            x0_vec: CasadiMX,
+            xf_vec: CasadiMX,
+            q: CasadiMX | None,
+            params: ProblemParameters,
+        ) -> CasadiMX:
             # Extract parameter values in correct order
             param_values = []
             for name in self._sym_parameters:
@@ -665,12 +663,12 @@ class Problem:
 
         # Create wrapper function that matches existing API
         def vectorized_integrand(
-            states_vec: _CasadiMX,
-            controls_vec: _CasadiMX,
-            time: _CasadiMX,
+            states_vec: CasadiMX,
+            controls_vec: CasadiMX,
+            time: CasadiMX,
             integral_idx: int,
-            params: _ProblemParameters,
-        ) -> _CasadiMX:
+            params: ProblemParameters,
+        ) -> CasadiMX:
             if integral_idx >= len(integrand_funcs):
                 return ca.MX(0.0)
 
@@ -686,7 +684,7 @@ class Problem:
 
         return vectorized_integrand
 
-    def _is_path_constraint(self, expr: _SymExpr) -> bool:
+    def _is_path_constraint(self, expr: SymExpr) -> bool:
         """
         Determine if constraint is a path constraint.
 
@@ -704,7 +702,7 @@ class Problem:
 
         return not depends_on_t0_tf
 
-    def _symbolic_constraint_to_path_constraint(self, expr: _SymExpr) -> PathConstraint:
+    def _symbolic_constraint_to_path_constraint(self, expr: SymExpr) -> PathConstraint:
         """
         Convert symbolic constraint to PathConstraint object.
 
@@ -736,7 +734,7 @@ class Problem:
         # Default case
         return PathConstraint(val=expr, equals=0.0)
 
-    def _symbolic_constraint_to_event_constraint(self, expr: _SymExpr) -> EventConstraint:
+    def _symbolic_constraint_to_event_constraint(self, expr: SymExpr) -> EventConstraint:
         """
         Convert symbolic constraint to EventConstraint object.
 
@@ -804,10 +802,10 @@ class Problem:
         ]
 
         def vectorized_path_constraints(
-            states_vec: _CasadiMX,
-            controls_vec: _CasadiMX,
-            time: _CasadiMX,
-            params: _ProblemParameters,
+            states_vec: CasadiMX,
+            controls_vec: CasadiMX,
+            time: CasadiMX,
+            params: ProblemParameters,
         ) -> list[PathConstraint]:
             result: list[PathConstraint] = []
 
@@ -895,12 +893,12 @@ class Problem:
         ]
 
         def vectorized_event_constraints(
-            t0: _CasadiMX,
-            tf: _CasadiMX,
-            x0_vec: _CasadiMX,
-            xf_vec: _CasadiMX,
-            q: _CasadiMX | None,
-            params: _ProblemParameters,
+            t0: CasadiMX,
+            tf: CasadiMX,
+            x0_vec: CasadiMX,
+            xf_vec: CasadiMX,
+            q: CasadiMX | None,
+            params: ProblemParameters,
         ) -> list[EventConstraint]:
             result: list[EventConstraint] = []
 

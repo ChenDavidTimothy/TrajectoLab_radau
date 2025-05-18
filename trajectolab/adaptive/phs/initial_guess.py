@@ -6,9 +6,9 @@ import numpy as np
 
 from trajectolab.direct_solver import InitialGuess, OptimalControlSolution
 from trajectolab.tl_types import (
+    FloatArray,
+    FloatMatrix,
     ProblemProtocol,
-    _FloatArray,
-    _FloatMatrix,
 )
 
 
@@ -23,7 +23,7 @@ def generate_robust_default_initial_guess(
     collocation_nodes_list: list[int],
     initial_time_guess: float | None = None,
     terminal_time_guess: float | None = None,
-    integral_values_guess: float | _FloatArray | None = None,
+    integral_values_guess: float | FloatArray | None = None,
 ) -> InitialGuess:
     """Generates a robust default initial guess with correct dimensions."""
     num_states = len(problem._states)
@@ -43,8 +43,8 @@ def generate_robust_default_initial_guess(
         default_integral = getattr(default_guess_values, "integral", 0.0)
 
     # Initialize state and control trajectories
-    states: list[_FloatMatrix] = []
-    controls: list[_FloatMatrix] = []
+    states: list[FloatMatrix] = []
+    controls: list[FloatMatrix] = []
 
     for _idx, Nk in enumerate(collocation_nodes_list):
         # State trajectory for this interval
@@ -102,7 +102,7 @@ def propagate_guess_from_previous(
     prev_solution: "OptimalControlSolution",
     problem: ProblemProtocol,
     target_nodes_list: list[int],
-    target_mesh: _FloatArray,
+    target_mesh: FloatArray,
 ) -> InitialGuess:
     """Creates initial guess for current NLP, propagating from previous solution."""
     t0_prop = prev_solution.initial_time_variable

@@ -10,12 +10,12 @@ from scipy.integrate import solve_ivp
 from trajectolab.adaptive.phs.data_structures import IntervalSimulationBundle, NumPyDynamicsAdapter
 from trajectolab.direct_solver import OptimalControlSolution
 from trajectolab.tl_types import (
+    ControlEvaluator,
+    FloatArray,
+    GammaFactors,
+    ODESolverCallable,
     ProblemProtocol,
-    _ControlEvaluator,
-    _FloatArray,
-    _GammaFactors,
-    _ODESolverCallable,
-    _StateEvaluator,
+    StateEvaluator,
 )
 
 
@@ -30,9 +30,9 @@ def simulate_dynamics_for_error_estimation(
     interval_idx: int,
     solution: "OptimalControlSolution",
     problem: ProblemProtocol,
-    state_evaluator: _StateEvaluator,
-    control_evaluator: _ControlEvaluator,
-    ode_solver: _ODESolverCallable = solve_ivp,
+    state_evaluator: StateEvaluator,
+    control_evaluator: ControlEvaluator,
+    ode_solver: ODESolverCallable = solve_ivp,
     ode_rtol: float = 1e-7,
     n_eval_points: int = 50,
 ) -> IntervalSimulationBundle:
@@ -90,7 +90,7 @@ def simulate_dynamics_for_error_estimation(
     beta_k0 = (tau_end + tau_start) / 2.0
     overall_scaling = alpha * beta_k
 
-    def dynamics_rhs(tau: float, state: _FloatArray) -> _FloatArray:
+    def dynamics_rhs(tau: float, state: FloatArray) -> FloatArray:
         """Right-hand side of dynamics ODE in local tau coordinates."""
         # Get control from interpolant
         control = control_evaluator(tau)
@@ -109,7 +109,7 @@ def simulate_dynamics_for_error_estimation(
                 f"Dynamics function output dimension mismatch. Expected {num_states}, got {state_deriv_np.shape[0]}."
             )
 
-        return cast(_FloatArray, overall_scaling * state_deriv_np)
+        return cast(FloatArray, overall_scaling * state_deriv_np)
 
     # Forward simulation (IVP)
     initial_state = state_evaluator(-1.0)
@@ -186,7 +186,7 @@ def simulate_dynamics_for_error_estimation(
 
 
 def calculate_relative_error_estimate(
-    interval_idx: int, sim_bundle: IntervalSimulationBundle, gamma_factors: _GammaFactors
+    interval_idx: int, sim_bundle: IntervalSimulationBundle, gamma_factors: GammaFactors
 ) -> float:
     """Calculates the maximum relative error estimate for an interval."""
     # Check for failed simulations
@@ -259,7 +259,7 @@ def calculate_relative_error_estimate(
 
 def calculate_gamma_normalizers(
     solution: "OptimalControlSolution", problem: ProblemProtocol
-) -> _GammaFactors | None:
+) -> GammaFactors | None:
     """Calculates gamma_i normalization factors for error estimation."""
     if not solution.success or solution.raw_solution is None:
         return None
@@ -294,4 +294,4 @@ def calculate_gamma_normalizers(
     # Use np.float64 directly to avoid type mismatch
     gamma_factors = 1.0 / np.maximum(gamma_denominator, np.float64(1e-12))  # Avoid division by zero
 
-    return cast(_GammaFactors, gamma_factors.reshape(-1, 1))
+    return cast(GammaFactors, gamma_factors.reshape(-1, 1))

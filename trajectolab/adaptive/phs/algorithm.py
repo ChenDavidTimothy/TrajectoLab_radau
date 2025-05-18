@@ -37,10 +37,10 @@ from trajectolab.radau import (
     compute_radau_collocation_components,
 )
 from trajectolab.tl_types import (
+    ControlEvaluator,
+    FloatArray,
     ProblemProtocol,
-    _ControlEvaluator,
-    _FloatArray,
-    _StateEvaluator,
+    StateEvaluator,
 )
 
 
@@ -49,7 +49,7 @@ class PHSAdaptive(AdaptiveBase):
 
     adaptive_params: AdaptiveParameters
     _initial_polynomial_degrees: list[int] | None
-    _initial_mesh_points: Sequence[float] | _FloatArray | None
+    _initial_mesh_points: Sequence[float] | FloatArray | None
 
     def __init__(
         self,
@@ -60,7 +60,7 @@ class PHSAdaptive(AdaptiveBase):
         ode_solver_tolerance: float = 1e-7,
         num_error_sim_points: int = 40,
         initial_polynomial_degrees: list[int] | None = None,
-        initial_mesh_points: Sequence[float] | _FloatArray | None = None,
+        initial_mesh_points: Sequence[float] | FloatArray | None = None,
         initial_guess: InitialGuess | None = None,
     ) -> None:
         """
@@ -260,9 +260,9 @@ class PHSAdaptive(AdaptiveBase):
 
             # Create cache for basis components and polynomial interpolants
             basis_cache: dict[int, RadauBasisComponents] = {}
-            control_weights_cache: dict[int, _FloatArray] = {}
-            state_evaluators: list[_StateEvaluator | None] = [None] * num_intervals
-            control_evaluators: list[_ControlEvaluator | None] = [None] * num_intervals
+            control_weights_cache: dict[int, FloatArray] = {}
+            state_evaluators: list[StateEvaluator | None] = [None] * num_intervals
+            control_evaluators: list[ControlEvaluator | None] = [None] * num_intervals
 
             # Get solved trajectories
             states_list = solution.solved_state_trajectories_per_interval
@@ -475,8 +475,8 @@ class PHSAdaptive(AdaptiveBase):
                                 )
                             ):
                                 # Ensure we don't pass None to functions that can't handle it
-                                state_eval_first = cast(_StateEvaluator, state_evaluators[k])
-                                state_eval_second = cast(_StateEvaluator, state_evaluators[k + 1])
+                                state_eval_first = cast(StateEvaluator, state_evaluators[k])
+                                state_eval_second = cast(StateEvaluator, state_evaluators[k + 1])
                                 control_eval_first = control_evaluators[k]
                                 control_eval_second = control_evaluators[k + 1]
 

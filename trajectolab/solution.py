@@ -13,7 +13,7 @@ from matplotlib.axes import Axes as MplAxes
 from matplotlib.lines import Line2D
 
 from .direct_solver import OptimalControlSolution
-from .tl_types import ProblemProtocol, _FloatArray, _IntArray, _SymType
+from .tl_types import FloatArray, IntArray, ProblemProtocol, SymType
 
 
 class IntervalData:
@@ -24,29 +24,29 @@ class IntervalData:
         t_start: float | None = None,
         t_end: float | None = None,
         Nk: int | None = None,
-        time_states_segment: _FloatArray | None = None,
-        states_segment: Sequence[_FloatArray] | None = None,
-        time_controls_segment: _FloatArray | None = None,
-        controls_segment: Sequence[_FloatArray] | None = None,
+        time_states_segment: FloatArray | None = None,
+        states_segment: Sequence[FloatArray] | None = None,
+        time_controls_segment: FloatArray | None = None,
+        controls_segment: Sequence[FloatArray] | None = None,
     ) -> None:
         self.t_start: float | None = t_start
         self.t_end: float | None = t_end
         self.Nk: int | None = Nk
 
-        self.time_states_segment: _FloatArray = (
+        self.time_states_segment: FloatArray = (
             time_states_segment
             if time_states_segment is not None
             else np.array([], dtype=np.float64)
         )
-        self.states_segment: list[_FloatArray] = (
+        self.states_segment: list[FloatArray] = (
             list(states_segment) if states_segment is not None else []
         )
-        self.time_controls_segment: _FloatArray = (
+        self.time_controls_segment: FloatArray = (
             time_controls_segment
             if time_controls_segment is not None
             else np.array([], dtype=np.float64)
         )
-        self.controls_segment: list[_FloatArray] = (
+        self.controls_segment: list[FloatArray] = (
             list(controls_segment) if controls_segment is not None else []
         )
 
@@ -69,8 +69,8 @@ class Solution:
             self._control_names = list(problem._controls.keys())
 
         # Map to store symbolic variables to their names
-        self._sym_state_map: dict[_SymType, str] = {}
-        self._sym_control_map: dict[_SymType, str] = {}
+        self._sym_state_map: dict[SymType, str] = {}
+        self._sym_control_map: dict[SymType, str] = {}
 
         # If the problem has symbolic variables, create mappings
         if problem and hasattr(problem, "_sym_states"):
@@ -86,16 +86,16 @@ class Solution:
         self.initial_time: float | None = None
         self.final_time: float | None = None
         self.objective: float | None = None
-        self.integrals: _FloatArray | None = None
+        self.integrals: FloatArray | None = None
 
-        self._time_states: _FloatArray | None = None
-        self._states: list[_FloatArray] | None = None
-        self._time_controls: _FloatArray | None = None
-        self._controls: list[_FloatArray] | None = None
+        self._time_states: FloatArray | None = None
+        self._states: list[FloatArray] | None = None
+        self._time_controls: FloatArray | None = None
+        self._controls: list[FloatArray] | None = None
 
-        self._polynomial_degrees: _IntArray | None = None
-        self._mesh_points_normalized: _FloatArray | None = None
-        self._mesh_points_time: _FloatArray | None = None
+        self._polynomial_degrees: IntArray | None = None
+        self._mesh_points_normalized: FloatArray | None = None
+        self._mesh_points_time: FloatArray | None = None
 
         if raw_solution:
             self._extract_solution_data(raw_solution)
@@ -164,15 +164,15 @@ class Solution:
         return 0
 
     @property
-    def polynomial_degrees(self) -> _IntArray | None:
+    def polynomial_degrees(self) -> IntArray | None:
         return self._polynomial_degrees
 
     @property
-    def mesh_points(self) -> _FloatArray | None:
+    def mesh_points(self) -> FloatArray | None:
         return self._mesh_points_time
 
     @property
-    def mesh_points_normalized(self) -> _FloatArray | None:
+    def mesh_points_normalized(self) -> FloatArray | None:
         return self._mesh_points_normalized
 
     def _get_state_index(self, state_name_or_index: str | int) -> int | None:
@@ -198,8 +198,8 @@ class Solution:
             return None
 
     def get_state_trajectory(
-        self, state_name_or_index: str | int | _SymType
-    ) -> tuple[_FloatArray, _FloatArray]:
+        self, state_name_or_index: str | int | SymType
+    ) -> tuple[FloatArray, FloatArray]:
         """
         Get state trajectory data.
 
@@ -236,8 +236,8 @@ class Solution:
         return time_arr, self._states[index]
 
     def get_control_trajectory(
-        self, control_name_or_index: str | int | _SymType
-    ) -> tuple[_FloatArray, _FloatArray]:
+        self, control_name_or_index: str | int | SymType
+    ) -> tuple[FloatArray, FloatArray]:
         """
         Get control trajectory data.
 
@@ -274,8 +274,8 @@ class Solution:
         return time_arr, self._controls[index]
 
     def interpolate_state(
-        self, state_name_or_index: str | int | _SymType, time_point: float | _FloatArray
-    ) -> float | _FloatArray | None:
+        self, state_name_or_index: str | int | SymType, time_point: float | FloatArray
+    ) -> float | FloatArray | None:
         """
         Interpolate state value at specified time point(s).
 
@@ -309,8 +309,8 @@ class Solution:
         return np.interp(time_point, time, values)
 
     def interpolate_control(
-        self, control_name_or_index: str | int | _SymType, time_point: float | _FloatArray
-    ) -> float | _FloatArray | None:
+        self, control_name_or_index: str | int | SymType, time_point: float | FloatArray
+    ) -> float | FloatArray | None:
         """
         Interpolate control value at specified time point(s).
 
@@ -375,12 +375,12 @@ class Solution:
 
     def _extract_segment_data(
         self,
-        time_array: _FloatArray | None,
-        data_arrays: list[_FloatArray] | None,
+        time_array: FloatArray | None,
+        data_arrays: list[FloatArray] | None,
         interval_t_start: float,
         interval_t_end: float,
         epsilon: float = 1e-9,
-    ) -> tuple[_FloatArray, list[_FloatArray]]:
+    ) -> tuple[FloatArray, list[FloatArray]]:
         empty_time_segment = np.array([], dtype=np.float64)
         num_data_arrays = len(data_arrays) if data_arrays else 0
         empty_data_segments = [np.array([], dtype=np.float64) for _ in range(num_data_arrays)]
@@ -399,7 +399,7 @@ class Solution:
 
         actual_indices_in_interval = sort_indices[start_idx:end_idx]
         time_segment = time_array[actual_indices_in_interval]
-        extracted_data_segments: list[_FloatArray] = []
+        extracted_data_segments: list[FloatArray] = []
 
         for data_array_item in data_arrays:
             if data_array_item.size == time_array.size:
@@ -516,7 +516,7 @@ class Solution:
 
     def plot_states(
         self,
-        state_names: Iterable[str | _SymType] | None = None,
+        state_names: Iterable[str | SymType] | None = None,
         figsize: tuple[float, float] = (10.0, 8.0),
     ) -> None:
         """
@@ -565,7 +565,7 @@ class Solution:
 
     def plot_controls(
         self,
-        control_names: Iterable[str | _SymType] | None = None,
+        control_names: Iterable[str | SymType] | None = None,
         figsize: tuple[float, float] = (10.0, 8.0),
     ) -> None:
         """
@@ -656,8 +656,8 @@ class Solution:
                 continue
 
             if num_intervals == 0:
-                time_traj: _FloatArray | None = None
-                value_traj: _FloatArray | None = None
+                time_traj: FloatArray | None = None
+                value_traj: FloatArray | None = None
                 if (
                     variable_type == "state"
                     and self._time_states is not None
@@ -681,8 +681,8 @@ class Solution:
                         continue
                     interval_data = interval_data_opt
 
-                    time_segment: _FloatArray | None = None
-                    value_segment: _FloatArray | None = None
+                    time_segment: FloatArray | None = None
+                    value_segment: FloatArray | None = None
 
                     if variable_type == "state":
                         time_segment = interval_data.time_states_segment
@@ -727,7 +727,7 @@ class Solution:
         plt.tight_layout(rect=rect_val)
         plt.show()
 
-    def get_symbolic_trajectory(self, var: _SymType) -> tuple[_FloatArray, _FloatArray]:
+    def get_symbolic_trajectory(self, var: SymType) -> tuple[FloatArray, FloatArray]:
         """
         Get the trajectory for a symbolic variable.
 
@@ -777,8 +777,8 @@ class Solution:
             return empty_arr, empty_arr
 
     def interpolate_symbolic(
-        self, var: _SymType, time_point: float | _FloatArray
-    ) -> float | _FloatArray | None:
+        self, var: SymType, time_point: float | FloatArray
+    ) -> float | FloatArray | None:
         """
         Interpolate the value of a symbolic variable at given time points.
 

@@ -13,37 +13,37 @@ from numpy import int_ as np_int_
 from numpy.typing import NDArray
 
 
-# --- Core Numerical Type Aliases ---
-_FloatArray: TypeAlias = NDArray[np.float64]
-_FloatMatrix: TypeAlias = NDArray[np.float64]
-_IntArray: TypeAlias = NDArray[np_int_]
+# --- Core Numerical Type Aliases (Public) ---
+FloatArray: TypeAlias = NDArray[np.float64]
+FloatMatrix: TypeAlias = NDArray[np.float64]
+IntArray: TypeAlias = NDArray[np_int_]
 
-# --- Core Symbolic Type Aliases ---
-_SymType: TypeAlias = ca.MX
-_SymExpr: TypeAlias = ca.MX | float | int
+# --- Core Symbolic Type Aliases (Public) ---
+SymType: TypeAlias = ca.MX
+SymExpr: TypeAlias = ca.MX | float | int
 
 # --- Core Numerical Constants ---
 ZERO_TOLERANCE: float = 1e-12
 
-# --- CasADi Type Aliases ---
-_CasadiMX: TypeAlias = ca.MX
-_CasadiDM: TypeAlias = ca.DM
-_CasadiMatrix: TypeAlias = _CasadiMX | _CasadiDM
-_CasadiOpti: TypeAlias = ca.Opti
-_CasadiOptiSol: TypeAlias = ca.OptiSol
-_CasadiFunction: TypeAlias = ca.Function
+# --- CasADi Type Aliases (Public) ---
+CasadiMX: TypeAlias = ca.MX
+CasadiDM: TypeAlias = ca.DM
+CasadiMatrix: TypeAlias = CasadiMX | CasadiDM
+CasadiOpti: TypeAlias = ca.Opti
+CasadiOptiSol: TypeAlias = ca.OptiSol
+CasadiFunction: TypeAlias = ca.Function
 
 # --- Problem Structure Data Classes and Type Aliases ---
-_ProblemParameters: TypeAlias = dict[str, object]
+ProblemParameters: TypeAlias = dict[str, object]
 
 # Dictionary type aliases for Problem class - keep for compatibility
-_StateDictType: TypeAlias = dict[str, float | _CasadiMX]
-_ControlDictType: TypeAlias = dict[str, float | _CasadiMX]
+StateDictType: TypeAlias = dict[str, float | CasadiMX]
+ControlDictType: TypeAlias = dict[str, float | CasadiMX]
 
 # Forward reference for Problem module's Constraint class
 ConstraintType: TypeAlias = Any
 
-_ConstraintValue: TypeAlias = _CasadiMX | float | _FloatArray
+ConstraintValue: TypeAlias = CasadiMX | float | FloatArray
 
 
 # --- Constraints ---
@@ -52,7 +52,7 @@ class PathConstraint:
 
     def __init__(
         self,
-        val: _CasadiMX | float,
+        val: CasadiMX | float,
         min_val: float | None = None,
         max_val: float | None = None,
         equals: float | None = None,
@@ -68,7 +68,7 @@ class EventConstraint:
 
     def __init__(
         self,
-        val: _CasadiMX | float,
+        val: CasadiMX | float,
         min_val: float | None = None,
         max_val: float | None = None,
         equals: float | None = None,
@@ -84,12 +84,12 @@ class TimeVariable(Protocol):
     """Protocol for time variable with initial/final properties."""
 
     @property
-    def initial(self) -> _SymType: ...
+    def initial(self) -> SymType: ...
 
     @property
-    def final(self) -> _SymType: ...
+    def final(self) -> SymType: ...
 
-    def __call__(self) -> _SymType: ...
+    def __call__(self) -> SymType: ...
 
 
 # --- Function Protocol Classes for User-Facing APIs ---
@@ -100,8 +100,8 @@ class DynamicsFuncProtocol(Protocol):
     """Protocol for user-defined dynamics functions."""
 
     def __call__(
-        self, states: _StateDictType, controls: _ControlDictType, *args: Any, **kwargs: Any
-    ) -> _StateDictType:
+        self, states: StateDictType, controls: ControlDictType, *args: Any, **kwargs: Any
+    ) -> StateDictType:
         """
         Defines the dynamics of the system.
 
@@ -120,7 +120,7 @@ class DynamicsFuncProtocol(Protocol):
 class ObjectiveFuncProtocol(Protocol):
     """Protocol for user-defined objective functions."""
 
-    def __call__(self, *args: Any, **kwargs: Any) -> float | _CasadiMX:
+    def __call__(self, *args: Any, **kwargs: Any) -> float | CasadiMX:
         """
         Defines the objective function to minimize.
 
@@ -142,8 +142,8 @@ class IntegrandFuncProtocol(Protocol):
     """Protocol for user-defined integral functions."""
 
     def __call__(
-        self, states: _StateDictType, controls: _ControlDictType, *args: Any, **kwargs: Any
-    ) -> float | _CasadiMX:
+        self, states: StateDictType, controls: ControlDictType, *args: Any, **kwargs: Any
+    ) -> float | CasadiMX:
         """
         Defines the integrand for an integral cost term.
 
@@ -163,7 +163,7 @@ class ConstraintFuncProtocol(Protocol):
     """Protocol for user-defined path constraint functions."""
 
     def __call__(
-        self, states: _StateDictType, controls: _ControlDictType, *args: Any, **kwargs: Any
+        self, states: StateDictType, controls: ControlDictType, *args: Any, **kwargs: Any
     ) -> ConstraintType | list[ConstraintType]:
         """
         Defines path constraints.
@@ -202,75 +202,75 @@ class EventConstraintFuncProtocol(Protocol):
 
 
 # User-facing function types using Protocol classes
-_DynamicsFuncType: TypeAlias = DynamicsFuncProtocol
-_ObjectiveFuncType: TypeAlias = ObjectiveFuncProtocol
-_IntegrandFuncType: TypeAlias = IntegrandFuncProtocol
-_ConstraintFuncType: TypeAlias = ConstraintFuncProtocol
-_EventConstraintFuncType: TypeAlias = EventConstraintFuncProtocol
+DynamicsFuncType: TypeAlias = DynamicsFuncProtocol
+ObjectiveFuncType: TypeAlias = ObjectiveFuncProtocol
+IntegrandFuncType: TypeAlias = IntegrandFuncProtocol
+ConstraintFuncType: TypeAlias = ConstraintFuncProtocol
+EventConstraintFuncType: TypeAlias = EventConstraintFuncProtocol
 
 
 # --- Callable Types for Solver ---
 # (state, control, time, params) -> state_derivative
-_DynamicsCallable: TypeAlias = Callable[
-    [_CasadiMX, _CasadiMX, _CasadiMX, _ProblemParameters],
-    list[_CasadiMX] | _CasadiMX | Sequence[_CasadiMX],
+DynamicsCallable: TypeAlias = Callable[
+    [CasadiMX, CasadiMX, CasadiMX, ProblemParameters],
+    list[CasadiMX] | CasadiMX | Sequence[CasadiMX],
 ]
 
 # (t0, tf, x0, xf, integrals, params) -> objective_value
-_ObjectiveCallable: TypeAlias = Callable[
-    [_CasadiMX, _CasadiMX, _CasadiMX, _CasadiMX, _CasadiMX | None, _ProblemParameters],
-    _CasadiMX,
+ObjectiveCallable: TypeAlias = Callable[
+    [CasadiMX, CasadiMX, CasadiMX, CasadiMX, CasadiMX | None, ProblemParameters],
+    CasadiMX,
 ]
 
 # (state, control, time, integral_idx, params) -> integrand_value
-_IntegralIntegrandCallable: TypeAlias = Callable[
-    [_CasadiMX, _CasadiMX, _CasadiMX, int, _ProblemParameters],
-    _CasadiMX,
+IntegralIntegrandCallable: TypeAlias = Callable[
+    [CasadiMX, CasadiMX, CasadiMX, int, ProblemParameters],
+    CasadiMX,
 ]
 
-_PathConstraintsCallable: TypeAlias = Callable[
-    [_CasadiMX, _CasadiMX, _CasadiMX, _ProblemParameters],
+PathConstraintsCallable: TypeAlias = Callable[
+    [CasadiMX, CasadiMX, CasadiMX, ProblemParameters],
     list[PathConstraint] | PathConstraint,
 ]
 
-_EventConstraintsCallable: TypeAlias = Callable[
-    [_CasadiMX, _CasadiMX, _CasadiMX, _CasadiMX, _CasadiMX | None, _ProblemParameters],
+EventConstraintsCallable: TypeAlias = Callable[
+    [CasadiMX, CasadiMX, CasadiMX, CasadiMX, CasadiMX | None, ProblemParameters],
     list[EventConstraint] | EventConstraint,
 ]
 
 # --- Helper Type Aliases for Trajectories and Guesses ---
-_ListOfCasadiMX: TypeAlias = list[_CasadiMX]
-_TrajectoryData: TypeAlias = list[_FloatArray]  # List of 1D arrays for each state/control component
+ListOfCasadiMX: TypeAlias = list[CasadiMX]
+TrajectoryData: TypeAlias = list[FloatArray]  # List of 1D arrays for each state/control component
 
 # For initial guesses, states/controls are typically a list of 2D matrices,
 # one per mesh interval: [num_variables, num_nodes_in_interval]
-_InitialGuessTrajectory: TypeAlias = list[_FloatMatrix]
-_InitialGuessIntegrals: TypeAlias = float | _FloatArray | list[float] | None
+InitialGuessTrajectory: TypeAlias = list[FloatMatrix]
+InitialGuessIntegrals: TypeAlias = float | FloatArray | list[float] | None
 
 # --- Types for Adaptive Mesh Refinement ---
 # For evaluator callables
-_StateEvaluator: TypeAlias = Callable[[float | _FloatArray], _FloatArray]
-_ControlEvaluator: TypeAlias = Callable[[float | _FloatArray], _FloatArray]
+StateEvaluator: TypeAlias = Callable[[float | FloatArray], FloatArray]
+ControlEvaluator: TypeAlias = Callable[[float | FloatArray], FloatArray]
 
 # ODE solver related types
-_DynamicsRHSCallable: TypeAlias = Callable[[float, _FloatArray], _FloatArray]
+DynamicsRHSCallable: TypeAlias = Callable[[float, FloatArray], FloatArray]
 
 
 # Define a protocol for the ODE solver result
 class ODESolverResult(Protocol):
     """Protocol for the result of ODE solvers like solve_ivp."""
 
-    y: _FloatMatrix
-    t: _FloatArray
+    y: FloatMatrix
+    t: FloatArray
     success: bool
     message: str
 
 
 # Make the ODESolverCallable more flexible with optional kwargs
-_ODESolverCallable: TypeAlias = Callable[..., ODESolverResult]
+ODESolverCallable: TypeAlias = Callable[..., ODESolverResult]
 
 # Gamma normalization factors type
-_GammaFactors: TypeAlias = _FloatArray
+GammaFactors: TypeAlias = FloatArray
 
 # Type variable for generic functions
 T = TypeVar("T")
@@ -283,31 +283,31 @@ class ProblemProtocol(Protocol):
     name: str
     _states: dict[str, dict[str, Any]]
     _controls: dict[str, dict[str, Any]]
-    _parameters: _ProblemParameters
+    _parameters: ProblemParameters
     _t0_bounds: tuple[float, float]
     _tf_bounds: tuple[float, float]
     _num_integrals: int
     collocation_points_per_interval: list[int]
-    global_normalized_mesh_nodes: _FloatArray | None
+    global_normalized_mesh_nodes: FloatArray | None
     initial_guess: Any
     solver_options: dict[str, object]
 
     # Symbolic attributes
-    _sym_states: dict[str, _SymType]
-    _sym_controls: dict[str, _SymType]
-    _sym_parameters: dict[str, _SymType]
-    _sym_time: _SymType | None
-    _sym_time_initial: _SymType | None
-    _sym_time_final: _SymType | None
-    _dynamics_expressions: dict[_SymType, _SymExpr]
-    _objective_expression: _SymExpr | None
+    _sym_states: dict[str, SymType]
+    _sym_controls: dict[str, SymType]
+    _sym_parameters: dict[str, SymType]
+    _sym_time: SymType | None
+    _sym_time_initial: SymType | None
+    _sym_time_final: SymType | None
+    _dynamics_expressions: dict[SymType, SymExpr]
+    _objective_expression: SymExpr | None
     _objective_type: str | None
-    _constraints: list[_SymExpr]
-    _integral_expressions: list[_SymExpr]
-    _integral_symbols: list[_SymType]
+    _constraints: list[SymExpr]
+    _integral_expressions: list[SymExpr]
+    _integral_symbols: list[SymType]
 
-    def get_dynamics_function(self) -> _DynamicsCallable: ...
-    def get_objective_function(self) -> _ObjectiveCallable: ...
-    def get_integrand_function(self) -> _IntegralIntegrandCallable | None: ...
-    def get_path_constraints_function(self) -> _PathConstraintsCallable | None: ...
-    def get_event_constraints_function(self) -> _EventConstraintsCallable | None: ...
+    def get_dynamics_function(self) -> DynamicsCallable: ...
+    def get_objective_function(self) -> ObjectiveCallable: ...
+    def get_integrand_function(self) -> IntegralIntegrandCallable | None: ...
+    def get_path_constraints_function(self) -> PathConstraintsCallable | None: ...
+    def get_event_constraints_function(self) -> EventConstraintsCallable | None: ...

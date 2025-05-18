@@ -9,8 +9,8 @@ from trajectolab.radau import (
     evaluate_lagrange_polynomial_at_point,
 )
 from trajectolab.tl_types import (
-    _FloatArray,
-    _FloatMatrix,
+    FloatArray,
+    FloatMatrix,
 )
 
 
@@ -30,18 +30,18 @@ class PolynomialInterpolant:
     using the barycentric formula.
     """
 
-    values_at_nodes: _FloatMatrix
-    nodes_array: _FloatArray
+    values_at_nodes: FloatMatrix
+    nodes_array: FloatArray
     num_vars: int
     num_nodes_val: int
     num_nodes_pts: int
-    bary_weights: _FloatArray
+    bary_weights: FloatArray
 
     def __init__(
         self,
-        nodes: _FloatArray,
-        values: _FloatMatrix,
-        barycentric_weights: _FloatArray | None = None,
+        nodes: FloatArray,
+        values: FloatMatrix,
+        barycentric_weights: FloatArray | None = None,
     ) -> None:
         """Creates a Lagrange polynomial interpolant using barycentric formula."""
         # Convert to arrays if needed and ensure 2D values
@@ -65,7 +65,7 @@ class PolynomialInterpolant:
         if len(self.bary_weights) != self.num_nodes_pts:
             raise ValueError("Barycentric weights length does not match nodes length")
 
-    def __call__(self, points: float | _FloatArray) -> _FloatArray:
+    def __call__(self, points: float | FloatArray) -> FloatArray:
         """Evaluates the interpolant at the given point(s)."""
         is_scalar = np.isscalar(points)
         zeta_arr = np.atleast_1d(points)
@@ -80,7 +80,7 @@ class PolynomialInterpolant:
 
 
 def get_polynomial_interpolant(
-    nodes: _FloatArray, values: _FloatMatrix, barycentric_weights: _FloatArray | None = None
+    nodes: FloatArray, values: FloatMatrix, barycentric_weights: FloatArray | None = None
 ) -> PolynomialInterpolant:
     """Creates a Lagrange polynomial interpolant using barycentric formula."""
     return PolynomialInterpolant(nodes, values, barycentric_weights)

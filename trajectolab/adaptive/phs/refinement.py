@@ -19,11 +19,11 @@ from trajectolab.adaptive.phs.numerical import (
 )
 from trajectolab.direct_solver import OptimalControlSolution
 from trajectolab.tl_types import (
+    ControlEvaluator,
+    FloatArray,
+    GammaFactors,
     ProblemProtocol,
-    _ControlEvaluator,
-    _FloatArray,
-    _GammaFactors,
-    _StateEvaluator,
+    StateEvaluator,
 )
 
 
@@ -110,11 +110,11 @@ def h_reduce_intervals(
     solution: "OptimalControlSolution",
     problem: ProblemProtocol,
     adaptive_params: AdaptiveParameters,
-    gamma_factors: _GammaFactors,
-    state_evaluator_first: _StateEvaluator,
-    control_evaluator_first: _ControlEvaluator | None,
-    state_evaluator_second: _StateEvaluator,
-    control_evaluator_second: _ControlEvaluator | None,
+    gamma_factors: GammaFactors,
+    state_evaluator_first: StateEvaluator,
+    control_evaluator_first: ControlEvaluator | None,
+    state_evaluator_second: StateEvaluator,
+    control_evaluator_second: ControlEvaluator | None,
 ) -> bool:
     """
     Checks if two adjacent intervals can be merged.
@@ -173,8 +173,8 @@ def h_reduce_intervals(
     scaling_kp1 = alpha * beta_kp1
 
     def _get_control_value(
-        control_evaluator: _ControlEvaluator | None, local_tau: float
-    ) -> _FloatArray:
+        control_evaluator: ControlEvaluator | None, local_tau: float
+    ) -> FloatArray:
         """Get control value from evaluator, with clipping to handle boundary conditions."""
         if control_evaluator is None:
             return np.array([], dtype=np.float64)
@@ -183,7 +183,7 @@ def h_reduce_intervals(
         u_val = control_evaluator(clipped_tau)
         return np.atleast_1d(u_val.squeeze())
 
-    def merged_fwd_rhs(local_tau_k: float, state: _FloatArray) -> _FloatArray:
+    def merged_fwd_rhs(local_tau_k: float, state: FloatArray) -> FloatArray:
         """RHS for merged domain forward simulation."""
         u_val = _get_control_value(control_evaluator_first, local_tau_k)
         state_clipped = np.clip(state, -1e6, 1e6)
@@ -194,9 +194,9 @@ def h_reduce_intervals(
 
         # Use NumPy dynamics adapter
         f_rhs_np = numpy_dynamics(state_clipped, u_val, t_actual)
-        return cast(_FloatArray, scaling_k * f_rhs_np)
+        return cast(FloatArray, scaling_k * f_rhs_np)
 
-    def merged_bwd_rhs(local_tau_kp1: float, state: _FloatArray) -> _FloatArray:
+    def merged_bwd_rhs(local_tau_kp1: float, state: FloatArray) -> FloatArray:
         """RHS for merged domain backward simulation."""
         u_val = _get_control_value(control_evaluator_second, local_tau_kp1)
         state_clipped = np.clip(state, -1e6, 1e6)
@@ -207,7 +207,7 @@ def h_reduce_intervals(
 
         # Use NumPy dynamics adapter
         f_rhs_np = numpy_dynamics(state_clipped, u_val, t_actual)
-        return cast(_FloatArray, scaling_kp1 * f_rhs_np)
+        return cast(FloatArray, scaling_kp1 * f_rhs_np)
 
     # Get state values at interval endpoints
     try:
