@@ -88,7 +88,6 @@ ignore = [
     "N806",  # Variable in function should be lowercase (scientific)
     "N815",  # Variable in class scope should not be mixedCase (scientific)
     "S311",  # Pseudo-random generators not suitable for cryptographic purposes
-    "UP007", # Use X | Y for type annotations (we may want Union for compatibility)
     "S101", # Use assert statements (allow in tests)
 ]
 
