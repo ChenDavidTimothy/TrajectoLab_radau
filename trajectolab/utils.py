@@ -83,31 +83,38 @@ def refine_around_point(mesh: FloatArray, point: float, num_new_intervals: int =
         ValueError: If the point is outside the mesh range, if the mesh is invalid,
                     or if num_new_intervals is not positive.
     """
-    if not (mesh.ndim == 1 and mesh.size >= 2):
+    # Convert to float64 to ensure consistent behavior
+    mesh_array = np.asarray(mesh, dtype=np.float64)
+
+    if not (mesh_array.ndim == 1 and mesh_array.size >= 2):
         raise ValueError("Mesh must be a 1D NumPy array with at least two points.")
-    if point < mesh[0] or point > mesh[-1]:
-        raise ValueError(f"Point {point} is outside the mesh range [{mesh[0]}, {mesh[-1]}].")
+    if point < mesh_array[0] or point > mesh_array[-1]:
+        raise ValueError(
+            f"Point {point} is outside the mesh range [{mesh_array[0]}, {mesh_array[-1]}]."
+        )
     if num_new_intervals <= 0:
         raise ValueError("num_new_intervals must be a positive integer.")
 
     # Find the index of the interval containing the point.
     # np.searchsorted returns the insertion point. Subtracting 1 gives the left boundary.
     # Explicitly cast to int for use with Python's min/max and array indexing.
-    interval_idx = int(np.searchsorted(mesh, point, side="right") - 1)
+    interval_idx = int(np.searchsorted(mesh_array, point, side="right") - 1)
 
-    # Handle edge case where point might be exactly mesh[0].
-    # searchsorted with side='right' on mesh[0] would give 1, so idx becomes 0.
+    # Handle edge case where point might be exactly mesh_array[0].
+    # searchsorted with side='right' on mesh_array[0] would give 1, so idx becomes 0.
     # Clamp interval_idx to ensure it's a valid starting index for an interval.
-    interval_idx = max(0, min(interval_idx, len(mesh) - 2))
+    interval_idx = max(0, min(interval_idx, len(mesh_array) - 2))
 
-    interval_start = mesh[interval_idx]
-    interval_end = mesh[interval_idx + 1]
+    interval_start = mesh_array[interval_idx]
+    interval_end = mesh_array[interval_idx + 1]
 
     # Create refined points for the identified interval.
     new_points = np.linspace(interval_start, interval_end, num_new_intervals + 1, dtype=np.float64)
 
     # Construct the new mesh by concatenating parts of the old mesh with new_points.
-    refined_mesh = np.concatenate([mesh[:interval_idx], new_points, mesh[interval_idx + 2 :]])
+    refined_mesh = np.concatenate(
+        [mesh_array[:interval_idx], new_points, mesh_array[interval_idx + 2 :]]
+    )
 
     return refined_mesh
 
@@ -133,19 +140,23 @@ def estimate_error(
     Raises:
         ValueError: If x_approx and x_ref have different shapes.
     """
-    if x_approx.shape != x_ref.shape:
+    # Convert to consistent dtypes to ensure compatibility
+    x_approx_array = np.asarray(x_approx, dtype=np.float64)
+    x_ref_array = np.asarray(x_ref, dtype=np.float64)
+
+    if x_approx_array.shape != x_ref_array.shape:
         raise ValueError(
-            f"Shape mismatch: x_approx {x_approx.shape}, x_ref {x_ref.shape}. "
+            f"Shape mismatch: x_approx {x_approx_array.shape}, x_ref {x_ref_array.shape}. "
             "Arrays must have the same dimensions for error estimation."
         )
 
     if absolute:
-        errors = np.abs(x_approx - x_ref)
+        errors = np.abs(x_approx_array - x_ref_array)
     else:
         # Relative error with protection against division by zero or very small numbers.
         epsilon = np.finfo(np.float64).eps
-        denominator = np.maximum(np.abs(x_ref), epsilon)
-        errors = np.abs(x_approx - x_ref) / denominator
+        denominator = np.maximum(np.abs(x_ref_array), epsilon)
+        errors = np.abs(x_approx_array - x_ref_array) / denominator
 
     max_error = float(np.max(errors))
     mean_error = float(np.mean(errors))
@@ -190,7 +201,7 @@ def map_normalized_to_physical_time(
     if isinstance(tau, float):
         return float(physical_time)
 
-    # Ensure correct dtype without using cast()
+    # Ensure correct dtype
     return np.asarray(physical_time, dtype=np.float64)
 
 
@@ -223,4 +234,4 @@ def map_physical_to_normalized_time(
 
     if isinstance(t, float):
         return float(normalized_time)
-    return cast(FloatArray, normalized_time)
+    return cast(FloatArray, np.asarray(normalized_time, dtype=np.float64))

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any, TypeAlias, cast
 
 import casadi as ca
@@ -392,13 +392,17 @@ class Problem:
 
         Args:
             polynomial_degrees: Number of collocation nodes per interval
-            mesh_points: Normalized mesh points in [-1, 1]
+            mesh_points: Normalized mesh points in [-1, 1] - accepts any array-like
 
         Raises:
             ValueError: If mesh specification is invalid
         """
-        # Convert to numpy array if needed
-        mesh_array = np.array(mesh_points, dtype=np.float64)
+        # Convert to numpy array if needed, ensuring float64 for consistency
+        if isinstance(mesh_points, list):
+            mesh_array = np.array(mesh_points, dtype=np.float64)
+        else:
+            # Handle any numpy array dtype by converting to float64
+            mesh_array = np.asarray(mesh_points, dtype=np.float64)
 
         # Validate mesh structure
         if len(polynomial_degrees) != len(mesh_array) - 1:
@@ -435,8 +439,8 @@ class Problem:
 
     def set_initial_guess(
         self,
-        states: list[FloatMatrix] | None = None,
-        controls: list[FloatMatrix] | None = None,
+        states: Sequence[FloatMatrix] | None = None,
+        controls: Sequence[FloatMatrix] | None = None,
         initial_time: float | None = None,
         terminal_time: float | None = None,
         integrals: float | FloatArray | None = None,
@@ -446,9 +450,9 @@ class Problem:
         All parameters are optional - if not provided, CasADi will use defaults (typically zeros).
 
         Args:
-            states: Optional list of state arrays, one per interval.
+            states: Optional sequence of state arrays, one per interval.
                    Each array shape: (num_states, Nk+1)
-            controls: Optional list of control arrays, one per interval.
+            controls: Optional sequence of control arrays, one per interval.
                      Each array shape: (num_controls, Nk)
             initial_time: Optional initial time guess
             terminal_time: Optional terminal time guess

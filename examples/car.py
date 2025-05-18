@@ -13,14 +13,22 @@ This example demonstrates:
 Compatible with the current TrajectoLab design (explicit mesh control).
 """
 
+from typing import TypeAlias
+
 import casadi as ca
 import matplotlib.pyplot as plt
 import numpy as np
 
 from trajectolab import FixedMesh, PHSAdaptive, Problem, RadauDirectSolver, solve
+from trajectolab.solution import Solution
+from trajectolab.tl_types import FloatArray, SymType
 
 
-def create_car_race_problem() -> Problem:
+# Type aliases for better type safety
+_ProblemSymbols: TypeAlias = tuple[Problem, SymType, SymType, SymType]
+
+
+def create_car_race_problem() -> _ProblemSymbols:
     """Create the car race optimal control problem."""
     # Create the car race problem
     problem = Problem("Car Race - Time Optimal")
@@ -62,7 +70,7 @@ def solve_car_race_adaptive() -> None:
 
     # EXPLICITLY set initial mesh for adaptive algorithm
     initial_polynomial_degrees = [6, 8, 10]
-    initial_mesh_points = np.array([-1.0, -0.33, 0.33, 1.0])
+    initial_mesh_points = np.array([-1.0, -0.33, 0.33, 1.0], dtype=np.float64)
 
     # Set mesh explicitly on problem
     problem.set_mesh(initial_polynomial_degrees, initial_mesh_points)
@@ -74,11 +82,11 @@ def solve_car_race_adaptive() -> None:
 
     for N_k in initial_polynomial_degrees:
         # State guess: position from 0 to 1, speed from 0 to 0.5
-        tau_points = np.linspace(-1, 1, N_k + 1)
+        tau_points = np.linspace(-1, 1, N_k + 1, dtype=np.float64)
         pos_values = 0.5 * (tau_points + 1)  # Linear from 0 to 1
         speed_values = 0.25 * (tau_points + 1)  # Linear from 0 to 0.5
 
-        state_array = np.array([pos_values, speed_values])
+        state_array = np.array([pos_values, speed_values], dtype=np.float64)
         states_guess.append(state_array)
 
         # Control guess: moderate constant throttle
@@ -169,7 +177,7 @@ def solve_car_race_fixed_mesh() -> None:
 
     # EXPLICITLY set fixed mesh
     polynomial_degrees = [10, 12, 15, 12, 10]
-    mesh_points = np.array([-1.0, -0.5, -0.1, 0.3, 0.7, 1.0])
+    mesh_points = np.array([-1.0, -0.5, -0.1, 0.3, 0.7, 1.0], dtype=np.float64)
 
     # Set mesh explicitly on problem
     problem.set_mesh(polynomial_degrees, mesh_points)
@@ -180,7 +188,7 @@ def solve_car_race_fixed_mesh() -> None:
 
     for N_k in polynomial_degrees:
         # More sophisticated initial guess
-        tau_points = np.linspace(-1, 1, N_k + 1)
+        tau_points = np.linspace(-1, 1, N_k + 1, dtype=np.float64)
         global_time = (tau_points + 1) / 2  # Map to [0, 1]
 
         # Position: quadratic profile from 0 to 1
@@ -188,11 +196,11 @@ def solve_car_race_fixed_mesh() -> None:
         # Speed: build up then taper off
         speed_values = 0.8 * global_time * (1 - 0.5 * global_time)
 
-        state_array = np.array([pos_values, speed_values])
+        state_array = np.array([pos_values, speed_values], dtype=np.float64)
         states_guess.append(state_array)
 
         # Control: higher at start, moderate later
-        tau_control = np.linspace(-1, 1, N_k)
+        tau_control = np.linspace(-1, 1, N_k, dtype=np.float64)
         global_time_control = (tau_control + 1) / 2
         throttle_values = 0.8 * (1 - 0.3 * global_time_control)
         control_array = throttle_values.reshape(1, -1)
@@ -249,7 +257,7 @@ def try_fixed_mesh_fallback(problem: Problem) -> None:
 
     # Reset mesh for fixed solver
     fallback_degrees = [10] * 10
-    fallback_mesh = np.linspace(-1, 1, 11)
+    fallback_mesh = np.linspace(-1, 1, 11, dtype=np.float64)
     problem.set_mesh(fallback_degrees, fallback_mesh)
 
     # Use simple initial guess
@@ -272,34 +280,34 @@ def try_fixed_mesh_fallback(problem: Problem) -> None:
         print(f"❌ Fallback also failed: {fallback_solution.message}")
 
 
-def verify_constraints(pos_vals: np.ndarray, speed_vals: np.ndarray) -> None:
+def verify_constraints(pos_vals: FloatArray, speed_vals: FloatArray) -> None:
     """Verify that speed limit constraints are satisfied."""
     # Calculate speed limit along the trajectory
     speed_limit_vals = 1 - np.sin(2 * np.pi * pos_vals) / 2
 
     # Check constraint violations
     violations = speed_vals - speed_limit_vals
-    max_violation = np.max(violations)
+    max_violation = float(np.max(violations))
 
     print("\nConstraint verification:")
     print(f"Maximum speed limit violation: {max_violation:.8f}")
 
     if max_violation > 1e-6:
         print("⚠️  Warning: Speed limit constraint may be violated!")
-        num_violations = np.sum(violations > 1e-6)
+        num_violations = int(np.sum(violations > 1e-6))
         print(f"Number of points with violations > 1e-6: {num_violations}")
     else:
         print("✅ All constraints satisfied")
 
 
 def plot_car_race_results(
-    t_vals: np.ndarray,
-    pos_vals: np.ndarray,
-    t_speed: np.ndarray,
-    speed_vals: np.ndarray,
-    t_throttle: np.ndarray,
-    throttle_vals: np.ndarray,
-    solution: object,
+    t_vals: FloatArray,
+    pos_vals: FloatArray,
+    t_speed: FloatArray,
+    speed_vals: FloatArray,
+    t_throttle: FloatArray,
+    throttle_vals: FloatArray,
+    solution: Solution,
 ) -> None:
     """Create custom plots for car race results."""
     # Calculate speed limit for plotting
@@ -323,7 +331,7 @@ def plot_car_race_results(
     # Speed vs position plot
     plt.subplot(2, 2, 2)
     plt.plot(pos_vals, speed_vals, "b-", linewidth=2, label="Actual speed")
-    pos_fine = np.linspace(0, 1, 1000)
+    pos_fine = np.linspace(0, 1, 1000, dtype=np.float64)
     speed_limit_fine = 1 - np.sin(2 * np.pi * pos_fine) / 2
     plt.plot(pos_fine, speed_limit_fine, "r--", linewidth=2, label="Speed limit")
     plt.xlabel("Position")
@@ -343,44 +351,40 @@ def plot_car_race_results(
 
     # Mesh information (if available)
     plt.subplot(2, 2, 4)
-    if hasattr(solution, "mesh_points") and hasattr(solution, "polynomial_degrees"):
-        if solution.mesh_points is not None and solution.polynomial_degrees is not None:
-            # Convert mesh points from [-1,1] to physical time
-            physical_mesh_points = np.interp(solution.mesh_points, [-1, 1], [t_vals[0], t_vals[-1]])
+    if (
+        hasattr(solution, "mesh_points")
+        and hasattr(solution, "polynomial_degrees")
+        and solution.mesh_points is not None
+        and solution.polynomial_degrees is not None
+    ):
+        # Convert mesh points from [-1,1] to physical time
+        physical_mesh_points = np.interp(
+            solution.mesh_points, [-1, 1], [float(t_vals[0]), float(t_vals[-1])]
+        )
 
-            mesh_centers = []
-            for i in range(len(solution.polynomial_degrees)):
-                center = (physical_mesh_points[i] + physical_mesh_points[i + 1]) / 2
-                mesh_centers.append(center)
+        mesh_centers = []
+        for i in range(len(solution.polynomial_degrees)):
+            center = (physical_mesh_points[i] + physical_mesh_points[i + 1]) / 2
+            mesh_centers.append(center)
 
-            widths = np.diff(physical_mesh_points)
+        widths = np.diff(physical_mesh_points)
 
-            plt.bar(
-                mesh_centers,
-                solution.polynomial_degrees,
-                width=widths,
-                alpha=0.7,
-                edgecolor="black",
-            )
-            plt.xlabel("Time")
-            plt.ylabel("Polynomial Degree")
-            plt.title(f"Mesh Structure ({solution.num_intervals} intervals)")
-            plt.grid(True, alpha=0.3)
-        else:
-            plt.text(
-                0.5,
-                0.5,
-                "Mesh information\nnot available",
-                ha="center",
-                va="center",
-                transform=plt.gca().transAxes,
-            )
-            plt.title("Mesh Information")
+        plt.bar(
+            mesh_centers,
+            solution.polynomial_degrees,
+            width=widths,
+            alpha=0.7,
+            edgecolor="black",
+        )
+        plt.xlabel("Time")
+        plt.ylabel("Polynomial Degree")
+        plt.title(f"Mesh Structure ({solution.num_intervals} intervals)")
+        plt.grid(True, alpha=0.3)
     else:
         plt.text(
             0.5,
             0.5,
-            "Fixed mesh\n(no refinement data)",
+            "Mesh information\nnot available",
             ha="center",
             va="center",
             transform=plt.gca().transAxes,

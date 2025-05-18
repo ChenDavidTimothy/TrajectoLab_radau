@@ -435,7 +435,7 @@ class Solution:
         interval_t_start: float,
         interval_t_end: float,
         epsilon: float = 1e-9,
-    ) -> tuple[FloatArray, list[FloatArray]]:
+    ) -> tuple[FloatArray, Sequence[FloatArray]]:
         empty_time_segment = np.array([], dtype=np.float64)
         num_data_arrays = len(data_arrays) if data_arrays else 0
         empty_data_segments = [np.array([], dtype=np.float64) for _ in range(num_data_arrays)]
