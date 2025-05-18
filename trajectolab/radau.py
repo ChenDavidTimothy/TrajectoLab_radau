@@ -1,6 +1,6 @@
 import logging
 from dataclasses import dataclass, field
-from typing import Literal, cast, overload
+from typing import Any, Literal, cast, overload
 
 import numpy as np
 
@@ -8,7 +8,17 @@ import numpy as np
 from .tl_types import ZERO_TOLERANCE, FloatArray, FloatMatrix
 
 
-# SciPy is a common dependency for such calculations, ensure it's available.
+# Import scipy with proper typing
+try:
+    from scipy.special import roots_jacobi as _scipy_roots_jacobi
+
+    # Type annotation for scipy function to avoid unknown type warnings
+    _scipy_roots_jacobi: Any
+except ImportError:
+    _scipy_roots_jacobi = None
+
+# Use a regular variable name instead of a constant
+_scipy_available = _scipy_roots_jacobi is not None
 
 
 # --- Dataclasses for Structured Radau Components ---
@@ -57,21 +67,26 @@ def roots_jacobi(
 def roots_jacobi(
     n: int, alpha: float, beta: float, mu: bool = False
 ) -> tuple[FloatArray, FloatArray] | tuple[FloatArray, FloatArray, float]:
-    try:
-        from scipy.special import roots_jacobi
-    except ImportError:
+    if not _scipy_available or _scipy_roots_jacobi is None:
         logging.error("SciPy is required for roots_jacobi. Please install it: pip install scipy")
-        raise
+        raise ImportError("SciPy is required but not available")
 
     if mu:
-        x_val, w_val, mu_val = roots_jacobi(n, alpha, beta, mu=True)
+        # Explicitly type the scipy function result
+        result = _scipy_roots_jacobi(n, alpha, beta, mu=True)
+        x_val: np.ndarray[Any, Any] = result[0]
+        w_val: np.ndarray[Any, Any] = result[1]
+        mu_val: float = result[2]
         return (
             cast(FloatArray, x_val.astype(np.float64)),
             cast(FloatArray, w_val.astype(np.float64)),
             float(mu_val),
         )
     else:
-        x_val, w_val = roots_jacobi(n, alpha, beta, mu=False)
+        # Explicitly type the scipy function result
+        result = _scipy_roots_jacobi(n, alpha, beta, mu=False)
+        x_val: np.ndarray[Any, Any] = result[0]
+        w_val: np.ndarray[Any, Any] = result[1]
         return (
             cast(FloatArray, x_val.astype(np.float64)),
             cast(FloatArray, w_val.astype(np.float64)),
