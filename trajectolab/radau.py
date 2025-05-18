@@ -10,7 +10,7 @@ from .tl_types import ZERO_TOLERANCE, FloatArray, FloatMatrix
 
 # Import scipy with proper typing
 try:
-    from scipy.special import roots_jacobi as _scipy_roots_jacobi
+    from scipy.special import roots_jacobi as _scipy_roots_jacobi  # type: ignore[import]
 
     # Type annotation for scipy function to avoid unknown type warnings
     _scipy_roots_jacobi: Any
