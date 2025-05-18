@@ -77,7 +77,7 @@ else:
 print("Solving with fixed mesh...")
 
 # For fixed mesh, explicitly set new mesh
-fixed_polynomial_degrees = [20, 8, 20]
+fixed_polynomial_degrees = [20, 12, 20]
 fixed_mesh_points = np.array([-1.0, -1/3, 1/3, 1.0])
 problem.set_mesh(fixed_polynomial_degrees, fixed_mesh_points)
 
