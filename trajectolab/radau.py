@@ -136,7 +136,7 @@ def compute_barycentric_weights(nodes: FloatArray) -> FloatArray:
             perturbation[perturbation == 0] = ZERO_TOLERANCE
             node_differences[mask_near_zero] = perturbation
 
-        product_val: float = float(np.prod(node_differences))
+        product_val: float = float(np.prod(node_differences, dtype=np.float64))
 
         if abs(product_val) < ZERO_TOLERANCE**2:
             logging.warning(
