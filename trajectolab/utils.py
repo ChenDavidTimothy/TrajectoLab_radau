@@ -56,11 +56,11 @@ def uniform_mesh(num_intervals: int) -> FloatArray:
     Raises:
         ValueError: If num_intervals is not a positive integer.
     """
-    if not isinstance(num_intervals, int) or num_intervals <= 0:
+    if num_intervals <= 0:
         raise ValueError("num_intervals must be a positive integer.")
 
     mesh_points = np.linspace(-1.0, 1.0, num_intervals + 1, dtype=np.float64)
-    return cast(FloatArray, mesh_points)
+    return mesh_points
 
 
 def refine_around_point(mesh: FloatArray, point: float, num_new_intervals: int = 2) -> FloatArray:
@@ -83,11 +83,11 @@ def refine_around_point(mesh: FloatArray, point: float, num_new_intervals: int =
         ValueError: If the point is outside the mesh range, if the mesh is invalid,
                     or if num_new_intervals is not positive.
     """
-    if not (isinstance(mesh, np.ndarray) and mesh.ndim == 1 and mesh.size >= 2):
+    if not (mesh.ndim == 1 and mesh.size >= 2):
         raise ValueError("Mesh must be a 1D NumPy array with at least two points.")
     if point < mesh[0] or point > mesh[-1]:
         raise ValueError(f"Point {point} is outside the mesh range [{mesh[0]}, {mesh[-1]}].")
-    if not isinstance(num_new_intervals, int) or num_new_intervals <= 0:
+    if num_new_intervals <= 0:
         raise ValueError("num_new_intervals must be a positive integer.")
 
     # Find the index of the interval containing the point.
@@ -109,7 +109,7 @@ def refine_around_point(mesh: FloatArray, point: float, num_new_intervals: int =
     # Construct the new mesh by concatenating parts of the old mesh with new_points.
     refined_mesh = np.concatenate([mesh[:interval_idx], new_points, mesh[interval_idx + 2 :]])
 
-    return cast(FloatArray, refined_mesh)
+    return refined_mesh
 
 
 def estimate_error(

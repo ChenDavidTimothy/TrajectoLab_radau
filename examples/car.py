@@ -2,7 +2,7 @@ import casadi as ca
 import matplotlib.pyplot as plt
 import numpy as np
 
-from trajectolab import *
+from trajectolab import FixedMesh, InitialGuess, PHSAdaptive, Problem, RadauDirectSolver, solve
 
 
 # Create the car race problem
@@ -36,7 +36,6 @@ problem.set_initial_guess(speed, 1.0)
 problem.set_initial_guess(throttle, 0.5)
 
 # Create initial guess for time
-from trajectolab import InitialGuess
 
 
 initial_guess = InitialGuess(
