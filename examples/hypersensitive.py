@@ -7,7 +7,7 @@ from trajectolab import FixedMesh, PHSAdaptive, Problem, RadauDirectSolver, solv
 problem = Problem("Hypersensitive Problem")
 
 # Define time variable
-t = problem.time(initial=0.0, final=40.0)
+t = problem.time(initial=0, final=40)
 
 # Add state with boundary conditions
 x = problem.state("x", initial=1.5, final=1.0)
