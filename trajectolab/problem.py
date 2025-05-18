@@ -113,10 +113,10 @@ class TimeVariableImpl:
     def __ge__(self, other: Any) -> SymType:
         return self._sym_var >= other
 
-    def __eq__(self, other: Any) -> SymType:  # type: ignore[override]
+    def __eq__(self, other: Any) -> SymType:
         return self._sym_var == other
 
-    def __ne__(self, other: Any) -> SymType:  # type: ignore[override]
+    def __ne__(self, other: Any) -> SymType:
         return self._sym_var != other
 
 
