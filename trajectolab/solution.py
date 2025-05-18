@@ -6,6 +6,7 @@ of an optimal control problem.
 """
 
 from collections.abc import Callable, Iterable, Sequence
+from typing import TypeAlias, cast, overload
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -14,6 +15,16 @@ from matplotlib.lines import Line2D
 
 from .direct_solver import OptimalControlSolution
 from .tl_types import FloatArray, IntArray, ProblemProtocol, SymType
+
+
+# --- Type Aliases ---
+_StateIdentifier: TypeAlias = str | int
+_ControlIdentifier: TypeAlias = str | int
+_VariableIdentifier: TypeAlias = str | int | SymType
+_TrajectoryTuple: TypeAlias = tuple[FloatArray, FloatArray]
+_SymbolMap: TypeAlias = dict[SymType, str]
+_InterpolationResult: TypeAlias = float | FloatArray | None
+_PlotVariableNames: TypeAlias = Iterable[str | SymType] | None
 
 
 class IntervalData:
@@ -69,8 +80,8 @@ class Solution:
             self._control_names = list(problem._controls.keys())
 
         # Map to store symbolic variables to their names
-        self._sym_state_map: dict[SymType, str] = {}
-        self._sym_control_map: dict[SymType, str] = {}
+        self._sym_state_map: _SymbolMap = {}
+        self._sym_control_map: _SymbolMap = {}
 
         # If the problem has symbolic variables, create mappings
         if problem and hasattr(problem, "_sym_states"):
@@ -175,173 +186,217 @@ class Solution:
     def mesh_points_normalized(self) -> FloatArray | None:
         return self._mesh_points_normalized
 
-    def _get_state_index(self, state_name_or_index: str | int) -> int | None:
-        if isinstance(state_name_or_index, int):
-            return (
-                state_name_or_index if 0 <= state_name_or_index < len(self._state_names) else None
-            )
+    def _get_state_index(self, state_identifier: _StateIdentifier) -> int | None:
+        if isinstance(state_identifier, int):
+            return state_identifier if 0 <= state_identifier < len(self._state_names) else None
         try:
-            return self._state_names.index(state_name_or_index)
+            return self._state_names.index(state_identifier)
         except ValueError:
             return None
 
-    def _get_control_index(self, control_name_or_index: str | int) -> int | None:
-        if isinstance(control_name_or_index, int):
+    def _get_control_index(self, control_identifier: _ControlIdentifier) -> int | None:
+        if isinstance(control_identifier, int):
             return (
-                control_name_or_index
-                if 0 <= control_name_or_index < len(self._control_names)
-                else None
+                control_identifier if 0 <= control_identifier < len(self._control_names) else None
             )
         try:
-            return self._control_names.index(control_name_or_index)
+            return self._control_names.index(control_identifier)
         except ValueError:
             return None
 
-    def get_state_trajectory(
-        self, state_name_or_index: str | int | SymType
-    ) -> tuple[FloatArray, FloatArray]:
+    def _resolve_symbolic_state(self, sym_var: SymType) -> str | None:
+        """Resolve a symbolic state variable to its string name."""
+        if sym_var in self._sym_state_map:
+            return self._sym_state_map[sym_var]
+
+        # Search through the problem if the map is not populated
+        if self._problem and hasattr(self._problem, "_sym_states"):
+            for name, var in self._problem._sym_states.items():
+                if var is sym_var:
+                    self._sym_state_map[sym_var] = name
+                    return name
+        return None
+
+    def _resolve_symbolic_control(self, sym_var: SymType) -> str | None:
+        """Resolve a symbolic control variable to its string name."""
+        if sym_var in self._sym_control_map:
+            return self._sym_control_map[sym_var]
+
+        # Search through the problem if the map is not populated
+        if self._problem and hasattr(self._problem, "_sym_controls"):
+            for name, var in self._problem._sym_controls.items():
+                if var is sym_var:
+                    self._sym_control_map[sym_var] = name
+                    return name
+        return None
+
+    def _is_symbolic_variable(self, variable: _VariableIdentifier) -> bool:
+        """Check if a variable identifier is a symbolic variable."""
+        return hasattr(variable, "is_symbolic") or (
+            hasattr(variable, "is_constant") and not isinstance(variable, int | str | float)
+        )
+
+    # Overloaded methods for state trajectory access
+    @overload
+    def get_state_trajectory(self, identifier: str) -> _TrajectoryTuple: ...
+
+    @overload
+    def get_state_trajectory(self, identifier: int) -> _TrajectoryTuple: ...
+
+    @overload
+    def get_state_trajectory(self, identifier: SymType) -> _TrajectoryTuple: ...
+
+    def get_state_trajectory(self, identifier: _VariableIdentifier) -> _TrajectoryTuple:
         """
         Get state trajectory data.
 
         Args:
-            state_name_or_index: State name, index, or symbolic variable
+            identifier: State name, index, or symbolic variable
 
         Returns:
             Tuple of (time_array, value_array)
         """
-        # Handle symbolic variable case
-        if hasattr(state_name_or_index, "is_symbolic") or (
-            hasattr(state_name_or_index, "is_constant")
-            and not (isinstance(state_name_or_index, int | str | float))
-        ):
-            sym_var = state_name_or_index
-            if sym_var in self._sym_state_map:
-                state_name_or_index = self._sym_state_map[sym_var]
-            else:
-                # Search through the problem if the map is not populated
-                if self._problem and hasattr(self._problem, "_sym_states"):
-                    for name, var in self._problem._sym_states.items():
-                        if var is sym_var:
-                            state_name_or_index = name
-                            self._sym_state_map[sym_var] = name
-                            break
-
-        # Proceed with standard lookup
-        index = self._get_state_index(state_name_or_index)
         empty_arr = np.array([], dtype=np.float64)
         time_arr = self._time_states if self._time_states is not None else empty_arr
+
+        # Handle symbolic variable case
+        if self._is_symbolic_variable(identifier):
+            sym_var = cast(SymType, identifier)
+            state_name = self._resolve_symbolic_state(sym_var)
+            if state_name is None:
+                return time_arr, empty_arr
+            identifier = state_name
+
+        # Now identifier is guaranteed to be str | int
+        string_or_int_identifier = cast(_StateIdentifier, identifier)
+        index = self._get_state_index(string_or_int_identifier)
 
         if index is None or self._states is None or not (0 <= index < len(self._states)):
             return time_arr, empty_arr
         return time_arr, self._states[index]
 
-    def get_control_trajectory(
-        self, control_name_or_index: str | int | SymType
-    ) -> tuple[FloatArray, FloatArray]:
+    # Overloaded methods for control trajectory access
+    @overload
+    def get_control_trajectory(self, identifier: str) -> _TrajectoryTuple: ...
+
+    @overload
+    def get_control_trajectory(self, identifier: int) -> _TrajectoryTuple: ...
+
+    @overload
+    def get_control_trajectory(self, identifier: SymType) -> _TrajectoryTuple: ...
+
+    def get_control_trajectory(self, identifier: _VariableIdentifier) -> _TrajectoryTuple:
         """
         Get control trajectory data.
 
         Args:
-            control_name_or_index: Control name, index, or symbolic variable
+            identifier: Control name, index, or symbolic variable
 
         Returns:
             Tuple of (time_array, value_array)
         """
-        # Handle symbolic variable case
-        if hasattr(control_name_or_index, "is_symbolic") or (
-            hasattr(control_name_or_index, "is_constant")
-            and not (isinstance(control_name_or_index, int | str | float))
-        ):
-            sym_var = control_name_or_index
-            if sym_var in self._sym_control_map:
-                control_name_or_index = self._sym_control_map[sym_var]
-            else:
-                # Search through the problem if the map is not populated
-                if self._problem and hasattr(self._problem, "_sym_controls"):
-                    for name, var in self._problem._sym_controls.items():
-                        if var is sym_var:
-                            control_name_or_index = name
-                            self._sym_control_map[sym_var] = name
-                            break
-
-        # Proceed with standard lookup
-        index = self._get_control_index(control_name_or_index)
         empty_arr = np.array([], dtype=np.float64)
         time_arr = self._time_controls if self._time_controls is not None else empty_arr
+
+        # Handle symbolic variable case
+        if self._is_symbolic_variable(identifier):
+            sym_var = cast(SymType, identifier)
+            control_name = self._resolve_symbolic_control(sym_var)
+            if control_name is None:
+                return time_arr, empty_arr
+            identifier = control_name
+
+        # Now identifier is guaranteed to be str | int
+        string_or_int_identifier = cast(_ControlIdentifier, identifier)
+        index = self._get_control_index(string_or_int_identifier)
 
         if index is None or self._controls is None or not (0 <= index < len(self._controls)):
             return time_arr, empty_arr
         return time_arr, self._controls[index]
 
+    # Overloaded methods for state interpolation
+    @overload
     def interpolate_state(
-        self, state_name_or_index: str | int | SymType, time_point: float | FloatArray
-    ) -> float | FloatArray | None:
+        self, identifier: str, time_point: float | FloatArray
+    ) -> _InterpolationResult: ...
+
+    @overload
+    def interpolate_state(
+        self, identifier: int, time_point: float | FloatArray
+    ) -> _InterpolationResult: ...
+
+    @overload
+    def interpolate_state(
+        self, identifier: SymType, time_point: float | FloatArray
+    ) -> _InterpolationResult: ...
+
+    def interpolate_state(
+        self, identifier: _VariableIdentifier, time_point: float | FloatArray
+    ) -> _InterpolationResult:
         """
         Interpolate state value at specified time point(s).
 
         Args:
-            state_name_or_index: State name, index, or symbolic variable
+            identifier: State name, index, or symbolic variable
             time_point: Time point(s) to interpolate at
 
         Returns:
             Interpolated state value(s)
         """
         # Handle symbolic variable case
-        if hasattr(state_name_or_index, "is_symbolic") or (
-            hasattr(state_name_or_index, "is_constant")
-            and not (isinstance(state_name_or_index, int | str | float))
-        ):
-            sym_var = state_name_or_index
-            if sym_var in self._sym_state_map:
-                state_name_or_index = self._sym_state_map[sym_var]
-            else:
-                # Search through the problem if the map is not populated
-                if self._problem and hasattr(self._problem, "_sym_states"):
-                    for name, var in self._problem._sym_states.items():
-                        if var is sym_var:
-                            state_name_or_index = name
-                            self._sym_state_map[sym_var] = name
-                            break
+        if self._is_symbolic_variable(identifier):
+            sym_var = cast(SymType, identifier)
+            state_name = self._resolve_symbolic_state(sym_var)
+            if state_name is None:
+                return None
+            identifier = state_name
 
-        time, values = self.get_state_trajectory(state_name_or_index)
+        time, values = self.get_state_trajectory(cast(_StateIdentifier, identifier))
         if time.size == 0 or values.size == 0:
             return None
-        return np.interp(time_point, time, values)
+        return cast(_InterpolationResult, np.interp(time_point, time, values))
+
+    # Overloaded methods for control interpolation
+    @overload
+    def interpolate_control(
+        self, identifier: str, time_point: float | FloatArray
+    ) -> _InterpolationResult: ...
+
+    @overload
+    def interpolate_control(
+        self, identifier: int, time_point: float | FloatArray
+    ) -> _InterpolationResult: ...
+
+    @overload
+    def interpolate_control(
+        self, identifier: SymType, time_point: float | FloatArray
+    ) -> _InterpolationResult: ...
 
     def interpolate_control(
-        self, control_name_or_index: str | int | SymType, time_point: float | FloatArray
-    ) -> float | FloatArray | None:
+        self, identifier: _VariableIdentifier, time_point: float | FloatArray
+    ) -> _InterpolationResult:
         """
         Interpolate control value at specified time point(s).
 
         Args:
-            control_name_or_index: Control name, index, or symbolic variable
+            identifier: Control name, index, or symbolic variable
             time_point: Time point(s) to interpolate at
 
         Returns:
             Interpolated control value(s)
         """
         # Handle symbolic variable case
-        if hasattr(control_name_or_index, "is_symbolic") or (
-            hasattr(control_name_or_index, "is_constant")
-            and not (isinstance(control_name_or_index, int | str | float))
-        ):
-            sym_var = control_name_or_index
-            if sym_var in self._sym_control_map:
-                control_name_or_index = self._sym_control_map[sym_var]
-            else:
-                # Search through the problem if the map is not populated
-                if self._problem and hasattr(self._problem, "_sym_controls"):
-                    for name, var in self._problem._sym_controls.items():
-                        if var is sym_var:
-                            control_name_or_index = name
-                            self._sym_control_map[sym_var] = name
-                            break
+        if self._is_symbolic_variable(identifier):
+            sym_var = cast(SymType, identifier)
+            control_name = self._resolve_symbolic_control(sym_var)
+            if control_name is None:
+                return None
+            identifier = control_name
 
-        time, values = self.get_control_trajectory(control_name_or_index)
+        time, values = self.get_control_trajectory(cast(_ControlIdentifier, identifier))
         if time.size == 0 or values.size == 0:
             return None
-        return np.interp(time_point, time, values)
+        return cast(_InterpolationResult, np.interp(time_point, time, values))
 
     def get_data_for_interval(self, interval_index: int) -> IntervalData | None:
         if not (0 <= interval_index < self.num_intervals):
@@ -514,9 +569,34 @@ class Solution:
         plt.tight_layout(rect=rect_val)
         plt.show()
 
+    def _resolve_variable_names(
+        self, variables: _PlotVariableNames, variable_type: str
+    ) -> list[str]:
+        """Resolve variable names from a mix of strings and symbolic variables."""
+        processed_names: list[str] = []
+        if variables is None:
+            return processed_names
+
+        for var in variables:
+            if self._is_symbolic_variable(var):
+                sym_var = cast(SymType, var)
+                if variable_type == "state":
+                    resolved_name = self._resolve_symbolic_state(sym_var)
+                elif variable_type == "control":
+                    resolved_name = self._resolve_symbolic_control(sym_var)
+                else:
+                    resolved_name = None
+
+                if resolved_name is not None:
+                    processed_names.append(resolved_name)
+            elif isinstance(var, str):
+                processed_names.append(var)
+
+        return processed_names
+
     def plot_states(
         self,
-        state_names: Iterable[str | SymType] | None = None,
+        state_names: _PlotVariableNames = None,
         figsize: tuple[float, float] = (10.0, 8.0),
     ) -> None:
         """
@@ -526,27 +606,11 @@ class Solution:
             state_names: Names or symbolic variables of states to plot
             figsize: Figure size
         """
-        # Convert symbolic variables to names
-        processed_names: list[str] = []
-        if state_names is not None:
-            for state in state_names:
-                if hasattr(state, "is_symbolic") or (
-                    hasattr(state, "is_constant") and not isinstance(state, int | str | float)
-                ):
-                    sym_var = state
-                    if sym_var in self._sym_state_map:
-                        processed_names.append(self._sym_state_map[sym_var])
-                    else:
-                        # Search through problem
-                        if self._problem and hasattr(self._problem, "_sym_states"):
-                            for name, var in self._problem._sym_states.items():
-                                if var is sym_var:
-                                    processed_names.append(name)
-                                    self._sym_state_map[sym_var] = name
-                                    break
-                elif isinstance(state, str):
-                    processed_names.append(state)
+        processed_names = self._resolve_variable_names(state_names, "state")
 
+        if state_names is not None:
+            # Filter to only include valid names
+            processed_names = [name for name in processed_names if name in self._state_names]
             self._plot_variables(
                 variable_type="state",
                 variable_names_to_plot=processed_names,
@@ -565,7 +629,7 @@ class Solution:
 
     def plot_controls(
         self,
-        control_names: Iterable[str | SymType] | None = None,
+        control_names: _PlotVariableNames = None,
         figsize: tuple[float, float] = (10.0, 8.0),
     ) -> None:
         """
@@ -575,27 +639,11 @@ class Solution:
             control_names: Names or symbolic variables of controls to plot
             figsize: Figure size
         """
-        # Convert symbolic variables to names
-        processed_names: list[str] = []
-        if control_names is not None:
-            for control in control_names:
-                if hasattr(control, "is_symbolic") or (
-                    hasattr(control, "is_constant") and not isinstance(control, int | str | float)
-                ):
-                    sym_var = control
-                    if sym_var in self._sym_control_map:
-                        processed_names.append(self._sym_control_map[sym_var])
-                    else:
-                        # Search through problem
-                        if self._problem and hasattr(self._problem, "_sym_controls"):
-                            for name, var in self._problem._sym_controls.items():
-                                if var is sym_var:
-                                    processed_names.append(name)
-                                    self._sym_control_map[sym_var] = name
-                                    break
-                elif isinstance(control, str):
-                    processed_names.append(control)
+        processed_names = self._resolve_variable_names(control_names, "control")
 
+        if control_names is not None:
+            # Filter to only include valid names
+            processed_names = [name for name in processed_names if name in self._control_names]
             self._plot_variables(
                 variable_type="control",
                 variable_names_to_plot=processed_names,
@@ -617,7 +665,7 @@ class Solution:
         variable_type: str,
         variable_names_to_plot: Iterable[str] | None,
         all_variable_names: list[str],
-        get_index_func: Callable[[str | int], int | None],
+        get_index_func: Callable[[_StateIdentifier], int | None],
         figsize: tuple[float, float],
     ) -> None:
         if not self.success:
@@ -727,7 +775,7 @@ class Solution:
         plt.tight_layout(rect=rect_val)
         plt.show()
 
-    def get_symbolic_trajectory(self, var: SymType) -> tuple[FloatArray, FloatArray]:
+    def get_symbolic_trajectory(self, var: SymType) -> _TrajectoryTuple:
         """
         Get the trajectory for a symbolic variable.
 
@@ -744,41 +792,21 @@ class Solution:
             return self.get_control_trajectory(self._sym_control_map[var])
 
         # Identify the variable by searching the problem
-        var_name = None
-        var_type = None
-
-        # Check state variables
-        if self._problem:
-            for name, sym in self._problem._sym_states.items():
-                if var is sym:
-                    var_name = name
-                    var_type = "state"
-                    # Update our map for future use
-                    self._sym_state_map[var] = name
-                    break
-
-            # Check control variables
-            if var_name is None:
-                for name, sym in self._problem._sym_controls.items():
-                    if var is sym:
-                        var_name = name
-                        var_type = "control"
-                        # Update our map for future use
-                        self._sym_control_map[var] = name
-                        break
-
-        # Return trajectory based on type
-        if var_type == "state":
+        var_name = self._resolve_symbolic_state(var)
+        if var_name is not None:
             return self.get_state_trajectory(var_name)
-        elif var_type == "control":
+
+        var_name = self._resolve_symbolic_control(var)
+        if var_name is not None:
             return self.get_control_trajectory(var_name)
-        else:
-            empty_arr = np.array([], dtype=np.float64)
-            return empty_arr, empty_arr
+
+        # Return empty arrays if variable not found
+        empty_arr = np.array([], dtype=np.float64)
+        return empty_arr, empty_arr
 
     def interpolate_symbolic(
         self, var: SymType, time_point: float | FloatArray
-    ) -> float | FloatArray | None:
+    ) -> _InterpolationResult:
         """
         Interpolate the value of a symbolic variable at given time points.
 
@@ -796,33 +824,13 @@ class Solution:
             return self.interpolate_control(self._sym_control_map[var], time_point)
 
         # Identify the variable by searching the problem
-        var_name = None
-        var_type = None
-
-        # Check state variables
-        if self._problem:
-            for name, sym in self._problem._sym_states.items():
-                if var is sym:
-                    var_name = name
-                    var_type = "state"
-                    # Update our map for future use
-                    self._sym_state_map[var] = name
-                    break
-
-            # Check control variables
-            if var_name is None:
-                for name, sym in self._problem._sym_controls.items():
-                    if var is sym:
-                        var_name = name
-                        var_type = "control"
-                        # Update our map for future use
-                        self._sym_control_map[var] = name
-                        break
-
-        # Interpolate based on type
-        if var_type == "state":
+        var_name = self._resolve_symbolic_state(var)
+        if var_name is not None:
             return self.interpolate_state(var_name, time_point)
-        elif var_type == "control":
+
+        var_name = self._resolve_symbolic_control(var)
+        if var_name is not None:
             return self.interpolate_control(var_name, time_point)
-        else:
-            return None
+
+        # Return None if variable not found
+        return None
