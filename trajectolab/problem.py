@@ -717,29 +717,31 @@ class Problem:
         if isinstance(expr, ca.MX) and expr.is_op(ca.OP_EQ):
             lhs = expr.dep(0)
             rhs = expr.dep(1)
-            return PathConstraint(val=lhs - rhs, equals=0)
+            return PathConstraint(val=lhs - rhs, equals=0.0)
 
         # Handle inequality constraints: expr <= value or expr >= value
         elif isinstance(expr, ca.MX) and expr.is_op(ca.OP_LE):
             lhs = expr.dep(0)
             rhs = expr.dep(1)
-            return PathConstraint(val=lhs, max_val=float(rhs))
+            # Reformulate as lhs - rhs <= 0 to handle symbolic rhs
+            return PathConstraint(val=lhs - rhs, max_val=0.0)
 
         elif isinstance(expr, ca.MX) and expr.is_op(ca.OP_GE):
             lhs = expr.dep(0)
             rhs = expr.dep(1)
-            return PathConstraint(val=lhs, min_val=float(rhs))
+            # Reformulate as lhs - rhs >= 0 to handle symbolic rhs
+            return PathConstraint(val=lhs - rhs, min_val=0.0)
 
         # Default case
-        return PathConstraint(val=expr, equals=0)
+        return PathConstraint(val=expr, equals=0.0)
 
     def _symbolic_constraint_to_event_constraint(self, expr: _SymExpr) -> EventConstraint:
         """
         Convert symbolic constraint to EventConstraint object.
-
+    
         Args:
             expr: Constraint expression
-
+    
         Returns:
             EventConstraint object
         """
@@ -747,22 +749,24 @@ class Problem:
         if isinstance(expr, ca.MX) and expr.is_op(ca.OP_EQ):
             lhs = expr.dep(0)
             rhs = expr.dep(1)
-            return EventConstraint(val=lhs - rhs, equals=0)
-
+            return EventConstraint(val=lhs - rhs, equals=0.0)
+    
         # Handle inequality constraints: expr <= value or expr >= value
         elif isinstance(expr, ca.MX) and expr.is_op(ca.OP_LE):
             lhs = expr.dep(0)
             rhs = expr.dep(1)
-            return EventConstraint(val=lhs, max_val=float(rhs))
-
+            # Reformulate as lhs - rhs <= 0 to handle symbolic rhs
+            return EventConstraint(val=lhs - rhs, max_val=0.0)
+    
         elif isinstance(expr, ca.MX) and expr.is_op(ca.OP_GE):
             lhs = expr.dep(0)
             rhs = expr.dep(1)
-            return EventConstraint(val=lhs, min_val=float(rhs))
-
+            # Reformulate as lhs - rhs >= 0 to handle symbolic rhs
+            return EventConstraint(val=lhs - rhs, min_val=0.0)
+    
         # Default case
-        return EventConstraint(val=expr, equals=0)
-
+        return EventConstraint(val=expr, equals=0.0)
+    
     def get_path_constraints_function(self) -> Callable | None:
         """
         Convert symbolic path constraints to a function compatible with solver.
