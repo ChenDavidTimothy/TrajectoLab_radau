@@ -11,6 +11,19 @@
     "python.analysis.stubPath": "${workspaceFolder}/typings",
     "python.analysis.indexing": true,
 
+    // Ignore missing stubs for scientific libraries
+    "python.analysis.diagnosticSeverityOverrides": {
+        "reportMissingTypeStubs": "none",
+        "reportGeneralTypeIssues": "information",
+        "reportOptionalMemberAccess": "information"
+    },
+
+    // OR if you want to be more specific, only ignore certain modules:
+    // "python.analysis.diagnosticSeverityOverrides": {
+    //     "reportMissingTypeStubs": "information"
+    // },
+    // "python.analysis.ignore": ["casadi"],
+
     // ========================================================================
     // RUFF CONFIGURATION (Updated for native server)
     // ========================================================================
@@ -102,15 +115,7 @@
     // ========================================================================
     // SCIENTIFIC COMPUTING SPECIFIC
     // ========================================================================
-    // Disable certain warnings for scientific code
-    "python.analysis.diagnosticSeverityOverrides": {
-        "reportGeneralTypeIssues": "information",
-        "reportOptionalMemberAccess": "information"
-    },
-
-    // ========================================================================
-    // PERFORMANCE OPTIMIZATIONS
-    // ========================================================================
+    // Performance optimizations
     "python.analysis.packageIndexDepths": [
         {"name": "", "depth": 2},
         {"name": "numpy", "depth": 2},
