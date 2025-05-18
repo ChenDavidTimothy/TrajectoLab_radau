@@ -383,11 +383,10 @@ class Problem:
     def subject_to(self, constraint_expr: SymExpr) -> None:
         self._constraints.append(constraint_expr)
 
-    def set_mesh(
-        self, polynomial_degrees: list[int], mesh_points: FloatArray | list[float]
-    ) -> None:
+    def set_mesh(self, polynomial_degrees: list[int], mesh_points: FloatArray | list[float]) -> None:
         """
         Explicitly configure the mesh structure.
+        This clears any existing initial guess since mesh configuration has changed.
 
         Args:
             polynomial_degrees: Number of collocation nodes per interval
@@ -409,9 +408,7 @@ class Problem:
         # Validate polynomial degrees
         for k, degree in enumerate(polynomial_degrees):
             if not isinstance(degree, int) or degree <= 0:
-                raise ValueError(
-                    f"Polynomial degree for interval {k} must be positive integer, got {degree}"
-                )
+                raise ValueError(f"Polynomial degree for interval {k} must be positive integer, got {degree}")
 
         # Validate mesh points
         if not np.isclose(mesh_array[0], -1.0):
@@ -428,25 +425,30 @@ class Problem:
         self.global_normalized_mesh_nodes = mesh_array
         self._mesh_configured = True
 
+        # Always clear existing initial guess when mesh changes
+        # User must call set_initial_guess() again if they want one for the new mesh
+        self.initial_guess = None
+
     def set_initial_guess(
         self,
-        states: list[FloatMatrix],
-        controls: list[FloatMatrix],
+        states: list[FloatMatrix] | None = None,
+        controls: list[FloatMatrix] | None = None,
         initial_time: float | None = None,
         terminal_time: float | None = None,
         integrals: float | FloatArray | None = None,
     ) -> None:
         """
-        Set explicit initial guess for all variables.
+        Set explicit initial guess for variables.
+        All parameters are optional - if not provided, CasADi will use defaults (typically zeros).
 
         Args:
-            states: List of state arrays, one per interval.
+            states: Optional list of state arrays, one per interval.
                    Each array shape: (num_states, Nk+1)
-            controls: List of control arrays, one per interval.
+            controls: Optional list of control arrays, one per interval.
                      Each array shape: (num_controls, Nk)
-            initial_time: Initial time guess
-            terminal_time: Terminal time guess
-            integrals: Integral values guess
+            initial_time: Optional initial time guess
+            terminal_time: Optional terminal time guess
+            integrals: Optional integral values guess
 
         Raises:
             ValueError: If mesh not configured or dimensions don't match
@@ -457,50 +459,61 @@ class Problem:
                 "Call set_mesh(polynomial_degrees, mesh_points) first."
             )
 
-        # Validate number of intervals
+        # Validate number of intervals if states/controls provided
         num_intervals = len(self.collocation_points_per_interval)
-        if len(states) != num_intervals:
-            raise ValueError(
-                f"Must provide exactly {num_intervals} state arrays, got {len(states)}"
-            )
-
-        if len(controls) != num_intervals:
-            raise ValueError(
-                f"Must provide exactly {num_intervals} control arrays, got {len(controls)}"
-            )
-
-        # Validate state dimensions
         num_states = len(self._states)
-        for k, state_array in enumerate(states):
-            expected_shape = (num_states, self.collocation_points_per_interval[k] + 1)
-            if state_array.shape != expected_shape:
-                raise ValueError(
-                    f"State array for interval {k} has shape {state_array.shape}, "
-                    f"expected {expected_shape} (num_states={num_states}, "
-                    f"num_nodes={self.collocation_points_per_interval[k] + 1})"
-                )
-
-        # Validate control dimensions
         num_controls = len(self._controls)
-        for k, control_array in enumerate(controls):
-            expected_shape = (num_controls, self.collocation_points_per_interval[k])
-            if control_array.shape != expected_shape:
+
+        # Validate states if provided
+        states_list: list[FloatMatrix] | None = None
+        if states is not None:
+            if len(states) != num_intervals:
                 raise ValueError(
-                    f"Control array for interval {k} has shape {control_array.shape}, "
-                    f"expected {expected_shape} (num_controls={num_controls}, "
-                    f"num_nodes={self.collocation_points_per_interval[k]})"
+                    f"If providing states, must provide exactly {num_intervals} arrays, got {len(states)}"
                 )
 
-        # Validate integrals
-        if self._num_integrals > 0:
-            if integrals is None:
+            # Validate state dimensions
+            for k, state_array in enumerate(states):
+                expected_shape = (num_states, self.collocation_points_per_interval[k] + 1)
+                if state_array.shape != expected_shape:
+                    raise ValueError(
+                        f"State array for interval {k} has shape {state_array.shape}, "
+                        f"expected {expected_shape} (num_states={num_states}, "
+                        f"num_nodes={self.collocation_points_per_interval[k]+1})"
+                    )
+
+            states_list = [np.array(s, dtype=np.float64) for s in states]
+
+        # Validate controls if provided
+        controls_list: list[FloatMatrix] | None = None
+        if controls is not None:
+            if len(controls) != num_intervals:
                 raise ValueError(
-                    f"Problem has {self._num_integrals} integrals, must provide integral guess"
+                    f"If providing controls, must provide exactly {num_intervals} arrays, got {len(controls)}"
                 )
+
+            # Validate control dimensions
+            for k, control_array in enumerate(controls):
+                expected_shape = (num_controls, self.collocation_points_per_interval[k])
+                if control_array.shape != expected_shape:
+                    raise ValueError(
+                        f"Control array for interval {k} has shape {control_array.shape}, "
+                        f"expected {expected_shape} (num_controls={num_controls}, "
+                        f"num_nodes={self.collocation_points_per_interval[k]})"
+                    )
+
+            controls_list = [np.array(c, dtype=np.float64) for c in controls]
+
+        # Validate integrals if provided
+        validated_integrals = None
+        if integrals is not None:
+            if self._num_integrals == 0:
+                raise ValueError("Problem has no integrals, but integral guess was provided")
 
             if self._num_integrals == 1:
                 if not isinstance(integrals, (int, float)):
                     raise ValueError(f"For single integral, provide scalar, got {type(integrals)}")
+                validated_integrals = integrals
             else:
                 integrals_array = np.array(integrals)
                 if integrals_array.size != self._num_integrals:
@@ -508,20 +521,17 @@ class Problem:
                         f"Integral guess must have {self._num_integrals} elements, "
                         f"got {integrals_array.size}"
                     )
+                validated_integrals = integrals_array
 
-        # Store initial guess
+        # Store initial guess (even if partially specified or None)
         from .direct_solver import InitialGuess
-
-        # Convert all arrays to consistent format
-        states_list = [np.array(s, dtype=np.float64) for s in states]
-        controls_list = [np.array(c, dtype=np.float64) for c in controls]
 
         self.initial_guess = InitialGuess(
             initial_time_variable=initial_time,
             terminal_time_variable=terminal_time,
             states=states_list,
             controls=controls_list,
-            integrals=integrals,
+            integrals=validated_integrals,
         )
 
     def get_initial_guess_requirements(self) -> InitialGuessRequirements:
@@ -543,8 +553,12 @@ class Problem:
         num_states = len(self._states)
         num_controls = len(self._controls)
 
-        states_shapes = [(num_states, N + 1) for N in self.collocation_points_per_interval]
-        controls_shapes = [(num_controls, N) for N in self.collocation_points_per_interval]
+        states_shapes = [
+            (num_states, N + 1) for N in self.collocation_points_per_interval
+        ]
+        controls_shapes = [
+            (num_controls, N) for N in self.collocation_points_per_interval
+        ]
 
         needs_initial_time = self._t0_bounds[0] != self._t0_bounds[1]
         needs_terminal_time = self._tf_bounds[0] != self._tf_bounds[1]
@@ -559,62 +573,57 @@ class Problem:
 
     def validate_initial_guess(self) -> None:
         """
-        Validate that the initial guess is complete and correct.
+        Validate that the initial guess (if provided) is complete and correct.
+        Initial guess is optional - this only validates if it exists.
 
         Raises:
-            ValueError: If initial guess is missing or invalid
+            ValueError: If provided initial guess is invalid
         """
         if not self._mesh_configured:
             raise ValueError("Mesh must be configured before validating initial guess")
 
+        # If no initial guess provided, validation passes (CasADi will handle it)
         if self.initial_guess is None:
-            requirements = self.get_initial_guess_requirements()
-            raise ValueError(f"No initial guess provided. Requirements:\n{requirements}")
+            return
 
         ig = self.initial_guess
 
-        # Check time variables
-        if self._t0_bounds[0] != self._t0_bounds[1] and ig.initial_time_variable is None:
-            raise ValueError("Initial time variable guess required (time bounds are not fixed)")
+        # Validate states if provided
+        if ig.states is not None:
+            requirements = self.get_initial_guess_requirements()
 
-        if self._tf_bounds[0] != self._tf_bounds[1] and ig.terminal_time_variable is None:
-            raise ValueError("Terminal time variable guess required (time bounds are not fixed)")
-
-        # Re-validate dimensions (in case mesh changed after setting guess)
-        requirements = self.get_initial_guess_requirements()
-
-        if not ig.states or len(ig.states) != len(requirements.states_shapes):
-            raise ValueError(
-                f"States guess must have {len(requirements.states_shapes)} arrays, "
-                f"got {len(ig.states) if ig.states else 0}"
-            )
-
-        if not ig.controls or len(ig.controls) != len(requirements.controls_shapes):
-            raise ValueError(
-                f"Controls guess must have {len(requirements.controls_shapes)} arrays, "
-                f"got {len(ig.controls) if ig.controls else 0}"
-            )
-
-        for k, (state_array, expected_shape) in enumerate(
-            zip(ig.states, requirements.states_shapes, strict=False)
-        ):
-            if state_array.shape != expected_shape:
+            if len(ig.states) != len(requirements.states_shapes):
                 raise ValueError(
-                    f"State array {k} has shape {state_array.shape}, expected {expected_shape}"
+                    f"States guess has {len(ig.states)} arrays, "
+                    f"but problem needs {len(requirements.states_shapes)}"
                 )
 
-        for k, (control_array, expected_shape) in enumerate(
-            zip(ig.controls, requirements.controls_shapes, strict=False)
-        ):
-            if control_array.shape != expected_shape:
+            for k, (state_array, expected_shape) in enumerate(zip(ig.states, requirements.states_shapes)):
+                if state_array.shape != expected_shape:
+                    raise ValueError(
+                        f"State array {k} has shape {state_array.shape}, expected {expected_shape}"
+                    )
+
+        # Validate controls if provided
+        if ig.controls is not None:
+            requirements = self.get_initial_guess_requirements()
+
+            if len(ig.controls) != len(requirements.controls_shapes):
                 raise ValueError(
-                    f"Control array {k} has shape {control_array.shape}, expected {expected_shape}"
+                    f"Controls guess has {len(ig.controls)} arrays, "
+                    f"but problem needs {len(requirements.controls_shapes)}"
                 )
 
-        # Check integrals
-        if self._num_integrals > 0:
-            if ig.integrals is None:
-                raise ValueError(f"Integral guess required for {self._num_integrals} integrals")
+            for k, (control_array, expected_shape) in enumerate(zip(ig.controls, requirements.controls_shapes)):
+                if control_array.shape != expected_shape:
+                    raise ValueError(
+                        f"Control array {k} has shape {control_array.shape}, expected {expected_shape}"
+                    )
+
+        # Validate integrals if provided
+        if ig.integrals is not None:
+            if self._num_integrals == 0:
+                raise ValueError("Integral guess provided but problem has no integrals")
 
             if self._num_integrals == 1:
                 if not isinstance(ig.integrals, (int, float)):
@@ -645,15 +654,9 @@ class Problem:
         source = "no_initial_guess"
 
         if self.initial_guess is not None:
-            source = "user_provided"
-            states_shapes = (
-                [s.shape for s in self.initial_guess.states] if self.initial_guess.states else None
-            )
-            controls_shapes = (
-                [c.shape for c in self.initial_guess.controls]
-                if self.initial_guess.controls
-                else None
-            )
+            source = "partial_user_provided"
+            states_shapes = [s.shape for s in self.initial_guess.states] if self.initial_guess.states else None
+            controls_shapes = [c.shape for c in self.initial_guess.controls] if self.initial_guess.controls else None
             initial_time_guess = self.initial_guess.initial_time_variable
             terminal_time_guess = self.initial_guess.terminal_time_variable
 
@@ -663,12 +666,22 @@ class Problem:
                 else:
                     integrals_length = len(np.array(self.initial_guess.integrals))
 
+            # Check if guess is complete
+            is_complete = True
+            if self.initial_guess.states is None or len(self.initial_guess.states) != len(self.collocation_points_per_interval):
+                is_complete = False
+            if self.initial_guess.controls is None or len(self.initial_guess.controls) != len(self.collocation_points_per_interval):
+                is_complete = False
+            if self._num_integrals > 0 and self.initial_guess.integrals is None:
+                is_complete = False
+
+            if is_complete:
+                source = "complete_user_provided"
+
         return SolverInputSummary(
             mesh_intervals=len(self.collocation_points_per_interval),
             polynomial_degrees=self.collocation_points_per_interval.copy(),
-            mesh_points=self.global_normalized_mesh_nodes.copy()
-            if self.global_normalized_mesh_nodes is not None
-            else np.array([]),
+            mesh_points=self.global_normalized_mesh_nodes.copy() if self.global_normalized_mesh_nodes is not None else np.array([]),
             initial_guess_source=source,
             states_guess_shapes=states_shapes,
             controls_guess_shapes=controls_shapes,

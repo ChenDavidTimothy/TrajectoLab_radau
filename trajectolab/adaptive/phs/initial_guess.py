@@ -1,5 +1,6 @@
 """
-Initial guess generation for the PHS adaptive algorithm.
+Initial guess handling for the PHS adaptive algorithm.
+NASA-appropriate: explicit control, no hidden assumptions.
 """
 
 import numpy as np
@@ -13,141 +14,95 @@ from trajectolab.tl_types import (
 
 
 __all__ = [
-    "generate_robust_default_initial_guess",
-    "propagate_guess_from_previous",
+    "propagate_solution_to_new_mesh",
 ]
 
 
-def generate_robust_default_initial_guess(
+def propagate_solution_to_new_mesh(
+    prev_solution: OptimalControlSolution,
     problem: ProblemProtocol,
-    collocation_nodes_list: list[int],
-    initial_time_guess: float | None = None,
-    terminal_time_guess: float | None = None,
-    integral_values_guess: float | FloatArray | None = None,
+    target_polynomial_degrees: list[int],
+    target_mesh_points: FloatArray,
 ) -> InitialGuess:
-    """Generates a robust default initial guess with correct dimensions."""
-    num_states = len(problem._states)
-    num_controls = len(problem._controls)
-    num_integrals = problem._num_integrals
+    """
+    Propagate solution from previous iteration to a new mesh.
 
-    # Get default values
-    default_state = 0.0
-    default_control = 0.0
-    default_integral = 0.0
+    This function creates an initial guess for the current iteration by:
+    1. Always propagating: time variables (t0, tf) and integral values
+    2. Conditionally propagating trajectories:
+       - If mesh structure is identical: propagate state/control trajectories exactly
+       - If mesh structure changed: use default trajectories but keep times/integrals
 
-    # Get default values from problem.default_initial_guess_values if available
-    default_guess_values = getattr(problem, "default_initial_guess_values", None)
-    if default_guess_values:
-        default_state = getattr(default_guess_values, "state", 0.0)
-        default_control = getattr(default_guess_values, "control", 0.0)
-        default_integral = getattr(default_guess_values, "integral", 0.0)
+    Args:
+        prev_solution: Solution from previous adaptive iteration
+        problem: Current problem definition
+        target_polynomial_degrees: Polynomial degrees for current iteration
+        target_mesh_points: Mesh points for current iteration
 
-    # Initialize state and control trajectories
-    states: list[FloatMatrix] = []
-    controls: list[FloatMatrix] = []
+    Returns:
+        InitialGuess for current iteration
 
-    for _idx, Nk in enumerate(collocation_nodes_list):
-        # State trajectory for this interval
-        state_traj = np.full((num_states, Nk + 1), default_state, dtype=np.float64)
-        states.append(state_traj)
+    Raises:
+        ValueError: If previous solution is invalid
+    """
+    if not prev_solution.success:
+        raise ValueError("Cannot propagate from unsuccessful previous solution")
 
-        # Control trajectory for this interval
-        if num_controls > 0:
-            control_traj = np.full((num_controls, Nk), default_control, dtype=np.float64)
-        else:
-            control_traj = np.empty((0, Nk), dtype=np.float64)
-        controls.append(control_traj)
+    # Always propagate time variables and integrals
+    t0_guess = prev_solution.initial_time_variable
+    tf_guess = prev_solution.terminal_time_variable
+    integrals_guess = prev_solution.integrals
 
-    # Time variable guesses
-    if initial_time_guess is None and problem.initial_guess:
-        initial_time_guess = problem.initial_guess.initial_time_variable
-
-    if terminal_time_guess is None and problem.initial_guess:
-        terminal_time_guess = problem.initial_guess.terminal_time_variable
-
-    # Integral guesses
-    final_integral_guess = None
-    if num_integrals > 0:
-        if integral_values_guess is not None:
-            final_integral_guess = integral_values_guess
-        else:
-            if problem.initial_guess and problem.initial_guess.integrals is not None:
-                raw_guess = problem.initial_guess.integrals
-            else:
-                raw_guess = (
-                    [default_integral] * num_integrals if num_integrals > 1 else default_integral
-                )
-
-            if num_integrals == 1:
-                final_integral_guess = (
-                    float(raw_guess)
-                    if not isinstance(raw_guess, list | np.ndarray)
-                    else float(raw_guess[0])
-                )
-            elif isinstance(raw_guess, list | np.ndarray) and len(raw_guess) == num_integrals:
-                final_integral_guess = np.array(raw_guess, dtype=np.float64)
-            else:
-                final_integral_guess = np.full(num_integrals, default_integral, dtype=np.float64)
-
-    return InitialGuess(
-        initial_time_variable=initial_time_guess,
-        terminal_time_variable=terminal_time_guess,
-        states=states,
-        controls=controls,
-        integrals=final_integral_guess,
-    )
-
-
-def propagate_guess_from_previous(
-    prev_solution: "OptimalControlSolution",
-    problem: ProblemProtocol,
-    target_nodes_list: list[int],
-    target_mesh: FloatArray,
-) -> InitialGuess:
-    """Creates initial guess for current NLP, propagating from previous solution."""
-    t0_prop = prev_solution.initial_time_variable
-    tf_prop = prev_solution.terminal_time_variable
-    integrals_prop = prev_solution.integrals
-
-    # Generate default guess with propagated time and integral values
-    guess = generate_robust_default_initial_guess(
-        problem,
-        target_nodes_list,
-        initial_time_guess=t0_prop,
-        terminal_time_guess=tf_prop,
-        integral_values_guess=integrals_prop,
-    )
-
-    # Check if mesh structure is identical to previous solution
-    prev_nodes = prev_solution.num_collocation_nodes_list_at_solve_time
+    # Check if mesh structure is identical
+    prev_degrees = prev_solution.num_collocation_nodes_list_at_solve_time
     prev_mesh = prev_solution.global_mesh_nodes_at_solve_time
 
-    can_propagate_trajectories = False
-    if prev_nodes is not None and prev_mesh is not None:
-        if np.array_equal(target_nodes_list, prev_nodes) and np.allclose(target_mesh, prev_mesh):
-            can_propagate_trajectories = True
-
-    if can_propagate_trajectories:
-        print(
-            "  Mesh structure identical to previous. Propagating state/control trajectories directly."
+    identical_mesh = False
+    if prev_degrees is not None and prev_mesh is not None:
+        identical_mesh = (
+            len(target_polynomial_degrees) == len(prev_degrees) and
+            all(target_deg == prev_deg for target_deg, prev_deg in zip(target_polynomial_degrees, prev_degrees)) and
+            np.allclose(target_mesh_points, prev_mesh, atol=1e-12)
         )
+
+    if identical_mesh:
+        # Mesh structure is identical - propagate trajectories exactly
+        print(f"    Mesh structure identical. Propagating trajectories from previous solution.")
+
         prev_states = prev_solution.solved_state_trajectories_per_interval
         prev_controls = prev_solution.solved_control_trajectories_per_interval
 
-        # Propagate state trajectories if available
-        if prev_states and len(prev_states) == len(target_nodes_list):
-            guess.states = prev_states
-        else:
-            print("    Warning: Previous states mismatch or missing. Using default states.")
+        if prev_states is None or prev_controls is None:
+            raise ValueError("Previous solution missing trajectory data for propagation")
 
-        # Propagate control trajectories if available
-        if prev_controls and len(prev_controls) == len(target_nodes_list):
-            guess.controls = prev_controls
-        else:
-            print("    Warning: Previous controls mismatch or missing. Using default controls.")
+        # Use trajectories directly (they already match the target mesh)
+        states_guess = [np.array(state_traj, dtype=np.float64) for state_traj in prev_states]
+        controls_guess = [np.array(control_traj, dtype=np.float64) for control_traj in prev_controls]
+
     else:
-        print(
-            "  Mesh structure changed. Using robust default for state/control trajectories (times/integrals propagated)."
-        )
+        # Mesh structure changed - cannot propagate trajectories safely
+        print(f"    Mesh structure changed. Using default trajectories (times/integrals propagated).")
 
-    return guess
+        # Create default trajectory arrays for new mesh
+        num_states = len(problem._states)
+        num_controls = len(problem._controls)
+
+        states_guess = []
+        controls_guess = []
+
+        for k, N_k in enumerate(target_polynomial_degrees):
+            # Default state trajectory: zeros
+            state_traj = np.zeros((num_states, N_k + 1), dtype=np.float64)
+            states_guess.append(state_traj)
+
+            # Default control trajectory: zeros
+            control_traj = np.zeros((num_controls, N_k), dtype=np.float64)
+            controls_guess.append(control_traj)
+
+    return InitialGuess(
+        initial_time_variable=t0_guess,
+        terminal_time_variable=tf_guess,
+        states=states_guess,
+        controls=controls_guess,
+        integrals=integrals_guess,
+    )

@@ -14,8 +14,9 @@ class RadauDirectSolver:
     """
     Solver for optimal control problems using the Radau Pseudospectral Method.
 
-    This solver provides interfaces to different mesh refinement techniques,
-    such as fixed-mesh collocation and adaptive mesh refinement.
+    This solver provides interfaces to different mesh approaches:
+    - Fixed mesh with complete explicit control
+    - Adaptive mesh refinement with user-provided initial guess for first iteration
     """
 
     def __init__(
@@ -28,11 +29,22 @@ class RadauDirectSolver:
         Initialize the Radau direct solver.
 
         Args:
-            mesh_method: Mesh refinement method to use (default: PHSAdaptive)
+            mesh_method: REQUIRED mesh method (FixedMesh or PHSAdaptive).
+                        No default provided - user must explicitly choose.
             nlp_solver: Name of the NLP solver to use (default: "ipopt")
             nlp_options: Dictionary of options to pass to the NLP solver
+
+        Raises:
+            ValueError: If mesh_method is not provided
         """
-        self.mesh_method: AdaptiveBase = mesh_method or PHSAdaptive()
+        if mesh_method is None:
+            raise ValueError(
+                "mesh_method must be explicitly provided. Choose either:\n"
+                "  - FixedMesh(polynomial_degrees=[...], mesh_points=[...])\n"
+                "  - PHSAdaptive(initial_polynomial_degrees=[...], initial_mesh_points=[...], initial_guess=...)"
+            )
+
+        self.mesh_method: AdaptiveBase = mesh_method
         self.nlp_solver = nlp_solver
         self.nlp_options = nlp_options or {
             "ipopt.print_level": 0,
@@ -41,31 +53,30 @@ class RadauDirectSolver:
         }
 
     def solve(self, problem: Problem) -> Solution:
-        # Update problem with solver options
+        """
+        Solve the optimal control problem.
+
+        Args:
+            problem: The optimal control problem to solve
+
+        Returns:
+            Solution object containing the solution data
+
+        Raises:
+            ValueError: If problem configuration is invalid
+        """
+        # Set solver options on problem
         problem.solver_options = self.nlp_options
 
-        # Create a proper protocol-compatible version of the problem
-        protocol_problem = problem
+        # Create protocol-compatible version of the problem
+        protocol_problem = cast(ProblemProtocol, problem)
 
-        # Handle mesh initialization if needed
-        if (
-            isinstance(problem.global_normalized_mesh_nodes, type(None))
-            and problem.collocation_points_per_interval
-        ):
-            # Create default mesh from collocation points
-            num_intervals = len(problem.collocation_points_per_interval)
-            mesh_nodes = np.linspace(-1.0, 1.0, num_intervals + 1, dtype=np.float64)
+        # Run the mesh method (either fixed or adaptive)
+        # The mesh method handles all mesh configuration and validation
+        solution_data: OptimalControlSolution = self.mesh_method.run(protocol_problem)
 
-            # Use setattr to bypass type checking constraints
-            protocol_problem.global_normalized_mesh_nodes = mesh_nodes
-
-        # The mesh method is guaranteed to be AdaptiveBase (never None) due to initialization
-        solution_data: OptimalControlSolution = self.mesh_method.run(
-            cast(ProblemProtocol, protocol_problem)
-        )
-
-        # Create Solution object
-        return Solution(solution_data, cast(ProblemProtocol, protocol_problem))
+        # Create and return Solution wrapper
+        return Solution(solution_data, protocol_problem)
 
 
 def solve(problem: Problem, solver: RadauDirectSolver | None = None) -> Solution:
@@ -74,12 +85,20 @@ def solve(problem: Problem, solver: RadauDirectSolver | None = None) -> Solution
 
     Args:
         problem: The optimal control problem to solve
-        solver: Optional solver to use (default: new RadauDirectSolver instance)
+        solver: REQUIRED solver instance. No default provided.
+                User must explicitly choose mesh method.
 
     Returns:
         Solution object containing the solution data
+
+    Raises:
+        ValueError: If solver is not provided
     """
     if solver is None:
-        solver = RadauDirectSolver()
+        raise ValueError(
+            "Solver must be explicitly provided. Example:\n"
+            "  solver = RadauDirectSolver(mesh_method=FixedMesh(...))\n"
+            "  solution = solve(problem, solver)"
+        )
 
     return solver.solve(problem)
