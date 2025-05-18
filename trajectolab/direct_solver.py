@@ -395,7 +395,7 @@ def _validate_and_set_integral_guess(
         return
 
     if num_integrals == 1:
-        if not isinstance(guess, (int, float)):
+        if not isinstance(guess, int | float):
             raise ValueError(
                 f"For single integral, guess must be scalar (int or float), "
                 f"got {type(guess)} with value {guess}"
@@ -403,18 +403,16 @@ def _validate_and_set_integral_guess(
         opti.set_initial(integral_vars, float(guess))
 
     elif num_integrals > 1:
-        if isinstance(guess, (int, float)):
+        if isinstance(guess, int | float):
             raise ValueError(
-                f"For {num_integrals} integrals, guess must be array-like, "
-                f"got scalar {guess}"
+                f"For {num_integrals} integrals, guess must be array-like, got scalar {guess}"
             )
 
         # Convert to numpy array and validate
         guess_array = np.array(guess, dtype=np.float64)
         if guess_array.size != num_integrals:
             raise ValueError(
-                f"Integral guess must have exactly {num_integrals} elements, "
-                f"got {guess_array.size}"
+                f"Integral guess must have exactly {num_integrals} elements, got {guess_array.size}"
             )
 
         opti.set_initial(integral_vars, guess_array.flatten())
@@ -434,7 +432,7 @@ def solve_single_phase_radau_collocation(problem: ProblemProtocol) -> OptimalCon
         ValueError: If problem configuration is invalid
     """
     # Validate problem is properly configured
-    if not hasattr(problem, '_mesh_configured') or not problem._mesh_configured:
+    if not hasattr(problem, "_mesh_configured") or not problem._mesh_configured:
         raise ValueError(
             "Problem mesh must be explicitly configured before solving. "
             "Call problem.set_mesh(polynomial_degrees, mesh_points)"
@@ -763,14 +761,16 @@ def solve_single_phase_radau_collocation(problem: ProblemProtocol) -> OptimalCon
 
             # Interior state approximation nodes
             for k in range(num_mesh_intervals):
-                interior_var = state_at_interior_local_approximation_nodes_all_intervals_variables[k]
+                interior_var = state_at_interior_local_approximation_nodes_all_intervals_variables[
+                    k
+                ]
                 if interior_var is not None:
                     state_guess_k = ig.states[k]
                     num_interior_nodes = interior_var.shape[1]
 
                     # Extract interior columns (excluding first and last)
                     if state_guess_k.shape[1] >= num_interior_nodes + 2:
-                        interior_guess = state_guess_k[:, 1:1 + num_interior_nodes]
+                        interior_guess = state_guess_k[:, 1 : 1 + num_interior_nodes]
                         opti.set_initial(interior_var, interior_guess)
                     else:
                         raise ValueError(
@@ -795,10 +795,16 @@ def solve_single_phase_radau_collocation(problem: ProblemProtocol) -> OptimalCon
                         f"expected {expected_shape}"
                     )
 
-                opti.set_initial(control_at_local_collocation_nodes_all_intervals_variables[k], control_guess_k)
+                opti.set_initial(
+                    control_at_local_collocation_nodes_all_intervals_variables[k], control_guess_k
+                )
 
         # Integrals - apply if provided
-        if ig.integrals is not None and num_integrals > 0 and integral_decision_variables is not None:
+        if (
+            ig.integrals is not None
+            and num_integrals > 0
+            and integral_decision_variables is not None
+        ):
             _validate_and_set_integral_guess(
                 opti, integral_decision_variables, ig.integrals, num_integrals
             )

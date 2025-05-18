@@ -27,11 +27,11 @@ from trajectolab import FixedMesh, InitialGuess, PHSAdaptive, Problem, RadauDire
 
 # STANDARDIZED MESH for ALL fixed mesh scenarios
 STANDARD_DEGREES = [20, 12, 20]
-STANDARD_MESH = np.array([-1.0, -1/3, 1/3, 1.0])
+STANDARD_MESH = np.array([-1.0, -1 / 3, 1 / 3, 1.0])
 
 # STANDARDIZED ADAPTIVE CONFIGURATION for ALL adaptive scenarios
 ADAPTIVE_DEGREES = [8, 8, 8]
-ADAPTIVE_MESH = np.array([-1.0, -1/3, 1/3, 1.0])
+ADAPTIVE_MESH = np.array([-1.0, -1 / 3, 1 / 3, 1.0])
 ADAPTIVE_SOLVER_CONFIG = {
     "error_tolerance": 1e-3,
     "max_iterations": 30,
@@ -42,7 +42,7 @@ ADAPTIVE_NLP_OPTIONS = {
     "ipopt.print_level": 0,
     "ipopt.sb": "yes",
     "print_time": 0,
-    "ipopt.max_iter": 200
+    "ipopt.max_iter": 200,
 }
 
 
@@ -56,9 +56,9 @@ class DemoRunner:
     def run_scenario(self, name: str, func: Any, *args: Any, **kwargs: Any) -> Any:
         """Run a scenario and handle failure with fail-fast behavior."""
         self.scenario_count += 1
-        print(f"\n{'='*80}")
+        print(f"\n{'=' * 80}")
         print(f"SCENARIO {self.scenario_count}: {name}")
-        print(f"{'='*80}")
+        print(f"{'=' * 80}")
         print(f"Mesh: {STANDARD_DEGREES} degrees, {STANDARD_MESH} points")
 
         try:
@@ -68,7 +68,9 @@ class DemoRunner:
             return result
         except Exception as e:
             print(f"❌ SCENARIO {self.scenario_count} FAILED: {e}")
-            print(f"\nFAIL FAST: Stopping execution after {self.success_count}/{self.scenario_count} successful scenarios")
+            print(
+                f"\nFAIL FAST: Stopping execution after {self.success_count}/{self.scenario_count} successful scenarios"
+            )
             sys.exit(1)
 
 
@@ -77,7 +79,7 @@ def create_hypersensitive_problem() -> Problem:
     problem = Problem("Hypersensitive Problem - Initial Guess Demo")
 
     # Define time variable
-    t = problem.time(initial=0.0, final=40.0)
+    problem.time(initial=0.0, final=40.0)
 
     # Add state with boundary conditions
     x = problem.state("x", initial=1.5, final=1.0)
@@ -99,9 +101,7 @@ def create_hypersensitive_problem() -> Problem:
 
 
 def create_linear_state_guess(
-    polynomial_degrees: list[int],
-    x_initial: float = 1.5,
-    x_final: float = 1.0
+    polynomial_degrees: list[int], x_initial: float = 1.5, x_final: float = 1.0
 ) -> list[np.ndarray]:
     """Create a linear interpolation initial guess for states."""
     states_guess = []
@@ -120,7 +120,9 @@ def create_linear_state_guess(
     return states_guess
 
 
-def create_control_guess(polynomial_degrees: list[int], control_value: float = 0.0) -> list[np.ndarray]:
+def create_control_guess(
+    polynomial_degrees: list[int], control_value: float = 0.0
+) -> list[np.ndarray]:
     """Create a constant control initial guess."""
     controls_guess = []
 
@@ -132,12 +134,14 @@ def create_control_guess(polynomial_degrees: list[int], control_value: float = 0
     return controls_guess
 
 
-def create_sophisticated_guess(polynomial_degrees: list[int]) -> tuple[list[np.ndarray], list[np.ndarray]]:
+def create_sophisticated_guess(
+    polynomial_degrees: list[int],
+) -> tuple[list[np.ndarray], list[np.ndarray]]:
     """Create a more sophisticated initial guess based on problem understanding."""
     states_guess = []
     controls_guess = []
 
-    for k, N_k in enumerate(polynomial_degrees):
+    for _k, N_k in enumerate(polynomial_degrees):
         # State guess: exponential-like decay from 1.5 to 1.0
         tau_points = np.linspace(-1, 1, N_k + 1)
         global_time = (tau_points + 1) / 2  # Map to [0, 1]
@@ -160,12 +164,14 @@ def create_sophisticated_guess(polynomial_degrees: list[int]) -> tuple[list[np.n
     return states_guess, controls_guess
 
 
-def create_sinusoidal_guess(polynomial_degrees: list[int]) -> tuple[list[np.ndarray], list[np.ndarray]]:
+def create_sinusoidal_guess(
+    polynomial_degrees: list[int],
+) -> tuple[list[np.ndarray], list[np.ndarray]]:
     """Create a sinusoidal initial guess to test different trajectory shapes."""
     states_guess = []
     controls_guess = []
 
-    for k, N_k in enumerate(polynomial_degrees):
+    for _k, N_k in enumerate(polynomial_degrees):
         # State guess: sinusoidal transition from 1.5 to 1.0
         tau_points = np.linspace(-1, 1, N_k + 1)
         global_time = (tau_points + 1) / 2  # Map to [0, 1]
@@ -202,7 +208,7 @@ def scenario_no_initial_guess() -> None:
             mesh_points=STANDARD_MESH,
             # initial_guess=None  # Explicitly no guess
         ),
-        nlp_options={"ipopt.print_level": 2, "ipopt.max_iter": 2000}
+        nlp_options={"ipopt.print_level": 2, "ipopt.max_iter": 2000},
     )
 
     print("Solving with NO initial guess (CasADi defaults)...")
@@ -224,8 +230,8 @@ def scenario_partial_guess_times_only() -> None:
 
     # Only provide time guesses
     problem.set_initial_guess(
-        initial_time=0.0,      # Provide
-        terminal_time=40.0,    # Provide
+        initial_time=0.0,  # Provide
+        terminal_time=40.0,  # Provide
         # states=None,         # Let CasADi handle
         # controls=None,       # Let CasADi handle
         # integrals=None       # Let CasADi handle
@@ -242,7 +248,7 @@ def scenario_partial_guess_times_only() -> None:
 
     solver = RadauDirectSolver(
         mesh_method=FixedMesh(STANDARD_DEGREES, STANDARD_MESH),
-        nlp_options={"ipopt.print_level": 2, "ipopt.max_iter": 2000}
+        nlp_options={"ipopt.print_level": 2, "ipopt.max_iter": 2000},
     )
 
     print("Solving with partial guess (times only)...")
@@ -276,7 +282,7 @@ def scenario_partial_guess_integrals_only() -> None:
 
     solver = RadauDirectSolver(
         mesh_method=FixedMesh(STANDARD_DEGREES, STANDARD_MESH),
-        nlp_options={"ipopt.print_level": 2, "ipopt.max_iter": 2000}
+        nlp_options={"ipopt.print_level": 2, "ipopt.max_iter": 2000},
     )
 
     print("Solving with partial guess (integrals only)...")
@@ -314,7 +320,7 @@ def scenario_partial_guess_states_only() -> None:
 
     solver = RadauDirectSolver(
         mesh_method=FixedMesh(STANDARD_DEGREES, STANDARD_MESH),
-        nlp_options={"ipopt.print_level": 2, "ipopt.max_iter": 2000}
+        nlp_options={"ipopt.print_level": 2, "ipopt.max_iter": 2000},
     )
 
     print("Solving with partial guess (linear states only)...")
@@ -343,7 +349,7 @@ def scenario_complete_initial_guess_sophisticated() -> None:
         controls=controls_guess,
         initial_time=0.0,
         terminal_time=40.0,
-        integrals=0.15
+        integrals=0.15,
     )
 
     # Verify complete guess
@@ -356,7 +362,7 @@ def scenario_complete_initial_guess_sophisticated() -> None:
 
     solver = RadauDirectSolver(
         mesh_method=FixedMesh(STANDARD_DEGREES, STANDARD_MESH),
-        nlp_options={"ipopt.print_level": 2, "ipopt.max_iter": 2000}
+        nlp_options={"ipopt.print_level": 2, "ipopt.max_iter": 2000},
     )
 
     print("Solving with COMPLETE sophisticated initial guess...")
@@ -385,7 +391,7 @@ def scenario_complete_initial_guess_sinusoidal() -> None:
         controls=controls_guess,
         initial_time=0.0,
         terminal_time=40.0,
-        integrals=0.25
+        integrals=0.25,
     )
 
     # Verify complete guess
@@ -393,7 +399,7 @@ def scenario_complete_initial_guess_sinusoidal() -> None:
 
     solver = RadauDirectSolver(
         mesh_method=FixedMesh(STANDARD_DEGREES, STANDARD_MESH),
-        nlp_options={"ipopt.print_level": 2, "ipopt.max_iter": 2000}
+        nlp_options={"ipopt.print_level": 2, "ipopt.max_iter": 2000},
     )
 
     print("Solving with COMPLETE sinusoidal initial guess...")
@@ -419,7 +425,7 @@ def scenario_constructor_vs_problem_priority() -> None:
         states=problem_states,
         initial_time=0.0,
         terminal_time=40.0,
-        integrals=0.1  # Problem guess: 0.1
+        integrals=0.1,  # Problem guess: 0.1
     )
 
     # Create different initial guess for constructor (sinusoidal profile)
@@ -429,7 +435,7 @@ def scenario_constructor_vs_problem_priority() -> None:
         controls=constructor_controls,
         initial_time_variable=1.0,
         terminal_time_variable=35.0,
-        integrals=0.5  # Constructor guess: 0.5
+        integrals=0.5,  # Constructor guess: 0.5
     )
 
     # For FixedMesh: constructor takes precedence
@@ -437,9 +443,9 @@ def scenario_constructor_vs_problem_priority() -> None:
         mesh_method=FixedMesh(
             polynomial_degrees=STANDARD_DEGREES,
             mesh_points=STANDARD_MESH,
-            initial_guess=constructor_guess  # This should take precedence
+            initial_guess=constructor_guess,  # This should take precedence
         ),
-        nlp_options={"ipopt.print_level": 2, "ipopt.max_iter": 2000}
+        nlp_options={"ipopt.print_level": 2, "ipopt.max_iter": 2000},
     )
 
     print("Testing priority: Constructor vs Problem initial guess...")
@@ -483,14 +489,11 @@ def scenario_wrong_dimensions_should_fail() -> None:
     print("Testing wrong dimensional initial guess (should fail)...")
     print(f"Expected states shapes: {[(1, N + 1) for N in STANDARD_DEGREES]}")
     print(f"Expected controls shapes: {[(1, N) for N in STANDARD_DEGREES]}")
-    print(f"Provided wrong states shapes: [(1, 19), (1, 16), (1, 21)]")
-    print(f"Provided wrong controls shapes: [(1, 20), (1, 17), (1, 20)]")
+    print("Provided wrong states shapes: [(1, 19), (1, 16), (1, 21)]")
+    print("Provided wrong controls shapes: [(1, 20), (1, 17), (1, 20)]")
 
     try:
-        problem.set_initial_guess(
-            states=wrong_states,
-            controls=wrong_controls
-        )
+        problem.set_initial_guess(states=wrong_states, controls=wrong_controls)
         # This should raise ValueError during validation
         problem.validate_initial_guess()
         raise RuntimeError("ERROR: Validation should have failed but didn't!")
@@ -531,14 +534,14 @@ def scenario_extreme_initial_guess() -> None:
     problem.set_initial_guess(
         states=states_guess,
         controls=controls_guess,
-        initial_time=5.0,     # Far from actual bounds
+        initial_time=5.0,  # Far from actual bounds
         terminal_time=100.0,  # Far from actual bounds
-        integrals=1000.0      # Very large integral guess
+        integrals=1000.0,  # Very large integral guess
     )
 
     solver = RadauDirectSolver(
         mesh_method=FixedMesh(STANDARD_DEGREES, STANDARD_MESH),
-        nlp_options={"ipopt.print_level": 2, "ipopt.max_iter": 3000}
+        nlp_options={"ipopt.print_level": 2, "ipopt.max_iter": 3000},
     )
 
     print("Solving with EXTREME initial guess (testing robustness)...")
@@ -566,12 +569,14 @@ def scenario_requirements_inspection() -> None:
 
     # Verify requirements match our standardized mesh
     expected_states_shapes = [(1, N + 1) for N in STANDARD_DEGREES]  # N+1 for each degree
-    expected_controls_shapes = [(1, N) for N in STANDARD_DEGREES]    # N for each degree
+    expected_controls_shapes = [(1, N) for N in STANDARD_DEGREES]  # N for each degree
 
-    assert requirements.states_shapes == expected_states_shapes, \
+    assert requirements.states_shapes == expected_states_shapes, (
         f"States shapes mismatch: {requirements.states_shapes} vs {expected_states_shapes}"
-    assert requirements.controls_shapes == expected_controls_shapes, \
+    )
+    assert requirements.controls_shapes == expected_controls_shapes, (
         f"Controls shapes mismatch: {requirements.controls_shapes} vs {expected_controls_shapes}"
+    )
 
     print("✅ Requirements match standardized mesh exactly")
 
@@ -579,7 +584,9 @@ def scenario_requirements_inspection() -> None:
     states_guess = []
     controls_guess = []
 
-    for i, (state_shape, control_shape) in enumerate(zip(requirements.states_shapes, requirements.controls_shapes)):
+    for i, (state_shape, control_shape) in enumerate(
+        zip(requirements.states_shapes, requirements.controls_shapes, strict=False)
+    ):
         print(f"Creating guess for interval {i}: states{state_shape}, controls{control_shape}")
 
         # Create state guess with exact required shape - parabolic profile
@@ -600,7 +607,7 @@ def scenario_requirements_inspection() -> None:
         controls=controls_guess,
         initial_time=0.0,
         terminal_time=40.0,
-        integrals=0.1
+        integrals=0.1,
     )
 
     # Validate - should pass
@@ -614,7 +621,7 @@ def scenario_requirements_inspection() -> None:
 
     solver = RadauDirectSolver(
         mesh_method=FixedMesh(STANDARD_DEGREES, STANDARD_MESH),
-        nlp_options={"ipopt.print_level": 2, "ipopt.max_iter": 2000}
+        nlp_options={"ipopt.print_level": 2, "ipopt.max_iter": 2000},
     )
 
     print("Solving with precisely dimensioned parabolic/quadratic initial guess...")
@@ -644,7 +651,7 @@ def scenario_adaptive_first_iteration_guess() -> None:
         controls=controls_guess,
         initial_time=0.0,
         terminal_time=40.0,
-        integrals=0.1
+        integrals=0.1,
     )
 
     # Create adaptive solver with standardized configuration
@@ -653,9 +660,9 @@ def scenario_adaptive_first_iteration_guess() -> None:
             initial_polynomial_degrees=ADAPTIVE_DEGREES,
             initial_mesh_points=ADAPTIVE_MESH,
             initial_guess=problem.initial_guess,
-            **ADAPTIVE_SOLVER_CONFIG
+            **ADAPTIVE_SOLVER_CONFIG,
         ),
-        nlp_options=ADAPTIVE_NLP_OPTIONS
+        nlp_options=ADAPTIVE_NLP_OPTIONS,
     )
 
     print("Solving with adaptive mesh + LINEAR initial guess for first iteration...")
@@ -686,9 +693,9 @@ def scenario_adaptive_no_guess() -> None:
             initial_polynomial_degrees=ADAPTIVE_DEGREES,
             initial_mesh_points=ADAPTIVE_MESH,
             # initial_guess=None  # No initial guess provided
-            **ADAPTIVE_SOLVER_CONFIG
+            **ADAPTIVE_SOLVER_CONFIG,
         ),
-        nlp_options=ADAPTIVE_NLP_OPTIONS
+        nlp_options=ADAPTIVE_NLP_OPTIONS,
     )
 
     print("Solving with adaptive mesh + NO initial guess (CasADi defaults)...")
@@ -720,7 +727,7 @@ def scenario_adaptive_sophisticated_guess() -> None:
         controls=controls_guess,
         initial_time=0.0,
         terminal_time=40.0,
-        integrals=0.15
+        integrals=0.15,
     )
 
     # Create adaptive solver with standardized configuration
@@ -729,9 +736,9 @@ def scenario_adaptive_sophisticated_guess() -> None:
             initial_polynomial_degrees=ADAPTIVE_DEGREES,
             initial_mesh_points=ADAPTIVE_MESH,
             initial_guess=problem.initial_guess,
-            **ADAPTIVE_SOLVER_CONFIG
+            **ADAPTIVE_SOLVER_CONFIG,
         ),
-        nlp_options=ADAPTIVE_NLP_OPTIONS
+        nlp_options=ADAPTIVE_NLP_OPTIONS,
     )
 
     print("Solving with adaptive mesh + SOPHISTICATED initial guess for first iteration...")
@@ -759,7 +766,7 @@ def scenario_adaptive_priority_test() -> None:
     problem_states = create_linear_state_guess(ADAPTIVE_DEGREES, 1.5, 1.0)
     problem.set_initial_guess(
         states=problem_states,
-        integrals=0.1  # Problem guess: 0.1
+        integrals=0.1,  # Problem guess: 0.1
     )
 
     # Create different constructor guess (sinusoidal profile)
@@ -769,7 +776,7 @@ def scenario_adaptive_priority_test() -> None:
         controls=constructor_controls,
         initial_time_variable=0.0,
         terminal_time_variable=40.0,
-        integrals=0.5  # Constructor guess: 0.5
+        integrals=0.5,  # Constructor guess: 0.5
     )
 
     # For PHSAdaptive: problem takes precedence over constructor
@@ -778,9 +785,9 @@ def scenario_adaptive_priority_test() -> None:
             initial_polynomial_degrees=ADAPTIVE_DEGREES,
             initial_mesh_points=ADAPTIVE_MESH,
             initial_guess=constructor_guess,  # Lower priority for adaptive
-            **ADAPTIVE_SOLVER_CONFIG
+            **ADAPTIVE_SOLVER_CONFIG,
         ),
-        nlp_options=ADAPTIVE_NLP_OPTIONS
+        nlp_options=ADAPTIVE_NLP_OPTIONS,
     )
 
     print("Testing adaptive priority: Problem vs Constructor initial guess...")
@@ -810,95 +817,69 @@ def main() -> None:
     runner = DemoRunner()
 
     # Fixed mesh scenarios - all use STANDARD_DEGREES and STANDARD_MESH
-    runner.run_scenario(
-        "No Initial Guess (CasADi Defaults)",
-        scenario_no_initial_guess
-    )
+    runner.run_scenario("No Initial Guess (CasADi Defaults)", scenario_no_initial_guess)
 
-    runner.run_scenario(
-        "Partial Guess - Times Only",
-        scenario_partial_guess_times_only
-    )
+    runner.run_scenario("Partial Guess - Times Only", scenario_partial_guess_times_only)
 
-    runner.run_scenario(
-        "Partial Guess - Integrals Only",
-        scenario_partial_guess_integrals_only
-    )
+    runner.run_scenario("Partial Guess - Integrals Only", scenario_partial_guess_integrals_only)
 
-    runner.run_scenario(
-        "Partial Guess - Linear States Only",
-        scenario_partial_guess_states_only
-    )
+    runner.run_scenario("Partial Guess - Linear States Only", scenario_partial_guess_states_only)
 
     runner.run_scenario(
         "Complete Guess - Sophisticated Exponential Profile",
-        scenario_complete_initial_guess_sophisticated
+        scenario_complete_initial_guess_sophisticated,
     )
 
     runner.run_scenario(
-        "Complete Guess - Sinusoidal Profile",
-        scenario_complete_initial_guess_sinusoidal
+        "Complete Guess - Sinusoidal Profile", scenario_complete_initial_guess_sinusoidal
     )
 
     runner.run_scenario(
         "Priority Test - Constructor vs Problem (Fixed Mesh)",
-        scenario_constructor_vs_problem_priority
+        scenario_constructor_vs_problem_priority,
     )
 
     runner.run_scenario(
-        "Wrong Dimensions - Should Fail Validation",
-        scenario_wrong_dimensions_should_fail
+        "Wrong Dimensions - Should Fail Validation", scenario_wrong_dimensions_should_fail
     )
 
-    runner.run_scenario(
-        "Extreme Initial Guess - Robustness Test",
-        scenario_extreme_initial_guess
-    )
+    runner.run_scenario("Extreme Initial Guess - Robustness Test", scenario_extreme_initial_guess)
 
     runner.run_scenario(
-        "Requirements Inspection - Parabolic/Quadratic Profile",
-        scenario_requirements_inspection
+        "Requirements Inspection - Parabolic/Quadratic Profile", scenario_requirements_inspection
     )
 
     # Adaptive scenarios - all use standardized configuration
-    print(f"\n{'='*80}")
+    print(f"\n{'=' * 80}")
     print("ADAPTIVE SCENARIOS - All use standardized configuration")
     print(f"Mesh: {ADAPTIVE_DEGREES} degrees, {ADAPTIVE_MESH} points")
     print(f"Settings: {ADAPTIVE_SOLVER_CONFIG}")
-    print(f"{'='*80}")
+    print(f"{'=' * 80}")
+
+    runner.run_scenario("Adaptive - Linear Initial Guess", scenario_adaptive_first_iteration_guess)
+
+    runner.run_scenario("Adaptive - No Initial Guess", scenario_adaptive_no_guess)
 
     runner.run_scenario(
-        "Adaptive - Linear Initial Guess",
-        scenario_adaptive_first_iteration_guess
+        "Adaptive - Sophisticated Initial Guess", scenario_adaptive_sophisticated_guess
     )
 
     runner.run_scenario(
-        "Adaptive - No Initial Guess",
-        scenario_adaptive_no_guess
-    )
-
-    runner.run_scenario(
-        "Adaptive - Sophisticated Initial Guess",
-        scenario_adaptive_sophisticated_guess
-    )
-
-    runner.run_scenario(
-        "Adaptive - Priority Test (Problem vs Constructor)",
-        scenario_adaptive_priority_test
+        "Adaptive - Priority Test (Problem vs Constructor)", scenario_adaptive_priority_test
     )
 
     # Final summary
-    print(f"\n{'='*80}")
+    print(f"\n{'=' * 80}")
     print("🎉 ALL SCENARIOS COMPLETED SUCCESSFULLY!")
     print(f"Total scenarios: {runner.scenario_count}")
     print(f"Successful: {runner.success_count}")
-    print(f"Success rate: {runner.success_count/runner.scenario_count*100:.1f}%")
+    print(f"Success rate: {runner.success_count / runner.scenario_count * 100:.1f}%")
     print(f"\nFixed mesh scenarios all used: {STANDARD_DEGREES} degrees, {STANDARD_MESH} points")
     print("This allows direct comparison of initial guess strategies on identical discretization.")
     print(f"\nAdaptive scenarios all used: {ADAPTIVE_DEGREES} degrees, {ADAPTIVE_MESH} points")
     print("All adaptive scenarios use identical solver settings, varying only the initial guess.")
     print(f"Adaptive settings: {ADAPTIVE_SOLVER_CONFIG}")
-    print(f"{'='*80}")
+    print(f"{'=' * 80}")
 
 
 if __name__ == "__main__":

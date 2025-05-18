@@ -383,7 +383,9 @@ class Problem:
     def subject_to(self, constraint_expr: SymExpr) -> None:
         self._constraints.append(constraint_expr)
 
-    def set_mesh(self, polynomial_degrees: list[int], mesh_points: FloatArray | list[float]) -> None:
+    def set_mesh(
+        self, polynomial_degrees: list[int], mesh_points: FloatArray | list[float]
+    ) -> None:
         """
         Explicitly configure the mesh structure.
         This clears any existing initial guess since mesh configuration has changed.
@@ -408,7 +410,9 @@ class Problem:
         # Validate polynomial degrees
         for k, degree in enumerate(polynomial_degrees):
             if not isinstance(degree, int) or degree <= 0:
-                raise ValueError(f"Polynomial degree for interval {k} must be positive integer, got {degree}")
+                raise ValueError(
+                    f"Polynomial degree for interval {k} must be positive integer, got {degree}"
+                )
 
         # Validate mesh points
         if not np.isclose(mesh_array[0], -1.0):
@@ -479,7 +483,7 @@ class Problem:
                     raise ValueError(
                         f"State array for interval {k} has shape {state_array.shape}, "
                         f"expected {expected_shape} (num_states={num_states}, "
-                        f"num_nodes={self.collocation_points_per_interval[k]+1})"
+                        f"num_nodes={self.collocation_points_per_interval[k] + 1})"
                     )
 
             states_list = [np.array(s, dtype=np.float64) for s in states]
@@ -511,7 +515,7 @@ class Problem:
                 raise ValueError("Problem has no integrals, but integral guess was provided")
 
             if self._num_integrals == 1:
-                if not isinstance(integrals, (int, float)):
+                if not isinstance(integrals, int | float):
                     raise ValueError(f"For single integral, provide scalar, got {type(integrals)}")
                 validated_integrals = integrals
             else:
@@ -553,12 +557,8 @@ class Problem:
         num_states = len(self._states)
         num_controls = len(self._controls)
 
-        states_shapes = [
-            (num_states, N + 1) for N in self.collocation_points_per_interval
-        ]
-        controls_shapes = [
-            (num_controls, N) for N in self.collocation_points_per_interval
-        ]
+        states_shapes = [(num_states, N + 1) for N in self.collocation_points_per_interval]
+        controls_shapes = [(num_controls, N) for N in self.collocation_points_per_interval]
 
         needs_initial_time = self._t0_bounds[0] != self._t0_bounds[1]
         needs_terminal_time = self._tf_bounds[0] != self._tf_bounds[1]
@@ -598,7 +598,9 @@ class Problem:
                     f"but problem needs {len(requirements.states_shapes)}"
                 )
 
-            for k, (state_array, expected_shape) in enumerate(zip(ig.states, requirements.states_shapes)):
+            for k, (state_array, expected_shape) in enumerate(
+                zip(ig.states, requirements.states_shapes, strict=False)
+            ):
                 if state_array.shape != expected_shape:
                     raise ValueError(
                         f"State array {k} has shape {state_array.shape}, expected {expected_shape}"
@@ -614,7 +616,9 @@ class Problem:
                     f"but problem needs {len(requirements.controls_shapes)}"
                 )
 
-            for k, (control_array, expected_shape) in enumerate(zip(ig.controls, requirements.controls_shapes)):
+            for k, (control_array, expected_shape) in enumerate(
+                zip(ig.controls, requirements.controls_shapes, strict=False)
+            ):
                 if control_array.shape != expected_shape:
                     raise ValueError(
                         f"Control array {k} has shape {control_array.shape}, expected {expected_shape}"
@@ -626,7 +630,7 @@ class Problem:
                 raise ValueError("Integral guess provided but problem has no integrals")
 
             if self._num_integrals == 1:
-                if not isinstance(ig.integrals, (int, float)):
+                if not isinstance(ig.integrals, int | float):
                     raise ValueError("Single integral guess must be scalar")
             else:
                 integrals_array = np.array(ig.integrals)
@@ -655,22 +659,32 @@ class Problem:
 
         if self.initial_guess is not None:
             source = "partial_user_provided"
-            states_shapes = [s.shape for s in self.initial_guess.states] if self.initial_guess.states else None
-            controls_shapes = [c.shape for c in self.initial_guess.controls] if self.initial_guess.controls else None
+            states_shapes = (
+                [s.shape for s in self.initial_guess.states] if self.initial_guess.states else None
+            )
+            controls_shapes = (
+                [c.shape for c in self.initial_guess.controls]
+                if self.initial_guess.controls
+                else None
+            )
             initial_time_guess = self.initial_guess.initial_time_variable
             terminal_time_guess = self.initial_guess.terminal_time_variable
 
             if self.initial_guess.integrals is not None:
-                if isinstance(self.initial_guess.integrals, (int, float)):
+                if isinstance(self.initial_guess.integrals, int | float):
                     integrals_length = 1
                 else:
                     integrals_length = len(np.array(self.initial_guess.integrals))
 
             # Check if guess is complete
             is_complete = True
-            if self.initial_guess.states is None or len(self.initial_guess.states) != len(self.collocation_points_per_interval):
+            if self.initial_guess.states is None or len(self.initial_guess.states) != len(
+                self.collocation_points_per_interval
+            ):
                 is_complete = False
-            if self.initial_guess.controls is None or len(self.initial_guess.controls) != len(self.collocation_points_per_interval):
+            if self.initial_guess.controls is None or len(self.initial_guess.controls) != len(
+                self.collocation_points_per_interval
+            ):
                 is_complete = False
             if self._num_integrals > 0 and self.initial_guess.integrals is None:
                 is_complete = False
@@ -681,7 +695,9 @@ class Problem:
         return SolverInputSummary(
             mesh_intervals=len(self.collocation_points_per_interval),
             polynomial_degrees=self.collocation_points_per_interval.copy(),
-            mesh_points=self.global_normalized_mesh_nodes.copy() if self.global_normalized_mesh_nodes is not None else np.array([]),
+            mesh_points=self.global_normalized_mesh_nodes.copy()
+            if self.global_normalized_mesh_nodes is not None
+            else np.array([]),
             initial_guess_source=source,
             states_guess_shapes=states_shapes,
             controls_guess_shapes=controls_shapes,

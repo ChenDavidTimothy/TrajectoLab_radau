@@ -239,14 +239,14 @@ class PHSAdaptive(AdaptiveBase):
             solution = solve_single_phase_radau_collocation(problem)
 
             if not solution.success:
-                error_msg = (
-                    f"Solver failed in adaptive iteration {iteration}: {solution.message}"
-                )
+                error_msg = f"Solver failed in adaptive iteration {iteration}: {solution.message}"
                 print(f"  Error: {error_msg}")
 
                 # Return best solution available
                 if most_recent_solution is not None:
-                    most_recent_solution.message = f"Adaptive stopped due to solver failure: {error_msg}"
+                    most_recent_solution.message = (
+                        f"Adaptive stopped due to solver failure: {error_msg}"
+                    )
                     most_recent_solution.success = False
                     return most_recent_solution
                 else:
@@ -303,7 +303,9 @@ class PHSAdaptive(AdaptiveBase):
 
             # Update most recent successful solution
             most_recent_solution = solution
-            most_recent_solution.num_collocation_nodes_list_at_solve_time = current_polynomial_degrees.copy()
+            most_recent_solution.num_collocation_nodes_list_at_solve_time = (
+                current_polynomial_degrees.copy()
+            )
             most_recent_solution.global_mesh_nodes_at_solve_time = current_mesh_points.copy()
 
             # Calculate gamma normalization factors
@@ -460,7 +462,7 @@ class PHSAdaptive(AdaptiveBase):
 
                 if np.isnan(error_k) or np.isinf(error_k) or error_k > error_tol:
                     # Error above tolerance - try p-refinement
-                    print(f"      Error > tolerance, attempting p-refinement")
+                    print("      Error > tolerance, attempting p-refinement")
                     p_result = p_refine_interval(N_k, error_k, error_tol, N_max)
 
                     if p_result.was_p_successful:
@@ -471,14 +473,16 @@ class PHSAdaptive(AdaptiveBase):
                         k += 1
                     else:
                         # p-refinement failed - apply h-refinement
-                        print(f"        p-refinement failed, applying h-refinement")
+                        print("        p-refinement failed, applying h-refinement")
                         h_result = h_refine_params(p_result.unconstrained_target_Nk, N_min)
 
                         print(
                             f"          h-refinement: Split into {h_result.num_new_subintervals} "
                             f"subintervals, each N={h_result.collocation_nodes_for_new_subintervals[0]}"
                         )
-                        next_polynomial_degrees.extend(h_result.collocation_nodes_for_new_subintervals)
+                        next_polynomial_degrees.extend(
+                            h_result.collocation_nodes_for_new_subintervals
+                        )
 
                         # Create new mesh nodes for subintervals
                         tau_start = current_mesh_points[k]
@@ -500,7 +504,7 @@ class PHSAdaptive(AdaptiveBase):
                             not (np.isnan(next_error) or np.isinf(next_error))
                             and next_error <= error_tol
                         ):
-                            print(f"      Next interval also has low error, checking h-reduction")
+                            print("      Next interval also has low error, checking h-reduction")
 
                             # Check if interpolants are available
                             if (
@@ -540,20 +544,24 @@ class PHSAdaptive(AdaptiveBase):
                     if can_merge:
                         # h-reduction successful
                         print(f"      h-reduction: Merged intervals {k} and {k + 1}")
-                        merged_N = max(current_polynomial_degrees[k], current_polynomial_degrees[k + 1])
+                        merged_N = max(
+                            current_polynomial_degrees[k], current_polynomial_degrees[k + 1]
+                        )
                         merged_N = max(N_min, min(N_max, merged_N))
                         next_polynomial_degrees.append(merged_N)
                         next_mesh_points.append(current_mesh_points[k + 2])
                         k += 2
                     else:
                         # Try p-reduction
-                        print(f"      h-reduction not applicable, attempting p-reduction")
+                        print("      h-reduction not applicable, attempting p-reduction")
                         p_reduce = p_reduce_interval(N_k, error_k, error_tol, N_min, N_max)
 
                         if p_reduce.was_reduction_applied:
-                            print(f"        p-reduction: N {N_k} -> {p_reduce.new_num_collocation_nodes}")
+                            print(
+                                f"        p-reduction: N {N_k} -> {p_reduce.new_num_collocation_nodes}"
+                            )
                         else:
-                            print(f"        p-reduction not applied")
+                            print("        p-reduction not applied")
 
                         next_polynomial_degrees.append(p_reduce.new_num_collocation_nodes)
                         next_mesh_points.append(current_mesh_points[k + 1])
@@ -607,7 +615,9 @@ class PHSAdaptive(AdaptiveBase):
 
         if most_recent_solution is not None:
             most_recent_solution.message = max_iter_msg
-            most_recent_solution.num_collocation_nodes_per_interval = current_polynomial_degrees.copy()
+            most_recent_solution.num_collocation_nodes_per_interval = (
+                current_polynomial_degrees.copy()
+            )
             most_recent_solution.global_normalized_mesh_nodes = current_mesh_points.copy()
             return most_recent_solution
         else:

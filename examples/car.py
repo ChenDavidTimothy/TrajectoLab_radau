@@ -53,9 +53,9 @@ def create_car_race_problem() -> Problem:
 
 def solve_car_race_adaptive() -> None:
     """Solve car race with adaptive mesh refinement."""
-    print("="*80)
+    print("=" * 80)
     print("CAR RACE - ADAPTIVE MESH REFINEMENT")
-    print("="*80)
+    print("=" * 80)
 
     # Create problem
     problem, pos, speed, throttle = create_car_race_problem()
@@ -128,7 +128,7 @@ def solve_car_race_adaptive() -> None:
 
     # Analyze and display results
     if solution.success:
-        print(f"\n🏁 Race completed successfully!")
+        print("\n🏁 Race completed successfully!")
         print(f"Optimal lap time: {solution.final_time:.6f} time units")
         print(f"Final mesh intervals: {solution.num_intervals}")
         print(f"Polynomial degrees per interval: {solution.polynomial_degrees}")
@@ -143,7 +143,9 @@ def solve_car_race_adaptive() -> None:
         verify_constraints(pos_vals, speed_vals)
 
         # Create custom plots
-        plot_car_race_results(t_vals, pos_vals, t_speed, speed_vals, t_throttle, throttle_vals, solution)
+        plot_car_race_results(
+            t_vals, pos_vals, t_speed, speed_vals, t_throttle, throttle_vals, solution
+        )
 
         # Show standard TrajectoLab plot
         print("\nShowing TrajectoLab standard plot...")
@@ -158,9 +160,9 @@ def solve_car_race_adaptive() -> None:
 
 def solve_car_race_fixed_mesh() -> None:
     """Solve car race with fixed mesh."""
-    print("="*80)
+    print("=" * 80)
     print("CAR RACE - FIXED MESH")
-    print("="*80)
+    print("=" * 80)
 
     # Create problem
     problem, pos, speed, throttle = create_car_race_problem()
@@ -222,7 +224,7 @@ def solve_car_race_fixed_mesh() -> None:
     solution = solve(problem, solver)
 
     if solution.success:
-        print(f"\n🏁 Fixed mesh race completed!")
+        print("\n🏁 Fixed mesh race completed!")
         print(f"Optimal lap time: {solution.final_time:.6f} time units")
         print(f"Objective value: {solution.objective:.6f}")
 
@@ -233,7 +235,9 @@ def solve_car_race_fixed_mesh() -> None:
 
         # Verify and plot
         verify_constraints(pos_vals, speed_vals)
-        plot_car_race_results(t_vals, pos_vals, t_speed, speed_vals, t_throttle, throttle_vals, solution)
+        plot_car_race_results(
+            t_vals, pos_vals, t_speed, speed_vals, t_throttle, throttle_vals, solution
+        )
         solution.plot()
     else:
         print(f"❌ Fixed mesh solution failed: {solution.message}")
@@ -256,11 +260,7 @@ def try_fixed_mesh_fallback(problem: Problem) -> None:
             polynomial_degrees=fallback_degrees,
             mesh_points=fallback_mesh,
         ),
-        nlp_options={
-            "ipopt.print_level": 2,
-            "ipopt.max_iter": 2000,
-            "ipopt.tol": 1e-6
-        },
+        nlp_options={"ipopt.print_level": 2, "ipopt.max_iter": 2000, "ipopt.tol": 1e-6},
     )
 
     fallback_solution = solve(problem, fixed_solver)
@@ -299,7 +299,7 @@ def plot_car_race_results(
     speed_vals: np.ndarray,
     t_throttle: np.ndarray,
     throttle_vals: np.ndarray,
-    solution: object
+    solution: object,
 ) -> None:
     """Create custom plots for car race results."""
     # Calculate speed limit for plotting
@@ -343,14 +343,10 @@ def plot_car_race_results(
 
     # Mesh information (if available)
     plt.subplot(2, 2, 4)
-    if hasattr(solution, 'mesh_points') and hasattr(solution, 'polynomial_degrees'):
+    if hasattr(solution, "mesh_points") and hasattr(solution, "polynomial_degrees"):
         if solution.mesh_points is not None and solution.polynomial_degrees is not None:
             # Convert mesh points from [-1,1] to physical time
-            physical_mesh_points = np.interp(
-                solution.mesh_points,
-                [-1, 1],
-                [t_vals[0], t_vals[-1]]
-            )
+            physical_mesh_points = np.interp(solution.mesh_points, [-1, 1], [t_vals[0], t_vals[-1]])
 
             mesh_centers = []
             for i in range(len(solution.polynomial_degrees)):
@@ -371,12 +367,24 @@ def plot_car_race_results(
             plt.title(f"Mesh Structure ({solution.num_intervals} intervals)")
             plt.grid(True, alpha=0.3)
         else:
-            plt.text(0.5, 0.5, "Mesh information\nnot available",
-                    ha='center', va='center', transform=plt.gca().transAxes)
+            plt.text(
+                0.5,
+                0.5,
+                "Mesh information\nnot available",
+                ha="center",
+                va="center",
+                transform=plt.gca().transAxes,
+            )
             plt.title("Mesh Information")
     else:
-        plt.text(0.5, 0.5, "Fixed mesh\n(no refinement data)",
-                ha='center', va='center', transform=plt.gca().transAxes)
+        plt.text(
+            0.5,
+            0.5,
+            "Fixed mesh\n(no refinement data)",
+            ha="center",
+            va="center",
+            transform=plt.gca().transAxes,
+        )
         plt.title("Mesh Information")
 
     plt.tight_layout()

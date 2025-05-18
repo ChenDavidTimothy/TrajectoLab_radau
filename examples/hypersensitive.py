@@ -1,5 +1,7 @@
-from trajectolab import FixedMesh, PHSAdaptive, Problem, RadauDirectSolver, solve
 import numpy as np
+
+from trajectolab import FixedMesh, PHSAdaptive, Problem, RadauDirectSolver, solve
+
 
 # Define the hypersensitive problem using the symbolic API
 problem = Problem("Hypersensitive Problem")
@@ -25,7 +27,7 @@ problem.minimize(integral_var)
 
 # EXPLICITLY set the initial mesh for adaptive algorithm
 initial_polynomial_degrees = [8, 8, 8]
-initial_mesh_points = np.array([-1.0, -1/3, 1/3, 1.0])
+initial_mesh_points = np.array([-1.0, -1 / 3, 1 / 3, 1.0])
 problem.set_mesh(initial_polynomial_degrees, initial_mesh_points)
 
 # OPTIONALLY provide initial guess (not required)
@@ -36,7 +38,7 @@ problem.set_initial_guess(
     # controls=None,      # Let CasADi handle it
     # initial_time=None,  # Let CasADi handle it
     # terminal_time=None, # Let CasADi handle it
-    integrals=0.1,        # Provide hint for integral
+    integrals=0.1,  # Provide hint for integral
 )
 
 # Configure the adaptive solver
@@ -78,7 +80,7 @@ print("Solving with fixed mesh...")
 
 # For fixed mesh, explicitly set new mesh
 fixed_polynomial_degrees = [20, 12, 20]
-fixed_mesh_points = np.array([-1.0, -1/3, 1/3, 1.0])
+fixed_mesh_points = np.array([-1.0, -1 / 3, 1 / 3, 1.0])
 problem.set_mesh(fixed_polynomial_degrees, fixed_mesh_points)
 
 # For fixed mesh, no initial guess needed (optional)

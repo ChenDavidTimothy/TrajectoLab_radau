@@ -1,9 +1,6 @@
 from typing import cast
 
-import numpy as np
-
 from trajectolab.adaptive.base import AdaptiveBase
-from trajectolab.adaptive.phs import PHSAdaptive
 from trajectolab.direct_solver import OptimalControlSolution
 from trajectolab.problem import Problem
 from trajectolab.solution import Solution

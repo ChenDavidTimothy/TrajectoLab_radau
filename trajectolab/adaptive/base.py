@@ -88,7 +88,9 @@ class FixedMesh(AdaptiveBase):
         # Validate polynomial degrees
         for k, degree in enumerate(polynomial_degrees):
             if not isinstance(degree, int) or degree <= 0:
-                raise ValueError(f"Polynomial degree for interval {k} must be positive integer, got {degree}")
+                raise ValueError(
+                    f"Polynomial degree for interval {k} must be positive integer, got {degree}"
+                )
 
         # Validate mesh points
         if not np.isclose(mesh_array[0], -1.0):

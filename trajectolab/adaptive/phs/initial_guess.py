@@ -8,7 +8,6 @@ import numpy as np
 from trajectolab.direct_solver import InitialGuess, OptimalControlSolution
 from trajectolab.tl_types import (
     FloatArray,
-    FloatMatrix,
     ProblemProtocol,
 )
 
@@ -60,14 +59,19 @@ def propagate_solution_to_new_mesh(
     identical_mesh = False
     if prev_degrees is not None and prev_mesh is not None:
         identical_mesh = (
-            len(target_polynomial_degrees) == len(prev_degrees) and
-            all(target_deg == prev_deg for target_deg, prev_deg in zip(target_polynomial_degrees, prev_degrees)) and
-            np.allclose(target_mesh_points, prev_mesh, atol=1e-12)
+            len(target_polynomial_degrees) == len(prev_degrees)
+            and all(
+                target_deg == prev_deg
+                for target_deg, prev_deg in zip(
+                    target_polynomial_degrees, prev_degrees, strict=False
+                )
+            )
+            and np.allclose(target_mesh_points, prev_mesh, atol=1e-12)
         )
 
     if identical_mesh:
         # Mesh structure is identical - propagate trajectories exactly
-        print(f"    Mesh structure identical. Propagating trajectories from previous solution.")
+        print("    Mesh structure identical. Propagating trajectories from previous solution.")
 
         prev_states = prev_solution.solved_state_trajectories_per_interval
         prev_controls = prev_solution.solved_control_trajectories_per_interval
@@ -77,11 +81,15 @@ def propagate_solution_to_new_mesh(
 
         # Use trajectories directly (they already match the target mesh)
         states_guess = [np.array(state_traj, dtype=np.float64) for state_traj in prev_states]
-        controls_guess = [np.array(control_traj, dtype=np.float64) for control_traj in prev_controls]
+        controls_guess = [
+            np.array(control_traj, dtype=np.float64) for control_traj in prev_controls
+        ]
 
     else:
         # Mesh structure changed - cannot propagate trajectories safely
-        print(f"    Mesh structure changed. Using default trajectories (times/integrals propagated).")
+        print(
+            "    Mesh structure changed. Using default trajectories (times/integrals propagated)."
+        )
 
         # Create default trajectory arrays for new mesh
         num_states = len(problem._states)
@@ -90,7 +98,7 @@ def propagate_solution_to_new_mesh(
         states_guess = []
         controls_guess = []
 
-        for k, N_k in enumerate(target_polynomial_degrees):
+        for _k, N_k in enumerate(target_polynomial_degrees):
             # Default state trajectory: zeros
             state_traj = np.zeros((num_states, N_k + 1), dtype=np.float64)
             states_guess.append(state_traj)
