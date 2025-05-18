@@ -509,7 +509,7 @@ class Problem:
             controls_list = [np.array(c, dtype=np.float64) for c in controls]
 
         # Validate integrals if provided
-        validated_integrals = None
+        validated_integrals: float | FloatArray | None = None
         if integrals is not None:
             if self._num_integrals == 0:
                 raise ValueError("Problem has no integrals, but integral guess was provided")

@@ -433,8 +433,8 @@ class PHSAdaptive(AdaptiveBase):
             elif not errors:
                 all_errors_within_tolerance = False
             else:
-                for e in errors:
-                    if np.isnan(e) or np.isinf(e) or e > error_tol:
+                for error in errors:
+                    if np.isnan(error) or np.isinf(error) or error > error_tol:
                         all_errors_within_tolerance = False
                         break
 
