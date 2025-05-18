@@ -514,7 +514,8 @@ def solve_single_phase_radau_collocation(problem: ProblemProtocol) -> OptimalCon
             # interior approx nodes = num_colloc_nodes - 1
             if num_interior_nodes > 0:
                 interior_nodes_var = opti.variable(num_states, num_interior_nodes)
-                assert interior_nodes_var is not None
+                if interior_nodes_var is None:
+                    raise ValueError("Failed to create interior_nodes_var")
                 for i in range(num_interior_nodes):
                     current_interval_state_columns[i + 1] = interior_nodes_var[:, i]
         state_at_interior_local_approximation_nodes_all_intervals_variables.append(
