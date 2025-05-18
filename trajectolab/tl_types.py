@@ -34,7 +34,8 @@ CasadiOptiSol: TypeAlias = ca.OptiSol
 CasadiFunction: TypeAlias = ca.Function
 
 # --- Problem Structure Data Classes and Type Aliases ---
-ProblemParameters: TypeAlias = dict[str, object]
+ProblemParameters: TypeAlias = dict[str, float | int | str]
+
 
 # Dictionary type aliases for Problem class - keep for compatibility
 StateDictType: TypeAlias = dict[str, float | CasadiMX]

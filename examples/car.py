@@ -166,7 +166,7 @@ else:
     fixed_solver = RadauDirectSolver(
         mesh_method=FixedMesh(
             polynomial_degrees=[10] * 10,  # 10 intervals with degree 10 each
-            mesh_points=np.linspace(-1, 1, 11),
+            mesh_points=np.linspace(-1, 1, 11).tolist(),
         ),
         nlp_options={"ipopt.print_level": 2, "ipopt.max_iter": 2000, "ipopt.tol": 1e-6},
     )
