@@ -660,10 +660,12 @@ class Problem:
         if self.initial_guess is not None:
             source = "partial_user_provided"
             states_shapes = (
-                [s.shape for s in self.initial_guess.states] if self.initial_guess.states else None
+                [cast(tuple[int, int], s.shape) for s in self.initial_guess.states]
+                if self.initial_guess.states
+                else None
             )
             controls_shapes = (
-                [c.shape for c in self.initial_guess.controls]
+                [cast(tuple[int, int], c.shape) for c in self.initial_guess.controls]
                 if self.initial_guess.controls
                 else None
             )
