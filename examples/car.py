@@ -31,9 +31,6 @@ problem.subject_to(speed <= speed_limit)
 # Objective: minimize race time (time-optimal control)
 problem.minimize(t.final)
 
-# Set initial guesses to help convergence
-problem.set_initial_guess(speed, 1.0)
-problem.set_initial_guess(throttle, 0.5)
 
 # Create initial guess for time
 

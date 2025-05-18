@@ -51,17 +51,6 @@ class InitialGuess:
         self.integrals = integrals
 
 
-class DefaultGuessValues:
-    """
-    Default values for initial guesses.
-    """
-
-    def __init__(self, state: float = 0.0, control: float = 0.0, integral: float = 0.0) -> None:
-        self.state = state
-        self.control = control
-        self.integral = integral
-
-
 class OptimalControlSolution:
     """
     Solution to an optimal control problem.
@@ -381,28 +370,49 @@ def _validate_dynamics_output(
     raise TypeError(f"Dynamics function output type not supported: {type(output)}")
 
 
-def _set_initial_value_for_integrals(
+def _validate_and_set_integral_guess(
     opti: CasadiOpti,
     integral_vars: CasadiMX,
-    guess: float | FloatArray | list[float] | None,  # Broadened guess type
+    guess: float | FloatArray | list[float] | None,
     num_integrals: int,
 ) -> None:
+    """
+    Validate and set initial guess for integrals with strict dimension checking.
+
+    Args:
+        opti: CasADi optimization object
+        integral_vars: CasADi integral variables
+        guess: Initial guess for integrals
+        num_integrals: Expected number of integrals
+
+    Raises:
+        ValueError: If guess dimensions don't match requirements exactly
+    """
     if guess is None:
-        return
+        raise ValueError(f"Integral guess required for {num_integrals} integrals")
 
     if num_integrals == 1:
-        if isinstance(guess, int | float):  # int included for convenience
-            opti.set_initial(integral_vars, float(guess))
-        elif isinstance(guess, list | np.ndarray) and np.array(guess).size == 1:
-            opti.set_initial(integral_vars, float(np.array(guess).item()))
-        else:
-            print(f"Warning: Invalid format for single integral guess: {guess}")
-    elif isinstance(guess, list | np.ndarray) and np.array(guess).size == num_integrals:
-        # Ensure flat array for CasADi if it's a list of numbers or a 1D array
-        flat_guess = np.array(guess, dtype=np.float64).flatten()
-        opti.set_initial(integral_vars, flat_guess)
-    else:
-        print(f"Warning: Invalid format/length for multiple integrals guess: {guess}")
+        if not isinstance(guess, int | float):
+            raise ValueError(
+                f"For single integral, guess must be scalar (int or float), "
+                f"got {type(guess)} with value {guess}"
+            )
+        opti.set_initial(integral_vars, float(guess))
+
+    elif num_integrals > 1:
+        if isinstance(guess, int | float):
+            raise ValueError(
+                f"For {num_integrals} integrals, guess must be array-like, got scalar {guess}"
+            )
+
+        # Convert to numpy array and validate
+        guess_array = np.array(guess, dtype=np.float64)
+        if guess_array.size != num_integrals:
+            raise ValueError(
+                f"Integral guess must have exactly {num_integrals} elements, got {guess_array.size}"
+            )
+
+        opti.set_initial(integral_vars, guess_array.flatten())
 
 
 def solve_single_phase_radau_collocation(problem: ProblemProtocol) -> OptimalControlSolution:
@@ -414,7 +424,20 @@ def solve_single_phase_radau_collocation(problem: ProblemProtocol) -> OptimalCon
 
     Returns:
         An OptimalControlSolution object containing the solution
+
+    Raises:
+        ValueError: If problem configuration is invalid or initial guess is missing/invalid
     """
+    # Validate problem is properly configured
+    if not hasattr(problem, "_mesh_configured") or not problem._mesh_configured:
+        raise ValueError(
+            "Problem mesh must be explicitly configured before solving. "
+            "Call problem.set_mesh(polynomial_degrees, mesh_points)"
+        )
+
+    # Validate initial guess is provided and complete
+    problem.validate_initial_guess()
+
     opti: CasadiOpti = ca.Opti()
 
     # Extract necessary problem data
@@ -423,7 +446,7 @@ def solve_single_phase_radau_collocation(problem: ProblemProtocol) -> OptimalCon
     num_integrals: int = problem._num_integrals
 
     if not problem.collocation_points_per_interval:
-        raise ValueError("problem must include 'collocation_points_per_interval'.")
+        raise ValueError("Problem must include 'collocation_points_per_interval'.")
 
     num_collocation_nodes_per_interval: list[int] = problem.collocation_points_per_interval
     if not (
@@ -456,23 +479,23 @@ def solve_single_phase_radau_collocation(problem: ProblemProtocol) -> OptimalCon
         terminal_time_variable > initial_time_variable + 1e-6
     )  # Ensure non-zero positive duration
 
-    user_mesh: FloatArray | None = problem.global_normalized_mesh_nodes
-    global_normalized_mesh_nodes: FloatArray
-    if user_mesh is not None:
-        global_normalized_mesh_nodes = np.array(user_mesh, dtype=np.float64)
-        if not (
-            len(global_normalized_mesh_nodes) == num_mesh_intervals + 1
-            and np.all(np.diff(global_normalized_mesh_nodes) > 1e-9)
-            and np.isclose(global_normalized_mesh_nodes[0], -1.0)
-            and np.isclose(global_normalized_mesh_nodes[-1], 1.0)
-        ):
-            raise ValueError(
-                "Provided 'global_normalized_mesh_nodes' must be sorted, "
-                "have num_mesh_intervals+1 elements, start at -1.0, and end at +1.0, "
-                "with positive interval lengths."
-            )
-    else:
-        global_normalized_mesh_nodes = np.linspace(-1, 1, num_mesh_intervals + 1, dtype=np.float64)
+    # Validate and use mesh
+    if problem.global_normalized_mesh_nodes is None:
+        raise ValueError("Global normalized mesh nodes must be set")
+
+    global_normalized_mesh_nodes = problem.global_normalized_mesh_nodes
+
+    # Additional mesh validation
+    if not (
+        len(global_normalized_mesh_nodes) == num_mesh_intervals + 1
+        and np.all(np.diff(global_normalized_mesh_nodes) > 1e-9)
+        and np.isclose(global_normalized_mesh_nodes[0], -1.0)
+        and np.isclose(global_normalized_mesh_nodes[-1], 1.0)
+    ):
+        raise ValueError(
+            "Global mesh nodes must be sorted, have num_mesh_intervals+1 elements, "
+            "start at -1.0, end at +1.0, with positive interval lengths."
+        )
 
     state_at_global_mesh_nodes_variables: ListOfCasadiMX = [
         opti.variable(num_states) for _ in range(num_mesh_intervals + 1)
@@ -696,105 +719,91 @@ def solve_single_phase_radau_collocation(problem: ProblemProtocol) -> OptimalCon
         for event_constraint in event_constraints_to_apply:
             _apply_constraint(opti, event_constraint)
 
-    if problem.initial_guess:
-        ig: InitialGuess = problem.initial_guess
+    # Apply initial guess with strict validation
+    if problem.initial_guess is None:
+        raise ValueError("Initial guess must be provided")
 
-        if ig.initial_time_variable is not None:
-            opti.set_initial(initial_time_variable, ig.initial_time_variable)
-        if ig.terminal_time_variable is not None:
-            opti.set_initial(terminal_time_variable, ig.terminal_time_variable)
+    ig: InitialGuess = problem.initial_guess
 
-        if ig.states:  # Check if list is not empty
-            # Initial state at global mesh node 0
-            if (
-                len(ig.states) > 0 and ig.states[0].shape[0] == num_states
-            ):  # ig.states[0] is FloatMatrix
-                opti.set_initial(state_at_global_mesh_nodes_variables[0], ig.states[0][:, 0])
+    # Time variables
+    if ig.initial_time_variable is not None:
+        opti.set_initial(initial_time_variable, ig.initial_time_variable)
+    if ig.terminal_time_variable is not None:
+        opti.set_initial(terminal_time_variable, ig.terminal_time_variable)
 
-            # States at subsequent global mesh nodes (interval end points)
-            for k in range(num_mesh_intervals):
-                if k < len(ig.states) and ig.states[k].shape[0] == num_states:
-                    # The guess for interval k applies to states up to the END of interval k
-                    # The last column of ig.states[k] is the state at the end of the interval k
-                    # which corresponds to state_at_global_mesh_nodes_variables[k+1]
-                    cols_in_guess_k = ig.states[k].shape[1]
-                    if cols_in_guess_k > 0:
-                        opti.set_initial(
-                            state_at_global_mesh_nodes_variables[k + 1], ig.states[k][:, -1]
-                        )
+    # States - strict dimension validation
+    if not ig.states:
+        raise ValueError("States initial guess must be provided")
 
-            # Interior state approximation nodes
-            for k in range(num_mesh_intervals):
-                interior_approx_nodes_var_k = (
-                    state_at_interior_local_approximation_nodes_all_intervals_variables[k]
-                )
-                if (
-                    interior_approx_nodes_var_k is not None
-                ):  # if num_interior_nodes > 0 for this interval
-                    num_interior_nodes_k = interior_approx_nodes_var_k.shape[
-                        1
-                    ]  # num_colloc_nodes - 1
-                    if k < len(ig.states) and ig.states[k].shape[0] == num_states:
-                        guess_matrix_k = ig.states[
-                            k
-                        ]  # FloatMatrix [num_states, num_nodes_in_guess_interval_k]
-                        # Guessed nodes for interval k: [start_node, interior_node_1, ..., interior_node_M, end_node]
-                        # We need to provide guesses for the interior_nodes_var (num_interior_nodes_k columns)
-                        # These correspond to guess_matrix_k[:, 1:-1] if available
-                        num_guessed_interior_nodes = guess_matrix_k.shape[1] - 2
-                        if (
-                            num_guessed_interior_nodes >= num_interior_nodes_k
-                            and num_interior_nodes_k > 0
-                        ):
-                            opti.set_initial(
-                                interior_approx_nodes_var_k,
-                                guess_matrix_k[:, 1 : 1 + num_interior_nodes_k],
-                            )
-                        elif (
-                            num_guessed_interior_nodes > 0 and num_interior_nodes_k > 0
-                        ):  # Pad if guess is shorter
-                            padded_guess = np.tile(
-                                guess_matrix_k[:, 1 : 1 + num_guessed_interior_nodes],
-                                (
-                                    1,
-                                    int(np.ceil(num_interior_nodes_k / num_guessed_interior_nodes)),
-                                ),
-                            )
-                            opti.set_initial(
-                                interior_approx_nodes_var_k, padded_guess[:, :num_interior_nodes_k]
-                            )
-                        # else: no good guess for interior points from this format, CasADi will use default 0.0
+    if len(ig.states) != num_mesh_intervals:
+        raise ValueError(
+            f"States guess must have {num_mesh_intervals} arrays, got {len(ig.states)}"
+        )
 
-        if ig.controls:  # Check if list is not empty
-            for k in range(num_mesh_intervals):
-                if k < len(ig.controls) and isinstance(
-                    ig.controls[k], np.ndarray
-                ):  # ig.controls[k] is FloatMatrix
-                    control_guess_k: FloatMatrix = ig.controls[k]
-                    target_var_k: CasadiMX = (
-                        control_at_local_collocation_nodes_all_intervals_variables[k]
-                    )
-                    nodes_needed_k: int = target_var_k.shape[
-                        1
-                    ]  # num_collocation_nodes_per_interval[k]
+    # Global mesh nodes (interval endpoints)
+    for k in range(num_mesh_intervals):
+        state_guess_k = ig.states[k]
 
-                    if control_guess_k.shape[0] == num_controls and control_guess_k.shape[1] > 0:
-                        if control_guess_k.shape[1] == nodes_needed_k:
-                            opti.set_initial(target_var_k, control_guess_k)
-                        elif control_guess_k.shape[1] < nodes_needed_k:  # Pad
-                            padding = np.tile(
-                                control_guess_k[:, -1:],
-                                (1, nodes_needed_k - control_guess_k.shape[1]),
-                            )
-                            padded_guess = np.hstack((control_guess_k, padding))
-                            opti.set_initial(target_var_k, padded_guess)
-                        else:  # Truncate
-                            opti.set_initial(target_var_k, control_guess_k[:, :nodes_needed_k])
-
-        if ig.integrals is not None and integral_decision_variables is not None:
-            _set_initial_value_for_integrals(
-                opti, integral_decision_variables, ig.integrals, num_integrals
+        # Validate dimensions strictly
+        expected_shape = (num_states, num_collocation_nodes_per_interval[k] + 1)
+        if state_guess_k.shape != expected_shape:
+            raise ValueError(
+                f"State guess for interval {k} has shape {state_guess_k.shape}, "
+                f"expected {expected_shape}"
             )
+
+        # Set initial mesh node (start of interval k)
+        if k == 0:
+            opti.set_initial(state_at_global_mesh_nodes_variables[0], state_guess_k[:, 0])
+
+        # Set final mesh node (end of interval k)
+        opti.set_initial(state_at_global_mesh_nodes_variables[k + 1], state_guess_k[:, -1])
+
+    # Interior state approximation nodes
+    for k in range(num_mesh_intervals):
+        interior_var = state_at_interior_local_approximation_nodes_all_intervals_variables[k]
+        if interior_var is not None:
+            state_guess_k = ig.states[k]
+            num_interior_nodes = interior_var.shape[1]
+
+            # Extract interior columns (excluding first and last)
+            if state_guess_k.shape[1] >= num_interior_nodes + 2:
+                interior_guess = state_guess_k[:, 1 : 1 + num_interior_nodes]
+                opti.set_initial(interior_var, interior_guess)
+            else:
+                raise ValueError(
+                    f"State guess for interval {k} has {state_guess_k.shape[1]} nodes, "
+                    f"but needs at least {num_interior_nodes + 2} for interior nodes"
+                )
+
+    # Controls - strict dimension validation
+    if not ig.controls:
+        raise ValueError("Controls initial guess must be provided")
+
+    if len(ig.controls) != num_mesh_intervals:
+        raise ValueError(
+            f"Controls guess must have {num_mesh_intervals} arrays, got {len(ig.controls)}"
+        )
+
+    for k in range(num_mesh_intervals):
+        control_guess_k = ig.controls[k]
+        expected_shape = (num_controls, num_collocation_nodes_per_interval[k])
+
+        if control_guess_k.shape != expected_shape:
+            raise ValueError(
+                f"Control guess for interval {k} has shape {control_guess_k.shape}, "
+                f"expected {expected_shape}"
+            )
+
+        opti.set_initial(
+            control_at_local_collocation_nodes_all_intervals_variables[k], control_guess_k
+        )
+
+    # Integrals - strict validation
+    if num_integrals > 0 and integral_decision_variables is not None:
+        _validate_and_set_integral_guess(
+            opti, integral_decision_variables, ig.integrals, num_integrals
+        )
 
     # Set solver options
     solver_options_to_use: dict[str, object] = problem.solver_options or {}
@@ -818,9 +827,7 @@ def solve_single_phase_radau_collocation(problem: ProblemProtocol) -> OptimalCon
         local_state_approximation_nodes_tau_all_intervals
     )
     opti.metadata_local_collocation_nodes_tau = local_collocation_nodes_tau_all_intervals
-    opti.metadata_global_normalized_mesh_nodes = (
-        global_normalized_mesh_nodes  # This is already a FloatArray
-    )
+    opti.metadata_global_normalized_mesh_nodes = global_normalized_mesh_nodes
     opti.symbolic_objective_function_reference = objective_value
 
     solution_obj: OptimalControlSolution

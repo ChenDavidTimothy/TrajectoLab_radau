@@ -23,10 +23,6 @@ integral_var = problem.add_integral(integral_expr)
 # Set the objective to minimize
 problem.minimize(integral_var)
 
-# Create an initial guess
-problem.set_initial_guess(x, 1.0)
-problem.set_initial_guess(u, 0.0)
-
 # Configure the solver
 adaptive_solver = RadauDirectSolver(
     mesh_method=PHSAdaptive(

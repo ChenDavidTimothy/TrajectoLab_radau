@@ -293,6 +293,8 @@ class ProblemProtocol(Protocol):
     initial_guess: Any
     solver_options: dict[str, object]
 
+    _mesh_configured: bool
+
     # Symbolic attributes
     _sym_states: dict[str, SymType]
     _sym_controls: dict[str, SymType]
@@ -307,6 +309,7 @@ class ProblemProtocol(Protocol):
     _integral_expressions: list[SymExpr]
     _integral_symbols: list[SymType]
 
+    def validate_initial_guess(self) -> None: ...
     def get_dynamics_function(self) -> DynamicsCallable: ...
     def get_objective_function(self) -> ObjectiveCallable: ...
     def get_integrand_function(self) -> IntegralIntegrandCallable | None: ...
