@@ -18,10 +18,11 @@ from trajectolab.tl_types import (
     _StateEvaluator,
 )
 
+
 __all__ = [
-    "simulate_dynamics_for_error_estimation",
-    "calculate_relative_error_estimate",
     "calculate_gamma_normalizers",
+    "calculate_relative_error_estimate",
+    "simulate_dynamics_for_error_estimation",
 ]
 
 

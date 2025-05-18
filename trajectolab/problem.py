@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, List, Optional, Union
+from collections.abc import Callable
+from typing import Any, Optional, Union
 
 import casadi as ca
 import numpy as np
@@ -125,27 +126,27 @@ class Problem:
         self.name = name
 
         # Symbolic variables
-        self._sym_states: Dict[str, _SymType] = {}
-        self._sym_controls: Dict[str, _SymType] = {}
-        self._sym_parameters: Dict[str, _SymType] = {}
+        self._sym_states: dict[str, _SymType] = {}
+        self._sym_controls: dict[str, _SymType] = {}
+        self._sym_parameters: dict[str, _SymType] = {}
         self._sym_time: Optional[_SymType] = None
         self._sym_time_initial: Optional[_SymType] = None
         self._sym_time_final: Optional[_SymType] = None
 
         # Store state and control metadata
-        self._states: Dict[str, Dict[str, Any]] = {}
-        self._controls: Dict[str, Dict[str, Any]] = {}
+        self._states: dict[str, dict[str, Any]] = {}
+        self._controls: dict[str, dict[str, Any]] = {}
         self._parameters: _ProblemParameters = {}
 
         # Expressions for dynamics, objectives, and constraints
-        self._dynamics_expressions: Dict[_SymType, _SymExpr] = {}
+        self._dynamics_expressions: dict[_SymType, _SymExpr] = {}
         self._objective_expression: Optional[_SymExpr] = None
         self._objective_type: Optional[str] = None
-        self._constraints: List[_SymExpr] = []
+        self._constraints: list[_SymExpr] = []
 
         # Integral expressions and symbols
-        self._integral_expressions: List[_SymExpr] = []
-        self._integral_symbols: List[_SymType] = []
+        self._integral_expressions: list[_SymExpr] = []
+        self._integral_symbols: list[_SymType] = []
         self._num_integrals: int = 0
 
         # Time bounds
@@ -159,7 +160,7 @@ class Problem:
         # Initial guess and solver options
         self.initial_guess: Any = None
         self.default_initial_guess_values: Any = None
-        self.solver_options: Dict[str, Any] = {}
+        self.solver_options: dict[str, Any] = {}
 
     def time(
         self, initial: float = 0.0, final: float | None = None, free_final: bool = False
@@ -286,7 +287,7 @@ class Problem:
 
         return sym_var
 
-    def dynamics(self, dynamics_dict: Dict[_SymType, _SymExpr]) -> None:
+    def dynamics(self, dynamics_dict: dict[_SymType, _SymExpr]) -> None:
         """
         Set system dynamics using symbolic expressions.
 
@@ -520,7 +521,7 @@ class Problem:
             controls_vec: _CasadiMX,
             time: _CasadiMX,
             params: _ProblemParameters,
-        ) -> List[_CasadiMX]:
+        ) -> list[_CasadiMX]:
             # Extract parameter values in correct order
             param_values = []
             for name in self._sym_parameters:
@@ -738,10 +739,10 @@ class Problem:
     def _symbolic_constraint_to_event_constraint(self, expr: _SymExpr) -> EventConstraint:
         """
         Convert symbolic constraint to EventConstraint object.
-    
+
         Args:
             expr: Constraint expression
-    
+
         Returns:
             EventConstraint object
         """
@@ -750,23 +751,23 @@ class Problem:
             lhs = expr.dep(0)
             rhs = expr.dep(1)
             return EventConstraint(val=lhs - rhs, equals=0.0)
-    
+
         # Handle inequality constraints: expr <= value or expr >= value
         elif isinstance(expr, ca.MX) and expr.is_op(ca.OP_LE):
             lhs = expr.dep(0)
             rhs = expr.dep(1)
             # Reformulate as lhs - rhs <= 0 to handle symbolic rhs
             return EventConstraint(val=lhs - rhs, max_val=0.0)
-    
+
         elif isinstance(expr, ca.MX) and expr.is_op(ca.OP_GE):
             lhs = expr.dep(0)
             rhs = expr.dep(1)
             # Reformulate as lhs - rhs >= 0 to handle symbolic rhs
             return EventConstraint(val=lhs - rhs, min_val=0.0)
-    
+
         # Default case
         return EventConstraint(val=expr, equals=0.0)
-    
+
     def get_path_constraints_function(self) -> Callable | None:
         """
         Convert symbolic path constraints to a function compatible with solver.

@@ -10,13 +10,14 @@ import numpy as np
 
 from trajectolab.tl_types import _FloatArray, _FloatMatrix
 
+
 __all__ = [
     "AdaptiveParameters",
-    "IntervalSimulationBundle",
-    "PRefineResult",
     "HRefineResult",
-    "PReduceResult",
+    "IntervalSimulationBundle",
     "NumPyDynamicsAdapter",
+    "PReduceResult",
+    "PRefineResult",
 ]
 
 

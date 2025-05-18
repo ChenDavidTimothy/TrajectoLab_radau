@@ -13,13 +13,14 @@ from trajectolab.tl_types import (
     _FloatMatrix,
 )
 
+
 __all__ = [
     "PolynomialInterpolant",
     "get_polynomial_interpolant",
     "map_global_normalized_tau_to_local_interval_tau",
     "map_local_interval_tau_to_global_normalized_tau",
-    "map_local_tau_from_interval_k_to_equivalent_in_interval_k_plus_1",
     "map_local_tau_from_interval_k_plus_1_to_equivalent_in_interval_k",
+    "map_local_tau_from_interval_k_to_equivalent_in_interval_k_plus_1",
 ]
 
 

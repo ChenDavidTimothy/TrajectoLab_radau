@@ -11,4 +11,5 @@ from trajectolab.adaptive.phs.data_structures import (
     PRefineResult,
 )
 
-__all__ = ["PHSAdaptive", "AdaptiveParameters"]
+
+__all__ = ["AdaptiveParameters", "PHSAdaptive"]

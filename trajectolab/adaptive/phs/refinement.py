@@ -26,7 +26,8 @@ from trajectolab.tl_types import (
     _StateEvaluator,
 )
 
-__all__ = ["p_refine_interval", "h_refine_params", "p_reduce_interval", "h_reduce_intervals"]
+
+__all__ = ["h_reduce_intervals", "h_refine_params", "p_reduce_interval", "p_refine_interval"]
 
 
 def p_refine_interval(
@@ -119,7 +120,7 @@ def h_reduce_intervals(
     Checks if two adjacent intervals can be merged.
     Returns True if merge is successful (error condition met).
     """
-    print(f"    h-reduction check for intervals {first_idx} and {first_idx+1}.")
+    print(f"    h-reduction check for intervals {first_idx} and {first_idx + 1}.")
 
     from trajectolab.adaptive.phs.data_structures import NumPyDynamicsAdapter
 
@@ -416,7 +417,7 @@ def h_reduce_intervals(
 
     if can_merge:
         print(
-            f"      h-reduction condition met. Merge approved for intervals {first_idx}, {first_idx+1}."
+            f"      h-reduction condition met. Merge approved for intervals {first_idx}, {first_idx + 1}."
         )
     else:
         print(

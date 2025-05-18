@@ -12,6 +12,7 @@ import numpy as np
 from numpy import int_ as np_int_
 from numpy.typing import NDArray
 
+
 # --- Core Numerical Type Aliases ---
 _FloatArray: TypeAlias = NDArray[np.float64]
 _FloatMatrix: TypeAlias = NDArray[np.float64]

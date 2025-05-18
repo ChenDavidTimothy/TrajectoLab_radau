@@ -12,15 +12,16 @@ from trajectolab.problem import Constraint, Problem
 from trajectolab.solution import Solution
 from trajectolab.solver import RadauDirectSolver, solve
 
+
 __all__ = [
+    "Constraint",
+    "FixedMesh",
+    "InitialGuess",
+    "PHSAdaptive",
     "Problem",
+    "RadauDirectSolver",
     "Solution",
     "solve",
-    "RadauDirectSolver",
-    "PHSAdaptive",
-    "FixedMesh",
-    "Constraint",
-    "InitialGuess",
 ]
 
 __version__ = "0.1.0"

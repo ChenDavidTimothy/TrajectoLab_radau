@@ -2,7 +2,8 @@
 Main PHS adaptive algorithm implementation.
 """
 
-from typing import Sequence, cast
+from collections.abc import Sequence
+from typing import cast
 
 import numpy as np
 
@@ -398,10 +399,10 @@ class PHSAdaptive(AdaptiveBase):
 
             # If all errors within tolerance, return solution
             if all_errors_ok:
-                print(f"Mesh converged after {iteration+1} iterations.")
+                print(f"Mesh converged after {iteration + 1} iterations.")
                 solution.num_collocation_nodes_per_interval = current_nodes_list.copy()
                 solution.global_normalized_mesh_nodes = np.copy(current_mesh)
-                solution.message = f"Adaptive mesh converged to tolerance {error_tol:.1e} in {iteration+1} iterations."
+                solution.message = f"Adaptive mesh converged to tolerance {error_tol:.1e} in {iteration + 1} iterations."
                 return solution
 
             # Refine mesh for next iteration
@@ -458,7 +459,7 @@ class PHSAdaptive(AdaptiveBase):
                             and next_error <= error_tol
                         ):
                             print(
-                                f"      Interval {k+1} also has low error ({next_error:.2e}). Eligible for h-reduction."
+                                f"      Interval {k + 1} also has low error ({next_error:.2e}). Eligible for h-reduction."
                             )
 
                             # Check if interpolants are non-None before passing to h_reduce_intervals
@@ -473,7 +474,6 @@ class PHSAdaptive(AdaptiveBase):
                                     )
                                 )
                             ):
-
                                 # Ensure we don't pass None to functions that can't handle it
                                 state_eval_first = cast(_StateEvaluator, state_evaluators[k])
                                 state_eval_second = cast(_StateEvaluator, state_evaluators[k + 1])
@@ -506,7 +506,7 @@ class PHSAdaptive(AdaptiveBase):
 
                     if can_merge:
                         # h-reduction successful, merge intervals
-                        print(f"      h-reduction applied to merge interval {k} and {k+1}.")
+                        print(f"      h-reduction applied to merge interval {k} and {k + 1}.")
 
                         # Use maximum Nk from the two intervals being merged
                         merged_Nk = max(current_nodes_list[k], current_nodes_list[k + 1])
@@ -552,7 +552,7 @@ class PHSAdaptive(AdaptiveBase):
                     return early_return_solution
 
                 if current_nodes_list and len(current_nodes_list) != (len(current_mesh) - 1):
-                    error_msg = f"Mesh structure inconsistent. num_nodes_list len: {len(current_nodes_list)}, mesh_nodes len-1: {len(current_mesh)-1}."
+                    error_msg = f"Mesh structure inconsistent. num_nodes_list len: {len(current_nodes_list)}, mesh_nodes len-1: {len(current_mesh) - 1}."
                     print(f"  Error: {error_msg} Stopping.")
                     early_return_solution.message = error_msg
                     early_return_solution.success = False
@@ -578,7 +578,7 @@ class PHSAdaptive(AdaptiveBase):
                         problem_pairs = (
                             ", ".join(
                                 [
-                                    f"({unique_nodes[i]:.3f}, {unique_nodes[i+1]:.3f})"
+                                    f"({unique_nodes[i]:.3f}, {unique_nodes[i + 1]:.3f})"
                                     for i in problem_indices
                                 ]
                             )

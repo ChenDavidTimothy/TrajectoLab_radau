@@ -7,6 +7,7 @@ import numpy as np
 # Import centralized type definitions and constants
 from .tl_types import ZERO_TOLERANCE, _FloatArray, _FloatMatrix
 
+
 # SciPy is a common dependency for such calculations, ensure it's available.
 
 

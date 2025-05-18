@@ -1,14 +1,50 @@
 @echo off
-echo Running isort to organize imports...
-python -m isort .
+setlocal enabledelayedexpansion
 
-echo Running black code formatter...
-python -m black .
+echo ============================================================================
+echo TrajectoLab Code Quality Check
+echo ============================================================================
 
-echo Running ruff for linting and fixing...
+set "OVERALL_SUCCESS=1"
+
+echo.
+echo [1/3] Running Ruff for linting and auto-fixes...
 python -m ruff check --fix .
+if !errorlevel! neq 0 (
+    echo WARNING: Ruff linting found issues!
+    set "OVERALL_SUCCESS=0"
+) else (
+    echo ✓ Ruff linting passed
+)
 
-echo Running mypy for type checking...
+echo.
+echo [2/3] Running Ruff for code formatting...
+python -m ruff format .
+if !errorlevel! neq 0 (
+    echo WARNING: Ruff formatting found issues!
+    set "OVERALL_SUCCESS=0"
+) else (
+    echo ✓ Ruff formatting passed
+)
+
+echo.
+echo [3/3] Running MyPy for type checking...
 python -m mypy --exclude build trajectolab
+if !errorlevel! neq 0 (
+    echo WARNING: MyPy type checking found issues!
+    set "OVERALL_SUCCESS=0"
+) else (
+    echo ✓ MyPy type checking passed
+)
 
-echo Linting and formatting complete!
+echo.
+echo ============================================================================
+if "%OVERALL_SUCCESS%"=="1" (
+    echo ✓ All checks passed! Code is ready for commit.
+    echo ============================================================================
+    exit /b 0
+) else (
+    echo ✗ Some checks failed. Please fix the issues above.
+    echo ============================================================================
+    exit /b 1
+)

@@ -1,4 +1,5 @@
-from trajectolab import PHSAdaptive, FixedMesh, Problem, RadauDirectSolver, solve
+from trajectolab import FixedMesh, PHSAdaptive, Problem, RadauDirectSolver, solve
+
 
 # Define the hypersensitive problem using the symbolic API
 problem = Problem("Hypersensitive Problem")

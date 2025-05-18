@@ -11,6 +11,7 @@ from trajectolab.tl_types import (
     _FloatMatrix,
 )
 
+
 __all__ = [
     "generate_robust_default_initial_guess",
     "propagate_guess_from_previous",
