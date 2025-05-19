@@ -2,10 +2,10 @@
 Core data structures for the PHS adaptive algorithm.
 """
 
+import logging
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any
 
-import casadi as ca
 import numpy as np
 
 from trajectolab.tl_types import FloatArray, FloatMatrix
@@ -15,10 +15,12 @@ __all__ = [
     "AdaptiveParameters",
     "HRefineResult",
     "IntervalSimulationBundle",
-    "NumPyDynamicsAdapter",
     "PReduceResult",
     "PRefineResult",
+    "extract_and_prepare_array",
 ]
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -84,42 +86,14 @@ class PReduceResult:
     was_reduction_applied: bool
 
 
-class NumPyDynamicsAdapter:
-    """Adapter to use CasADi dynamics with NumPy arrays for simulation."""
-
-    def __init__(self, casadi_dynamics_func: Any, problem_parameters: dict[str, Any]):
-        self.casadi_dynamics_func = casadi_dynamics_func
-        self.problem_parameters = problem_parameters
-
-    def __call__(self, state: FloatArray, control: FloatArray, time: float) -> FloatArray:
-        """Convert NumPy arrays to CasADi, call dynamics, convert back to NumPy."""
-        # Convert inputs to CasADi
-        state_dm = ca.DM(state)
-        control_dm = ca.DM(control)
-        time_dm = ca.DM([time])
-
-        # Call CasADi dynamics function
-        result_casadi = self.casadi_dynamics_func(
-            state_dm, control_dm, time_dm, self.problem_parameters
-        )
-
-        # Convert result back to NumPy
-        if isinstance(result_casadi, ca.DM):
-            result_np = np.array(result_casadi.full(), dtype=np.float64).flatten()
-        else:
-            # Handle array of MX objects
-            dm_result = ca.DM(len(result_casadi), 1)
-            for i, item in enumerate(result_casadi):
-                dm_result[i] = ca.evalf(item)
-            result_np = np.array(dm_result.full(), dtype=np.float64).flatten()
-
-        return cast(FloatArray, result_np)
-
-
-def _extract_and_prepare_array(
+def extract_and_prepare_array(
     casadi_value: Any, expected_rows: int, expected_cols: int
 ) -> FloatMatrix:
-    """Extracts numerical value from CasADi and ensures correct 2D shape."""
+    """
+    Extracts numerical value from CasADi and ensures correct 2D shape.
+
+    This function consolidates array extraction logic used throughout the adaptive algorithm.
+    """
     # Convert to numpy array
     if hasattr(casadi_value, "to_DM"):
         np_array = np.array(casadi_value.to_DM(), dtype=np.float64)
@@ -146,5 +120,9 @@ def _extract_and_prepare_array(
         squeezed = np_array.squeeze()
         if squeezed.ndim == 1 and expected_rows == 1 and len(squeezed) == expected_cols:
             np_array = squeezed.reshape(1, expected_cols)
+        else:
+            logger.warning(
+                f"Array shape mismatch: got {np_array.shape}, expected ({expected_rows}, {expected_cols})"
+            )
 
     return np_array

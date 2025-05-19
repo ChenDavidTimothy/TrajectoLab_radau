@@ -11,6 +11,7 @@ from trajectolab.adaptive.phs.data_structures import (
     HRefineResult,
     PReduceResult,
     PRefineResult,
+    extract_and_prepare_array,
 )
 from trajectolab.adaptive.phs.numerical import (
     map_local_interval_tau_to_global_normalized_tau,
@@ -28,6 +29,31 @@ from trajectolab.tl_types import (
 
 
 __all__ = ["h_reduce_intervals", "h_refine_params", "p_reduce_interval", "p_refine_interval"]
+
+
+def _convert_casadi_to_numpy_for_refinement(casadi_dynamics_func, state, control, time, params):
+    """Convert CasADi dynamics function call to NumPy arrays for refinement."""
+    import casadi as ca
+
+    # Convert to CasADi
+    state_dm = ca.DM(state)
+    control_dm = ca.DM(control)
+    time_dm = ca.DM([time])
+
+    # Call dynamics
+    result_casadi = casadi_dynamics_func(state_dm, control_dm, time_dm, params)
+
+    # Convert back to NumPy
+    if isinstance(result_casadi, ca.DM):
+        result_np = np.array(result_casadi.full(), dtype=np.float64).flatten()
+    else:
+        # Handle array of MX objects
+        dm_result = ca.DM(len(result_casadi), 1)
+        for i, item in enumerate(result_casadi):
+            dm_result[i] = ca.evalf(item)
+        result_np = np.array(dm_result.full(), dtype=np.float64).flatten()
+
+    return cast(FloatArray, result_np)
 
 
 def p_refine_interval(
@@ -122,8 +148,6 @@ def h_reduce_intervals(
     """
     print(f"    h-reduction check for intervals {first_idx} and {first_idx + 1}.")
 
-    from trajectolab.adaptive.phs.data_structures import NumPyDynamicsAdapter
-
     error_tol = adaptive_params.error_tolerance
     ode_rtol = adaptive_params.ode_solver_tolerance
     ode_atol = ode_rtol * 1e-1
@@ -132,9 +156,6 @@ def h_reduce_intervals(
     num_states = len(problem._states)
     casadi_dynamics_function = problem.get_dynamics_function()
     problem_parameters = problem._parameters
-
-    # Create NumPy adapter for dynamics function
-    numpy_dynamics = NumPyDynamicsAdapter(casadi_dynamics_function, problem_parameters)
 
     if solution.raw_solution is None:
         print("      h-reduction failed: Raw solution missing.")
@@ -192,8 +213,10 @@ def h_reduce_intervals(
         )
         t_actual = alpha * global_tau + alpha_0
 
-        # Use NumPy dynamics adapter
-        f_rhs_np = numpy_dynamics(state_clipped, u_val, t_actual)
+        # Use converted dynamics function
+        f_rhs_np = _convert_casadi_to_numpy_for_refinement(
+            casadi_dynamics_function, state_clipped, u_val, t_actual, problem_parameters
+        )
         return cast(FloatArray, scaling_k * f_rhs_np)
 
     def merged_bwd_rhs(local_tau_kp1: float, state: FloatArray) -> FloatArray:
@@ -205,14 +228,14 @@ def h_reduce_intervals(
         )
         t_actual = alpha * global_tau + alpha_0
 
-        # Use NumPy dynamics adapter
-        f_rhs_np = numpy_dynamics(state_clipped, u_val, t_actual)
+        # Use converted dynamics function
+        f_rhs_np = _convert_casadi_to_numpy_for_refinement(
+            casadi_dynamics_function, state_clipped, u_val, t_actual, problem_parameters
+        )
         return cast(FloatArray, scaling_kp1 * f_rhs_np)
 
     # Get state values at interval endpoints
     try:
-        from trajectolab.adaptive.phs.data_structures import _extract_and_prepare_array
-
         Y_solved_list = solution.solved_state_trajectories_per_interval
         Nk_k = problem.collocation_points_per_interval[first_idx]
         Nk_kp1 = problem.collocation_points_per_interval[first_idx + 1]
@@ -229,7 +252,7 @@ def h_reduce_intervals(
             Xk_nlp_raw = raw_sol.value(
                 opti.state_at_local_approximation_nodes_all_intervals_variables[first_idx]
             )
-            Xk_nlp = _extract_and_prepare_array(Xk_nlp_raw, num_states, Nk_k + 1)
+            Xk_nlp = extract_and_prepare_array(Xk_nlp_raw, num_states, Nk_k + 1)
 
         initial_state_fwd = Xk_nlp[:, 0].flatten()
     except Exception as e:
@@ -240,15 +263,7 @@ def h_reduce_intervals(
     target_end_tau_k = map_local_tau_from_interval_k_plus_1_to_equivalent_in_interval_k(
         1.0, tau_start_k, tau_shared, tau_end_kp1
     )
-    num_fwd_pts = max(
-        num_sim_points // 2,
-        (
-            int(num_sim_points * (target_end_tau_k - (-1.0)) / 2.0)
-            if target_end_tau_k > -1.0
-            else num_sim_points // 2
-        ),
-    )
-    num_fwd_pts = max(2, num_fwd_pts)
+    num_fwd_pts = max(2, num_sim_points // 2)
     fwd_tau_points = np.linspace(-1.0, target_end_tau_k, num_fwd_pts, dtype=np.float64)
 
     print(
@@ -295,7 +310,7 @@ def h_reduce_intervals(
             Xkp1_nlp_raw = raw_sol.value(
                 opti.state_at_local_approximation_nodes_all_intervals_variables[first_idx + 1]
             )
-            Xkp1_nlp = _extract_and_prepare_array(Xkp1_nlp_raw, num_states, Nk_kp1 + 1)
+            Xkp1_nlp = extract_and_prepare_array(Xkp1_nlp_raw, num_states, Nk_kp1 + 1)
 
         terminal_state_bwd = Xkp1_nlp[:, -1].flatten()
     except Exception as e:
@@ -306,15 +321,7 @@ def h_reduce_intervals(
     target_end_tau_kp1 = map_local_tau_from_interval_k_to_equivalent_in_interval_k_plus_1(
         -1.0, tau_start_k, tau_shared, tau_end_kp1
     )
-    num_bwd_pts = max(
-        num_sim_points // 2,
-        (
-            int(num_sim_points * (1.0 - target_end_tau_kp1) / 2.0)
-            if target_end_tau_kp1 < 1.0
-            else num_sim_points // 2
-        ),
-    )
-    num_bwd_pts = max(2, num_bwd_pts)
+    num_bwd_pts = max(2, num_sim_points // 2)
     bwd_tau_points = np.linspace(1.0, target_end_tau_kp1, num_bwd_pts, dtype=np.float64)
     sorted_bwd_tau_points = np.flip(bwd_tau_points)
 

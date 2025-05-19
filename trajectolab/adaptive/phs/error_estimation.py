@@ -2,12 +2,13 @@
 Error estimation functions for the PHS adaptive algorithm.
 """
 
+import logging
 from typing import cast
 
 import numpy as np
 from scipy.integrate import solve_ivp
 
-from trajectolab.adaptive.phs.data_structures import IntervalSimulationBundle, NumPyDynamicsAdapter
+from trajectolab.adaptive.phs.data_structures import IntervalSimulationBundle
 from trajectolab.direct_solver import OptimalControlSolution
 from trajectolab.tl_types import (
     ControlEvaluator,
@@ -25,6 +26,82 @@ __all__ = [
     "simulate_dynamics_for_error_estimation",
 ]
 
+# Set up logging for this module
+logger = logging.getLogger(__name__)
+
+
+def _convert_casadi_to_numpy(casadi_dynamics_func, state, control, time, params):
+    """Convert CasADi dynamics function call to NumPy arrays."""
+    import casadi as ca
+
+    # Convert to CasADi
+    state_dm = ca.DM(state)
+    control_dm = ca.DM(control)
+    time_dm = ca.DM([time])
+
+    # Call dynamics
+    result_casadi = casadi_dynamics_func(state_dm, control_dm, time_dm, params)
+
+    # Convert back to NumPy
+    if isinstance(result_casadi, ca.DM):
+        result_np = np.array(result_casadi.full(), dtype=np.float64).flatten()
+    else:
+        # Handle array of MX objects
+        dm_result = ca.DM(len(result_casadi), 1)
+        for i, item in enumerate(result_casadi):
+            dm_result[i] = ca.evalf(item)
+        result_np = np.array(dm_result.full(), dtype=np.float64).flatten()
+
+    return cast(FloatArray, result_np)
+
+
+def _simulate_forward(
+    dynamics_rhs,
+    initial_state: FloatArray,
+    tau_points: FloatArray,
+    ode_solver: ODESolverCallable,
+    ode_rtol: float,
+) -> tuple[bool, FloatArray]:
+    """Simulate forward dynamics."""
+    try:
+        sim_result = ode_solver(
+            dynamics_rhs,
+            t_span=(-1, 1),
+            y0=initial_state,
+            t_eval=tau_points,
+            method="RK45",
+            rtol=ode_rtol,
+            atol=ode_rtol * 1e-2,
+        )
+        return sim_result.success, sim_result.y if sim_result.success else np.array([])
+    except Exception as e:
+        logger.error(f"Forward simulation failed: {e}")
+        return False, np.array([])
+
+
+def _simulate_backward(
+    dynamics_rhs,
+    terminal_state: FloatArray,
+    tau_points: FloatArray,
+    ode_solver: ODESolverCallable,
+    ode_rtol: float,
+) -> tuple[bool, FloatArray]:
+    """Simulate backward dynamics."""
+    try:
+        sim_result = ode_solver(
+            dynamics_rhs,
+            t_span=(1, -1),
+            y0=terminal_state,
+            t_eval=tau_points,
+            method="RK45",
+            rtol=ode_rtol,
+            atol=ode_rtol * 1e-2,
+        )
+        return sim_result.success, np.fliplr(sim_result.y) if sim_result.success else np.array([])
+    except Exception as e:
+        logger.error(f"Backward simulation failed: {e}")
+        return False, np.array([])
+
 
 def simulate_dynamics_for_error_estimation(
     interval_idx: int,
@@ -40,51 +117,39 @@ def simulate_dynamics_for_error_estimation(
     Simulates dynamics forward and backward for error estimation.
     Uses pre-computed polynomial interpolants for state and control.
     """
-    result = IntervalSimulationBundle(
-        are_forward_and_backward_simulations_successful=False
-    )  # Default to failure
+    result = IntervalSimulationBundle(are_forward_and_backward_simulations_successful=False)
 
     if not solution.success or solution.raw_solution is None:
-        print(
-            f"    Warning: NLP solution unsuccessful for interval {interval_idx} in error simulation."
-        )
+        logger.warning(f"NLP solution unsuccessful for interval {interval_idx}")
         return result
 
     num_states = len(problem._states)
-    # Remove the unused variable warning by adding underscore
-    _num_controls = len(problem._controls)
     casadi_dynamics_function = problem.get_dynamics_function()
     problem_parameters = problem._parameters
 
-    # Create NumPy adapter for dynamics function
-    numpy_dynamics = NumPyDynamicsAdapter(casadi_dynamics_function, problem_parameters)
+    # Validate time variables
+    if solution.initial_time_variable is None or solution.terminal_time_variable is None:
+        logger.error(f"Missing time variables for interval {interval_idx}")
+        return result
 
     # Time transformation parameters
     t0 = solution.initial_time_variable
     tf = solution.terminal_time_variable
-
-    # Check for None before arithmetic operations
-    if t0 is None or tf is None:
-        print(
-            f"    Warning: Initial or terminal time is None for interval {interval_idx}. Skipping simulation."
-        )
-        return result
-
     alpha = (tf - t0) / 2.0
     alpha_0 = (tf + t0) / 2.0
 
-    # Check if global_mesh is None before indexing
-    global_mesh = solution.global_normalized_mesh_nodes
-    if global_mesh is None:
-        print(f"    Warning: Global mesh is None for interval {interval_idx}. Skipping simulation.")
+    # Validate global mesh
+    if solution.global_normalized_mesh_nodes is None:
+        logger.error(f"Missing global mesh for interval {interval_idx}")
         return result
 
+    global_mesh = solution.global_normalized_mesh_nodes
     tau_start = global_mesh[interval_idx]
     tau_end = global_mesh[interval_idx + 1]
 
     beta_k = (tau_end - tau_start) / 2.0
     if abs(beta_k) < 1e-12:
-        print(f"    Warning: Interval {interval_idx} has zero length. Skipping simulation.")
+        logger.warning(f"Interval {interval_idx} has zero length")
         return result
 
     beta_k0 = (tau_end + tau_start) / 2.0
@@ -95,93 +160,73 @@ def simulate_dynamics_for_error_estimation(
         # Get control from interpolant
         control = control_evaluator(tau)
         if control.ndim > 1:
-            control = control.flatten()  # Ensure 1D for dynamics
+            control = control.flatten()
 
         # Convert to global coordinates and physical time
         global_tau = beta_k * tau + beta_k0
         physical_time = alpha * global_tau + alpha_0
 
-        # Use the NumPy dynamics adapter
-        state_deriv_np = numpy_dynamics(state, control, physical_time)
+        # Use the converted dynamics
+        state_deriv_np = _convert_casadi_to_numpy(
+            casadi_dynamics_function, state, control, physical_time, problem_parameters
+        )
 
         if state_deriv_np.shape[0] != num_states:
             raise ValueError(
-                f"Dynamics function output dimension mismatch. Expected {num_states}, got {state_deriv_np.shape[0]}."
+                f"Dynamics output dimension mismatch. Expected {num_states}, got {state_deriv_np.shape[0]}"
             )
 
         return cast(FloatArray, overall_scaling * state_deriv_np)
 
-    # Forward simulation (IVP)
+    # Forward simulation
     initial_state = state_evaluator(-1.0)
     if initial_state.ndim > 1:
         initial_state = initial_state.flatten()
 
     fwd_tau_points = np.linspace(-1, 1, n_eval_points, dtype=np.float64)
-
-    # Call solve_ivp with kwargs
-    fwd_sim = ode_solver(
-        dynamics_rhs,
-        t_span=(-1, 1),
-        y0=initial_state,
-        t_eval=fwd_tau_points,
-        method="RK45",
-        rtol=ode_rtol,
-        atol=ode_rtol * 1e-2,
+    fwd_success, fwd_trajectory = _simulate_forward(
+        dynamics_rhs, initial_state, fwd_tau_points, ode_solver, ode_rtol
     )
 
+    # Store forward results
     result.forward_simulation_local_tau_evaluation_points = fwd_tau_points
-    if fwd_sim.success:
-        result.state_trajectory_from_forward_simulation = fwd_sim.y
+    if fwd_success:
+        result.state_trajectory_from_forward_simulation = fwd_trajectory
     else:
         result.state_trajectory_from_forward_simulation = np.full(
             (num_states, len(fwd_tau_points)), np.nan, dtype=np.float64
         )
-        print(f"    Fwd IVP fail int {interval_idx}: {fwd_sim.message}")
 
     result.nlp_state_trajectory_evaluated_at_forward_simulation_points = state_evaluator(
         fwd_tau_points
     )
 
-    # Backward simulation (TVP)
+    # Backward simulation
     terminal_state = state_evaluator(1.0)
     if terminal_state.ndim > 1:
         terminal_state = terminal_state.flatten()
 
     bwd_tau_points = np.linspace(1, -1, n_eval_points, dtype=np.float64)
-
-    # Call solve_ivp with kwargs
-    bwd_sim = ode_solver(
-        dynamics_rhs,
-        t_span=(1, -1),
-        y0=terminal_state,
-        t_eval=bwd_tau_points,
-        method="RK45",
-        rtol=ode_rtol,
-        atol=ode_rtol * 1e-2,
+    bwd_success, bwd_trajectory = _simulate_backward(
+        dynamics_rhs, terminal_state, bwd_tau_points, ode_solver, ode_rtol
     )
 
-    # Create the reversed tau points
+    # Store backward results
     sorted_bwd_tau_points = np.flip(bwd_tau_points)
+    result.backward_simulation_local_tau_evaluation_points = sorted_bwd_tau_points
 
-    if bwd_sim.success:
-        result.backward_simulation_local_tau_evaluation_points = np.array(
-            sorted_bwd_tau_points, dtype=np.float64
-        )
-        result.state_trajectory_from_backward_simulation = np.fliplr(bwd_sim.y)
+    if bwd_success:
+        result.state_trajectory_from_backward_simulation = bwd_trajectory
     else:
-        result.backward_simulation_local_tau_evaluation_points = np.array(
-            sorted_bwd_tau_points, dtype=np.float64
-        )
         result.state_trajectory_from_backward_simulation = np.full(
             (num_states, len(sorted_bwd_tau_points)), np.nan, dtype=np.float64
         )
-        print(f"    Bwd TVP fail int {interval_idx}: {bwd_sim.message}")
 
     result.nlp_state_trajectory_evaluated_at_backward_simulation_points = state_evaluator(
         sorted_bwd_tau_points
     )
 
-    result.are_forward_and_backward_simulations_successful = fwd_sim.success and bwd_sim.success
+    result.are_forward_and_backward_simulations_successful = fwd_success and bwd_success
     return result
 
 
@@ -197,23 +242,19 @@ def calculate_relative_error_estimate(
         or sim_bundle.state_trajectory_from_backward_simulation is None
         or sim_bundle.nlp_state_trajectory_evaluated_at_backward_simulation_points is None
     ):
-        print(
-            f"    Interval {interval_idx}: Simulation results incomplete or failed. Returning np.inf."
-        )
+        logger.warning(f"Incomplete simulation results for interval {interval_idx}")
         return np.inf
 
     num_states = sim_bundle.state_trajectory_from_forward_simulation.shape[0]
     if num_states == 0:
-        return 0.0  # No states, no error
+        return 0.0
 
-    # Forward errors - add debugging to see what's happening
+    # Forward errors
     fwd_diff = np.abs(
         sim_bundle.state_trajectory_from_forward_simulation
         - sim_bundle.nlp_state_trajectory_evaluated_at_forward_simulation_points
     )
-    print(
-        f"    DEBUG: Forward differences shape: {fwd_diff.shape}, Max raw diff: {np.max(fwd_diff)}"
-    )
+    logger.debug(f"Forward max difference for interval {interval_idx}: {np.max(fwd_diff):.2e}")
 
     fwd_errors = gamma_factors * fwd_diff
     max_fwd_errors = (
@@ -227,9 +268,7 @@ def calculate_relative_error_estimate(
         sim_bundle.state_trajectory_from_backward_simulation
         - sim_bundle.nlp_state_trajectory_evaluated_at_backward_simulation_points
     )
-    print(
-        f"    DEBUG: Backward differences shape: {bwd_diff.shape}, Max raw diff: {np.max(bwd_diff)}"
-    )
+    logger.debug(f"Backward max difference for interval {interval_idx}: {np.max(bwd_diff):.2e}")
 
     bwd_errors = gamma_factors * bwd_diff
     max_bwd_errors = (
@@ -238,20 +277,16 @@ def calculate_relative_error_estimate(
         else np.zeros(num_states, dtype=np.float64)
     )
 
-    # Take maximum of forward and backward errors for each state
+    # Combined error
     max_errors_per_state = np.maximum(max_fwd_errors, max_bwd_errors)
-
-    # Overall maximum error across all states
     max_error = np.nanmax(max_errors_per_state) if max_errors_per_state.size > 0 else np.inf
 
-    # Ensure we never return exactly zero error (numerical tolerance)
+    # Ensure minimum error threshold
     if max_error < 1e-15:
         max_error = 1e-15
 
     if np.isnan(max_error):
-        print(
-            f"    Interval {interval_idx}: Error calculation resulted in NaN. Treating as high error (np.inf)."
-        )
+        logger.warning(f"Error calculation resulted in NaN for interval {interval_idx}")
         return np.inf
 
     return float(max_error)
@@ -266,11 +301,11 @@ def calculate_gamma_normalizers(
 
     num_states = len(problem._states)
     if num_states == 0:
-        return np.array([], dtype=np.float64).reshape(0, 1)  # No states, no gamma
+        return np.array([], dtype=np.float64).reshape(0, 1)
 
     Y_solved_list = solution.solved_state_trajectories_per_interval
     if not Y_solved_list:
-        print("    Warning: solved_state_trajectories_per_interval missing for gamma calculation.")
+        logger.warning("Missing solved state trajectories for gamma calculation")
         return None
 
     # Find maximum absolute value for each state component
@@ -291,7 +326,6 @@ def calculate_gamma_normalizers(
 
     # Calculate gamma factors
     gamma_denominator = 1.0 + max_abs_values
-    # Use np.float64 directly to avoid type mismatch
-    gamma_factors = 1.0 / np.maximum(gamma_denominator, np.float64(1e-12))  # Avoid division by zero
+    gamma_factors = 1.0 / np.maximum(gamma_denominator, np.float64(1e-12))
 
     return cast(GammaFactors, gamma_factors.reshape(-1, 1))
