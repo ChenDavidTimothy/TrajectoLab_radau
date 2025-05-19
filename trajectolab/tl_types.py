@@ -24,6 +24,13 @@ SymExpr: TypeAlias = ca.MX | float | int
 
 # --- Core Numerical Constants ---
 ZERO_TOLERANCE: float = 1e-12
+MESH_TOLERANCE: float = 1e-9
+TIME_TOLERANCE: float = 1e-6
+SMALL_PERTURBATION: float = 1e-12
+MINIMUM_TIME_INTERVAL: float = 1e-6
+MINIMUM_DERIVATIVE_PRODUCT: float = 1e-24  # ZERO_TOLERANCE**2
+DEFAULT_ODE_RTOL: float = 1e-7
+DEFAULT_ODE_ATOL_FACTOR: float = 1e-1
 
 # --- CasADi Type Aliases (Public) ---
 CasadiMX: TypeAlias = ca.MX
