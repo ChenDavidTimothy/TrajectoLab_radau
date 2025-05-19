@@ -638,15 +638,13 @@ def solve_single_phase_radau_collocation(problem: ProblemProtocol) -> OptimalCon
 
     # Apply event constraints
     if event_constraints_function:
-        event_constraints_result: list[Constraint] | Constraint = (
-            event_constraints_function(
-                initial_time_variable,
-                terminal_time_variable,
-                initial_state,
-                terminal_state,
-                integral_decision_variables,
-                problem_parameters,
-            )
+        event_constraints_result: list[Constraint] | Constraint = event_constraints_function(
+            initial_time_variable,
+            terminal_time_variable,
+            initial_state,
+            terminal_state,
+            integral_decision_variables,
+            problem_parameters,
         )
         event_constraints_to_apply = (
             event_constraints_result

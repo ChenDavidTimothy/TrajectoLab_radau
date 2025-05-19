@@ -805,9 +805,7 @@ class Problem:
         # - Lagrange objectives: use q components
         # - Bolza objectives: use any combination of the above
         obj_func = ca.Function(
-            "objective",
-            [t0, tf, x0_vec, xf_vec, q, param_syms],
-            [self._objective_expression]
+            "objective", [t0, tf, x0_vec, xf_vec, q, param_syms], [self._objective_expression]
         )
 
         # Create wrapper function that matches existing API

@@ -41,15 +41,15 @@ from trajectolab.tl_types import (
     StateEvaluator,
 )
 
+
 logging.basicConfig(
     level=logging.INFO,
-    format='%(name)s  - %(message)s',
+    format="%(name)s  - %(message)s",
     handlers=[
         logging.StreamHandler(),  # This outputs to console
-    ]
+    ],
 )
 logger = logging.getLogger(__name__)
-
 
 
 def _validate_mesh_configuration(

@@ -5,7 +5,7 @@ Defines classes to store and interact with the solution
 of an optimal control problem.
 """
 
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Iterable, Sequence
 from typing import TypeAlias, cast, overload
 
 import matplotlib.pyplot as plt
@@ -194,8 +194,9 @@ class _Solution:
         except ValueError:
             return None
 
-    def _resolve_symbolic_variable(self, sym_var: SymType, symbol_map: _SymbolMap,
-                                 problem_attr: str) -> str | None:
+    def _resolve_symbolic_variable(
+        self, sym_var: SymType, symbol_map: _SymbolMap, problem_attr: str
+    ) -> str | None:
         """Resolve a symbolic variable to its string name."""
         if sym_var in symbol_map:
             return symbol_map[sym_var]
@@ -214,7 +215,9 @@ class _Solution:
             hasattr(variable, "is_constant") and not isinstance(variable, int | str | float)
         )
 
-    def _get_trajectory(self, identifier: _VariableIdentifier, variable_type: str) -> _TrajectoryTuple:
+    def _get_trajectory(
+        self, identifier: _VariableIdentifier, variable_type: str
+    ) -> _TrajectoryTuple:
         """
         Unified trajectory extraction for states and controls.
 
@@ -287,8 +290,9 @@ class _Solution:
         """Get control trajectory data."""
         return self._get_trajectory(identifier, "control")
 
-    def _interpolate_trajectory(self, identifier: _VariableIdentifier, time_point: float | FloatArray,
-                              variable_type: str) -> _InterpolationResult:
+    def _interpolate_trajectory(
+        self, identifier: _VariableIdentifier, time_point: float | FloatArray, variable_type: str
+    ) -> _InterpolationResult:
         """
         Unified interpolation for states and controls.
 
@@ -464,10 +468,14 @@ class _Solution:
         # Select appropriate data based on variable type
         if variable_type == "state":
             all_names = self._state_names
-            get_index_func = lambda name: self._get_variable_index(name, self._state_names)
+
+            def get_index_func(name):
+                return self._get_variable_index(name, self._state_names)
         elif variable_type == "control":
             all_names = self._control_names
-            get_index_func = lambda name: self._get_variable_index(name, self._control_names)
+
+            def get_index_func(name):
+                return self._get_variable_index(name, self._control_names)
         else:
             raise ValueError(f"Invalid variable_type: {variable_type}")
 
@@ -476,9 +484,7 @@ class _Solution:
         if variable_names_to_plot is None:
             names_to_plot_list = all_names
         else:
-            names_to_plot_list = [
-                name for name in variable_names_to_plot if name in all_names
-            ]
+            names_to_plot_list = [name for name in variable_names_to_plot if name in all_names]
 
         if not names_to_plot_list:
             print(f"No valid {variable_type} names provided or available to plot.")
@@ -604,9 +610,7 @@ class _Solution:
             if num_intervals == 0:
                 # Simple case - no intervals
                 if self._time_states is not None and self._states is not None:
-                    ax.plot(
-                        self._time_states, self._states[state_idx], marker=".", linestyle="-"
-                    )
+                    ax.plot(self._time_states, self._states[state_idx], marker=".", linestyle="-")
             else:
                 # Plot by intervals with different colors
                 for k, interval_data in enumerate(all_interval_data):

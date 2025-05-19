@@ -25,10 +25,10 @@ logger = logging.getLogger(__name__)
 
 logging.basicConfig(
     level=logging.INFO,
-    format='%(name)s  - %(message)s',
+    format="%(name)s  - %(message)s",
     handlers=[
         logging.StreamHandler(),  # This outputs to console
-    ]
+    ],
 )
 
 
@@ -61,8 +61,12 @@ def _interpolate_trajectory_to_new_mesh(
     """
     trajectory_type = "state" if is_state_trajectory else "control"
     logger.info(f"    Interpolating {trajectory_type} trajectories:")
-    logger.info(f"      Previous mesh: {len(prev_mesh_points)-1} intervals, degrees {prev_polynomial_degrees}")
-    logger.info(f"      Target mesh: {len(target_mesh_points)-1} intervals, degrees {target_polynomial_degrees}")
+    logger.info(
+        f"      Previous mesh: {len(prev_mesh_points) - 1} intervals, degrees {prev_polynomial_degrees}"
+    )
+    logger.info(
+        f"      Target mesh: {len(target_mesh_points) - 1} intervals, degrees {target_polynomial_degrees}"
+    )
 
     try:
         # Validate input trajectory data
@@ -75,7 +79,9 @@ def _interpolate_trajectory_to_new_mesh(
         # Create polynomial interpolants for each interval in previous solution
         prev_interpolants = []
 
-        for k, (N_k, traj_k) in enumerate(zip(prev_polynomial_degrees, prev_trajectory_per_interval)):
+        for k, (N_k, traj_k) in enumerate(
+            zip(prev_polynomial_degrees, prev_trajectory_per_interval, strict=False)
+        ):
             # Validate trajectory shape
             if is_state_trajectory:
                 expected_nodes = N_k + 1
@@ -100,13 +106,16 @@ def _interpolate_trajectory_to_new_mesh(
                 local_nodes = basis_components.collocation_nodes
                 # Compute barycentric weights for collocation nodes
                 from trajectolab.radau import compute_barycentric_weights
+
                 barycentric_weights = compute_barycentric_weights(local_nodes)
 
             # Create interpolant for this interval
             try:
                 interpolant = get_polynomial_interpolant(local_nodes, traj_k, barycentric_weights)
                 prev_interpolants.append(interpolant)
-                logger.debug(f"        Interval {k}: Created interpolant for {traj_k.shape} trajectory")
+                logger.debug(
+                    f"        Interval {k}: Created interpolant for {traj_k.shape} trajectory"
+                )
             except Exception as e:
                 logger.error(f"        Interval {k}: Failed to create interpolant: {e}")
                 raise ValueError(f"Failed to create interpolant for interval {k}: {e}") from e
@@ -150,15 +159,21 @@ def _interpolate_trajectory_to_new_mesh(
                         # Before first interval - use first interval, leftmost point
                         prev_interval_idx = 0
                         prev_local_tau = -1.0
-                        logger.debug(f"        Global tau {global_tau} before mesh, using first interval boundary")
+                        logger.debug(
+                            f"        Global tau {global_tau} before mesh, using first interval boundary"
+                        )
                     elif global_tau > prev_mesh_points[-1]:
                         # After last interval - use last interval, rightmost point
                         prev_interval_idx = len(prev_interpolants) - 1
                         prev_local_tau = 1.0
-                        logger.debug(f"        Global tau {global_tau} after mesh, using last interval boundary")
+                        logger.debug(
+                            f"        Global tau {global_tau} after mesh, using last interval boundary"
+                        )
                     else:
                         # This shouldn't happen, but handle gracefully
-                        raise ValueError(f"Could not locate global_tau {global_tau} in mesh boundaries [{prev_mesh_points[0]}, {prev_mesh_points[-1]}]")
+                        raise ValueError(
+                            f"Could not locate global_tau {global_tau} in mesh boundaries [{prev_mesh_points[0]}, {prev_mesh_points[-1]}]"
+                        )
                 else:
                     # Convert global tau to local tau for the containing previous interval
                     prev_tau_start = prev_mesh_points[prev_interval_idx]
@@ -175,10 +190,14 @@ def _interpolate_trajectory_to_new_mesh(
 
                     # Validate interpolated values
                     if np.any(np.isnan(interpolated_values)):
-                        raise ValueError(f"Interpolation produced NaN values at global_tau={global_tau}, local_tau={prev_local_tau}")
+                        raise ValueError(
+                            f"Interpolation produced NaN values at global_tau={global_tau}, local_tau={prev_local_tau}"
+                        )
 
                     if np.any(np.isinf(interpolated_values)):
-                        raise ValueError(f"Interpolation produced infinite values at global_tau={global_tau}, local_tau={prev_local_tau}")
+                        raise ValueError(
+                            f"Interpolation produced infinite values at global_tau={global_tau}, local_tau={prev_local_tau}"
+                        )
 
                     # Store the interpolated values
                     if len(interpolated_values) == num_variables:
@@ -200,7 +219,9 @@ def _interpolate_trajectory_to_new_mesh(
             # Validate the resulting trajectory array
             expected_shape = (num_variables, num_target_nodes)
             if target_traj_k.shape != expected_shape:
-                raise ValueError(f"Target trajectory shape {target_traj_k.shape} doesn't match expected {expected_shape}")
+                raise ValueError(
+                    f"Target trajectory shape {target_traj_k.shape} doesn't match expected {expected_shape}"
+                )
 
             target_trajectories.append(target_traj_k)
             logger.debug(f"        Interval {k}: Created trajectory of shape {target_traj_k.shape}")
@@ -288,7 +309,9 @@ def propagate_solution_to_new_mesh(
         if prev_mesh is None:
             raise ValueError("Previous solution missing mesh information for interpolation")
         if prev_degrees is None:
-            raise ValueError("Previous solution missing polynomial degree information for interpolation")
+            raise ValueError(
+                "Previous solution missing polynomial degree information for interpolation"
+            )
 
         # ALWAYS propagate time variables and integrals (these are mesh-independent)
         t0_guess = prev_solution.initial_time_variable
@@ -297,7 +320,7 @@ def propagate_solution_to_new_mesh(
 
         logger.info(f"    Propagated time variables: t0={t0_guess}, tf={tf_guess}")
         if integrals_guess is not None:
-            if isinstance(integrals_guess, (int, float)):
+            if isinstance(integrals_guess, int | float):
                 logger.info(f"    Propagated integral: {integrals_guess}")
             else:
                 logger.info(f"    Propagated integrals: {len(integrals_guess)} values")
@@ -307,7 +330,9 @@ def propagate_solution_to_new_mesh(
         num_controls = len(problem._controls)
 
         logger.info(f"    Problem dimensions: {num_states} states, {num_controls} controls")
-        logger.info(f"    Mesh transition: {len(prev_degrees)} → {len(target_polynomial_degrees)} intervals")
+        logger.info(
+            f"    Mesh transition: {len(prev_degrees)} → {len(target_polynomial_degrees)} intervals"
+        )
 
         # ALWAYS interpolate state trajectories using aggressive interpolation
         states_guess = _interpolate_trajectory_to_new_mesh(
@@ -317,7 +342,7 @@ def propagate_solution_to_new_mesh(
             target_mesh_points=target_mesh_points,
             target_polynomial_degrees=target_polynomial_degrees,
             num_variables=num_states,
-            is_state_trajectory=True
+            is_state_trajectory=True,
         )
 
         # ALWAYS interpolate control trajectories using aggressive interpolation
@@ -328,7 +353,7 @@ def propagate_solution_to_new_mesh(
             target_mesh_points=target_mesh_points,
             target_polynomial_degrees=target_polynomial_degrees,
             num_variables=num_controls,
-            is_state_trajectory=False
+            is_state_trajectory=False,
         )
 
         # Create initial guess object

@@ -1,6 +1,7 @@
 """
 Input validation utilities for the direct solver.
 """
+
 import logging
 from collections.abc import Sequence
 
@@ -17,13 +18,14 @@ from .tl_types import (
 )
 from .utils.constants import MESH_TOLERANCE, MINIMUM_TIME_INTERVAL, ZERO_TOLERANCE
 
+
 logger = logging.getLogger(__name__)
 logging.basicConfig(
     level=logging.INFO,
-    format='%(name)s  - %(message)s',
+    format="%(name)s  - %(message)s",
     handlers=[
         logging.StreamHandler(),  # This outputs to console
-    ]
+    ],
 )
 
 
@@ -74,7 +76,7 @@ def validate_integral_values(
         return
 
     if num_integrals == 1:
-        if not isinstance(integrals, (int, float)):
+        if not isinstance(integrals, int | float):
             raise ValueError(
                 f"For single integral, guess must be scalar (int or float), "
                 f"got {type(integrals)} with value {integrals}"
@@ -83,7 +85,7 @@ def validate_integral_values(
             raise ValueError(f"Integral has invalid value: {integrals}")
 
     elif num_integrals > 1:
-        if isinstance(integrals, (int, float)):
+        if isinstance(integrals, int | float):
             raise ValueError(
                 f"For {num_integrals} integrals, guess must be array-like, got scalar {integrals}"
             )
@@ -116,13 +118,13 @@ def validate_time_values(
         ValueError: If validation fails
     """
     if initial_time is not None:
-        if not isinstance(initial_time, (int, float)):
+        if not isinstance(initial_time, int | float):
             raise ValueError(f"Initial time must be scalar, got {type(initial_time)}")
         if np.isnan(initial_time) or np.isinf(initial_time):
             raise ValueError(f"Initial time has invalid value: {initial_time}")
 
     if terminal_time is not None:
-        if not isinstance(terminal_time, (int, float)):
+        if not isinstance(terminal_time, int | float):
             raise ValueError(f"Terminal time must be scalar, got {type(terminal_time)}")
         if np.isnan(terminal_time) or np.isinf(terminal_time):
             raise ValueError(f"Terminal time has invalid value: {terminal_time}")
@@ -157,7 +159,7 @@ def validate_trajectory_arrays(
             f"got {len(trajectories)} arrays, expected {len(expected_shapes)}"
         )
 
-    for k, (traj, expected_shape) in enumerate(zip(trajectories, expected_shapes)):
+    for k, (traj, expected_shape) in enumerate(zip(trajectories, expected_shapes, strict=False)):
         # Check shape
         if traj.shape != expected_shape:
             raise ValueError(
@@ -264,11 +266,13 @@ def validate_and_set_integral_guess(
 
     if num_integrals == 1:
         # After validation, guess should be a scalar (int or float) for single integrals
-        if isinstance(guess, (int, float)):
+        if isinstance(guess, int | float):
             opti.set_initial(integral_vars, float(guess))
         else:
             # This should not happen after validation, but handle gracefully
-            raise ValueError(f"Expected scalar for single integral after validation, got {type(guess)}")
+            raise ValueError(
+                f"Expected scalar for single integral after validation, got {type(guess)}"
+            )
     elif num_integrals > 1:
         if isinstance(guess, list):
             guess_array = np.array(guess, dtype=np.float64)
