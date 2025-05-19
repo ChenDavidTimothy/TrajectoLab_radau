@@ -1,9 +1,7 @@
 """
 Adaptive mesh refinement algorithms for optimal control problems.
+Now provides functional interfaces instead of classes.
 """
 
-from trajectolab.adaptive.base import AdaptiveBase, FixedMesh
-from trajectolab.adaptive.phs.algorithm import PHSAdaptive
-
-
-__all__ = ["AdaptiveBase", "FixedMesh", "PHSAdaptive"]
+# No longer exporting classes - all functionality moved to function-based API
+__all__ = []

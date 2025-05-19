@@ -1,10 +1,10 @@
 import numpy as np
 
-from trajectolab import FixedMesh, PHSAdaptive, Problem, RadauDirectSolver, solve
+import trajectolab as tl
 
 
 # Define the hypersensitive problem using the symbolic API
-problem = Problem("Hypersensitive Problem")
+problem = tl.Problem("Hypersensitive Problem")
 
 # Define time variable
 t = problem.time(initial=0, final=40)
@@ -41,25 +41,17 @@ problem.set_initial_guess(
     integrals=0.1,  # Provide hint for integral
 )
 
-# Configure the adaptive solver
-adaptive_solver = RadauDirectSolver(
-    mesh_method=PHSAdaptive(
-        # Required parameters
-        initial_polynomial_degrees=initial_polynomial_degrees,
-        initial_mesh_points=initial_mesh_points,
-        # Optional initial guess (uses what we set on problem above)
-        initial_guess=problem.initial_guess,
-        # Optional algorithm parameters
-        error_tolerance=1e-3,
-        max_iterations=30,
-        min_polynomial_degree=4,
-        max_polynomial_degree=8,
-    ),
+# Solve with adaptive mesh - clean and simple!
+solution = tl.solve_adaptive(
+    problem,
+    initial_polynomial_degrees=initial_polynomial_degrees,
+    initial_mesh_points=initial_mesh_points,
+    error_tolerance=1e-3,
+    max_iterations=30,
+    min_polynomial_degree=4,
+    max_polynomial_degree=8,
     nlp_options={"ipopt.print_level": 0, "ipopt.sb": "yes", "print_time": 0, "ipopt.max_iter": 200},
 )
-
-# Solve the problem
-solution = solve(problem, adaptive_solver)
 
 # Analyze solution
 if solution.success:
@@ -79,27 +71,42 @@ else:
     print(f"Solution failed: {solution.message}")
 
 # Use the fixed mesh solver
-print("Solving with fixed mesh...")
+print("\nSolving with fixed mesh...")
 
-# For fixed mesh, explicitly set new mesh
+# Create complete initial guess for fixed mesh
+states_guess = []
+controls_guess = []
 fixed_polynomial_degrees = [20, 12, 20]
 fixed_mesh_points = [-1.0, -1 / 3, 1 / 3, 1.0]
+
+for N in fixed_polynomial_degrees:
+    # Create simple linear state guess
+    tau_points = np.linspace(-1, 1, N + 1)
+    x_vals = 1.5 + (1.0 - 1.5) * (tau_points + 1) / 2
+    states_guess.append(x_vals.reshape(1, -1))
+
+    # Create zero control guess
+    controls_guess.append(np.zeros((1, N), dtype=np.float64))
+
+# Set mesh first (this clears any existing initial guess)
 problem.set_mesh(fixed_polynomial_degrees, fixed_mesh_points)
 
-# For fixed mesh, no initial guess needed (optional)
-# The problem will keep the integral guess from before, but states/controls will be None
-# which means CasADi will handle them
-
-fixed_mesh_solver = RadauDirectSolver(
-    mesh_method=FixedMesh(
-        polynomial_degrees=fixed_polynomial_degrees,
-        mesh_points=fixed_mesh_points,
-        # initial_guess=None,  # Optional - using what's on problem
-    ),
-    nlp_options={"ipopt.print_level": 0, "ipopt.sb": "yes", "print_time": 0, "ipopt.max_iter": 200},
+# Then set the new initial guess - only one way to do this!
+problem.set_initial_guess(
+    states=states_guess,
+    controls=controls_guess,
+    initial_time=0.0,
+    terminal_time=40.0,
+    integrals=0.1,
 )
 
-fixed_solution = solve(problem, fixed_mesh_solver)
+# Solve with fixed mesh - clean function call
+fixed_solution = tl.solve_fixed_mesh(
+    problem,
+    polynomial_degrees=fixed_polynomial_degrees,
+    mesh_points=fixed_mesh_points,
+    nlp_options={"ipopt.print_level": 0, "ipopt.sb": "yes", "print_time": 0, "ipopt.max_iter": 200},
+)
 
 if fixed_solution.success:
     print(f"Fixed mesh solution successful! Objective: {fixed_solution.objective:.6f}")

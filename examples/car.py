@@ -1,11 +1,11 @@
 import casadi as ca
 import numpy as np
 
-from trajectolab import PHSAdaptive, Problem, RadauDirectSolver, solve
+import trajectolab as tl
 
 
 # Create the car race problem - minimize time to complete the track
-problem = Problem("Car Race")
+problem = tl.Problem("Car Race")
 
 # Time is free (we want to minimize it)
 t = problem.time(initial=0.0, free_final=True)
@@ -27,26 +27,23 @@ problem.subject_to(speed <= speed_limit)
 # Minimize lap time
 problem.minimize(t.final)
 
-# Set up the mesh and solve
+# Set up the mesh and provide initial guess
 problem.set_mesh([10, 10, 10], np.array([-1.0, -0.3, 0.3, 1.0]))
 
-# Provide initial guess
+# Provide initial guess - only one way to do this
 problem.set_initial_guess(terminal_time=2.0)
 
 # Solve with adaptive mesh
-solver = RadauDirectSolver(
-    mesh_method=PHSAdaptive(
-        initial_polynomial_degrees=[8, 8, 8],
-        initial_mesh_points=[-1.0, -0.3, 0.3, 1.0],
-        error_tolerance=1e-6,
-        max_iterations=20,
-        min_polynomial_degree=4,
-        max_polynomial_degree=8,
-    ),
+solution = tl.solve_adaptive(
+    problem,
+    initial_polynomial_degrees=[8, 8, 8],
+    initial_mesh_points=[-1.0, -0.3, 0.3, 1.0],
+    error_tolerance=1e-6,
+    max_iterations=20,
+    min_polynomial_degree=4,
+    max_polynomial_degree=8,
     nlp_options={"ipopt.print_level": 0},
 )
-
-solution = solve(problem, solver)
 
 if solution.success:
     print(f"Optimal lap time: {solution.final_time:.3f} seconds")

@@ -31,7 +31,7 @@ __all__ = ["h_reduce_intervals", "h_refine_params", "p_reduce_interval", "p_refi
 
 
 def p_refine_interval(
-    current_Nk: int, max_error: float, error_tol: float, N_max: int
+    max_error: float, current_Nk: int, error_tol: float, N_max: int
 ) -> PRefineResult:
     """Determines new polynomial degree using p-refinement."""
     # No refinement needed if error is within tolerance
