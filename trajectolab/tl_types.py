@@ -22,7 +22,6 @@ IntArray: TypeAlias = NDArray[np_int_]
 SymType: TypeAlias = ca.MX
 SymExpr: TypeAlias = ca.MX | float | int
 
-
 # --- CasADi Type Aliases (Public) ---
 CasadiMX: TypeAlias = ca.MX
 CasadiDM: TypeAlias = ca.DM
@@ -30,18 +29,13 @@ CasadiMatrix: TypeAlias = CasadiMX | CasadiDM
 CasadiOpti: TypeAlias = ca.Opti
 CasadiOptiSol: TypeAlias = ca.OptiSol
 CasadiFunction: TypeAlias = ca.Function
+ListOfCasadiMX: TypeAlias = list[CasadiMX]
 
 # --- Problem Structure Data Classes and Type Aliases ---
 ProblemParameters: TypeAlias = dict[str, float | int | str]
 
-
-# Dictionary type aliases for Problem class - keep for compatibility
-StateDictType: TypeAlias = dict[str, float | CasadiMX]
-ControlDictType: TypeAlias = dict[str, float | CasadiMX]
-
 # Forward reference for Problem module's Constraint class
 ConstraintType: TypeAlias = Any
-
 ConstraintValue: TypeAlias = CasadiMX | float | FloatArray
 
 
@@ -81,15 +75,16 @@ class TimeVariable(Protocol):
 
 
 # --- Function Protocol Classes for User-Facing APIs ---
-# These protocols allow for flexible parameter signatures while enforcing return types
-
-
 class DynamicsFuncProtocol(Protocol):
     """Protocol for user-defined dynamics functions."""
 
     def __call__(
-        self, states: StateDictType, controls: ControlDictType, *args: Any, **kwargs: Any
-    ) -> StateDictType:
+        self,
+        states: dict[str, float | CasadiMX],
+        controls: dict[str, float | CasadiMX],
+        *args: Any,
+        **kwargs: Any,
+    ) -> dict[str, float | CasadiMX]:
         """
         Defines the dynamics of the system.
 
@@ -130,7 +125,11 @@ class IntegrandFuncProtocol(Protocol):
     """Protocol for user-defined integral functions."""
 
     def __call__(
-        self, states: StateDictType, controls: ControlDictType, *args: Any, **kwargs: Any
+        self,
+        states: dict[str, float | CasadiMX],
+        controls: dict[str, float | CasadiMX],
+        *args: Any,
+        **kwargs: Any,
     ) -> float | CasadiMX:
         """
         Defines the integrand for an integral cost term.
@@ -151,7 +150,11 @@ class ConstraintFuncProtocol(Protocol):
     """Protocol for user-defined path constraint functions."""
 
     def __call__(
-        self, states: StateDictType, controls: ControlDictType, *args: Any, **kwargs: Any
+        self,
+        states: dict[str, float | CasadiMX],
+        controls: dict[str, float | CasadiMX],
+        *args: Any,
+        **kwargs: Any,
     ) -> ConstraintType | list[ConstraintType]:
         """
         Defines path constraints.
@@ -199,9 +202,9 @@ class InitialGuess:
         self,
         initial_time_variable: float | None = None,
         terminal_time_variable: float | None = None,
-        states: InitialGuessTrajectory | None = None,
-        controls: InitialGuessTrajectory | None = None,
-        integrals: InitialGuessIntegrals | None = None,
+        states: list[FloatMatrix] | None = None,
+        controls: list[FloatMatrix] | None = None,
+        integrals: float | FloatArray | None = None,
     ) -> None:
         self.initial_time_variable = initial_time_variable
         self.terminal_time_variable = terminal_time_variable
@@ -223,9 +226,9 @@ class OptimalControlSolution:
         self.objective: float | None = None
         self.integrals: float | FloatArray | None = None
         self.time_states: FloatArray = np.array([], dtype=np.float64)
-        self.states: TrajectoryData = []
+        self.states: list[FloatArray] = []
         self.time_controls: FloatArray = np.array([], dtype=np.float64)
-        self.controls: TrajectoryData = []
+        self.controls: list[FloatArray] = []
         self.raw_solution: CasadiOptiSol | None = None
         self.opti_object: CasadiOpti | None = None
         self.num_collocation_nodes_per_interval: list[int] = []
@@ -243,21 +246,17 @@ IntegrandFuncType: TypeAlias = IntegrandFuncProtocol
 ConstraintFuncType: TypeAlias = ConstraintFuncProtocol
 EventConstraintFuncType: TypeAlias = EventConstraintFuncProtocol
 
-
 # --- Callable Types for Solver ---
-# (state, control, time, params) -> state_derivative
 DynamicsCallable: TypeAlias = Callable[
     [CasadiMX, CasadiMX, CasadiMX, ProblemParameters],
     list[CasadiMX] | CasadiMX | Sequence[CasadiMX],
 ]
 
-# (t0, tf, x0, xf, integrals, params) -> objective_value
 ObjectiveCallable: TypeAlias = Callable[
     [CasadiMX, CasadiMX, CasadiMX, CasadiMX, CasadiMX | None, ProblemParameters],
     CasadiMX,
 ]
 
-# (state, control, time, integral_idx, params) -> integrand_value
 IntegralIntegrandCallable: TypeAlias = Callable[
     [CasadiMX, CasadiMX, CasadiMX, int, ProblemParameters],
     CasadiMX,
@@ -274,16 +273,13 @@ EventConstraintsCallable: TypeAlias = Callable[
 ]
 
 # --- Helper Type Aliases for Trajectories and Guesses ---
-ListOfCasadiMX: TypeAlias = list[CasadiMX]
-TrajectoryData: TypeAlias = list[FloatArray]  # List of 1D arrays for each state/control component
+TrajectoryData: TypeAlias = list[FloatArray]
 
-# For initial guesses, states/controls are typically a list of 2D matrices,
-# one per mesh interval: [num_variables, num_nodes_in_interval]
+# For initial guesses, states/controls are typically a list of 2D matrices
 InitialGuessTrajectory: TypeAlias = list[FloatMatrix]
 InitialGuessIntegrals: TypeAlias = float | FloatArray | list[float] | None
 
 # --- Types for Adaptive Mesh Refinement ---
-# For evaluator callables
 StateEvaluator: TypeAlias = Callable[[float | FloatArray], FloatArray]
 ControlEvaluator: TypeAlias = Callable[[float | FloatArray], FloatArray]
 
@@ -291,7 +287,6 @@ ControlEvaluator: TypeAlias = Callable[[float | FloatArray], FloatArray]
 DynamicsRHSCallable: TypeAlias = Callable[[float, FloatArray], FloatArray]
 
 
-# Define a protocol for the ODE solver result
 class ODESolverResult(Protocol):
     """Protocol for the result of ODE solvers like solve_ivp."""
 
@@ -301,7 +296,6 @@ class ODESolverResult(Protocol):
     message: str
 
 
-# Make the ODESolverCallable more flexible with optional kwargs
 ODESolverCallable: TypeAlias = Callable[..., ODESolverResult]
 
 # Gamma normalization factors type

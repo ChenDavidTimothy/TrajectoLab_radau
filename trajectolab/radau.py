@@ -1,16 +1,11 @@
-import logging
 from dataclasses import dataclass, field
 from typing import Literal, cast, overload
 
 import numpy as np
 from scipy.special import roots_jacobi as _scipy_roots_jacobi
 
-# Import centralized type definitions and constants
 from .tl_types import FloatArray, FloatMatrix
 from .utils.constants import ZERO_TOLERANCE
-
-
-# --- Dataclasses for Structured Radau Components ---
 
 
 @dataclass
@@ -36,9 +31,6 @@ class RadauNodesAndWeights:
     state_approximation_nodes: FloatArray
     collocation_nodes: FloatArray
     quadrature_weights: FloatArray
-
-
-# --- Gauss-Jacobi Quadrature Wrapper ---
 
 
 @overload
@@ -74,9 +66,6 @@ def roots_jacobi(
             cast(FloatArray, x_val.astype(np.float64)),
             cast(FloatArray, w_val.astype(np.float64)),
         )
-
-
-# --- Core Radau Collocation Computations ---
 
 
 def compute_legendre_gauss_radau_nodes_and_weights(
@@ -125,11 +114,9 @@ def compute_barycentric_weights(nodes: FloatArray) -> FloatArray:
         other_nodes = np.delete(nodes, j)
         node_differences = nodes[j] - other_nodes
 
+        # Handle near-zero differences
         mask_near_zero = np.abs(node_differences) < ZERO_TOLERANCE
         if np.any(mask_near_zero):
-            logging.debug(
-                f"Node {nodes[j]:.4f}: Perturbing {np.sum(mask_near_zero)} near-zero differences."
-            )
             perturbation = np.sign(node_differences[mask_near_zero]) * ZERO_TOLERANCE
             perturbation[perturbation == 0] = ZERO_TOLERANCE
             node_differences[mask_near_zero] = perturbation
@@ -137,10 +124,6 @@ def compute_barycentric_weights(nodes: FloatArray) -> FloatArray:
         product_val: float = float(np.prod(node_differences, dtype=np.float64))
 
         if abs(product_val) < ZERO_TOLERANCE**2:
-            logging.warning(
-                f"Product of node differences for node {nodes[j]:.4f} is extremely small "
-                f"({product_val:.2e}). May indicate duplicate/close nodes. Fallback used."
-            )
             barycentric_weights[j] = (
                 np.sign(product_val) * (1.0 / (ZERO_TOLERANCE**2))
                 if product_val != 0
@@ -160,34 +143,25 @@ def evaluate_lagrange_polynomial_at_point(
     num_nodes = len(polynomial_definition_nodes)
     lagrange_values: FloatArray = np.zeros(num_nodes, dtype=np.float64)
 
+    # Check if evaluation point coincides with a node
     for j in range(num_nodes):
         if abs(evaluation_point_tau - polynomial_definition_nodes[j]) < ZERO_TOLERANCE:
             lagrange_values[j] = 1.0
             return lagrange_values
 
+    # Standard barycentric interpolation
     terms: FloatArray = np.zeros(num_nodes, dtype=np.float64)
     for j in range(num_nodes):
         diff = evaluation_point_tau - polynomial_definition_nodes[j]
         if abs(diff) < ZERO_TOLERANCE:
-            logging.warning(
-                f"Difference tau-x_j ({diff:.2e}) became near-zero unexpectedly in Lagrange eval. "
-                f"Using perturbed value."
-            )
             diff = np.sign(diff) * ZERO_TOLERANCE if diff != 0 else ZERO_TOLERANCE
-
         terms[j] = barycentric_weights[j] / diff
 
     sum_of_terms = np.sum(terms)
-
     if abs(sum_of_terms) < ZERO_TOLERANCE:
-        logging.warning(
-            f"Barycentric sum denominator is close to zero ({sum_of_terms:.2e}) "
-            f"at tau={evaluation_point_tau:.4f}. Returning zero vector for Lagrange values."
-        )
         return lagrange_values
 
     lagrange_values = terms / sum_of_terms
-
     return lagrange_values
 
 
@@ -199,6 +173,7 @@ def compute_lagrange_derivative_coefficients_at_point(
     num_nodes = len(polynomial_definition_nodes)
     derivatives: FloatArray = np.zeros(num_nodes, dtype=np.float64)
 
+    # Find if evaluation point matches a node
     matched_node_idx_k = -1
     for i in range(num_nodes):
         if abs(evaluation_point_tau - polynomial_definition_nodes[i]) < ZERO_TOLERANCE:
@@ -206,12 +181,9 @@ def compute_lagrange_derivative_coefficients_at_point(
             break
 
     if matched_node_idx_k == -1:
-        logging.warning(
-            f"Derivative requested at tau={evaluation_point_tau:.4f} which is not a node. "
-            "Standard formula for D matrix elements not applicable. Returning zeros."
-        )
         return derivatives
 
+    # Compute derivative coefficients using standard formulation
     for j in range(num_nodes):
         if j == matched_node_idx_k:
             sum_val = 0.0
@@ -222,9 +194,6 @@ def compute_lagrange_derivative_coefficients_at_point(
                     polynomial_definition_nodes[matched_node_idx_k] - polynomial_definition_nodes[i]
                 )
                 if abs(diff) < ZERO_TOLERANCE:
-                    logging.warning(
-                        f"Coincident nodes x_k=x_i for k={matched_node_idx_k}, i={i}. Derivative component will be large."
-                    )
                     sum_val += 1.0 / (
                         np.sign(diff) * ZERO_TOLERANCE if diff != 0 else ZERO_TOLERANCE
                     )
@@ -234,14 +203,8 @@ def compute_lagrange_derivative_coefficients_at_point(
         else:
             diff = polynomial_definition_nodes[matched_node_idx_k] - polynomial_definition_nodes[j]
             if abs(barycentric_weights[matched_node_idx_k]) < ZERO_TOLERANCE:
-                logging.warning(
-                    f"Barycentric weight for node x_k (k={matched_node_idx_k}) is near zero. Derivative L'_{j}(x_k) unstable, setting to 0."
-                )
                 derivatives[j] = 0.0
             elif abs(diff) < ZERO_TOLERANCE:
-                logging.warning(
-                    f"Coincident nodes x_k=x_j for k={matched_node_idx_k}, j={j} in off-diagonal. Derivative L'_{j}(x_k) will be large."
-                )
                 derivatives[j] = (
                     barycentric_weights[j] / barycentric_weights[matched_node_idx_k]
                 ) / (np.sign(diff) * ZERO_TOLERANCE if diff != 0 else ZERO_TOLERANCE)

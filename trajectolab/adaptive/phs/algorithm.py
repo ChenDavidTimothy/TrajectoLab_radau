@@ -42,13 +42,6 @@ from trajectolab.tl_types import (
 )
 
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(name)s  - %(message)s",
-    handlers=[
-        logging.StreamHandler(),  # This outputs to console
-    ],
-)
 logger = logging.getLogger(__name__)
 
 
@@ -226,13 +219,10 @@ def _estimate_errors(
     errors: list[float] = [np.inf] * num_intervals
 
     for k in range(num_intervals):
-        logger.info(f"Estimating error for interval {k}...")
-
         state_eval = state_evaluators[k]
         control_eval = control_evaluators[k]
 
         if state_eval is None or control_eval is None:
-            logger.warning(f"Missing interpolants for interval {k}")
             errors[k] = np.inf
             continue
 
@@ -250,8 +240,6 @@ def _estimate_errors(
         # Calculate relative error
         error = calculate_relative_error_estimate(k, sim_bundle, gamma_factors)
         errors[k] = error
-
-        logger.info(f"Interval {k}: N={polynomial_degrees[k]}, Error={error:.4e}")
 
     return errors
 
@@ -277,32 +265,23 @@ def _refine_mesh(
         error_k = errors[k]
         N_k = polynomial_degrees[k]
 
-        logger.info(f"Processing interval {k}: N={N_k}, Error={error_k:.2e}")
-
         if np.isnan(error_k) or np.isinf(error_k) or error_k > adaptive_params.error_tolerance:
             # Error above tolerance - try p-refinement
-            logger.info("Error > tolerance, attempting p-refinement")
             p_result = p_refine_interval(
                 error_k, N_k, adaptive_params.error_tolerance, adaptive_params.max_polynomial_degree
             )
 
             if p_result.was_p_successful:
                 # p-refinement successful
-                logger.info(f"p-refinement: N {N_k} -> {p_result.actual_Nk_to_use}")
                 next_polynomial_degrees.append(p_result.actual_Nk_to_use)
                 next_mesh_points.append(mesh_points[k + 1])
                 k += 1
             else:
                 # p-refinement failed - apply h-refinement
-                logger.info("p-refinement failed, applying h-refinement")
                 h_result = h_refine_params(
                     p_result.unconstrained_target_Nk, adaptive_params.min_polynomial_degree
                 )
 
-                logger.info(
-                    f"h-refinement: Split into {h_result.num_new_subintervals} "
-                    f"subintervals, each N={h_result.collocation_nodes_for_new_subintervals[0]}"
-                )
                 next_polynomial_degrees.extend(h_result.collocation_nodes_for_new_subintervals)
 
                 # Create new mesh nodes for subintervals
@@ -315,9 +294,6 @@ def _refine_mesh(
                 k += 1
         else:
             # Error within tolerance - check for h-reduction or p-reduction
-            logger.info(f"Interval {k}: Error within tolerance")
-
-            # Try h-reduction with next interval
             can_merge = False
             if k < num_intervals - 1:
                 next_error = errors[k + 1]
@@ -325,8 +301,6 @@ def _refine_mesh(
                     not (np.isnan(next_error) or np.isinf(next_error))
                     and next_error <= adaptive_params.error_tolerance
                 ):
-                    logger.info("Next interval also has low error, checking h-reduction")
-
                     # Check if interpolants are available
                     if (
                         state_evaluators[k] is not None
@@ -358,7 +332,6 @@ def _refine_mesh(
 
             if can_merge:
                 # h-reduction successful
-                logger.info(f"h-reduction: Merged intervals {k} and {k + 1}")
                 merged_N = max(polynomial_degrees[k], polynomial_degrees[k + 1])
                 merged_N = max(
                     adaptive_params.min_polynomial_degree,
@@ -369,7 +342,6 @@ def _refine_mesh(
                 k += 2
             else:
                 # Try p-reduction
-                logger.info("h-reduction not applicable, attempting p-reduction")
                 p_reduce = p_reduce_interval(
                     N_k,
                     error_k,
@@ -377,11 +349,6 @@ def _refine_mesh(
                     adaptive_params.min_polynomial_degree,
                     adaptive_params.max_polynomial_degree,
                 )
-
-                if p_reduce.was_reduction_applied:
-                    logger.info(f"p-reduction: N {N_k} -> {p_reduce.new_num_collocation_nodes}")
-                else:
-                    logger.info("p-reduction not applied")
 
                 next_polynomial_degrees.append(p_reduce.new_num_collocation_nodes)
                 next_mesh_points.append(mesh_points[k + 1])
@@ -453,8 +420,8 @@ def solve_phs_adaptive_internal(
 
     # Main adaptive refinement loop
     for iteration in range(max_iterations):
-        logger.info(f"\n--- Adaptive Iteration {iteration} ---")
-        num_intervals = len(current_polynomial_degrees)
+        logger.info(f"Adaptive Iteration {iteration}")
+        len(current_polynomial_degrees)
 
         # Configure problem mesh
         problem.set_mesh(current_polynomial_degrees, current_mesh_points)
@@ -462,27 +429,23 @@ def solve_phs_adaptive_internal(
         if iteration == 0:
             # FIRST ITERATION: Use provided initial guess
             if problem.initial_guess is not None:
-                logger.info("Using initial guess from problem.set_initial_guess()")
                 try:
                     problem.validate_initial_guess()
                 except ValueError as e:
                     raise ValueError(f"Initial guess invalid for mesh: {e}") from e
             elif initial_guess is not None:
-                logger.info("Using initial guess from solve_adaptive() call")
                 problem.initial_guess = initial_guess
                 try:
                     problem.validate_initial_guess()
                 except ValueError as e:
                     raise ValueError(f"Initial guess invalid for mesh: {e}") from e
             else:
-                logger.info("No initial guess provided. CasADi will use defaults")
                 problem.initial_guess = None
         else:
             # SUBSEQUENT ITERATIONS: Always use aggressive interpolation propagation
             if most_recent_solution is None:
                 raise ValueError("No previous solution available for propagation")
 
-            logger.info("Using AGGRESSIVE INTERPOLATION PROPAGATION from previous solution")
             propagated_guess = propagate_solution_to_new_mesh(
                 most_recent_solution,
                 problem,
@@ -490,10 +453,6 @@ def solve_phs_adaptive_internal(
                 current_mesh_points,
             )
             problem.initial_guess = propagated_guess
-
-        # Log current mesh configuration
-        logger.info(f"Mesh: {num_intervals} intervals, degrees = {current_polynomial_degrees}")
-        logger.info(f"Mesh points: {np.array2string(current_mesh_points, precision=3)}")
 
         # Solve optimal control problem
         solution = solve_single_phase_radau_collocation(problem)
@@ -560,8 +519,6 @@ def solve_phs_adaptive_internal(
             adaptive_params,
             safe_gamma,
         )
-
-        logger.info(f"Error estimates: {[f'{e:.2e}' for e in errors]}")
 
         # Check convergence
         all_errors_within_tolerance = all(

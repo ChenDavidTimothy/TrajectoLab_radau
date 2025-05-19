@@ -6,7 +6,7 @@ of an optimal control problem.
 """
 
 from collections.abc import Iterable, Sequence
-from typing import TypeAlias, cast, overload
+from typing import TypeAlias, cast
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -17,8 +17,6 @@ from .tl_types import FloatArray, IntArray, OptimalControlSolution, ProblemProto
 
 
 # --- Type Aliases ---
-_StateIdentifier: TypeAlias = str | int
-_ControlIdentifier: TypeAlias = str | int
 _VariableIdentifier: TypeAlias = str | int | SymType
 _TrajectoryTuple: TypeAlias = tuple[FloatArray, FloatArray]
 _SymbolMap: TypeAlias = dict[SymType, str]
@@ -268,29 +266,9 @@ class _Solution:
             return time_arr, empty_arr
         return time_arr, values_list[index]
 
-    # Overloaded methods for state trajectory access
-    @overload
-    def get_state_trajectory(self, identifier: str) -> _TrajectoryTuple: ...
-
-    @overload
-    def get_state_trajectory(self, identifier: int) -> _TrajectoryTuple: ...
-
-    @overload
-    def get_state_trajectory(self, identifier: SymType) -> _TrajectoryTuple: ...
-
     def get_state_trajectory(self, identifier: _VariableIdentifier) -> _TrajectoryTuple:
         """Get state trajectory data."""
         return self._get_trajectory(identifier, "state")
-
-    # Overloaded methods for control trajectory access
-    @overload
-    def get_control_trajectory(self, identifier: str) -> _TrajectoryTuple: ...
-
-    @overload
-    def get_control_trajectory(self, identifier: int) -> _TrajectoryTuple: ...
-
-    @overload
-    def get_control_trajectory(self, identifier: SymType) -> _TrajectoryTuple: ...
 
     def get_control_trajectory(self, identifier: _VariableIdentifier) -> _TrajectoryTuple:
         """Get control trajectory data."""
@@ -315,43 +293,11 @@ class _Solution:
             return None
         return cast(_InterpolationResult, np.interp(time_point, time, values))
 
-    # Overloaded methods for state interpolation
-    @overload
-    def interpolate_state(
-        self, identifier: str, time_point: float | FloatArray
-    ) -> _InterpolationResult: ...
-
-    @overload
-    def interpolate_state(
-        self, identifier: int, time_point: float | FloatArray
-    ) -> _InterpolationResult: ...
-
-    @overload
-    def interpolate_state(
-        self, identifier: SymType, time_point: float | FloatArray
-    ) -> _InterpolationResult: ...
-
     def interpolate_state(
         self, identifier: _VariableIdentifier, time_point: float | FloatArray
     ) -> _InterpolationResult:
         """Interpolate state value at specified time point(s)."""
         return self._interpolate_trajectory(identifier, time_point, "state")
-
-    # Overloaded methods for control interpolation
-    @overload
-    def interpolate_control(
-        self, identifier: str, time_point: float | FloatArray
-    ) -> _InterpolationResult: ...
-
-    @overload
-    def interpolate_control(
-        self, identifier: int, time_point: float | FloatArray
-    ) -> _InterpolationResult: ...
-
-    @overload
-    def interpolate_control(
-        self, identifier: SymType, time_point: float | FloatArray
-    ) -> _InterpolationResult: ...
 
     def interpolate_control(
         self, identifier: _VariableIdentifier, time_point: float | FloatArray

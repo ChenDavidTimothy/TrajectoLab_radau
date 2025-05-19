@@ -4,6 +4,7 @@ Input validation utilities for the direct solver.
 
 import logging
 from collections.abc import Sequence
+from typing import TypeVar
 
 import casadi as ca
 import numpy as np
@@ -20,13 +21,8 @@ from .utils.constants import MESH_TOLERANCE, MINIMUM_TIME_INTERVAL, ZERO_TOLERAN
 
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(name)s  - %(message)s",
-    handlers=[
-        logging.StreamHandler(),  # This outputs to console
-    ],
-)
+
+T = TypeVar("T")
 
 
 def validate_dynamics_output(
@@ -57,10 +53,25 @@ def validate_dynamics_output(
     raise TypeError(f"Dynamics function output type not supported: {type(output)}")
 
 
-def validate_integral_values(
-    integrals: InitialGuessIntegrals,
-    num_integrals: int,
-) -> None:
+def _validate_numeric_value(value: float | int, name: str) -> None:
+    """Validate a single numeric value."""
+    if not isinstance(value, int | float):
+        raise ValueError(f"{name} must be scalar, got {type(value)}")
+    if np.isnan(value) or np.isinf(value):
+        raise ValueError(f"{name} has invalid value: {value}")
+
+
+def _validate_array_values(array: FloatArray, name: str) -> None:
+    """Validate array for NaN and infinite values."""
+    if np.any(np.isnan(array)):
+        raise ValueError(f"{name} contains NaN values")
+    if np.any(np.isinf(array)):
+        raise ValueError(f"{name} contains infinite values")
+    if array.dtype != np.float64:
+        raise ValueError(f"{name} has dtype {array.dtype}, expected float64")
+
+
+def validate_integral_values(integrals: InitialGuessIntegrals, num_integrals: int) -> None:
     """
     Validate integral values without setting them in CasADi.
     Generic version that can be used by both direct solver and adaptive algorithm.
@@ -76,37 +87,22 @@ def validate_integral_values(
         return
 
     if num_integrals == 1:
-        if not isinstance(integrals, int | float):
-            raise ValueError(
-                f"For single integral, guess must be scalar (int or float), "
-                f"got {type(integrals)} with value {integrals}"
-            )
-        if np.isnan(float(integrals)) or np.isinf(float(integrals)):
-            raise ValueError(f"Integral has invalid value: {integrals}")
-
+        _validate_numeric_value(integrals, "Integral")
     elif num_integrals > 1:
         if isinstance(integrals, int | float):
             raise ValueError(
                 f"For {num_integrals} integrals, guess must be array-like, got scalar {integrals}"
             )
 
-        if isinstance(integrals, list):
-            integrals_array = np.array(integrals, dtype=np.float64)
-        else:
-            integrals_array = np.array(integrals, dtype=np.float64)
-
+        integrals_array = np.array(integrals, dtype=np.float64)
         if integrals_array.size != num_integrals:
             raise ValueError(
                 f"Integral guess must have exactly {num_integrals} elements, got {integrals_array.size}"
             )
-        if np.any(np.isnan(integrals_array)) or np.any(np.isinf(integrals_array)):
-            raise ValueError("Integrals contain invalid values (NaN or inf)")
+        _validate_array_values(integrals_array, "Integrals")
 
 
-def validate_time_values(
-    initial_time: float | None,
-    terminal_time: float | None,
-) -> None:
+def validate_time_values(initial_time: float | None, terminal_time: float | None) -> None:
     """
     Validate actual time values (not bounds).
 
@@ -118,16 +114,10 @@ def validate_time_values(
         ValueError: If validation fails
     """
     if initial_time is not None:
-        if not isinstance(initial_time, int | float):
-            raise ValueError(f"Initial time must be scalar, got {type(initial_time)}")
-        if np.isnan(initial_time) or np.isinf(initial_time):
-            raise ValueError(f"Initial time has invalid value: {initial_time}")
+        _validate_numeric_value(initial_time, "Initial time")
 
     if terminal_time is not None:
-        if not isinstance(terminal_time, int | float):
-            raise ValueError(f"Terminal time must be scalar, got {type(terminal_time)}")
-        if np.isnan(terminal_time) or np.isinf(terminal_time):
-            raise ValueError(f"Terminal time has invalid value: {terminal_time}")
+        _validate_numeric_value(terminal_time, "Terminal time")
 
     # Check time ordering if both are present
     if initial_time is not None and terminal_time is not None:
@@ -167,23 +157,8 @@ def validate_trajectory_arrays(
                 f"expected {expected_shape}"
             )
 
-        # Check for invalid values
-        if np.any(np.isnan(traj)):
-            raise ValueError(
-                f"{trajectory_type.capitalize()} trajectory for interval {k} contains NaN values"
-            )
-
-        if np.any(np.isinf(traj)):
-            raise ValueError(
-                f"{trajectory_type.capitalize()} trajectory for interval {k} contains infinite values"
-            )
-
-        # Check data type
-        if traj.dtype != np.float64:
-            raise ValueError(
-                f"{trajectory_type.capitalize()} trajectory for interval {k} has dtype {traj.dtype}, "
-                f"expected float64"
-            )
+        # Check for invalid values and data type
+        _validate_array_values(traj, f"{trajectory_type.capitalize()} trajectory for interval {k}")
 
 
 def validate_initial_guess_structure(
@@ -246,7 +221,6 @@ def validate_and_set_integral_guess(
 ) -> None:
     """
     Validate and set initial guess for integrals with strict dimension checking.
-    Now uses the generic validation function.
 
     Args:
         opti: CasADi optimization object
@@ -265,20 +239,21 @@ def validate_and_set_integral_guess(
         return
 
     if num_integrals == 1:
-        # After validation, guess should be a scalar (int or float) for single integrals
         if isinstance(guess, int | float):
             opti.set_initial(integral_vars, float(guess))
         else:
-            # This should not happen after validation, but handle gracefully
             raise ValueError(
                 f"Expected scalar for single integral after validation, got {type(guess)}"
             )
     elif num_integrals > 1:
-        if isinstance(guess, list):
-            guess_array = np.array(guess, dtype=np.float64)
-        else:
-            guess_array = np.array(guess, dtype=np.float64)
+        guess_array = np.array(guess, dtype=np.float64)
         opti.set_initial(integral_vars, guess_array.flatten())
+
+
+def _validate_bounds_ordering(bounds: tuple[float, float], name: str) -> None:
+    """Validate that bounds are properly ordered."""
+    if bounds[0] > bounds[1]:
+        raise ValueError(f"{name} bounds are invalid: {bounds}")
 
 
 def validate_mesh_configuration(
@@ -288,14 +263,6 @@ def validate_mesh_configuration(
 ) -> None:
     """
     Comprehensive mesh configuration validation.
-
-    Validates:
-    - Polynomial degrees count matches intervals
-    - Mesh points count is intervals + 1
-    - Mesh points are strictly increasing
-    - Mesh starts at -1.0 and ends at 1.0
-    - Minimum spacing between points
-    - All polynomial degrees are positive integers
 
     Args:
         polynomial_degrees: Polynomial degrees per interval
@@ -352,8 +319,6 @@ def validate_mesh_for_adaptive_algorithm(
     """
     Validate mesh configuration for adaptive algorithms with degree bounds.
 
-    Extends basic mesh validation with polynomial degree bounds checking.
-
     Args:
         polynomial_degrees: Polynomial degrees per interval
         mesh_points: Normalized mesh points in [-1, 1]
@@ -385,8 +350,6 @@ def validate_time_bounds(
     """
     Validate time bound constraints.
 
-    Handles both fixed and free time cases appropriately.
-
     Args:
         t0_bounds: (min_t0, max_t0) bounds for initial time
         tf_bounds: (min_tf, max_tf) bounds for final time
@@ -395,15 +358,10 @@ def validate_time_bounds(
         ValueError: If time bounds are invalid
     """
     # Check bound ordering
-    if t0_bounds[0] > t0_bounds[1]:
-        raise ValueError(f"Initial time bounds are invalid: {t0_bounds}")
+    _validate_bounds_ordering(t0_bounds, "Initial time")
+    _validate_bounds_ordering(tf_bounds, "Final time")
 
-    if tf_bounds[0] > tf_bounds[1]:
-        raise ValueError(f"Final time bounds are invalid: {tf_bounds}")
-
-    # For free final time problems, it's acceptable for min_tf to equal max_t0
-    # The optimization constraint will ensure tf > t0 + epsilon
-    # Only check that it's not impossible to have a valid time duration
+    # Check if valid time duration is possible
     max_possible_duration = tf_bounds[1] - t0_bounds[0]
     if max_possible_duration < MINIMUM_TIME_INTERVAL:
         raise ValueError(
