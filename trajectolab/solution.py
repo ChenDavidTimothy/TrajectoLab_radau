@@ -62,7 +62,7 @@ class IntervalData:
         )
 
 
-class Solution:
+class _Solution:
     """Processes and provides access to the solution of an optimal control problem."""
 
     def __init__(

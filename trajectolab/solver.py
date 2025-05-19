@@ -9,7 +9,7 @@ import numpy as np
 from trajectolab.adaptive.phs.algorithm import solve_phs_adaptive_internal
 from trajectolab.direct_solver import OptimalControlSolution, solve_single_phase_radau_collocation
 from trajectolab.problem import Problem
-from trajectolab.solution import Solution
+from trajectolab.solution import _Solution
 from trajectolab.tl_types import FloatArray, ProblemProtocol
 
 
@@ -18,7 +18,7 @@ def solve_fixed_mesh(
     polynomial_degrees: list[int],
     mesh_points: FloatArray | list[float],
     nlp_options: dict[str, object] | None = None,
-) -> Solution:
+) -> _Solution:
     """
     Solve optimal control problem with fixed mesh.
 
@@ -54,7 +54,7 @@ def solve_fixed_mesh(
     protocol_problem = cast(ProblemProtocol, problem)
     solution_data: OptimalControlSolution = solve_single_phase_radau_collocation(protocol_problem)
 
-    return Solution(solution_data, protocol_problem)
+    return _Solution(solution_data, protocol_problem)
 
 
 def solve_adaptive(
@@ -68,7 +68,7 @@ def solve_adaptive(
     ode_solver_tolerance: float = 1e-7,
     num_error_sim_points: int = 40,
     nlp_options: dict[str, object] | None = None,
-) -> Solution:
+) -> _Solution:
     """
     Solve optimal control problem with adaptive mesh refinement.
 
@@ -120,14 +120,14 @@ def solve_adaptive(
         initial_guess=initial_guess,
     )
 
-    return Solution(solution_data, protocol_problem)
+    return _Solution(solution_data, protocol_problem)
 
 
 def solve(
     problem: Problem,
     mesh_method: str = "fixed",
     **kwargs: object,
-) -> Solution:
+) -> _Solution:
     """
     General solve function that dispatches to specific solvers.
 
