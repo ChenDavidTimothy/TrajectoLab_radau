@@ -5,11 +5,7 @@ NASA-appropriate: explicit control, no hidden assumptions.
 
 import numpy as np
 
-from trajectolab.direct_solver import InitialGuess, OptimalControlSolution
-from trajectolab.tl_types import (
-    FloatArray,
-    ProblemProtocol,
-)
+from trajectolab.tl_types import FloatArray, InitialGuess, OptimalControlSolution, ProblemProtocol
 
 
 __all__ = [

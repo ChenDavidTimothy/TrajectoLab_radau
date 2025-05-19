@@ -13,8 +13,7 @@ import numpy as np
 from matplotlib.axes import Axes as MplAxes
 from matplotlib.lines import Line2D
 
-from .direct_solver import OptimalControlSolution
-from .tl_types import FloatArray, IntArray, ProblemProtocol, SymType
+from .tl_types import FloatArray, IntArray, OptimalControlSolution, ProblemProtocol, SymType
 
 
 # --- Type Aliases ---

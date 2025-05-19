@@ -202,6 +202,53 @@ class EventConstraintFuncProtocol(Protocol):
         ...
 
 
+class InitialGuess:
+    """
+    Initial guess for the optimal control problem.
+    All components are optional.
+    """
+
+    def __init__(
+        self,
+        initial_time_variable: float | None = None,
+        terminal_time_variable: float | None = None,
+        states: InitialGuessTrajectory | None = None,
+        controls: InitialGuessTrajectory | None = None,
+        integrals: InitialGuessIntegrals | None = None,
+    ) -> None:
+        self.initial_time_variable = initial_time_variable
+        self.terminal_time_variable = terminal_time_variable
+        self.states = states
+        self.controls = controls
+        self.integrals = integrals
+
+
+class OptimalControlSolution:
+    """
+    Solution to an optimal control problem.
+    """
+
+    def __init__(self) -> None:
+        self.success: bool = False
+        self.message: str = "Solver not run yet."
+        self.initial_time_variable: float | None = None
+        self.terminal_time_variable: float | None = None
+        self.objective: float | None = None
+        self.integrals: float | FloatArray | None = None
+        self.time_states: FloatArray = np.array([], dtype=np.float64)
+        self.states: TrajectoryData = []
+        self.time_controls: FloatArray = np.array([], dtype=np.float64)
+        self.controls: TrajectoryData = []
+        self.raw_solution: CasadiOptiSol | None = None
+        self.opti_object: CasadiOpti | None = None
+        self.num_collocation_nodes_per_interval: list[int] = []
+        self.global_normalized_mesh_nodes: FloatArray | None = None
+        self.num_collocation_nodes_list_at_solve_time: list[int] | None = None
+        self.global_mesh_nodes_at_solve_time: FloatArray | None = None
+        self.solved_state_trajectories_per_interval: list[FloatMatrix] | None = None
+        self.solved_control_trajectories_per_interval: list[FloatMatrix] | None = None
+
+
 # User-facing function types using Protocol classes
 DynamicsFuncType: TypeAlias = DynamicsFuncProtocol
 ObjectiveFuncType: TypeAlias = ObjectiveFuncProtocol

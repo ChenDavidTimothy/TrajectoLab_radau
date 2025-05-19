@@ -9,15 +9,16 @@ import numpy as np
 from scipy.integrate import solve_ivp
 
 from trajectolab.adaptive.phs.data_structures import IntervalSimulationBundle
-from trajectolab.direct_solver import OptimalControlSolution
 from trajectolab.tl_types import (
     ControlEvaluator,
     FloatArray,
     GammaFactors,
     ODESolverCallable,
+    OptimalControlSolution,
     ProblemProtocol,
     StateEvaluator,
 )
+from trajectolab.utils.casadi_utils import convert_casadi_to_numpy
 
 
 __all__ = [
@@ -28,31 +29,6 @@ __all__ = [
 
 # Set up logging for this module
 logger = logging.getLogger(__name__)
-
-
-def _convert_casadi_to_numpy(casadi_dynamics_func, state, control, time, params):
-    """Convert CasADi dynamics function call to NumPy arrays."""
-    import casadi as ca
-
-    # Convert to CasADi
-    state_dm = ca.DM(state)
-    control_dm = ca.DM(control)
-    time_dm = ca.DM([time])
-
-    # Call dynamics
-    result_casadi = casadi_dynamics_func(state_dm, control_dm, time_dm, params)
-
-    # Convert back to NumPy
-    if isinstance(result_casadi, ca.DM):
-        result_np = np.array(result_casadi.full(), dtype=np.float64).flatten()
-    else:
-        # Handle array of MX objects
-        dm_result = ca.DM(len(result_casadi), 1)
-        for i, item in enumerate(result_casadi):
-            dm_result[i] = ca.evalf(item)
-        result_np = np.array(dm_result.full(), dtype=np.float64).flatten()
-
-    return cast(FloatArray, result_np)
 
 
 def _simulate_forward(
@@ -166,8 +142,8 @@ def simulate_dynamics_for_error_estimation(
         global_tau = beta_k * tau + beta_k0
         physical_time = alpha * global_tau + alpha_0
 
-        # Use the converted dynamics
-        state_deriv_np = _convert_casadi_to_numpy(
+        # Use the consolidated conversion function
+        state_deriv_np = convert_casadi_to_numpy(
             casadi_dynamics_function, state, control, physical_time, problem_parameters
         )
 

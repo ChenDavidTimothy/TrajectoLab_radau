@@ -18,42 +18,18 @@ from trajectolab.adaptive.phs.numerical import (
     map_local_tau_from_interval_k_plus_1_to_equivalent_in_interval_k,
     map_local_tau_from_interval_k_to_equivalent_in_interval_k_plus_1,
 )
-from trajectolab.direct_solver import OptimalControlSolution
 from trajectolab.tl_types import (
     ControlEvaluator,
     FloatArray,
     GammaFactors,
+    OptimalControlSolution,
     ProblemProtocol,
     StateEvaluator,
 )
+from trajectolab.utils.casadi_utils import convert_casadi_to_numpy
 
 
 __all__ = ["h_reduce_intervals", "h_refine_params", "p_reduce_interval", "p_refine_interval"]
-
-
-def _convert_casadi_to_numpy_for_refinement(casadi_dynamics_func, state, control, time, params):
-    """Convert CasADi dynamics function call to NumPy arrays for refinement."""
-    import casadi as ca
-
-    # Convert to CasADi
-    state_dm = ca.DM(state)
-    control_dm = ca.DM(control)
-    time_dm = ca.DM([time])
-
-    # Call dynamics
-    result_casadi = casadi_dynamics_func(state_dm, control_dm, time_dm, params)
-
-    # Convert back to NumPy
-    if isinstance(result_casadi, ca.DM):
-        result_np = np.array(result_casadi.full(), dtype=np.float64).flatten()
-    else:
-        # Handle array of MX objects
-        dm_result = ca.DM(len(result_casadi), 1)
-        for i, item in enumerate(result_casadi):
-            dm_result[i] = ca.evalf(item)
-        result_np = np.array(dm_result.full(), dtype=np.float64).flatten()
-
-    return cast(FloatArray, result_np)
 
 
 def p_refine_interval(
@@ -213,8 +189,8 @@ def h_reduce_intervals(
         )
         t_actual = alpha * global_tau + alpha_0
 
-        # Use converted dynamics function
-        f_rhs_np = _convert_casadi_to_numpy_for_refinement(
+        # Use consolidated conversion function
+        f_rhs_np = convert_casadi_to_numpy(
             casadi_dynamics_function, state_clipped, u_val, t_actual, problem_parameters
         )
         return cast(FloatArray, scaling_k * f_rhs_np)
@@ -228,8 +204,8 @@ def h_reduce_intervals(
         )
         t_actual = alpha * global_tau + alpha_0
 
-        # Use converted dynamics function
-        f_rhs_np = _convert_casadi_to_numpy_for_refinement(
+        # Use consolidated conversion function
+        f_rhs_np = convert_casadi_to_numpy(
             casadi_dynamics_function, state_clipped, u_val, t_actual, problem_parameters
         )
         return cast(FloatArray, scaling_kp1 * f_rhs_np)
