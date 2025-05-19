@@ -79,7 +79,7 @@ def validate_integral_values(
                 f"For single integral, guess must be scalar (int or float), "
                 f"got {type(integrals)} with value {integrals}"
             )
-        if np.isnan(integrals) or np.isinf(integrals):
+        if np.isnan(float(integrals)) or np.isinf(float(integrals)):
             raise ValueError(f"Integral has invalid value: {integrals}")
 
     elif num_integrals > 1:
@@ -263,7 +263,12 @@ def validate_and_set_integral_guess(
         return
 
     if num_integrals == 1:
-        opti.set_initial(integral_vars, float(guess))
+        # After validation, guess should be a scalar (int or float) for single integrals
+        if isinstance(guess, (int, float)):
+            opti.set_initial(integral_vars, float(guess))
+        else:
+            # This should not happen after validation, but handle gracefully
+            raise ValueError(f"Expected scalar for single integral after validation, got {type(guess)}")
     elif num_integrals > 1:
         if isinstance(guess, list):
             guess_array = np.array(guess, dtype=np.float64)
