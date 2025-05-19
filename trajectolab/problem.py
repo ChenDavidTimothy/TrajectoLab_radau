@@ -232,7 +232,6 @@ class Problem:
         # Expressions for dynamics, objectives, and constraints
         self._dynamics_expressions: _DynamicsExprs = {}
         self._objective_expression: SymExpr | None = None
-        self._objective_type: str | None = None
         self._constraints: _ConstraintList = []
 
         # Integral expressions and symbols
@@ -363,24 +362,8 @@ class Problem:
         return integral_sym
 
     def minimize(self, objective_expr: SymExpr) -> None:
+        """Set the objective expression to minimize."""
         self._objective_expression = objective_expr
-        self._objective_type = self._determine_objective_type(objective_expr)
-
-    def _determine_objective_type(self, expr: SymExpr) -> str:
-        # Check if expression contains any integral symbols
-        for integral_sym in self._integral_symbols:
-            if self._expression_contains_symbol(expr, integral_sym):
-                return "integral"
-
-        # Default to Mayer
-        return "mayer"
-
-    def _expression_contains_symbol(self, expr: SymExpr, symbol: SymType) -> bool:
-        if isinstance(expr, int | float):
-            return False
-
-        # Use CasADi's depends_on to check dependency
-        return bool(ca.depends_on(expr, symbol))  # type: ignore[attr-defined]
 
     def subject_to(self, constraint_expr: SymExpr) -> None:
         self._constraints.append(constraint_expr)
@@ -786,6 +769,15 @@ class Problem:
         return vectorized_dynamics
 
     def get_objective_function(self) -> _ObjectiveCallback:
+        """
+        Get unified objective function that handles all objective types (Mayer, Lagrange, Bolza).
+
+        This unified approach matches GPOPS-II's general objective formulation:
+        J = φ(y(t_0), t_0, y(t_f), t_f, q)
+
+        Returns:
+            Objective function callback compatible with the solver
+        """
         if self._objective_expression is None:
             raise ValueError("Objective expression not defined")
 
@@ -795,7 +787,7 @@ class Problem:
             for name in sorted(self._sym_states.keys(), key=lambda n: self._states[n]["index"])
         ]
 
-        # Create inputs for the function
+        # Create inputs for the unified objective function
         t0 = self._sym_time_initial if self._sym_time_initial is not None else ca.MX.sym("t0", 1)  # type: ignore[arg-type]
         tf = self._sym_time_final if self._sym_time_final is not None else ca.MX.sym("tf", 1)  # type: ignore[arg-type]
         x0_vec = ca.vertcat(*[ca.MX.sym(f"x0_{i}", 1) for i in range(len(state_syms))])  # type: ignore[arg-type]
@@ -807,38 +799,19 @@ class Problem:
             else ca.MX.sym("p", 0)  # type: ignore[arg-type]
         )
 
-        # Create a substitution map for the objective expression
-        if self._objective_type == "integral":
-            # Use q directly if it's an integral objective
-            obj_func = ca.Function(
-                "objective", [t0, tf, x0_vec, xf_vec, q, param_syms], [self._objective_expression]
-            )
-        else:
-            # For Mayer objectives, we need to substitute state symbols
-            # with their final values (xf) for endpoint objectives
-            subs_map = {}
-
-            # Map each state symbol to its final value from xf_vec
-            for i, state_sym in enumerate(state_syms):
-                subs_map[state_sym] = xf_vec[i]
-
-            # Also substitute initial/final time symbols
-            if self._sym_time_initial is not None:
-                subs_map[self._sym_time_initial] = t0
-            if self._sym_time_final is not None:
-                subs_map[self._sym_time_final] = tf
-
-            # Substitute these values in the objective expression
-            substituted_obj = ca.substitute(
-                [self._objective_expression], list(subs_map.keys()), list(subs_map.values())
-            )[0]
-
-            obj_func = ca.Function(
-                "objective", [t0, tf, x0_vec, xf_vec, q, param_syms], [substituted_obj]
-            )
+        # Create unified objective function that receives all possible inputs
+        # This approach works for all objective types:
+        # - Mayer objectives: use t0, tf, x0_vec, xf_vec components
+        # - Lagrange objectives: use q components
+        # - Bolza objectives: use any combination of the above
+        obj_func = ca.Function(
+            "objective",
+            [t0, tf, x0_vec, xf_vec, q, param_syms],
+            [self._objective_expression]
+        )
 
         # Create wrapper function that matches existing API
-        def vectorized_objective(
+        def unified_objective(
             t0: CasadiMX,
             tf: CasadiMX,
             x0_vec: CasadiMX,
@@ -860,13 +833,13 @@ class Problem:
             # If q is None but we need it, create zero vector
             q_val = q if q is not None else ca.DM.zeros(len(self._integral_symbols), 1)  # type: ignore[arg-type]
 
-            # Call CasADi function
+            # Call unified CasADi function with all inputs
             result = obj_func(t0, tf, x0_vec, xf_vec, q_val, param_vec)
             # Handle CasADi function result properly
             obj_output = result[0] if isinstance(result, list | tuple) else result
             return cast(CasadiMX, obj_output)
 
-        return vectorized_objective
+        return unified_objective
 
     def get_integrand_function(self) -> _IntegrandCallback | None:
         if not self._integral_expressions:

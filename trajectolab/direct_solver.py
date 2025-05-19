@@ -158,7 +158,7 @@ def _apply_collocation_constraints(
     dynamics_function: DynamicsCallable,
     problem_parameters: ProblemParameters,
 ) -> None:
-    """Apply collocation constraints for a single mesh interval."""
+    """Apply collocation constraints for a single mesh interval using differential form."""
     num_colloc_nodes = len(basis_components.collocation_nodes)
     colloc_nodes_tau = basis_components.collocation_nodes.flatten()
     diff_matrix: CasadiDM = ca.DM(basis_components.differentiation_matrix)
@@ -170,7 +170,7 @@ def _apply_collocation_constraints(
         mesh_interval_index,
     )
 
-    # Calculate state derivatives at collocation points
+    # Calculate state derivatives at collocation points using differentiation matrix
     state_derivative_at_colloc: CasadiMX = ca.mtimes(state_at_nodes, diff_matrix.T)
 
     # Calculate global segment length and time scaling
@@ -213,7 +213,7 @@ def _apply_collocation_constraints(
             state_derivative_rhs, num_states
         )
 
-        # Apply collocation constraint
+        # Apply collocation constraint: state_derivative = time_scaling * dynamics
         opti.subject_to(
             state_derivative_at_colloc[:, i_colloc]
             == tau_to_time_scaling * state_derivative_rhs_vector
@@ -290,7 +290,7 @@ def _setup_integrals(
     num_integrals: int,
     accumulated_integral_expressions: list[CasadiMX],
 ) -> None:
-    """Set up integral calculations for a single mesh interval."""
+    """Set up integral calculations for a single mesh interval using quadrature."""
     num_colloc_nodes = len(basis_components.collocation_nodes)
     colloc_nodes_tau = basis_components.collocation_nodes.flatten()
     quad_weights = basis_components.quadrature_weights.flatten()
@@ -562,7 +562,7 @@ def solve_single_phase_radau_collocation(problem: ProblemProtocol) -> OptimalCon
         local_state_approximation_nodes_tau_all_intervals.append(state_nodes_tau)
         local_collocation_nodes_tau_all_intervals.append(colloc_nodes_tau)
 
-        # Apply collocation constraints
+        # Apply collocation constraints using differential form
         _apply_collocation_constraints(
             opti,
             mesh_interval_index,
@@ -622,7 +622,7 @@ def solve_single_phase_radau_collocation(problem: ProblemProtocol) -> OptimalCon
                     integral_decision_variables[i] == accumulated_integral_expressions[i]
                 )
 
-    # Set objective
+    # Set unified objective
     initial_state: CasadiMX = state_at_global_mesh_nodes_variables[0]
     terminal_state: CasadiMX = state_at_global_mesh_nodes_variables[num_mesh_intervals]
 

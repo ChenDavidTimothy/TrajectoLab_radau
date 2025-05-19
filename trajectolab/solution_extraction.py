@@ -82,8 +82,8 @@ def process_trajectory_points(
     mesh_interval_index: int,
     casadi_solution_object: CasadiOptiSol,
     opti_object: CasadiOpti,
-    variables_list_attr_name: str,
-    local_tau_nodes_attr_name: str,
+    variables_list: ListOfCasadiMX,
+    local_tau_nodes: list[FloatArray],
     global_normalized_mesh_nodes: FloatArray,
     initial_time: float,
     terminal_time: float,
@@ -93,27 +93,41 @@ def process_trajectory_points(
     num_variables: int,
     is_state: bool = True,
 ) -> float:
-    """Process trajectory points for a single mesh interval."""
-    variables_list: ListOfCasadiMX = getattr(opti_object, variables_list_attr_name, [])
-    local_tau_values_all_intervals: list[FloatArray] = getattr(
-        opti_object, local_tau_nodes_attr_name, []
-    )
+    """
+    Process trajectory points for a single mesh interval.
 
-    if mesh_interval_index >= len(variables_list) or mesh_interval_index >= len(
-        local_tau_values_all_intervals
-    ):
+    Args:
+        mesh_interval_index: Index of the current mesh interval
+        casadi_solution_object: CasADi solution object
+        opti_object: CasADi optimization object
+        variables_list: List of CasADi variables for this trajectory type
+        local_tau_nodes: Local tau values for each interval
+        global_normalized_mesh_nodes: Global mesh nodes
+        initial_time: Problem initial time
+        terminal_time: Problem terminal time
+        last_added_point: Last time point added (to avoid duplicates)
+        trajectory_times: Output list for time points
+        trajectory_values_lists: Output list for trajectory values
+        num_variables: Number of variables (states or controls)
+        is_state: True for states, False for controls
+
+    Returns:
+        Updated last_added_point value
+    """
+    if mesh_interval_index >= len(variables_list) or mesh_interval_index >= len(local_tau_nodes):
         print(
             f"Error: Variable list or tau nodes not found or incomplete for interval {mesh_interval_index}."
         )
         return last_added_point
 
     current_interval_variables = variables_list[mesh_interval_index]
-    current_interval_local_tau_values = local_tau_values_all_intervals[mesh_interval_index]
+    current_interval_local_tau_values = local_tau_nodes[mesh_interval_index]
 
     solved_values: FloatMatrix = casadi_solution_object.value(current_interval_variables)
     if num_variables == 1 and solved_values.ndim == 1:
         solved_values = solved_values.reshape(1, -1)
 
+    # For controls, we don't include the final point (which belongs to states)
     num_nodes_to_process = len(current_interval_local_tau_values)
     if not is_state and num_nodes_to_process > 0:
         num_nodes_to_process -= 1
@@ -123,17 +137,23 @@ def process_trajectory_points(
         segment_start: float = global_normalized_mesh_nodes[mesh_interval_index]
         segment_end: float = global_normalized_mesh_nodes[mesh_interval_index + 1]
 
+        # Transform from local tau to global tau
         global_tau: float = (segment_end - segment_start) / 2 * local_tau + (
             segment_end + segment_start
         ) / 2
+
+        # Transform from global tau to physical time
         physical_time: float = (terminal_time - initial_time) / 2 * global_tau + (
             terminal_time + initial_time
         ) / 2
 
+        # Check if this is the last point in the trajectory or if we should add it
         is_last_point_in_trajectory: bool = (
             mesh_interval_index == len(variables_list) - 1
             and node_index == num_nodes_to_process - 1
         )
+
+        # Add point if it's sufficiently different from the last one, or if it's the final point
         if (
             abs(physical_time - last_added_point) > 1e-9
             or is_last_point_in_trajectory
@@ -143,6 +163,7 @@ def process_trajectory_points(
             for var_index in range(num_variables):
                 trajectory_values_lists[var_index].append(solved_values[var_index, node_index])
             last_added_point = physical_time
+
     return last_added_point
 
 
@@ -209,12 +230,13 @@ def extract_and_format_solution(
         ):
             print("Error: State trajectory attributes missing in optimization object.")
             continue
+
         last_time_point_added_to_state_trajectory = process_trajectory_points(
             mesh_idx,
             casadi_solution_object,
             casadi_optimization_problem_object,
-            "state_at_local_approximation_nodes_all_intervals_variables",
-            "metadata_local_state_approximation_nodes_tau",
+            casadi_optimization_problem_object.state_at_local_approximation_nodes_all_intervals_variables,
+            casadi_optimization_problem_object.metadata_local_state_approximation_nodes_tau,
             global_normalized_mesh_nodes,
             solution.initial_time_variable,
             solution.terminal_time_variable,
@@ -244,8 +266,8 @@ def extract_and_format_solution(
             mesh_idx,
             casadi_solution_object,
             casadi_optimization_problem_object,
-            "control_at_local_collocation_nodes_all_intervals_variables",
-            "metadata_local_collocation_nodes_tau",
+            casadi_optimization_problem_object.control_at_local_collocation_nodes_all_intervals_variables,
+            casadi_optimization_problem_object.metadata_local_collocation_nodes_tau,
             global_normalized_mesh_nodes,
             solution.initial_time_variable,
             solution.terminal_time_variable,
