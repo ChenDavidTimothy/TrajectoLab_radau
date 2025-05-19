@@ -88,7 +88,7 @@ def validate_integral_values(integrals: InitialGuessIntegrals, num_integrals: in
 
     if num_integrals == 1:
         # Type narrowing: ensure integrals is a scalar before validation
-        if not isinstance(integrals, (int, float)):
+        if not isinstance(integrals, int | float):
             raise ValueError(f"For single integral, expected scalar, got {type(integrals)}")
         _validate_numeric_value(integrals, "Integral")
     elif num_integrals > 1:

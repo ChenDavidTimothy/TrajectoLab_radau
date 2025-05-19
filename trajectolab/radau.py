@@ -15,12 +15,8 @@ class RadauBasisComponents:
     state_approximation_nodes: FloatArray = field(
         default_factory=lambda: np.array([], dtype=np.float64)
     )
-    collocation_nodes: FloatArray = field(
-        default_factory=lambda: np.array([], dtype=np.float64)
-    )
-    quadrature_weights: FloatArray = field(
-        default_factory=lambda: np.array([], dtype=np.float64)
-    )
+    collocation_nodes: FloatArray = field(default_factory=lambda: np.array([], dtype=np.float64))
+    quadrature_weights: FloatArray = field(default_factory=lambda: np.array([], dtype=np.float64))
     differentiation_matrix: FloatMatrix = field(
         default_factory=lambda: np.empty((0, 0), dtype=np.float64)
     )
@@ -57,14 +53,10 @@ class RadauBasisComponents:
             else np.array([], dtype=np.float64)
         )
         self.collocation_nodes = (
-            collocation_nodes
-            if collocation_nodes is not None
-            else np.array([], dtype=np.float64)
+            collocation_nodes if collocation_nodes is not None else np.array([], dtype=np.float64)
         )
         self.quadrature_weights = (
-            quadrature_weights
-            if quadrature_weights is not None
-            else np.array([], dtype=np.float64)
+            quadrature_weights if quadrature_weights is not None else np.array([], dtype=np.float64)
         )
         self.differentiation_matrix = (
             differentiation_matrix
