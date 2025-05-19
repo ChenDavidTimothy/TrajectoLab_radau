@@ -28,7 +28,6 @@ from trajectolab.adaptive.phs.refinement import (
     p_reduce_interval,
     p_refine_interval,
 )
-from trajectolab.direct_solver import InitialGuess, OptimalControlSolution
 from trajectolab.radau import (
     RadauBasisComponents,
     compute_barycentric_weights,
@@ -37,6 +36,8 @@ from trajectolab.radau import (
 from trajectolab.tl_types import (
     ControlEvaluator,
     FloatArray,
+    InitialGuess,
+    OptimalControlSolution,
     ProblemProtocol,
     StateEvaluator,
 )

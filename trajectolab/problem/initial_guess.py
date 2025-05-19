@@ -9,7 +9,7 @@ from typing import cast
 
 import numpy as np
 
-from ..tl_types import FloatArray, FloatMatrix
+from ..tl_types import FloatArray, FloatMatrix, InitialGuess
 from .state import MeshState, VariableState
 
 
@@ -167,9 +167,6 @@ def set_initial_guess(
                     f"got {integrals_array.size}"
                 )
             validated_integrals = integrals_array
-
-    # Import here to avoid circular import
-    from ..direct_solver import InitialGuess
 
     current_guess_container[0] = InitialGuess(
         initial_time_variable=initial_time,

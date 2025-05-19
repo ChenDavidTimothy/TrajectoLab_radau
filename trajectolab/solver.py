@@ -7,10 +7,10 @@ from typing import cast
 import numpy as np
 
 from trajectolab.adaptive.phs.algorithm import solve_phs_adaptive_internal
-from trajectolab.direct_solver import OptimalControlSolution, solve_single_phase_radau_collocation
+from trajectolab.direct_solver import solve_single_phase_radau_collocation
 from trajectolab.problem import Problem
 from trajectolab.solution import _Solution
-from trajectolab.tl_types import FloatArray, ProblemProtocol
+from trajectolab.tl_types import FloatArray, OptimalControlSolution, ProblemProtocol
 
 
 def solve_fixed_mesh(
