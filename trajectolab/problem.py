@@ -120,7 +120,7 @@ class TimeVariableImpl:
 
 
 # Internal constraint class (not exported)
-class _Constraint:
+class _BoundaryConstraint:
     def __init__(
         self,
         val: SymExpr | None = None,
@@ -300,8 +300,8 @@ class Problem:
         # Store metadata
         self._states[name] = {
             "index": len(self._states),
-            "initial_constraint": None if initial is None else _Constraint(equals=initial),
-            "final_constraint": None if final is None else _Constraint(equals=final),
+            "initial_constraint": None if initial is None else _BoundaryConstraint(equals=initial),
+            "final_constraint": None if final is None else _BoundaryConstraint(equals=final),
             "lower": lower,
             "upper": upper,
         }
