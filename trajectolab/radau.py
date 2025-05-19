@@ -10,11 +10,17 @@ from .utils.constants import ZERO_TOLERANCE
 
 @dataclass
 class RadauBasisComponents:
+    """Components for Radau pseudospectral method basis functions."""
+
     state_approximation_nodes: FloatArray = field(
         default_factory=lambda: np.array([], dtype=np.float64)
     )
-    collocation_nodes: FloatArray = field(default_factory=lambda: np.array([], dtype=np.float64))
-    quadrature_weights: FloatArray = field(default_factory=lambda: np.array([], dtype=np.float64))
+    collocation_nodes: FloatArray = field(
+        default_factory=lambda: np.array([], dtype=np.float64)
+    )
+    quadrature_weights: FloatArray = field(
+        default_factory=lambda: np.array([], dtype=np.float64)
+    )
     differentiation_matrix: FloatMatrix = field(
         default_factory=lambda: np.empty((0, 0), dtype=np.float64)
     )
@@ -24,6 +30,57 @@ class RadauBasisComponents:
     lagrange_at_tau_plus_one: FloatArray = field(
         default_factory=lambda: np.array([], dtype=np.float64)
     )
+
+    def __init__(
+        self,
+        state_approximation_nodes: FloatArray | None = None,
+        collocation_nodes: FloatArray | None = None,
+        quadrature_weights: FloatArray | None = None,
+        differentiation_matrix: FloatMatrix | None = None,
+        barycentric_weights_for_state_nodes: FloatArray | None = None,
+        lagrange_at_tau_plus_one: FloatArray | None = None,
+    ) -> None:
+        """
+        Initialize RadauBasisComponents.
+
+        Args:
+            state_approximation_nodes: Nodes for state approximation
+            collocation_nodes: Collocation nodes
+            quadrature_weights: Quadrature weights
+            differentiation_matrix: Differentiation matrix
+            barycentric_weights_for_state_nodes: Barycentric weights for state nodes
+            lagrange_at_tau_plus_one: Lagrange polynomial values at tau=1
+        """
+        self.state_approximation_nodes = (
+            state_approximation_nodes
+            if state_approximation_nodes is not None
+            else np.array([], dtype=np.float64)
+        )
+        self.collocation_nodes = (
+            collocation_nodes
+            if collocation_nodes is not None
+            else np.array([], dtype=np.float64)
+        )
+        self.quadrature_weights = (
+            quadrature_weights
+            if quadrature_weights is not None
+            else np.array([], dtype=np.float64)
+        )
+        self.differentiation_matrix = (
+            differentiation_matrix
+            if differentiation_matrix is not None
+            else np.empty((0, 0), dtype=np.float64)
+        )
+        self.barycentric_weights_for_state_nodes = (
+            barycentric_weights_for_state_nodes
+            if barycentric_weights_for_state_nodes is not None
+            else np.array([], dtype=np.float64)
+        )
+        self.lagrange_at_tau_plus_one = (
+            lagrange_at_tau_plus_one
+            if lagrange_at_tau_plus_one is not None
+            else np.array([], dtype=np.float64)
+        )
 
 
 @dataclass
