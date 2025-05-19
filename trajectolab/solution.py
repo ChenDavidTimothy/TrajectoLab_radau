@@ -203,10 +203,16 @@ class _Solution:
 
         # Search through the problem if the map is not populated
         if self._problem and hasattr(self._problem, problem_attr):
-            for name, var in getattr(self._problem, problem_attr).items():
-                if var is sym_var:
-                    symbol_map[sym_var] = name
-                    return name
+            attrs = getattr(self._problem, problem_attr)
+            # Cast to ensure proper typing since we know these are symbol dictionaries
+            if isinstance(attrs, dict):
+                for name_any, var_any in attrs.items():
+                    # Cast the items to ensure correct types
+                    name = cast(str, name_any)
+                    var = cast(SymType, var_any)
+                    if var is sym_var:
+                        symbol_map[sym_var] = name
+                        return name
         return None
 
     def _is_symbolic_variable(self, variable: _VariableIdentifier) -> bool:
