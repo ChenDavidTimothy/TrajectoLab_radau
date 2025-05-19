@@ -1,16 +1,244 @@
 """
 Initial guess handling for the PHS adaptive algorithm.
-NASA-appropriate: explicit control, no hidden assumptions.
+Aggressive interpolation-based propagation strategy with validation.
 """
+
+import logging
 
 import numpy as np
 
+from trajectolab.adaptive.phs.numerical import (
+    get_polynomial_interpolant,
+    map_global_normalized_tau_to_local_interval_tau,
+    map_local_interval_tau_to_global_normalized_tau,
+)
+from trajectolab.input_validation import validate_initial_guess_structure
+from trajectolab.radau import compute_radau_collocation_components
 from trajectolab.tl_types import FloatArray, InitialGuess, OptimalControlSolution, ProblemProtocol
 
 
 __all__ = [
     "propagate_solution_to_new_mesh",
 ]
+
+logger = logging.getLogger(__name__)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(name)s  - %(message)s',
+    handlers=[
+        logging.StreamHandler(),  # This outputs to console
+    ]
+)
+
+
+def _interpolate_trajectory_to_new_mesh(
+    prev_trajectory_per_interval: list[FloatArray],
+    prev_mesh_points: FloatArray,
+    prev_polynomial_degrees: list[int],
+    target_mesh_points: FloatArray,
+    target_polynomial_degrees: list[int],
+    num_variables: int,
+    is_state_trajectory: bool = True,
+) -> list[FloatArray]:
+    """
+    Interpolate trajectory data from previous mesh to new mesh using polynomial interpolation.
+
+    Args:
+        prev_trajectory_per_interval: Previous solution trajectories (one array per interval)
+        prev_mesh_points: Previous mesh points in normalized domain [-1, 1]
+        prev_polynomial_degrees: Previous polynomial degrees per interval
+        target_mesh_points: Target mesh points in normalized domain [-1, 1]
+        target_polynomial_degrees: Target polynomial degrees per interval
+        num_variables: Number of state/control variables
+        is_state_trajectory: True for states (N+1 nodes), False for controls (N nodes)
+
+    Returns:
+        List of interpolated trajectory arrays for new mesh
+
+    Raises:
+        ValueError: If interpolation fails or produces invalid results
+    """
+    trajectory_type = "state" if is_state_trajectory else "control"
+    logger.info(f"    Interpolating {trajectory_type} trajectories:")
+    logger.info(f"      Previous mesh: {len(prev_mesh_points)-1} intervals, degrees {prev_polynomial_degrees}")
+    logger.info(f"      Target mesh: {len(target_mesh_points)-1} intervals, degrees {target_polynomial_degrees}")
+
+    try:
+        # Validate input trajectory data
+        if len(prev_trajectory_per_interval) != len(prev_polynomial_degrees):
+            raise ValueError(
+                f"Previous trajectory count ({len(prev_trajectory_per_interval)}) doesn't match "
+                f"polynomial degrees count ({len(prev_polynomial_degrees)})"
+            )
+
+        # Create polynomial interpolants for each interval in previous solution
+        prev_interpolants = []
+
+        for k, (N_k, traj_k) in enumerate(zip(prev_polynomial_degrees, prev_trajectory_per_interval)):
+            # Validate trajectory shape
+            if is_state_trajectory:
+                expected_nodes = N_k + 1
+            else:
+                expected_nodes = N_k
+
+            if traj_k.shape != (num_variables, expected_nodes):
+                raise ValueError(
+                    f"Previous {trajectory_type} trajectory for interval {k} has shape {traj_k.shape}, "
+                    f"expected ({num_variables}, {expected_nodes})"
+                )
+
+            # Get the appropriate nodes for this interval type
+            if is_state_trajectory:
+                # State trajectories use state approximation nodes (includes endpoints)
+                basis_components = compute_radau_collocation_components(N_k)
+                local_nodes = basis_components.state_approximation_nodes
+                barycentric_weights = basis_components.barycentric_weights_for_state_nodes
+            else:
+                # Control trajectories use collocation nodes only
+                basis_components = compute_radau_collocation_components(N_k)
+                local_nodes = basis_components.collocation_nodes
+                # Compute barycentric weights for collocation nodes
+                from trajectolab.radau import compute_barycentric_weights
+                barycentric_weights = compute_barycentric_weights(local_nodes)
+
+            # Create interpolant for this interval
+            try:
+                interpolant = get_polynomial_interpolant(local_nodes, traj_k, barycentric_weights)
+                prev_interpolants.append(interpolant)
+                logger.debug(f"        Interval {k}: Created interpolant for {traj_k.shape} trajectory")
+            except Exception as e:
+                logger.error(f"        Interval {k}: Failed to create interpolant: {e}")
+                raise ValueError(f"Failed to create interpolant for interval {k}: {e}") from e
+
+        # Interpolate trajectory values for each target interval
+        target_trajectories = []
+
+        for k, N_k_target in enumerate(target_polynomial_degrees):
+            logger.debug(f"      Processing target interval {k} (degree {N_k_target})...")
+
+            # Get target nodes for this interval type
+            if is_state_trajectory:
+                target_basis = compute_radau_collocation_components(N_k_target)
+                target_local_nodes = target_basis.state_approximation_nodes
+                num_target_nodes = N_k_target + 1
+            else:
+                target_basis = compute_radau_collocation_components(N_k_target)
+                target_local_nodes = target_basis.collocation_nodes
+                num_target_nodes = N_k_target
+
+            # Initialize trajectory array for this target interval
+            target_traj_k = np.zeros((num_variables, num_target_nodes), dtype=np.float64)
+
+            # Global interval boundaries for target interval k
+            target_tau_start = target_mesh_points[k]
+            target_tau_end = target_mesh_points[k + 1]
+
+            # Evaluate interpolants at each target node
+            for j, local_tau in enumerate(target_local_nodes):
+                # Convert local tau to global tau for target interval
+                global_tau = map_local_interval_tau_to_global_normalized_tau(
+                    local_tau, target_tau_start, target_tau_end
+                )
+
+                # Find which previous interval contains this global tau
+                prev_interval_idx = _find_containing_interval(global_tau, prev_mesh_points)
+
+                if prev_interval_idx is None:
+                    # Point is outside previous mesh - use boundary values
+                    if global_tau < prev_mesh_points[0]:
+                        # Before first interval - use first interval, leftmost point
+                        prev_interval_idx = 0
+                        prev_local_tau = -1.0
+                        logger.debug(f"        Global tau {global_tau} before mesh, using first interval boundary")
+                    elif global_tau > prev_mesh_points[-1]:
+                        # After last interval - use last interval, rightmost point
+                        prev_interval_idx = len(prev_interpolants) - 1
+                        prev_local_tau = 1.0
+                        logger.debug(f"        Global tau {global_tau} after mesh, using last interval boundary")
+                    else:
+                        # This shouldn't happen, but handle gracefully
+                        raise ValueError(f"Could not locate global_tau {global_tau} in mesh boundaries [{prev_mesh_points[0]}, {prev_mesh_points[-1]}]")
+                else:
+                    # Convert global tau to local tau for the containing previous interval
+                    prev_tau_start = prev_mesh_points[prev_interval_idx]
+                    prev_tau_end = prev_mesh_points[prev_interval_idx + 1]
+                    prev_local_tau = map_global_normalized_tau_to_local_interval_tau(
+                        global_tau, prev_tau_start, prev_tau_end
+                    )
+
+                # Evaluate the interpolant at this local tau
+                try:
+                    interpolated_values = prev_interpolants[prev_interval_idx](prev_local_tau)
+                    if interpolated_values.ndim > 1:
+                        interpolated_values = interpolated_values.flatten()
+
+                    # Validate interpolated values
+                    if np.any(np.isnan(interpolated_values)):
+                        raise ValueError(f"Interpolation produced NaN values at global_tau={global_tau}, local_tau={prev_local_tau}")
+
+                    if np.any(np.isinf(interpolated_values)):
+                        raise ValueError(f"Interpolation produced infinite values at global_tau={global_tau}, local_tau={prev_local_tau}")
+
+                    # Store the interpolated values
+                    if len(interpolated_values) == num_variables:
+                        target_traj_k[:, j] = interpolated_values
+                    elif num_variables == 0:
+                        # Handle empty variable case (valid for problems with no states/controls)
+                        pass
+                    else:
+                        raise ValueError(
+                            f"Dimension mismatch: interpolated {len(interpolated_values)} values, "
+                            f"expected {num_variables} for {trajectory_type} trajectories"
+                        )
+
+                except Exception as e:
+                    error_msg = f"Failed to evaluate interpolant at global_tau={global_tau}, local_tau={prev_local_tau}, interval {prev_interval_idx}: {e}"
+                    logger.error(f"        {error_msg}")
+                    raise ValueError(error_msg) from e
+
+            # Validate the resulting trajectory array
+            expected_shape = (num_variables, num_target_nodes)
+            if target_traj_k.shape != expected_shape:
+                raise ValueError(f"Target trajectory shape {target_traj_k.shape} doesn't match expected {expected_shape}")
+
+            target_trajectories.append(target_traj_k)
+            logger.debug(f"        Interval {k}: Created trajectory of shape {target_traj_k.shape}")
+
+        logger.info(f"    ✓ Successfully interpolated {trajectory_type} trajectories")
+        return target_trajectories
+
+    except Exception as e:
+        error_msg = f"Failed to interpolate {trajectory_type} trajectories: {e}"
+        logger.error(f"    ✗ {error_msg}")
+        raise ValueError(error_msg) from e
+
+
+def _find_containing_interval(global_tau: float, mesh_points: FloatArray) -> int | None:
+    """
+    Find which mesh interval contains the given global tau value.
+
+    Args:
+        global_tau: Global tau value to locate
+        mesh_points: Mesh points array
+
+    Returns:
+        Index of containing interval, or None if outside mesh
+    """
+    # Handle boundary cases with small tolerance
+    tolerance = 1e-10
+
+    if global_tau < mesh_points[0] - tolerance:
+        return None
+    if global_tau > mesh_points[-1] + tolerance:
+        return None
+
+    # Find the interval
+    for k in range(len(mesh_points) - 1):
+        if mesh_points[k] - tolerance <= global_tau <= mesh_points[k + 1] + tolerance:
+            return k
+
+    return None
 
 
 def propagate_solution_to_new_mesh(
@@ -20,13 +248,13 @@ def propagate_solution_to_new_mesh(
     target_mesh_points: FloatArray,
 ) -> InitialGuess:
     """
-    Propagate solution from previous iteration to a new mesh.
+    Aggressively propagate solution from previous iteration to new mesh using interpolation.
 
     This function creates an initial guess for the current iteration by:
-    1. Always propagating: time variables (t0, tf) and integral values
-    2. Conditionally propagating trajectories:
-       - If mesh structure is identical: propagate state/control trajectories exactly
-       - If mesh structure changed: use default trajectories but keep times/integrals
+    1. ALWAYS propagating time variables (t0, tf) and integral values
+    2. ALWAYS interpolating state and control trajectories to new mesh structure
+    3. Using polynomial interpolation to maximize information transfer between meshes
+    4. VALIDATING all interpolated results using existing validation infrastructure
 
     Args:
         prev_solution: Solution from previous adaptive iteration
@@ -35,78 +263,98 @@ def propagate_solution_to_new_mesh(
         target_mesh_points: Mesh points for current iteration
 
     Returns:
-        InitialGuess for current iteration
+        InitialGuess for current iteration with all available information interpolated
 
     Raises:
-        ValueError: If previous solution is invalid
+        ValueError: If previous solution is invalid, interpolation fails, or validation fails
     """
-    if not prev_solution.success:
-        raise ValueError("Cannot propagate from unsuccessful previous solution")
+    logger.info("  Starting aggressive interpolation-based propagation...")
 
-    # Always propagate time variables and integrals
-    t0_guess = prev_solution.initial_time_variable
-    tf_guess = prev_solution.terminal_time_variable
-    integrals_guess = prev_solution.integrals
+    try:
+        # Validate previous solution
+        if not prev_solution.success:
+            raise ValueError("Cannot propagate from unsuccessful previous solution")
 
-    # Check if mesh structure is identical
-    prev_degrees = prev_solution.num_collocation_nodes_list_at_solve_time
-    prev_mesh = prev_solution.global_mesh_nodes_at_solve_time
-
-    identical_mesh = False
-    if prev_degrees is not None and prev_mesh is not None:
-        identical_mesh = (
-            len(target_polynomial_degrees) == len(prev_degrees)
-            and all(
-                target_deg == prev_deg
-                for target_deg, prev_deg in zip(
-                    target_polynomial_degrees, prev_degrees, strict=False
-                )
-            )
-            and np.allclose(target_mesh_points, prev_mesh, atol=1e-12)
-        )
-
-    if identical_mesh:
-        # Mesh structure is identical - propagate trajectories exactly
-        print("    Mesh structure identical. Propagating trajectories from previous solution.")
-
+        # Get previous mesh information and validate it exists
         prev_states = prev_solution.solved_state_trajectories_per_interval
         prev_controls = prev_solution.solved_control_trajectories_per_interval
+        prev_mesh = prev_solution.global_mesh_nodes_at_solve_time
+        prev_degrees = prev_solution.num_collocation_nodes_list_at_solve_time
 
-        if prev_states is None or prev_controls is None:
-            raise ValueError("Previous solution missing trajectory data for propagation")
+        if prev_states is None:
+            raise ValueError("Previous solution missing state trajectory data for interpolation")
+        if prev_controls is None:
+            raise ValueError("Previous solution missing control trajectory data for interpolation")
+        if prev_mesh is None:
+            raise ValueError("Previous solution missing mesh information for interpolation")
+        if prev_degrees is None:
+            raise ValueError("Previous solution missing polynomial degree information for interpolation")
 
-        # Use trajectories directly (they already match the target mesh)
-        states_guess = [np.array(state_traj, dtype=np.float64) for state_traj in prev_states]
-        controls_guess = [
-            np.array(control_traj, dtype=np.float64) for control_traj in prev_controls
-        ]
+        # ALWAYS propagate time variables and integrals (these are mesh-independent)
+        t0_guess = prev_solution.initial_time_variable
+        tf_guess = prev_solution.terminal_time_variable
+        integrals_guess = prev_solution.integrals
 
-    else:
-        # Mesh structure changed - cannot propagate trajectories safely
-        print(
-            "    Mesh structure changed. Using default trajectories (times/integrals propagated)."
-        )
+        logger.info(f"    Propagated time variables: t0={t0_guess}, tf={tf_guess}")
+        if integrals_guess is not None:
+            if isinstance(integrals_guess, (int, float)):
+                logger.info(f"    Propagated integral: {integrals_guess}")
+            else:
+                logger.info(f"    Propagated integrals: {len(integrals_guess)} values")
 
-        # Create default trajectory arrays for new mesh
+        # Get problem dimensions
         num_states = len(problem._states)
         num_controls = len(problem._controls)
 
-        states_guess = []
-        controls_guess = []
+        logger.info(f"    Problem dimensions: {num_states} states, {num_controls} controls")
+        logger.info(f"    Mesh transition: {len(prev_degrees)} → {len(target_polynomial_degrees)} intervals")
 
-        for _k, N_k in enumerate(target_polynomial_degrees):
-            # Default state trajectory: zeros
-            state_traj = np.zeros((num_states, N_k + 1), dtype=np.float64)
-            states_guess.append(state_traj)
+        # ALWAYS interpolate state trajectories using aggressive interpolation
+        states_guess = _interpolate_trajectory_to_new_mesh(
+            prev_trajectory_per_interval=prev_states,
+            prev_mesh_points=prev_mesh,
+            prev_polynomial_degrees=prev_degrees,
+            target_mesh_points=target_mesh_points,
+            target_polynomial_degrees=target_polynomial_degrees,
+            num_variables=num_states,
+            is_state_trajectory=True
+        )
 
-            # Default control trajectory: zeros
-            control_traj = np.zeros((num_controls, N_k), dtype=np.float64)
-            controls_guess.append(control_traj)
+        # ALWAYS interpolate control trajectories using aggressive interpolation
+        controls_guess = _interpolate_trajectory_to_new_mesh(
+            prev_trajectory_per_interval=prev_controls,
+            prev_mesh_points=prev_mesh,
+            prev_polynomial_degrees=prev_degrees,
+            target_mesh_points=target_mesh_points,
+            target_polynomial_degrees=target_polynomial_degrees,
+            num_variables=num_controls,
+            is_state_trajectory=False
+        )
 
-    return InitialGuess(
-        initial_time_variable=t0_guess,
-        terminal_time_variable=tf_guess,
-        states=states_guess,
-        controls=controls_guess,
-        integrals=integrals_guess,
-    )
+        # Create initial guess object
+        initial_guess = InitialGuess(
+            initial_time_variable=t0_guess,
+            terminal_time_variable=tf_guess,
+            states=states_guess,
+            controls=controls_guess,
+            integrals=integrals_guess,
+        )
+
+        # VALIDATE the interpolated initial guess using existing validation infrastructure
+        logger.info("  Validating interpolated initial guess...")
+        validate_initial_guess_structure(
+            initial_guess=initial_guess,
+            num_states=num_states,
+            num_controls=num_controls,
+            num_integrals=problem._num_integrals,
+            polynomial_degrees=target_polynomial_degrees,
+        )
+        logger.info("  ✓ All interpolated initial guess validations passed")
+
+        logger.info("  ✓ Completed aggressive interpolation-based propagation successfully")
+        return initial_guess
+
+    except Exception as e:
+        error_msg = f"Aggressive interpolation propagation failed: {e}"
+        logger.error(f"  ✗ {error_msg}")
+        raise ValueError(error_msg) from e

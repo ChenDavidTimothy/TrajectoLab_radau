@@ -41,8 +41,15 @@ from trajectolab.tl_types import (
     StateEvaluator,
 )
 
-
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(name)s  - %(message)s',
+    handlers=[
+        logging.StreamHandler(),  # This outputs to console
+    ]
+)
 logger = logging.getLogger(__name__)
+
 
 
 def _validate_mesh_configuration(
@@ -452,8 +459,8 @@ def solve_phs_adaptive_internal(
         # Configure problem mesh
         problem.set_mesh(current_polynomial_degrees, current_mesh_points)
 
-        # Handle initial guess
         if iteration == 0:
+            # FIRST ITERATION: Use provided initial guess
             if problem.initial_guess is not None:
                 logger.info("Using initial guess from problem.set_initial_guess()")
                 try:
@@ -471,10 +478,11 @@ def solve_phs_adaptive_internal(
                 logger.info("No initial guess provided. CasADi will use defaults")
                 problem.initial_guess = None
         else:
+            # SUBSEQUENT ITERATIONS: Always use aggressive interpolation propagation
             if most_recent_solution is None:
                 raise ValueError("No previous solution available for propagation")
 
-            logger.info("Propagating initial guess from previous solution")
+            logger.info("Using AGGRESSIVE INTERPOLATION PROPAGATION from previous solution")
             propagated_guess = propagate_solution_to_new_mesh(
                 most_recent_solution,
                 problem,

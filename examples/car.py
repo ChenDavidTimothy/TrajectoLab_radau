@@ -38,7 +38,7 @@ solution = tl.solve_adaptive(
     problem,
     initial_polynomial_degrees=[8, 8, 8],
     initial_mesh_points=[-1.0, -0.3, 0.3, 1.0],
-    error_tolerance=1e-6,
+    error_tolerance=1e-7,
     max_iterations=20,
     min_polynomial_degree=4,
     max_polynomial_degree=8,

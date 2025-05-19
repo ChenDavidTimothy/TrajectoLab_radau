@@ -1,7 +1,7 @@
 """
 Input validation utilities for the direct solver.
 """
-
+import logging
 from collections.abc import Sequence
 
 import casadi as ca
@@ -12,8 +12,19 @@ from .tl_types import (
     CasadiMX,
     CasadiOpti,
     FloatArray,
+    InitialGuess,
+    InitialGuessIntegrals,
 )
 from .utils.constants import MESH_TOLERANCE, MINIMUM_TIME_INTERVAL, ZERO_TOLERANCE
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(name)s  - %(message)s',
+    handlers=[
+        logging.StreamHandler(),  # This outputs to console
+    ]
+)
 
 
 def validate_dynamics_output(
@@ -44,14 +55,196 @@ def validate_dynamics_output(
     raise TypeError(f"Dynamics function output type not supported: {type(output)}")
 
 
+def validate_integral_values(
+    integrals: InitialGuessIntegrals,
+    num_integrals: int,
+) -> None:
+    """
+    Validate integral values without setting them in CasADi.
+    Generic version that can be used by both direct solver and adaptive algorithm.
+
+    Args:
+        integrals: Integral values to validate
+        num_integrals: Expected number of integrals
+
+    Raises:
+        ValueError: If validation fails
+    """
+    if integrals is None:
+        return
+
+    if num_integrals == 1:
+        if not isinstance(integrals, (int, float)):
+            raise ValueError(
+                f"For single integral, guess must be scalar (int or float), "
+                f"got {type(integrals)} with value {integrals}"
+            )
+        if np.isnan(integrals) or np.isinf(integrals):
+            raise ValueError(f"Integral has invalid value: {integrals}")
+
+    elif num_integrals > 1:
+        if isinstance(integrals, (int, float)):
+            raise ValueError(
+                f"For {num_integrals} integrals, guess must be array-like, got scalar {integrals}"
+            )
+
+        if isinstance(integrals, list):
+            integrals_array = np.array(integrals, dtype=np.float64)
+        else:
+            integrals_array = np.array(integrals, dtype=np.float64)
+
+        if integrals_array.size != num_integrals:
+            raise ValueError(
+                f"Integral guess must have exactly {num_integrals} elements, got {integrals_array.size}"
+            )
+        if np.any(np.isnan(integrals_array)) or np.any(np.isinf(integrals_array)):
+            raise ValueError("Integrals contain invalid values (NaN or inf)")
+
+
+def validate_time_values(
+    initial_time: float | None,
+    terminal_time: float | None,
+) -> None:
+    """
+    Validate actual time values (not bounds).
+
+    Args:
+        initial_time: Initial time value
+        terminal_time: Terminal time value
+
+    Raises:
+        ValueError: If validation fails
+    """
+    if initial_time is not None:
+        if not isinstance(initial_time, (int, float)):
+            raise ValueError(f"Initial time must be scalar, got {type(initial_time)}")
+        if np.isnan(initial_time) or np.isinf(initial_time):
+            raise ValueError(f"Initial time has invalid value: {initial_time}")
+
+    if terminal_time is not None:
+        if not isinstance(terminal_time, (int, float)):
+            raise ValueError(f"Terminal time must be scalar, got {type(terminal_time)}")
+        if np.isnan(terminal_time) or np.isinf(terminal_time):
+            raise ValueError(f"Terminal time has invalid value: {terminal_time}")
+
+    # Check time ordering if both are present
+    if initial_time is not None and terminal_time is not None:
+        if terminal_time <= initial_time:
+            raise ValueError(
+                f"Terminal time ({terminal_time}) must be greater than initial time ({initial_time})"
+            )
+
+
+def validate_trajectory_arrays(
+    trajectories: list[FloatArray],
+    expected_shapes: list[tuple[int, int]],
+    trajectory_type: str,
+) -> None:
+    """
+    Validate trajectory arrays against expected shapes.
+
+    Args:
+        trajectories: List of trajectory arrays
+        expected_shapes: List of expected (num_vars, num_nodes) shapes
+        trajectory_type: "state" or "control" for error messages
+
+    Raises:
+        ValueError: If validation fails
+    """
+    if len(trajectories) != len(expected_shapes):
+        raise ValueError(
+            f"{trajectory_type.capitalize()} trajectory count mismatch: "
+            f"got {len(trajectories)} arrays, expected {len(expected_shapes)}"
+        )
+
+    for k, (traj, expected_shape) in enumerate(zip(trajectories, expected_shapes)):
+        # Check shape
+        if traj.shape != expected_shape:
+            raise ValueError(
+                f"{trajectory_type.capitalize()} trajectory for interval {k} has shape {traj.shape}, "
+                f"expected {expected_shape}"
+            )
+
+        # Check for invalid values
+        if np.any(np.isnan(traj)):
+            raise ValueError(
+                f"{trajectory_type.capitalize()} trajectory for interval {k} contains NaN values"
+            )
+
+        if np.any(np.isinf(traj)):
+            raise ValueError(
+                f"{trajectory_type.capitalize()} trajectory for interval {k} contains infinite values"
+            )
+
+        # Check data type
+        if traj.dtype != np.float64:
+            raise ValueError(
+                f"{trajectory_type.capitalize()} trajectory for interval {k} has dtype {traj.dtype}, "
+                f"expected float64"
+            )
+
+
+def validate_initial_guess_structure(
+    initial_guess: InitialGuess,
+    num_states: int,
+    num_controls: int,
+    num_integrals: int,
+    polynomial_degrees: list[int],
+) -> None:
+    """
+    Validate the structure of an InitialGuess object.
+    Generic version that can be used by both direct solver and adaptive algorithm.
+
+    Args:
+        initial_guess: Initial guess to validate
+        num_states: Expected number of states
+        num_controls: Expected number of controls
+        num_integrals: Expected number of integrals
+        polynomial_degrees: Polynomial degrees per interval
+
+    Raises:
+        ValueError: If validation fails
+    """
+    num_intervals = len(polynomial_degrees)
+
+    # Validate time values
+    validate_time_values(initial_guess.initial_time_variable, initial_guess.terminal_time_variable)
+
+    # Validate integrals
+    validate_integral_values(initial_guess.integrals, num_integrals)
+
+    # Validate state trajectories
+    if initial_guess.states is not None:
+        expected_state_shapes = [(num_states, N + 1) for N in polynomial_degrees]
+        validate_trajectory_arrays(initial_guess.states, expected_state_shapes, "state")
+
+        if len(initial_guess.states) != num_intervals:
+            raise ValueError(
+                f"State trajectories count ({len(initial_guess.states)}) doesn't match "
+                f"number of intervals ({num_intervals})"
+            )
+
+    # Validate control trajectories
+    if initial_guess.controls is not None:
+        expected_control_shapes = [(num_controls, N) for N in polynomial_degrees]
+        validate_trajectory_arrays(initial_guess.controls, expected_control_shapes, "control")
+
+        if len(initial_guess.controls) != num_intervals:
+            raise ValueError(
+                f"Control trajectories count ({len(initial_guess.controls)}) doesn't match "
+                f"number of intervals ({num_intervals})"
+            )
+
+
 def validate_and_set_integral_guess(
     opti: CasadiOpti,
     integral_vars: CasadiMX,
-    guess: float | FloatArray | list[float] | None,
+    guess: InitialGuessIntegrals,
     num_integrals: int,
 ) -> None:
     """
     Validate and set initial guess for integrals with strict dimension checking.
+    Now uses the generic validation function.
 
     Args:
         opti: CasADi optimization object
@@ -62,29 +255,20 @@ def validate_and_set_integral_guess(
     Raises:
         ValueError: If guess dimensions don't match requirements exactly
     """
+    # First validate using the generic function
+    validate_integral_values(guess, num_integrals)
+
+    # Then set the values in CasADi
     if guess is None:
         return
 
     if num_integrals == 1:
-        if not isinstance(guess, int | float):
-            raise ValueError(
-                f"For single integral, guess must be scalar (int or float), "
-                f"got {type(guess)} with value {guess}"
-            )
         opti.set_initial(integral_vars, float(guess))
-
     elif num_integrals > 1:
-        if isinstance(guess, int | float):
-            raise ValueError(
-                f"For {num_integrals} integrals, guess must be array-like, got scalar {guess}"
-            )
-
-        guess_array = np.array(guess, dtype=np.float64)
-        if guess_array.size != num_integrals:
-            raise ValueError(
-                f"Integral guess must have exactly {num_integrals} elements, got {guess_array.size}"
-            )
-
+        if isinstance(guess, list):
+            guess_array = np.array(guess, dtype=np.float64)
+        else:
+            guess_array = np.array(guess, dtype=np.float64)
         opti.set_initial(integral_vars, guess_array.flatten())
 
 
