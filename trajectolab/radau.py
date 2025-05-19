@@ -6,7 +6,8 @@ import numpy as np
 from scipy.special import roots_jacobi as _scipy_roots_jacobi
 
 # Import centralized type definitions and constants
-from .tl_types import ZERO_TOLERANCE, FloatArray, FloatMatrix
+from .tl_types import FloatArray, FloatMatrix
+from .utils.constants import ZERO_TOLERANCE
 
 
 # --- Dataclasses for Structured Radau Components ---

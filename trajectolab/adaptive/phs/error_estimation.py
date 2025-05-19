@@ -19,6 +19,7 @@ from trajectolab.tl_types import (
     StateEvaluator,
 )
 from trajectolab.utils.casadi_utils import convert_casadi_to_numpy
+from trajectolab.utils.constants import DEFAULT_ODE_RTOL
 
 
 __all__ = [
@@ -86,7 +87,7 @@ def simulate_dynamics_for_error_estimation(
     state_evaluator: StateEvaluator,
     control_evaluator: ControlEvaluator,
     ode_solver: ODESolverCallable = solve_ivp,
-    ode_rtol: float = 1e-7,
+    ode_rtol: float = DEFAULT_ODE_RTOL,
     n_eval_points: int = 50,
 ) -> IntervalSimulationBundle:
     """

@@ -8,14 +8,12 @@ import casadi as ca
 import numpy as np
 
 from .tl_types import (
-    MESH_TOLERANCE,
-    MINIMUM_TIME_INTERVAL,
-    ZERO_TOLERANCE,
     CasadiMatrix,
     CasadiMX,
     CasadiOpti,
     FloatArray,
 )
+from .utils.constants import MESH_TOLERANCE, MINIMUM_TIME_INTERVAL, ZERO_TOLERANCE
 
 
 def validate_dynamics_output(

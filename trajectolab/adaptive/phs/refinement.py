@@ -27,6 +27,7 @@ from trajectolab.tl_types import (
     StateEvaluator,
 )
 from trajectolab.utils.casadi_utils import convert_casadi_to_numpy
+from trajectolab.utils.constants import DEFAULT_ODE_ATOL_FACTOR
 
 
 __all__ = ["h_reduce_intervals", "h_refine_params", "p_reduce_interval", "p_refine_interval"]
@@ -126,7 +127,7 @@ def h_reduce_intervals(
 
     error_tol = adaptive_params.error_tolerance
     ode_rtol = adaptive_params.ode_solver_tolerance
-    ode_atol = ode_rtol * 1e-1
+    ode_atol = ode_rtol * DEFAULT_ODE_ATOL_FACTOR
     num_sim_points = adaptive_params.num_error_sim_points
 
     num_states = len(problem._states)

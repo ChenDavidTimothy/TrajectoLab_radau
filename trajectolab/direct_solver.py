@@ -15,7 +15,6 @@ from .input_validation import (
 from .radau import RadauBasisComponents, compute_radau_collocation_components
 from .solution_extraction import extract_and_format_solution
 from .tl_types import (
-    MINIMUM_TIME_INTERVAL,
     CasadiDM,
     CasadiMatrix,
     CasadiMX,
@@ -35,6 +34,7 @@ from .tl_types import (
     ProblemParameters,
     ProblemProtocol,
 )
+from .utils.constants import MINIMUM_TIME_INTERVAL
 
 
 def apply_constraint(opti: CasadiOpti, constraint: PathConstraint | EventConstraint) -> None:
