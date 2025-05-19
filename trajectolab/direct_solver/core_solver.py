@@ -16,15 +16,15 @@ from ..tl_types import (
     OptimalControlSolution,
     ProblemProtocol,
 )
-from .constraints import (
+from .constraints_solver import (
     apply_collocation_constraints,
     apply_event_constraints,
     apply_path_constraints,
 )
-from .initial_guess import apply_initial_guess
-from .integrals import apply_integral_constraints, setup_integrals
-from .types import MetadataBundle, VariableReferences
-from .variables import setup_interval_state_variables, setup_optimization_variables
+from .initial_guess_solver import apply_initial_guess
+from .integrals_solver import apply_integral_constraints, setup_integrals
+from .types_solver import MetadataBundle, VariableReferences
+from .variables_solver import setup_interval_state_variables, setup_optimization_variables
 
 
 def solve_single_phase_radau_collocation(problem: ProblemProtocol) -> OptimalControlSolution:

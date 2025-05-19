@@ -17,7 +17,7 @@ from ..tl_types import (
     PathConstraintsCallable,
     ProblemParameters,
 )
-from .constraints import get_event_constraints_function, get_path_constraints_function
+from .constraints_problem import get_event_constraints_function, get_path_constraints_function
 from .state import ConstraintState, VariableState
 
 

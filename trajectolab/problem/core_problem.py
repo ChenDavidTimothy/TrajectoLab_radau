@@ -7,7 +7,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..tl_types import FloatArray, SymExpr, SymType
-from . import constraints, initial_guess, mesh, solver_interface, variables
+from . import constraints_problem, initial_guess_problem, mesh, solver_interface, variables_problem
 from .state import ConstraintState, MeshState, VariableState
 
 
@@ -119,7 +119,9 @@ class Problem:
 
     # Variable creation methods
     def time(self, initial: float = 0.0, final: float | None = None, free_final: bool = False):
-        return variables.create_time_variable(self._variable_state, initial, final, free_final)
+        return variables_problem.create_time_variable(
+            self._variable_state, initial, final, free_final
+        )
 
     def state(
         self,
@@ -129,27 +131,27 @@ class Problem:
         lower: float | None = None,
         upper: float | None = None,
     ) -> SymType:
-        return variables.create_state_variable(
+        return variables_problem.create_state_variable(
             self._variable_state, name, initial, final, lower, upper
         )
 
     def control(self, name: str, lower: float | None = None, upper: float | None = None) -> SymType:
-        return variables.create_control_variable(self._variable_state, name, lower, upper)
+        return variables_problem.create_control_variable(self._variable_state, name, lower, upper)
 
     def parameter(self, name: str, value: Any) -> SymType:
-        return variables.create_parameter_variable(self._variable_state, name, value)
+        return variables_problem.create_parameter_variable(self._variable_state, name, value)
 
     def dynamics(self, dynamics_dict: dict[SymType, SymExpr]) -> None:
-        variables.set_dynamics(self._variable_state, dynamics_dict)
+        variables_problem.set_dynamics(self._variable_state, dynamics_dict)
 
     def add_integral(self, integrand_expr: SymExpr) -> SymType:
-        return variables.add_integral(self._variable_state, integrand_expr)
+        return variables_problem.add_integral(self._variable_state, integrand_expr)
 
     def minimize(self, objective_expr: SymExpr) -> None:
-        variables.set_objective(self._variable_state, objective_expr)
+        variables_problem.set_objective(self._variable_state, objective_expr)
 
     def subject_to(self, constraint_expr: SymExpr) -> None:
-        constraints.add_constraint(self._constraint_state, constraint_expr)
+        constraints_problem.add_constraint(self._constraint_state, constraint_expr)
 
     # Mesh management methods
     def set_mesh(
@@ -157,24 +159,26 @@ class Problem:
     ) -> None:
         mesh.configure_mesh(self._mesh_state, polynomial_degrees, mesh_points)
         # Clear initial guess when mesh changes
-        initial_guess.clear_initial_guess(self._initial_guess_container)
+        initial_guess_problem.clear_initial_guess(self._initial_guess_container)
 
     # Initial guess methods
     def set_initial_guess(self, **kwargs) -> None:
-        initial_guess.set_initial_guess(
+        initial_guess_problem.set_initial_guess(
             self._initial_guess_container, self._mesh_state, self._variable_state, **kwargs
         )
 
     def get_initial_guess_requirements(self):
-        return initial_guess.get_initial_guess_requirements(self._mesh_state, self._variable_state)
+        return initial_guess_problem.get_initial_guess_requirements(
+            self._mesh_state, self._variable_state
+        )
 
     def validate_initial_guess(self) -> None:
-        initial_guess.validate_initial_guess(
+        initial_guess_problem.validate_initial_guess(
             self._initial_guess_container[0], self._mesh_state, self._variable_state
         )
 
     def get_solver_input_summary(self):
-        return initial_guess.get_solver_input_summary(
+        return initial_guess_problem.get_solver_input_summary(
             self._initial_guess_container[0], self._mesh_state, self._variable_state
         )
 

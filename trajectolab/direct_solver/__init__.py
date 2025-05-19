@@ -3,7 +3,7 @@ Direct solver package for optimal control problems using Radau pseudospectral me
 """
 
 from ..tl_types import OptimalControlSolution
-from .core import solve_single_phase_radau_collocation
+from .core_solver import solve_single_phase_radau_collocation
 
 
 __all__ = [

@@ -7,7 +7,7 @@ import casadi as ca
 from ..input_validation import validate_problem_dimensions, validate_time_bounds
 from ..tl_types import CasadiMX, CasadiOpti, ListOfCasadiMX, ProblemProtocol
 from ..utils.constants import MINIMUM_TIME_INTERVAL
-from .types import VariableReferences, _IntervalBundle
+from .types_solver import VariableReferences, _IntervalBundle
 
 
 def setup_optimization_variables(

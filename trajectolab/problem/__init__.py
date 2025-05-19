@@ -3,9 +3,9 @@ Problem definition package for optimal control problems.
 """
 
 from ..tl_types import Constraint
-from .core import Problem
-from .initial_guess import InitialGuessRequirements, SolverInputSummary
-from .variables import TimeVariableImpl
+from .core_problem import Problem
+from .initial_guess_problem import InitialGuessRequirements, SolverInputSummary
+from .variables_problem import TimeVariableImpl
 
 
 __all__ = [

@@ -6,7 +6,7 @@ from typing import cast
 
 from ..input_validation import validate_and_set_integral_guess
 from ..tl_types import CasadiOpti, FloatMatrix, ProblemProtocol
-from .types import VariableReferences
+from .types_solver import VariableReferences
 
 
 def apply_initial_guess(
