@@ -45,9 +45,9 @@ ConstraintType: TypeAlias = Any
 ConstraintValue: TypeAlias = CasadiMX | float | FloatArray
 
 
-# --- Constraints ---
-class PathConstraint:
-    """Path constraint for the solver."""
+# --- Unified Constraint Class ---
+class Constraint:
+    """Unified constraint class for both path and event constraints."""
 
     def __init__(
         self,
@@ -62,20 +62,9 @@ class PathConstraint:
         self.equals = equals
 
 
-class EventConstraint:
-    """Event constraint for the solver."""
-
-    def __init__(
-        self,
-        val: CasadiMX | float,
-        min_val: float | None = None,
-        max_val: float | None = None,
-        equals: float | None = None,
-    ) -> None:
-        self.val = val
-        self.min_val = min_val
-        self.max_val = max_val
-        self.equals = equals
+# Type aliases to preserve semantic distinction
+PathConstraint: TypeAlias = Constraint
+EventConstraint: TypeAlias = Constraint
 
 
 # --- Function Protocol Classes for Symbolic Problem Description ---

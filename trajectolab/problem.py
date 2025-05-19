@@ -6,6 +6,7 @@ from typing import Any, TypeAlias, cast
 import casadi as ca
 import numpy as np
 
+# In the imports section, change:
 from .tl_types import (
     CasadiMX,
     EventConstraint,

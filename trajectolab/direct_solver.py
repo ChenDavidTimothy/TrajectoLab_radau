@@ -20,8 +20,8 @@ from .tl_types import (
     CasadiMX,
     CasadiOpti,
     CasadiOptiSol,
+    Constraint,
     DynamicsCallable,
-    EventConstraint,
     EventConstraintsCallable,
     FloatArray,
     InitialGuess,
@@ -29,7 +29,6 @@ from .tl_types import (
     ListOfCasadiMX,
     ObjectiveCallable,
     OptimalControlSolution,
-    PathConstraint,
     PathConstraintsCallable,
     ProblemParameters,
     ProblemProtocol,
@@ -37,7 +36,7 @@ from .tl_types import (
 from .utils.constants import MINIMUM_TIME_INTERVAL
 
 
-def apply_constraint(opti: CasadiOpti, constraint: PathConstraint | EventConstraint) -> None:
+def apply_constraint(opti: CasadiOpti, constraint: Constraint) -> None:
     """Apply a constraint to the optimization problem."""
     if constraint.min_val is not None:
         opti.subject_to(constraint.val >= constraint.min_val)
@@ -260,7 +259,7 @@ def _apply_path_constraints(
         ) / 2 * global_colloc_tau_val + (terminal_time_variable + initial_time_variable) / 2
 
         # Get and apply path constraints
-        path_constraints_result: list[PathConstraint] | PathConstraint = path_constraints_function(
+        path_constraints_result: list[Constraint] | Constraint = path_constraints_function(
             state_at_colloc,
             control_at_colloc,
             physical_time_at_colloc,
@@ -639,7 +638,7 @@ def solve_single_phase_radau_collocation(problem: ProblemProtocol) -> OptimalCon
 
     # Apply event constraints
     if event_constraints_function:
-        event_constraints_result: list[EventConstraint] | EventConstraint = (
+        event_constraints_result: list[Constraint] | Constraint = (
             event_constraints_function(
                 initial_time_variable,
                 terminal_time_variable,
