@@ -6,6 +6,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from ..problem.scaling import (
+    ProblemScalingInfo,
+    apply_scaling_to_initial_guess,
+    compute_variable_scaling_rule2,
+)
 from ..tl_types import FloatArray, SymExpr, SymType
 from . import constraints_problem, initial_guess_problem, mesh, solver_interface, variables_problem
 from .state import ConstraintState, MeshState, VariableState
@@ -161,12 +166,6 @@ class Problem:
         # Clear initial guess when mesh changes
         initial_guess_problem.clear_initial_guess(self._initial_guess_container)
 
-    # Initial guess methods
-    def set_initial_guess(self, **kwargs) -> None:
-        initial_guess_problem.set_initial_guess(
-            self._initial_guess_container, self._mesh_state, self._variable_state, **kwargs
-        )
-
     def get_initial_guess_requirements(self):
         return initial_guess_problem.get_initial_guess_requirements(
             self._mesh_state, self._variable_state
@@ -201,3 +200,69 @@ class Problem:
         return solver_interface.get_event_constraints_function_for_problem(
             self._constraint_state, self._variable_state
         )
+
+    def enable_variable_scaling(self, enable: bool = True) -> None:
+        """
+        Enable or disable variable scaling for this problem.
+
+        When enabled, variable scaling is computed automatically when
+        the problem is solved to improve numerical conditioning.
+
+        Args:
+            enable: Whether to enable variable scaling
+        """
+        if self._variable_state.scaling_info is None:
+            self._variable_state.scaling_info = ProblemScalingInfo(scaling_enabled=enable)
+        else:
+            self._variable_state.scaling_info.scaling_enabled = enable
+
+    def compute_scaling(self, force_recompute: bool = False) -> ProblemScalingInfo:
+        """
+        Compute variable scaling using Rule 2 heuristic.
+
+        This method analyzes variable bounds and initial guesses to determine
+        appropriate scaling factors for improved numerical conditioning.
+
+        Args:
+            force_recompute: Whether to recompute scaling even if already computed
+
+        Returns:
+            Complete scaling information for the problem
+        """
+        if self._variable_state.scaling_info is not None and not force_recompute:
+            return self._variable_state.scaling_info
+
+        scaling_info = compute_variable_scaling_rule2(
+            self._variable_state, self.initial_guess, enable_scaling=True
+        )
+        self._variable_state.scaling_info = scaling_info
+        return scaling_info
+
+    def get_scaling_info(self) -> ProblemScalingInfo | None:
+        """
+        Get current scaling information.
+
+        Returns:
+            Current scaling information, or None if not computed
+        """
+        return self._variable_state.scaling_info
+
+    def set_initial_guess(self, **kwargs) -> None:
+        """Set initial guess, with optional automatic scaling."""
+        # Call original method
+        initial_guess_problem.set_initial_guess(
+            self._initial_guess_container, self._mesh_state, self._variable_state, **kwargs
+        )
+
+        # Apply scaling if enabled and scaling info exists
+        if (
+            self._variable_state.scaling_info is not None
+            and self._variable_state.scaling_info.scaling_enabled
+            and self._initial_guess_container[0] is not None
+        ):
+            scaled_guess = apply_scaling_to_initial_guess(
+                self._initial_guess_container[0],
+                self._variable_state.scaling_info,
+                self._variable_state,
+            )
+            self._initial_guess_container[0] = scaled_guess

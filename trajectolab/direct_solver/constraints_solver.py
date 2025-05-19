@@ -21,6 +21,144 @@ from ..tl_types import (
     ProblemProtocol,
 )
 
+# Add these imports
+from ..utils.variable_scaling import (
+    ProblemScalingInfo,
+    get_scaled_variable_bounds,
+)
+
+
+def apply_scaled_path_constraints(
+    opti: CasadiOpti,
+    mesh_interval_index: int,
+    state_at_nodes: CasadiMatrix,
+    control_variables: CasadiMX,
+    basis_components: RadauBasisComponents,
+    global_normalized_mesh_nodes: FloatArray,
+    initial_time_variable: CasadiMX,
+    terminal_time_variable: CasadiMX,
+    path_constraints_function: PathConstraintsCallable | None,
+    problem_parameters: ProblemParameters,
+    scaling_info: ProblemScalingInfo,
+    problem: ProblemProtocol,
+) -> None:
+    """
+    Apply path constraints with variable scaling support.
+
+    This function applies path constraints in the scaled variable space,
+    properly transforming bounds and custom constraints.
+    """
+    # Apply standard path constraints if they exist
+    if path_constraints_function is not None:
+        apply_path_constraints(
+            opti,
+            mesh_interval_index,
+            state_at_nodes,
+            control_variables,
+            basis_components,
+            global_normalized_mesh_nodes,
+            initial_time_variable,
+            terminal_time_variable,
+            path_constraints_function,
+            problem_parameters,
+        )
+
+    # Apply scaled variable bounds
+    if scaling_info.scaling_enabled:
+        _apply_scaled_variable_bounds(
+            opti,
+            mesh_interval_index,
+            state_at_nodes,
+            control_variables,
+            basis_components,
+            scaling_info,
+            problem,
+        )
+    else:
+        # Apply original bounds without scaling
+        _apply_original_variable_bounds(
+            opti, mesh_interval_index, state_at_nodes, control_variables, basis_components, problem
+        )
+
+
+def _apply_scaled_variable_bounds(
+    opti: CasadiOpti,
+    mesh_interval_index: int,
+    state_at_nodes: CasadiMatrix,
+    control_variables: CasadiMX,
+    basis_components: RadauBasisComponents,
+    scaling_info: ProblemScalingInfo,
+    problem: ProblemProtocol,
+) -> None:
+    """Apply variable bounds in the scaled space."""
+    num_colloc_nodes = len(basis_components.collocation_nodes)
+
+    # Apply scaled state bounds at all nodes
+    state_names = sorted(problem._states.keys(), key=lambda n: problem._states[n]["index"])
+    for node_idx in range(state_at_nodes.shape[1]):
+        state_at_node = state_at_nodes[:, node_idx]
+        for i, name in enumerate(state_names):
+            if name in scaling_info.state_scaling:
+                scaling = scaling_info.state_scaling[name]
+                if scaling.lower_bound is not None and scaling.upper_bound is not None:
+                    try:
+                        lower_scaled, upper_scaled = get_scaled_variable_bounds(scaling)
+                        opti.subject_to(state_at_node[i] >= lower_scaled)
+                        opti.subject_to(state_at_node[i] <= upper_scaled)
+                    except ValueError:
+                        # Skip bounds if calculation fails
+                        pass
+
+    # Apply scaled control bounds at collocation points
+    control_names = sorted(problem._controls.keys(), key=lambda n: problem._controls[n]["index"])
+    for colloc_idx in range(num_colloc_nodes):
+        control_at_colloc = control_variables[:, colloc_idx]
+        for i, name in enumerate(control_names):
+            if name in scaling_info.control_scaling:
+                scaling = scaling_info.control_scaling[name]
+                if scaling.lower_bound is not None and scaling.upper_bound is not None:
+                    try:
+                        lower_scaled, upper_scaled = get_scaled_variable_bounds(scaling)
+                        opti.subject_to(control_at_colloc[i] >= lower_scaled)
+                        opti.subject_to(control_at_colloc[i] <= upper_scaled)
+                    except ValueError:
+                        # Skip bounds if calculation fails
+                        pass
+
+
+def _apply_original_variable_bounds(
+    opti: CasadiOpti,
+    mesh_interval_index: int,
+    state_at_nodes: CasadiMatrix,
+    control_variables: CasadiMX,
+    basis_components: RadauBasisComponents,
+    problem: ProblemProtocol,
+) -> None:
+    """Apply variable bounds in the original (unscaled) space."""
+    num_colloc_nodes = len(basis_components.collocation_nodes)
+
+    # Apply original state bounds
+    state_names = sorted(problem._states.keys(), key=lambda n: problem._states[n]["index"])
+    for node_idx in range(state_at_nodes.shape[1]):
+        state_at_node = state_at_nodes[:, node_idx]
+        for i, name in enumerate(state_names):
+            state_info = problem._states[name]
+            if state_info.get("lower") is not None:
+                opti.subject_to(state_at_node[i] >= state_info["lower"])
+            if state_info.get("upper") is not None:
+                opti.subject_to(state_at_node[i] <= state_info["upper"])
+
+    # Apply original control bounds
+    control_names = sorted(problem._controls.keys(), key=lambda n: problem._controls[n]["index"])
+    for colloc_idx in range(num_colloc_nodes):
+        control_at_colloc = control_variables[:, colloc_idx]
+        for i, name in enumerate(control_names):
+            control_info = problem._controls[name]
+            if control_info.get("lower") is not None:
+                opti.subject_to(control_at_colloc[i] >= control_info["lower"])
+            if control_info.get("upper") is not None:
+                opti.subject_to(control_at_colloc[i] <= control_info["upper"])
+
 
 def apply_constraint(opti: CasadiOpti, constraint: Constraint) -> None:
     """

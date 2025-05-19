@@ -7,6 +7,10 @@ import casadi as ca
 from ..input_validation import validate_problem_dimensions, validate_time_bounds
 from ..tl_types import CasadiMX, CasadiOpti, ListOfCasadiMX, ProblemProtocol
 from ..utils.constants import MINIMUM_TIME_INTERVAL
+from ..utils.variable_scaling import (
+    ProblemScalingInfo,
+    log_scaling_summary,
+)
 from .types_solver import VariableReferences, _IntervalBundle
 
 
@@ -146,3 +150,44 @@ def _create_integral_variables(opti: CasadiOpti, num_integrals: int) -> CasadiMX
     if num_integrals > 0:
         return opti.variable(num_integrals) if num_integrals > 1 else opti.variable()
     return None
+
+
+def setup_optimization_variables_with_scaling(
+    opti: CasadiOpti,
+    problem: ProblemProtocol,
+    num_mesh_intervals: int,
+) -> tuple[VariableReferences, ProblemScalingInfo]:
+    """
+    Set up optimization variables with optional scaling.
+
+    This function creates scaled optimization variables and returns
+    both the variable references and scaling information.
+
+    Args:
+        opti: CasADi optimization object
+        problem: Problem definition
+        num_mesh_intervals: Number of mesh intervals
+
+    Returns:
+        Tuple of (variable_references, scaling_info)
+    """
+    # Check if problem has scaling enabled
+    if (
+        hasattr(problem, "_variable_state")
+        and problem._variable_state.scaling_info is not None
+        and problem._variable_state.scaling_info.scaling_enabled
+    ):
+        scaling_info = problem._variable_state.scaling_info
+        log_scaling_summary(scaling_info)
+    else:
+        # Create identity scaling
+        from ..problem.scaling import compute_variable_scaling_rule2
+
+        scaling_info = compute_variable_scaling_rule2(
+            problem._variable_state, problem.initial_guess, enable_scaling=False
+        )
+
+    # Create variables using existing function
+    variables = setup_optimization_variables(opti, problem, num_mesh_intervals)
+
+    return variables, scaling_info
