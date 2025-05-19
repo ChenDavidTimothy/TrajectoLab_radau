@@ -1,5 +1,5 @@
 """
-Core type definitions for the TrajectoLab project with symbolic support.
+Core type definitions for the TrajectoLab project with unified constraint system.
 """
 
 from __future__ import annotations
@@ -34,14 +34,21 @@ ListOfCasadiMX: TypeAlias = list[CasadiMX]
 # --- Problem Structure Data Classes and Type Aliases ---
 ProblemParameters: TypeAlias = dict[str, float | int | str]
 
-# Forward reference for Problem module's Constraint class
-ConstraintType: TypeAlias = Any
-ConstraintValue: TypeAlias = CasadiMX | float | FloatArray
 
-
-# --- Unified Constraint Class ---
+# --- Unified Constraint System ---
 class Constraint:
-    """Unified constraint class for both path and event constraints."""
+    """
+    Unified constraint class for optimal control problems.
+
+    Supports equality and inequality constraints:
+    - Equality: val == equals
+    - Lower bound: val >= min_val
+    - Upper bound: val <= max_val
+    - Box constraint: min_val <= val <= max_val
+
+    Used for both path constraints (applied at collocation points)
+    and event constraints (applied at boundaries).
+    """
 
     def __init__(
         self,
@@ -55,13 +62,27 @@ class Constraint:
         self.max_val = max_val
         self.equals = equals
 
+        # Validation
+        if equals is not None and (min_val is not None or max_val is not None):
+            raise ValueError("Cannot specify equality constraint with bound constraints")
+        if min_val is not None and max_val is not None and min_val > max_val:
+            raise ValueError(f"min_val ({min_val}) must be <= max_val ({max_val})")
 
-# Type aliases to preserve semantic distinction
-PathConstraint: TypeAlias = Constraint
-EventConstraint: TypeAlias = Constraint
+    def __repr__(self) -> str:
+        if self.equals is not None:
+            return f"Constraint(val == {self.equals})"
+
+        bounds = []
+        if self.min_val is not None:
+            bounds.append(f"{self.min_val} <=")
+        bounds.append("val")
+        if self.max_val is not None:
+            bounds.append(f"<= {self.max_val}")
+
+        return f"Constraint({' '.join(bounds)})"
 
 
-# --- Function Protocol Classes for Symbolic Problem Description ---
+# --- Function Protocol Classes for Time Variable ---
 class TimeVariable(Protocol):
     """Protocol for time variable with initial/final properties."""
 
@@ -155,7 +176,7 @@ class ConstraintFuncProtocol(Protocol):
         controls: dict[str, float | CasadiMX],
         *args: Any,
         **kwargs: Any,
-    ) -> ConstraintType | list[ConstraintType]:
+    ) -> Constraint | list[Constraint]:
         """
         Defines path constraints.
 
@@ -174,7 +195,7 @@ class ConstraintFuncProtocol(Protocol):
 class EventConstraintFuncProtocol(Protocol):
     """Protocol for user-defined event constraint functions."""
 
-    def __call__(self, *args: Any, **kwargs: Any) -> ConstraintType | list[ConstraintType]:
+    def __call__(self, *args: Any, **kwargs: Any) -> Constraint | list[Constraint]:
         """
         Defines event (boundary) constraints.
 
@@ -246,7 +267,7 @@ IntegrandFuncType: TypeAlias = IntegrandFuncProtocol
 ConstraintFuncType: TypeAlias = ConstraintFuncProtocol
 EventConstraintFuncType: TypeAlias = EventConstraintFuncProtocol
 
-# --- Callable Types for Solver ---
+# --- Callable Types for Solver (Internal) ---
 DynamicsCallable: TypeAlias = Callable[
     [CasadiMX, CasadiMX, CasadiMX, ProblemParameters],
     list[CasadiMX] | CasadiMX | Sequence[CasadiMX],
@@ -264,12 +285,12 @@ IntegralIntegrandCallable: TypeAlias = Callable[
 
 PathConstraintsCallable: TypeAlias = Callable[
     [CasadiMX, CasadiMX, CasadiMX, ProblemParameters],
-    list[PathConstraint] | PathConstraint,
+    list[Constraint] | Constraint,
 ]
 
 EventConstraintsCallable: TypeAlias = Callable[
     [CasadiMX, CasadiMX, CasadiMX, CasadiMX, CasadiMX | None, ProblemParameters],
-    list[EventConstraint] | EventConstraint,
+    list[Constraint] | Constraint,
 ]
 
 # --- Helper Type Aliases for Trajectories and Guesses ---

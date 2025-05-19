@@ -8,30 +8,13 @@ import casadi as ca
 
 from ..tl_types import (
     CasadiMX,
-    EventConstraint,
+    Constraint,
     EventConstraintsCallable,
-    PathConstraint,
     PathConstraintsCallable,
     ProblemParameters,
     SymExpr,
 )
 from .state import ConstraintState, VariableState
-
-
-class Constraint:
-    """Unified constraint class for both path and event constraints."""
-
-    def __init__(
-        self,
-        val: CasadiMX | float,
-        min_val: float | None = None,
-        max_val: float | None = None,
-        equals: float | None = None,
-    ) -> None:
-        self.val = val
-        self.min_val = min_val
-        self.max_val = max_val
-        self.equals = equals
 
 
 def add_constraint(state: ConstraintState, constraint_expr: SymExpr) -> None:
@@ -53,8 +36,8 @@ def _is_path_constraint(expr: SymExpr, variable_state: VariableState) -> bool:
     return not depends_on_t0_tf
 
 
-def _symbolic_constraint_to_path_constraint(expr: SymExpr) -> PathConstraint:
-    """Convert symbolic constraint to PathConstraint."""
+def _symbolic_constraint_to_constraint(expr: SymExpr) -> Constraint:
+    """Convert symbolic constraint to unified Constraint."""
     # Handle equality constraints: expr == value
     if (
         isinstance(expr, ca.MX)
@@ -63,7 +46,7 @@ def _symbolic_constraint_to_path_constraint(expr: SymExpr) -> PathConstraint:
     ):
         lhs = expr.dep(0)
         rhs = expr.dep(1)
-        return PathConstraint(val=lhs - rhs, equals=0.0)
+        return Constraint(val=lhs - rhs, equals=0.0)
 
     # Handle inequality constraints: expr <= value or expr >= value
     elif (
@@ -73,7 +56,7 @@ def _symbolic_constraint_to_path_constraint(expr: SymExpr) -> PathConstraint:
     ):
         lhs = expr.dep(0)
         rhs = expr.dep(1)
-        return PathConstraint(val=lhs - rhs, max_val=0.0)
+        return Constraint(val=lhs - rhs, max_val=0.0)
 
     elif (
         isinstance(expr, ca.MX)
@@ -82,45 +65,10 @@ def _symbolic_constraint_to_path_constraint(expr: SymExpr) -> PathConstraint:
     ):
         lhs = expr.dep(0)
         rhs = expr.dep(1)
-        return PathConstraint(val=lhs - rhs, min_val=0.0)
+        return Constraint(val=lhs - rhs, min_val=0.0)
 
-    # Default case
-    return PathConstraint(val=expr, equals=0.0)
-
-
-def _symbolic_constraint_to_event_constraint(expr: SymExpr) -> EventConstraint:
-    """Convert symbolic constraint to EventConstraint."""
-    # Handle equality constraints: expr == value
-    if (
-        isinstance(expr, ca.MX)
-        and hasattr(expr, "is_op")
-        and expr.is_op(getattr(ca, "OP_EQ", "eq"))
-    ):
-        lhs = expr.dep(0)
-        rhs = expr.dep(1)
-        return EventConstraint(val=lhs - rhs, equals=0.0)
-
-    # Handle inequality constraints: expr <= value or expr >= value
-    elif (
-        isinstance(expr, ca.MX)
-        and hasattr(expr, "is_op")
-        and expr.is_op(getattr(ca, "OP_LE", "le"))
-    ):
-        lhs = expr.dep(0)
-        rhs = expr.dep(1)
-        return EventConstraint(val=lhs - rhs, max_val=0.0)
-
-    elif (
-        isinstance(expr, ca.MX)
-        and hasattr(expr, "is_op")
-        and expr.is_op(getattr(ca, "OP_GE", "ge"))
-    ):
-        lhs = expr.dep(0)
-        rhs = expr.dep(1)
-        return EventConstraint(val=lhs - rhs, min_val=0.0)
-
-    # Default case
-    return EventConstraint(val=expr, equals=0.0)
+    # Default case: treat as equality constraint
+    return Constraint(val=expr, equals=0.0)
 
 
 def get_path_constraints_function(
@@ -169,8 +117,8 @@ def get_path_constraints_function(
         controls_vec: CasadiMX,
         time: CasadiMX,
         params: ProblemParameters,
-    ) -> list[PathConstraint]:
-        result: list[PathConstraint] = []
+    ) -> list[Constraint]:
+        result: list[Constraint] = []
 
         # Create substitution map
         subs_map = {}
@@ -192,7 +140,7 @@ def get_path_constraints_function(
             substituted_expr = ca.substitute(
                 [expr], list(subs_map.keys()), list(subs_map.values())
             )[0]
-            result.append(_symbolic_constraint_to_path_constraint(substituted_expr))
+            result.append(_symbolic_constraint_to_constraint(substituted_expr))
 
         # Add state bounds
         for i, name in enumerate(
@@ -203,9 +151,9 @@ def get_path_constraints_function(
         ):
             state_def = variable_state.states[name]
             if state_def.get("lower") is not None:
-                result.append(PathConstraint(val=states_vec[i], min_val=state_def["lower"]))
+                result.append(Constraint(val=states_vec[i], min_val=state_def["lower"]))
             if state_def.get("upper") is not None:
-                result.append(PathConstraint(val=states_vec[i], max_val=state_def["upper"]))
+                result.append(Constraint(val=states_vec[i], max_val=state_def["upper"]))
 
         # Add control bounds
         for i, name in enumerate(
@@ -216,9 +164,9 @@ def get_path_constraints_function(
         ):
             control_def = variable_state.controls[name]
             if control_def.get("lower") is not None:
-                result.append(PathConstraint(val=controls_vec[i], min_val=control_def["lower"]))
+                result.append(Constraint(val=controls_vec[i], min_val=control_def["lower"]))
             if control_def.get("upper") is not None:
-                result.append(PathConstraint(val=controls_vec[i], max_val=control_def["upper"]))
+                result.append(Constraint(val=controls_vec[i], max_val=control_def["upper"]))
 
         return result
 
@@ -264,8 +212,8 @@ def get_event_constraints_function(
         xf_vec: CasadiMX,
         q: CasadiMX | None,
         params: ProblemParameters,
-    ) -> list[EventConstraint]:
-        result: list[EventConstraint] = []
+    ) -> list[Constraint]:
+        result: list[Constraint] = []
 
         # Create substitution map
         subs_map = {}
@@ -293,7 +241,7 @@ def get_event_constraints_function(
             substituted_expr = ca.substitute(
                 [expr], list(subs_map.keys()), list(subs_map.values())
             )[0]
-            result.append(_symbolic_constraint_to_event_constraint(substituted_expr))
+            result.append(_symbolic_constraint_to_constraint(substituted_expr))
 
         # Add initial state constraints
         for i, name in enumerate(
@@ -306,16 +254,12 @@ def get_event_constraints_function(
             initial_constraint = state_def.get("initial_constraint")
             if initial_constraint is not None:
                 if initial_constraint.equals is not None:
-                    result.append(EventConstraint(val=x0_vec[i], equals=initial_constraint.equals))
+                    result.append(Constraint(val=x0_vec[i], equals=initial_constraint.equals))
                 else:
                     if initial_constraint.lower is not None:
-                        result.append(
-                            EventConstraint(val=x0_vec[i], min_val=initial_constraint.lower)
-                        )
+                        result.append(Constraint(val=x0_vec[i], min_val=initial_constraint.lower))
                     if initial_constraint.upper is not None:
-                        result.append(
-                            EventConstraint(val=x0_vec[i], max_val=initial_constraint.upper)
-                        )
+                        result.append(Constraint(val=x0_vec[i], max_val=initial_constraint.upper))
 
         # Add final state constraints
         for i, name in enumerate(
@@ -328,16 +272,12 @@ def get_event_constraints_function(
             final_constraint = state_def.get("final_constraint")
             if final_constraint is not None:
                 if final_constraint.equals is not None:
-                    result.append(EventConstraint(val=xf_vec[i], equals=final_constraint.equals))
+                    result.append(Constraint(val=xf_vec[i], equals=final_constraint.equals))
                 else:
                     if final_constraint.lower is not None:
-                        result.append(
-                            EventConstraint(val=xf_vec[i], min_val=final_constraint.lower)
-                        )
+                        result.append(Constraint(val=xf_vec[i], min_val=final_constraint.lower))
                     if final_constraint.upper is not None:
-                        result.append(
-                            EventConstraint(val=xf_vec[i], max_val=final_constraint.upper)
-                        )
+                        result.append(Constraint(val=xf_vec[i], max_val=final_constraint.upper))
 
         return result
 
