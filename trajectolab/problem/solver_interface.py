@@ -86,6 +86,10 @@ def get_dynamics_function(variable_state: VariableState) -> DynamicsCallable:
         result = dynamics_func(states_vec, controls_vec, time, param_vec)
         dynamics_output = result[0] if isinstance(result, list | tuple) else result
 
+        # Validate that we have a result
+        if dynamics_output is None:
+            raise ValueError("Dynamics function returned None")
+
         # Convert to list of MX elements
         num_states = int(dynamics_output.size1())  # type: ignore[attr-defined]
         result_list: list[CasadiMX] = []

@@ -9,7 +9,9 @@ import casadi as ca
 from ..tl_types import (
     CasadiMX,
     EventConstraint,
+    EventConstraintsCallable,
     PathConstraint,
+    PathConstraintsCallable,
     ProblemParameters,
     SymExpr,
 )
@@ -124,7 +126,7 @@ def _symbolic_constraint_to_event_constraint(expr: SymExpr) -> EventConstraint:
 def get_path_constraints_function(
     constraint_state: ConstraintState,
     variable_state: VariableState,
-):
+) -> PathConstraintsCallable | None:
     """Get path constraints function for solver."""
 
     # Filter path constraints
@@ -234,7 +236,7 @@ def _has_initial_or_final_state_constraints(variable_state: VariableState) -> bo
 def get_event_constraints_function(
     constraint_state: ConstraintState,
     variable_state: VariableState,
-):
+) -> EventConstraintsCallable | None:
     """Get event constraints function for solver."""
     # Filter event constraints
     event_constraints = [
