@@ -100,8 +100,9 @@ def setup_interval_state_variables(
     # Last column is the state at the end of the interval
     state_columns[num_colloc_nodes] = state_at_global_mesh_nodes[mesh_interval_index + 1]
 
-    # Combine all state columns into a matrix
+    # Combine all state columns into a matrix and ensure type is MX
     state_matrix = ca.horzcat(*state_columns)
+    state_matrix = ca.MX(state_matrix)
 
     return state_matrix, interior_nodes_var
 
