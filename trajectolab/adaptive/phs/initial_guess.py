@@ -4,6 +4,7 @@ Aggressive interpolation-based propagation strategy with validation.
 """
 
 import logging
+from typing import cast
 
 import numpy as np
 
@@ -227,7 +228,7 @@ def _interpolate_trajectory_to_new_mesh(
             logger.debug(f"        Interval {k}: Created trajectory of shape {target_traj_k.shape}")
 
         logger.info(f"    ✓ Successfully interpolated {trajectory_type} trajectories")
-        return target_trajectories
+        return cast(list[FloatArray], target_trajectories)
 
     except Exception as e:
         error_msg = f"Failed to interpolate {trajectory_type} trajectories: {e}"
