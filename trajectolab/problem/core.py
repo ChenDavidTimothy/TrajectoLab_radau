@@ -8,7 +8,7 @@ from typing import Any
 
 from ..tl_types import FloatArray, SymExpr, SymType
 from .constraints import ConstraintManager
-from .initial_guess import InitialGuessManager
+from .guess_manager import InitialGuessManager
 from .mesh import MeshManager
 from .solver_interface import SolverInterface
 from .variables import VariableManager
