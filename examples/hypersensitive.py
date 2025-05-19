@@ -30,6 +30,9 @@ initial_polynomial_degrees = [8, 8, 8]
 initial_mesh_points = [-1.0, -1 / 3, 1 / 3, 1.0]
 problem.set_mesh(initial_polynomial_degrees, initial_mesh_points)
 
+reqs = problem.get_initial_guess_requirements()
+print(reqs)  # Shows exact shapes required
+
 # OPTIONALLY provide initial guess (not required)
 # You can provide none, some, or all components
 # Example: partial initial guess with just integral
