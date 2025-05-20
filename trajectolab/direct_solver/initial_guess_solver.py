@@ -170,8 +170,8 @@ def apply_scaled_initial_guess(
         return
 
     ig = problem.initial_guess
-    num_states = len(problem._states)
-    num_controls = len(problem._controls)
+    len(problem._states)
+    len(problem._controls)
     num_integrals = problem._num_integrals
 
     # Apply time variable guesses (unscaled)
