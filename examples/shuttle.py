@@ -46,19 +46,38 @@ def create_shuttle_reentry_problem(heating_constraint=None, bank_angle_min=-90.0
     deg2rad = np.pi / 180.0
     rad2deg = 180.0 / np.pi
 
+    # Scaling factors (from Julia implementation)
+    h_scale = 1e5  # Altitude scaling factor
+    v_scale = 1e4  # Velocity scaling factor
+
     # Define time with free final time
     t = problem.time(initial=0.0, free_final=True)
 
-    # Define states with initial conditions and bounds - exactly as in Example 10.137
-    h = problem.state("h", initial=260000.0, lower=0.0, final=80000.0)  # Altitude (ft)
+    # Define states with initial conditions and bounds - using scaled values
+    # Note: Initial values and bounds are now scaled by h_scale and v_scale
+    h_scaled = problem.state(
+        "h_scaled",
+        initial=260000.0 / h_scale,  # 2.6 in scaled units
+        lower=0.0,
+        final=80000.0 / h_scale,
+    )  # 0.8 in scaled units
+
     phi = problem.state("phi", initial=0.0 * deg2rad)  # Longitude (rad)
+
     theta = problem.state(
         "theta",
         initial=0.0 * deg2rad,  # Latitude (rad)
         lower=-89.0 * deg2rad,
         upper=89.0 * deg2rad,
     )
-    v = problem.state("v", initial=25600.0, lower=1.0, final=2500.0)  # Velocity (ft/s)
+
+    v_scaled = problem.state(
+        "v_scaled",
+        initial=25600.0 / v_scale,  # 2.56 in scaled units
+        lower=1.0 / v_scale,  # 0.0001 in scaled units
+        final=2500.0 / v_scale,
+    )  # 0.25 in scaled units
+
     gamma = problem.state(
         "gamma",
         initial=-1.0 * deg2rad,  # Flight path angle (rad)
@@ -66,17 +85,26 @@ def create_shuttle_reentry_problem(heating_constraint=None, bank_angle_min=-90.0
         upper=89.0 * deg2rad,
         final=-5.0 * deg2rad,
     )
+
     psi = problem.state("psi", initial=90.0 * deg2rad)  # Azimuth (rad)
 
     # Define controls with bounds
     alpha = problem.control(
         "alpha", lower=-90.0 * deg2rad, upper=90.0 * deg2rad
     )  # Angle of attack (rad)
+
     beta = problem.control(
         "beta", lower=bank_angle_min * deg2rad, upper=1.0 * deg2rad
     )  # Bank angle (rad)
 
     # Define intermediate variables for dynamics
+    # Unscaled altitude and velocity - needed for physics calculations
+    h = h_scaled * h_scale
+    v = v_scaled * v_scale
+
+    # Add a small epsilon to avoid division by zero
+    eps = 1e-10
+
     # Radius from Earth center
     r = Re + h
 
@@ -103,15 +131,14 @@ def create_shuttle_reentry_problem(heating_constraint=None, bank_angle_min=-90.0
     qa = c0 + c1 * alpha_deg + c2 * alpha_deg**2 + c3 * alpha_deg**3
     q = qa * qr
 
-    # Define a small positive constant to avoid division by zero
-    eps = 1e-10
-
+    # Define dynamics using scaled variables
+    # Note: We need to scale the derivatives of h and v appropriately
     problem.dynamics(
         {
-            h: v * ca.sin(gamma),
+            h_scaled: (v * ca.sin(gamma)) / h_scale,
             phi: (v / r) * ca.cos(gamma) * ca.sin(psi) / (ca.cos(theta) + eps),
             theta: (v / r) * ca.cos(gamma) * ca.cos(psi),
-            v: -(D / mass) - g * ca.sin(gamma),
+            v_scaled: (-(D / mass) - g * ca.sin(gamma)) / v_scale,
             gamma: (L / (mass * v + eps)) * ca.cos(beta)
             + ca.cos(gamma) * ((v / r) - (g / (v + eps))),
             psi: (1 / (mass * v * ca.cos(gamma) + eps)) * L * ca.sin(beta)
@@ -130,23 +157,35 @@ def create_shuttle_reentry_problem(heating_constraint=None, bank_angle_min=-90.0
 
 
 def prepare_initial_guess(problem, polynomial_degrees, deg2rad):
+    """
+    Prepare initial guess for the problem, using scaled variables.
+
+    Args:
+        problem: The problem to prepare guess for
+        polynomial_degrees: List of polynomial degrees for each mesh interval
+        deg2rad: Conversion factor from degrees to radians
+    """
     states_guess = []
     controls_guess = []
 
-    # Initial conditions
-    h0, v0 = 260000.0, 25600.0
+    # Scale factors
+    h_scale = 1e5
+    v_scale = 1e4
+
+    # Initial conditions (scaled)
+    h0, v0 = 260000.0 / h_scale, 25600.0 / v_scale  # 2.6, 2.56 in scaled units
     phi0, theta0 = 0.0, 0.0
     gamma0, psi0 = -1.0 * np.pi / 180.0, 90.0 * np.pi / 180.0
 
-    # Final conditions
-    hf, vf = 80000.0, 2500.0
+    # Final conditions (scaled)
+    hf, vf = 80000.0 / h_scale, 2500.0 / v_scale  # 0.8, 0.25 in scaled units
     gammaF = -5.0 * np.pi / 180.0
 
     for N in polynomial_degrees:
         # Create linearly spaced points
         t = np.linspace(0, 1, N + 1)
 
-        # Linear interpolation for states
+        # Linear interpolation for states (using scaled values)
         h_vals = h0 + (hf - h0) * t
         phi_vals = phi0 * np.ones(N + 1)
         theta_vals = theta0 * np.ones(N + 1)
@@ -180,11 +219,11 @@ def solve_with_fixed_mesh(
     literature_tf=None,
 ):
     """Solve the shuttle reentry problem with fixed mesh and compare with literature"""
-    # Define mesh with higher precision for accuracy
-    polynomial_degrees = [20, 22, 24, 26, 28, 30, 28, 26, 24, 22, 20, 22, 24, 22, 20]
-    mesh_points = np.array(
-        [-1.0, -0.9, -0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.2, -0.1, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
-    )
+    # Define mesh with simpler and more uniform configuration
+    # This is more similar to the Julia implementation
+    num_intervals = 15  # Similar to Julia's approach
+    polynomial_degrees = [20] * num_intervals  # Use uniform degree
+    mesh_points = np.linspace(-1.0, 1.0, num_intervals + 1)  # Uniform mesh
 
     # Set mesh
     problem.set_mesh(polynomial_degrees, mesh_points)
@@ -206,7 +245,7 @@ def solve_with_fixed_mesh(
         polynomial_degrees=polynomial_degrees,
         mesh_points=mesh_points,
         nlp_options={
-            "ipopt.max_iter": 20000,
+            "ipopt.max_iter": 2000,
             "ipopt.mumps_pivtol": 5e-7,
             "ipopt.mumps_mem_percent": 50000,
             "ipopt.linear_solver": "mumps",
@@ -214,8 +253,6 @@ def solve_with_fixed_mesh(
             "ipopt.print_level": 5,
             "ipopt.nlp_scaling_method": "gradient-based",
             "ipopt.mu_strategy": "adaptive",
-            "ipopt.check_derivatives_for_naninf": "yes",
-            "ipopt.hessian_approximation": "limited-memory",
             "ipopt.tol": 1e-8,
         },
     )
@@ -226,75 +263,6 @@ def solve_with_fixed_mesh(
         example_name,
         example_num,
         "Fixed Mesh",
-        bank_min,
-        heating_limit,
-        literature_J,
-        literature_tf,
-    )
-
-    return solution
-
-
-def solve_with_adaptive_mesh(
-    problem,
-    example_name,
-    example_num,
-    bank_min,
-    heating_limit=None,
-    literature_J=None,
-    literature_tf=None,
-):
-    """Solve the shuttle reentry problem with adaptive mesh and compare with literature"""
-    # Define initial mesh for adaptive solution
-    initial_polynomial_degrees = [12, 14, 16, 18, 20, 18, 16, 14, 16, 18, 20, 18, 16, 14, 12]
-    initial_mesh_points = np.array(
-        [-1.0, -0.9, -0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.2, -0.1, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
-    )
-
-    # Set initial mesh
-    problem.set_mesh(initial_polynomial_degrees, initial_mesh_points)
-
-    # Conversion factor
-    deg2rad = np.pi / 180.0
-
-    # Set initial guess
-    prepare_initial_guess(problem, initial_polynomial_degrees, deg2rad)
-
-    # Solve with adaptive mesh
-    heat_str = f"q_U = {heating_limit}" if heating_limit is not None else "q_U = ∞"
-    bank_str = f"β ∈ [{bank_min}°, 1°]"
-    print(f"\nSolving Example {example_num}: {example_name} (Adaptive Mesh)")
-    print(f"Parameters: {bank_str}, {heat_str}")
-
-    solution = tl.solve_adaptive(
-        problem,
-        initial_polynomial_degrees=initial_polynomial_degrees,
-        initial_mesh_points=initial_mesh_points,
-        error_tolerance=1e-3,
-        max_iterations=15,
-        min_polynomial_degree=4,
-        max_polynomial_degree=20,
-        nlp_options={
-            "ipopt.max_iter": 20000,
-            "ipopt.mumps_pivtol": 5e-7,
-            "ipopt.mumps_mem_percent": 50000,
-            "ipopt.linear_solver": "mumps",
-            "ipopt.constr_viol_tol": 1e-7,
-            "ipopt.print_level": 5,
-            "ipopt.nlp_scaling_method": "gradient-based",
-            "ipopt.mu_strategy": "adaptive",
-            "ipopt.check_derivatives_for_naninf": "yes",
-            "ipopt.hessian_approximation": "limited-memory",
-            "ipopt.tol": 1e-8,
-        },
-    )
-
-    # Analyze solution
-    analyze_solution(
-        solution,
-        example_name,
-        example_num,
-        "Adaptive Mesh",
         bank_min,
         heating_limit,
         literature_J,
@@ -316,7 +284,7 @@ def analyze_solution(
 ):
     """Analyze the solution and print results comparing with literature values"""
     if solution.success:
-        # Extract final values
+        # Extract final values - remember to unscale h and v
         final_time = solution.final_time
         final_theta = solution.interpolate_state("theta", final_time)
         final_theta_rad = float(final_theta)
@@ -361,129 +329,126 @@ def analyze_solution(
         return False
 
 
+def plot_solution(solution):
+    """
+    Plot the solution using matplotlib, remembering to unscale the variables.
+
+    Args:
+        solution: TrajectoLab solution
+    """
+    import matplotlib.pyplot as plt
+
+    # Scale factors
+    h_scale = 1e5
+    v_scale = 1e4
+
+    # Get trajectories using the appropriate API methods
+    # Each call returns (time_array, value_array)
+    time_h, h_scaled_vals = solution.get_state_trajectory("h_scaled")
+    time_v, v_scaled_vals = solution.get_state_trajectory("v_scaled")
+    time_phi, phi_vals = solution.get_state_trajectory("phi")
+    time_theta, theta_vals = solution.get_state_trajectory("theta")
+    time_gamma, gamma_vals = solution.get_state_trajectory("gamma")
+    time_psi, psi_vals = solution.get_state_trajectory("psi")
+
+    # Get control trajectories
+    time_alpha, alpha_vals = solution.get_control_trajectory("alpha")
+    time_beta, beta_vals = solution.get_control_trajectory("beta")
+
+    # Unscale altitude and velocity
+    h_vals = h_scaled_vals * h_scale
+    v_vals = v_scaled_vals * v_scale
+
+    # Convert to degrees for plotting
+    phi_deg = phi_vals * 180 / np.pi
+    theta_deg = theta_vals * 180 / np.pi
+    gamma_deg = gamma_vals * 180 / np.pi
+    psi_deg = psi_vals * 180 / np.pi
+    alpha_deg = alpha_vals * 180 / np.pi
+    beta_deg = beta_vals * 180 / np.pi
+
+    # Create figure for state variables
+    fig, axs = plt.subplots(3, 2, figsize=(12, 12))
+
+    # Plot altitude
+    axs[0, 0].plot(time_h, h_vals / 1e5)  # Plot in units of 100,000 ft
+    axs[0, 0].set_title("Altitude (100,000 ft)")
+    axs[0, 0].grid(True)
+
+    # Plot velocity
+    axs[0, 1].plot(time_v, v_vals / 1e3)  # Plot in units of 1,000 ft/s
+    axs[0, 1].set_title("Velocity (1,000 ft/s)")
+    axs[0, 1].grid(True)
+
+    # Plot longitude
+    axs[1, 0].plot(time_phi, phi_deg)
+    axs[1, 0].set_title("Longitude (deg)")
+    axs[1, 0].grid(True)
+
+    # Plot flight path angle
+    axs[1, 1].plot(time_gamma, gamma_deg)
+    axs[1, 1].set_title("Flight Path Angle (deg)")
+    axs[1, 1].grid(True)
+
+    # Plot latitude
+    axs[2, 0].plot(time_theta, theta_deg)
+    axs[2, 0].set_title("Latitude (deg)")
+    axs[2, 0].grid(True)
+
+    # Plot azimuth
+    axs[2, 1].plot(time_psi, psi_deg)
+    axs[2, 1].set_title("Azimuth (deg)")
+    axs[2, 1].grid(True)
+
+    plt.tight_layout()
+    plt.show()
+
+    # Create figure for control variables
+    fig, axs = plt.subplots(2, 1, figsize=(10, 8))
+
+    # Plot angle of attack
+    axs[0].plot(time_alpha, alpha_deg)
+    axs[0].set_title("Angle of Attack (deg)")
+    axs[0].grid(True)
+
+    # Plot bank angle
+    axs[1].plot(time_beta, beta_deg)
+    axs[1].set_title("Bank Angle (deg)")
+    axs[1].grid(True)
+
+    plt.tight_layout()
+    plt.show()
+
+    # Optionally, create a 3D plot of the trajectory
+    fig = plt.figure(figsize=(10, 8))
+    ax = fig.add_subplot(111, projection="3d")
+    ax.plot(phi_deg, theta_deg, h_vals / 1e5)
+    ax.set_xlabel("Longitude (deg)")
+    ax.set_ylabel("Latitude (deg)")
+    ax.set_zlabel("Altitude (100,000 ft)")
+    ax.set_title("Space Shuttle Reentry Trajectory")
+    plt.show()
+
+
 def main():
     """
-    Solve all three examples from the literature with both fixed and adaptive mesh:
-    - Example 10.137: Maximum Crossrange with bank angle -90° ≤ β ≤ 1°, no heating constraint
-    - Example 10.138: Maximum Crossrange with restricted bank angle -70° ≤ β ≤ 1°
-    - Example 10.139: Maximum Crossrange with heating constraint q_U = 70 BTU/ft²/sec
+    Simplified main function - just solve one example to verify scaling helps
     """
-    # Literature values from the images
+    # Literature values from the book
     lit_J_ex137 = 5.9587608e-1
     lit_tf_ex137 = 2.0085881e3
 
-    lit_J_ex138 = 5.9574673e-1
-    lit_tf_ex138 = 2.0346546e3
+    # Create problem with scaling
+    problem = create_shuttle_reentry_problem(heating_constraint=None, bank_angle_min=-90.0)
 
-    lit_J_ex139 = 5.3451536e-1
-    lit_tf_ex139 = 2.1986660e3
-
-    # Example 10.137: Maximum Crossrange
-    # Fixed Mesh
-    problem_ex137 = create_shuttle_reentry_problem(heating_constraint=None, bank_angle_min=-90.0)
-    solution_ex137_fixed = solve_with_fixed_mesh(
-        problem_ex137, "SHUTTLE MAXIMUM CROSSRANGE", "10.137", -90, None, lit_J_ex137, lit_tf_ex137
+    # Solve it with fixed mesh
+    solution = solve_with_fixed_mesh(
+        problem, "SHUTTLE MAXIMUM CROSSRANGE", "10.137", -90, None, lit_J_ex137, lit_tf_ex137
     )
 
-    # Adaptive Mesh
-    problem_ex137 = create_shuttle_reentry_problem(heating_constraint=None, bank_angle_min=-90.0)
-    solution_ex137_adaptive = solve_with_adaptive_mesh(
-        problem_ex137, "SHUTTLE MAXIMUM CROSSRANGE", "10.137", -90, None, lit_J_ex137, lit_tf_ex137
-    )
-
-    # Example 10.138: Maximum Crossrange with Control Bound
-    # Fixed Mesh
-    problem_ex138 = create_shuttle_reentry_problem(heating_constraint=None, bank_angle_min=-70.0)
-    solution_ex138_fixed = solve_with_fixed_mesh(
-        problem_ex138,
-        "SHUTTLE MAXIMUM CROSSRANGE WITH CONTROL BOUND",
-        "10.138",
-        -70,
-        None,
-        lit_J_ex138,
-        lit_tf_ex138,
-    )
-
-    # Adaptive Mesh
-    problem_ex138 = create_shuttle_reentry_problem(heating_constraint=None, bank_angle_min=-70.0)
-    solution_ex138_adaptive = solve_with_adaptive_mesh(
-        problem_ex138,
-        "SHUTTLE MAXIMUM CROSSRANGE WITH CONTROL BOUND",
-        "10.138",
-        -70,
-        None,
-        lit_J_ex138,
-        lit_tf_ex138,
-    )
-
-    # Example 10.139: Maximum Crossrange with Heat Limit
-    # Fixed Mesh
-    problem_ex139 = create_shuttle_reentry_problem(heating_constraint=70.0, bank_angle_min=-90.0)
-    solution_ex139_fixed = solve_with_fixed_mesh(
-        problem_ex139,
-        "SHUTTLE MAXIMUM CROSSRANGE WITH HEAT LIMIT",
-        "10.139",
-        -90,
-        70,
-        lit_J_ex139,
-        lit_tf_ex139,
-    )
-
-    # Adaptive Mesh
-    problem_ex139 = create_shuttle_reentry_problem(heating_constraint=70.0, bank_angle_min=-90.0)
-    solution_ex139_adaptive = solve_with_adaptive_mesh(
-        problem_ex139,
-        "SHUTTLE MAXIMUM CROSSRANGE WITH HEAT LIMIT",
-        "10.139",
-        -90,
-        70,
-        lit_J_ex139,
-        lit_tf_ex139,
-    )
-
-    # Summary of all results
-    print("\n" + "=" * 80)
-    print("SUMMARY OF RESULTS")
-    print("=" * 80)
-
-    print("\nExample 10.137: SHUTTLE MAXIMUM CROSSRANGE")
-    print(f"  Literature:    J* = {lit_J_ex137:.7e}, t_F* = {lit_tf_ex137:.7e}")
-    if solution_ex137_fixed.success:
-        j_fixed = solution_ex137_fixed.interpolate_state("theta", solution_ex137_fixed.final_time)
-        tf_fixed = solution_ex137_fixed.final_time
-        print(f"  Fixed Mesh:    J* = {float(j_fixed):.7e}, t_F* = {tf_fixed:.7e}")
-    if solution_ex137_adaptive.success:
-        j_adaptive = solution_ex137_adaptive.interpolate_state(
-            "theta", solution_ex137_adaptive.final_time
-        )
-        tf_adaptive = solution_ex137_adaptive.final_time
-        print(f"  Adaptive Mesh: J* = {float(j_adaptive):.7e}, t_F* = {tf_adaptive:.7e}")
-
-    print("\nExample 10.138: SHUTTLE MAXIMUM CROSSRANGE WITH CONTROL BOUND")
-    print(f"  Literature:    J* = {lit_J_ex138:.7e}, t_F* = {lit_tf_ex138:.7e}")
-    if solution_ex138_fixed.success:
-        j_fixed = solution_ex138_fixed.interpolate_state("theta", solution_ex138_fixed.final_time)
-        tf_fixed = solution_ex138_fixed.final_time
-        print(f"  Fixed Mesh:    J* = {float(j_fixed):.7e}, t_F* = {tf_fixed:.7e}")
-    if solution_ex138_adaptive.success:
-        j_adaptive = solution_ex138_adaptive.interpolate_state(
-            "theta", solution_ex138_adaptive.final_time
-        )
-        tf_adaptive = solution_ex138_adaptive.final_time
-        print(f"  Adaptive Mesh: J* = {float(j_adaptive):.7e}, t_F* = {tf_adaptive:.7e}")
-
-    print("\nExample 10.139: SHUTTLE MAXIMUM CROSSRANGE WITH HEAT LIMIT")
-    print(f"  Literature:    J* = {lit_J_ex139:.7e}, t_F* = {lit_tf_ex139:.7e}")
-    if solution_ex139_fixed.success:
-        j_fixed = solution_ex139_fixed.interpolate_state("theta", solution_ex139_fixed.final_time)
-        tf_fixed = solution_ex139_fixed.final_time
-        print(f"  Fixed Mesh:    J* = {float(j_fixed):.7e}, t_F* = {tf_fixed:.7e}")
-    if solution_ex139_adaptive.success:
-        j_adaptive = solution_ex139_adaptive.interpolate_state(
-            "theta", solution_ex139_adaptive.final_time
-        )
-        tf_adaptive = solution_ex139_adaptive.final_time
-        print(f"  Adaptive Mesh: J* = {float(j_adaptive):.7e}, t_F* = {tf_adaptive:.7e}")
+    # Plot if solution is successful
+    if solution.success:
+        plot_solution(solution)
 
 
 if __name__ == "__main__":
