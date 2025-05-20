@@ -343,6 +343,7 @@ class ProblemProtocol(Protocol):
     solver_options: dict[str, object]
 
     _mesh_configured: bool
+    _scaling: Any
 
     # Symbolic attributes
     _sym_states: dict[str, SymType]

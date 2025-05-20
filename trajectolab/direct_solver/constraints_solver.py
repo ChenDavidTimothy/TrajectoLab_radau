@@ -78,17 +78,15 @@ def apply_collocation_constraints(
         (terminal_time_variable - initial_time_variable) * global_segment_length / 4.0
     )
 
-    # FIX 1: Proper determination of scaling status
-    # Check if scaling should be used - directly check problem object's use_scaling property
-    # The existing condition was not correctly evaluating
+    # SIMPLIFIED: Check scaling is enabled directly from the scaling object
     use_scaling = False
-    if problem is not None and hasattr(problem, "use_scaling"):
-        use_scaling = problem.use_scaling
+    if problem is not None and hasattr(problem, "_scaling"):
+        use_scaling = problem._scaling.enabled  # Single source of truth
 
-    # FIX 2: Add debugging to confirm the condition evaluation
+    # Output debug info
     print(f"SCALING CHECK: interval={mesh_interval_index}, use_scaling={use_scaling}")
 
-    # FIX 3: If we have state names for scaling, extract them
+    # Extract state names for scaling if needed
     state_names = []
     if problem is not None and hasattr(problem, "_states"):
         state_names = list(problem._states.keys())
@@ -123,14 +121,11 @@ def apply_collocation_constraints(
             state_derivative_rhs, num_states
         )
 
-        # FIX 4: Apply scaled or unscaled constraint based on fixed use_scaling flag
+        # Apply appropriate scaling based on single source of truth
         if use_scaling and problem is not None and hasattr(problem, "_scaling"):
             # Apply scaled constraints (Rule 3)
             print(f"=== APPLYING SCALED DEFECT CONSTRAINTS (Interval {mesh_interval_index}) ===")
             from trajectolab.scaling import apply_scaling_to_defect_constraints
-
-            print(f"  State derivative at colloc shape: {state_derivative_at_colloc.shape}")
-            print(f"  RHS vector shape: {state_derivative_rhs_vector.shape}")
 
             apply_scaling_to_defect_constraints(
                 opti,

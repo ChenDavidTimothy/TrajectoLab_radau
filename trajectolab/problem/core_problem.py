@@ -28,29 +28,26 @@ class Problem:
         # Solver options
         self.solver_options: dict[str, Any] = {}
 
-        # Scaling configuration - use property setter for correct initialization
-        self._use_scaling = False  # Initial value doesn't matter, setter will handle it
+        # Create scaling object ONCE with the desired initial state
         from trajectolab.scaling import Scaling
-
-        self._scaling = Scaling(enabled=False)  # Initially disabled, will be set by property
-        self.use_scaling = use_scaling  # Use setter to properly initialize
 
         self._scaling = Scaling(enabled=use_scaling)
         print(f"Scaling object created with enabled={self._scaling.enabled}")
 
-    # Property access to state attributes for backward compatibility
-
+    # SIMPLIFIED - Direct delegation to _scaling object as single source of truth
     @property
     def use_scaling(self) -> bool:
-        """Get the current scaling state."""
-        return self._use_scaling
+        """Get the current scaling state directly from the scaling object."""
+        return self._scaling.enabled if hasattr(self, "_scaling") else False
 
     @use_scaling.setter
     def use_scaling(self, value: bool) -> None:
-        """Set scaling state and synchronize with scaling object."""
-        self._use_scaling = value
+        """Set scaling state directly on the scaling object."""
         if hasattr(self, "_scaling"):
             self._scaling.enabled = value
+            print(f"Scaling enabled set to: {self._scaling.enabled}")
+
+    # Property access to state attributes for backward compatibility
 
     @property
     def _states(self) -> dict[str, dict[str, Any]]:

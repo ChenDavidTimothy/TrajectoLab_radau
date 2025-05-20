@@ -321,7 +321,7 @@ def extract_and_format_solution(
             control_vals = casadi_solution_object.value(control_vars)
 
             # Ensure proper dimensionality
-            if isinstance(control_vals, (ca.DM, ca.MX)):
+            if isinstance(control_vals, ca.DM | ca.MX):
                 control_vals = np.array(control_vals.full())
             else:
                 control_vals = np.array(control_vals)
