@@ -1,4 +1,5 @@
 import casadi as ca
+import matplotlib.pyplot as plt  # Moved import to top for general use
 import numpy as np
 
 import trajectolab as tl
@@ -73,7 +74,6 @@ def create_shuttle_reentry_problem(heating_constraint=None, bank_angle_min=-90.0
     alpha = problem.control("alpha", lower=-90.0 * deg2rad, upper=90.0 * deg2rad)
     beta = problem.control("beta", lower=bank_angle_min * deg2rad, upper=1.0 * deg2rad)
 
-    # Store symbolic variables
     symbolic_vars = {
         "t": t,
         "h_scaled": h_scaled,
@@ -121,12 +121,12 @@ def create_shuttle_reentry_problem(heating_constraint=None, bank_angle_min=-90.0
     if heating_constraint is not None:
         problem.subject_to(q_heat <= heating_constraint)
 
-    problem.minimize(-theta)  # Maximize final latitude
+    problem.minimize(-theta)
 
     return problem, symbolic_vars
 
 
-def prepare_initial_guess(problem, polynomial_degrees, deg2rad):
+def prepare_initial_guess(problem, polynomial_degrees, deg2rad, initial_terminal_time=2000.0):
     states_guess = []
     controls_guess = []
     h_scale = 1e5
@@ -137,8 +137,8 @@ def prepare_initial_guess(problem, polynomial_degrees, deg2rad):
     hf, vf = 80000.0 / h_scale, 2500.0 / v_scale
     gammaF = -5.0 * deg2rad
 
-    for N in polynomial_degrees:
-        t_param = np.linspace(0, 1, N + 1)
+    for N in polynomial_degrees:  # N is the polynomial degree for an interval
+        t_param = np.linspace(0, 1, N + 1)  # Legendre-Gauss-Lobatto points for state eval
         h_vals = h0 + (hf - h0) * t_param
         phi_vals = phi0 * np.ones(N + 1)
         theta_vals = theta0 * np.ones(N + 1)
@@ -147,17 +147,21 @@ def prepare_initial_guess(problem, polynomial_degrees, deg2rad):
         psi_vals = psi0 * np.ones(N + 1)
         state_array = np.vstack([h_vals, phi_vals, theta_vals, v_vals, gamma_vals, psi_vals])
         states_guess.append(state_array)
-        alpha_vals = np.zeros(N)
+
+        # For controls, N points are needed (collocation points within interval)
+        alpha_vals = np.zeros(N)  # Assuming N collocation points for control
         beta_vals = -45.0 * deg2rad * np.ones(N)
         control_array = np.vstack([alpha_vals, beta_vals])
         controls_guess.append(control_array)
 
-    problem.set_initial_guess(states=states_guess, controls=controls_guess, terminal_time=2000.0)
+    problem.set_initial_guess(
+        states=states_guess, controls=controls_guess, terminal_time=initial_terminal_time
+    )
 
 
 def solve_with_fixed_mesh(
     problem,
-    symbolic_vars,  # Added symbolic_vars
+    symbolic_vars,
     example_name,
     example_num,
     bank_min,
@@ -170,7 +174,10 @@ def solve_with_fixed_mesh(
     mesh_points = np.linspace(-1.0, 1.0, num_intervals + 1)
     problem.set_mesh(polynomial_degrees, mesh_points)
     deg2rad = np.pi / 180.0
-    prepare_initial_guess(problem, polynomial_degrees, deg2rad)
+    # For fixed mesh, use full prepare_initial_guess
+    prepare_initial_guess(
+        problem, polynomial_degrees, deg2rad, initial_terminal_time=literature_tf or 2000.0
+    )
 
     heat_str = f"q_U = {heating_limit}" if heating_limit is not None else "q_U = ∞"
     bank_str = f"β ∈ [{bank_min}°, 1°]"
@@ -187,7 +194,7 @@ def solve_with_fixed_mesh(
             "ipopt.mumps_mem_percent": 50000,
             "ipopt.linear_solver": "mumps",
             "ipopt.constr_viol_tol": 1e-7,
-            "ipopt.print_level": 5,  # Reduced print level for brevity
+            "ipopt.print_level": 0,
             "ipopt.nlp_scaling_method": "gradient-based",
             "ipopt.mu_strategy": "adaptive",
             "ipopt.tol": 1e-8,
@@ -196,7 +203,7 @@ def solve_with_fixed_mesh(
 
     analyze_solution(
         solution,
-        symbolic_vars,  # Pass symbolic_vars
+        symbolic_vars,
         example_name,
         example_num,
         "Fixed Mesh",
@@ -208,9 +215,73 @@ def solve_with_fixed_mesh(
     return solution
 
 
+def solve_with_adaptive_mesh(
+    problem,
+    symbolic_vars,
+    example_name,
+    example_num,
+    bank_min,
+    heating_limit=None,
+    literature_J=None,
+    literature_tf=None,
+    error_tol=1e-5,  # Adjusted error tolerance
+    max_adapt_iter=10,  # Adjusted max iterations
+):
+    # Define a simple initial mesh for the adaptive solver
+    initial_num_intervals = 9
+    initial_poly_degree = 6  # A moderate initial degree
+    initial_polynomial_degrees = [initial_poly_degree] * initial_num_intervals
+    initial_mesh_points = np.linspace(-1.0, 1.0, initial_num_intervals + 1)
+
+    problem.set_mesh(initial_polynomial_degrees, initial_mesh_points)
+    deg2rad = np.pi / 180.0
+    # Use prepare_initial_guess with the coarse initial mesh for adaptive solver
+    # Or, for potentially faster startup with adaptive, a simpler guess:
+    # problem.set_initial_guess(terminal_time=literature_tf or 2000.0)
+    prepare_initial_guess(
+        problem, initial_polynomial_degrees, deg2rad, initial_terminal_time=literature_tf or 2000.0
+    )
+
+    heat_str = f"q_U = {heating_limit}" if heating_limit is not None else "q_U = ∞"
+    bank_str = f"β ∈ [{bank_min}°, 1°]"
+    print(f"\nSolving Example {example_num}: {example_name} (Adaptive Mesh)")
+    print(f"Parameters: {bank_str}, {heat_str}, Error Tol: {error_tol}, Max Iter: {max_adapt_iter}")
+
+    solution = tl.solve_adaptive(
+        problem,
+        initial_polynomial_degrees=initial_polynomial_degrees,
+        initial_mesh_points=initial_mesh_points,
+        error_tolerance=error_tol,
+        max_iterations=max_adapt_iter,
+        min_polynomial_degree=4,  # Min degree for refinement
+        max_polynomial_degree=10,  # Max degree for refinement
+        nlp_options={  # Options for each NLP subproblem in the adaptive scheme
+            "ipopt.max_iter": 2000,  # Max iterations for subproblems
+            "ipopt.print_level": 5,
+            "ipopt.tol": error_tol * 10,  # Looser tolerance for subproblems
+            "ipopt.constr_viol_tol": error_tol * 10,
+            "ipopt.nlp_scaling_method": "gradient-based",
+            "ipopt.mu_strategy": "adaptive",
+        },
+    )
+
+    analyze_solution(
+        solution,
+        symbolic_vars,
+        example_name,
+        example_num,
+        "Adaptive Mesh",
+        bank_min,
+        heating_limit,
+        literature_J,
+        literature_tf,
+    )
+    return solution
+
+
 def analyze_solution(
     solution,
-    symbolic_vars,  # Added symbolic_vars (though not strictly needed for final_theta with current objective setup)
+    symbolic_vars,
     example_name,
     example_num,
     method,
@@ -221,9 +292,7 @@ def analyze_solution(
 ):
     if solution.success:
         final_time = solution.final_time
-        # The problem minimizes -theta, so solution.objective is -final_theta.
-        # Thus, final_theta = -solution.objective.
-        final_theta_rad = -solution.objective
+        final_theta_rad = -solution.objective  # Objective is -theta
         final_theta_deg = final_theta_rad * 180.0 / np.pi
 
         J_formatted = f"{final_theta_rad:.7e}".replace("e-0", "e-").replace("e+0", "e+")
@@ -234,32 +303,31 @@ def analyze_solution(
         print(f"\nExample {example_num}: {example_name} ({method})")
         print(f"Parameters: {bank_str}, {heat_str}")
         print("Optimal Results:")
-        print(f"  J* = {J_formatted}  (final latitude in radians, which is -objective)")
+        print(f"  J* = {J_formatted}  (final latitude in radians, -objective)")
         print(f"  t_F* = {tf_formatted}  (final time in seconds)")
         print(f"  Final latitude: {final_theta_deg:.4f}°")
 
         if literature_J is not None and literature_tf is not None:
+            J_abs_lit = abs(literature_J)
+            tf_abs_lit = abs(literature_tf)
             J_diff = (
-                abs(final_theta_rad - literature_J) / abs(literature_J) * 100
-                if abs(literature_J) > 1e-9
-                else 0
+                abs(final_theta_rad - literature_J) / J_abs_lit * 100 if J_abs_lit > 1e-9 else 0
             )
-            tf_diff = (
-                abs(final_time - literature_tf) / abs(literature_tf) * 100
-                if abs(literature_tf) > 1e-9
-                else 0
-            )
+            tf_diff = abs(final_time - literature_tf) / tf_abs_lit * 100 if tf_abs_lit > 1e-9 else 0
             print("\nComparison with literature values:")
             print(f"  Literature J* = {literature_J:.7e}")
             print(f"  Literature t_F* = {literature_tf:.7e}")
             print(f"  J* difference: {J_diff:.4f}%")
             print(f"  t_F* difference: {tf_diff:.4f}%")
 
-        if method == "Adaptive Mesh" and solution.polynomial_degrees is not None:
-            print("\nFinal mesh details:")
-            print(f"  Polynomial degrees: {solution.polynomial_degrees}")
-            if solution.mesh_points is not None:
+        if method == "Adaptive Mesh":  # Check if solution object has these attributes
+            if hasattr(solution, "polynomial_degrees") and solution.polynomial_degrees is not None:
+                print("\nFinal mesh details (Adaptive):")
+                print(f"  Polynomial degrees: {solution.polynomial_degrees}")
+            if hasattr(solution, "mesh_points") and solution.mesh_points is not None:
                 print(f"  Number of mesh intervals: {len(solution.mesh_points) - 1}")
+                print(f"  Mesh points: {np.array2string(solution.mesh_points, precision=3)}")
+
         return True
     else:
         print(f"\nExample {example_num} Solution ({method}) Failed:")
@@ -267,21 +335,19 @@ def analyze_solution(
         return False
 
 
-def plot_solution(solution, symbolic_vars):  # Added symbolic_vars
-    import matplotlib.pyplot as plt
+def plot_solution(solution, symbolic_vars, plot_title_suffix=""):
+    # import matplotlib.pyplot as plt # Already at top
 
     h_scale = 1e5
     v_scale = 1e4
     rad2deg = 180.0 / np.pi
 
-    # Use get_symbolic_trajectory with the symbolic variable objects
     time_h, h_scaled_vals = solution.get_symbolic_trajectory(symbolic_vars["h_scaled"])
     time_phi, phi_vals = solution.get_symbolic_trajectory(symbolic_vars["phi"])
     time_theta, theta_vals = solution.get_symbolic_trajectory(symbolic_vars["theta"])
     time_v, v_scaled_vals = solution.get_symbolic_trajectory(symbolic_vars["v_scaled"])
     time_gamma, gamma_vals = solution.get_symbolic_trajectory(symbolic_vars["gamma"])
     time_psi, psi_vals = solution.get_symbolic_trajectory(symbolic_vars["psi"])
-
     time_alpha, alpha_vals = solution.get_symbolic_trajectory(symbolic_vars["alpha"])
     time_beta, beta_vals = solution.get_symbolic_trajectory(symbolic_vars["beta"])
 
@@ -294,38 +360,40 @@ def plot_solution(solution, symbolic_vars):  # Added symbolic_vars
     alpha_deg = alpha_vals * rad2deg
     beta_deg = beta_vals * rad2deg
 
-    fig, axs = plt.subplots(3, 2, figsize=(12, 12))
-    axs[0, 0].plot(time_h, h_vals / 1e5)
-    axs[0, 0].set_title("Altitude (100,000 ft)")
-    axs[0, 0].grid(True)
-    axs[0, 1].plot(time_v, v_vals / 1e3)
-    axs[0, 1].set_title("Velocity (1,000 ft/s)")
-    axs[0, 1].grid(True)
-    axs[1, 0].plot(time_phi, phi_deg)
-    axs[1, 0].set_title("Longitude (deg)")
-    axs[1, 0].grid(True)
-    axs[1, 1].plot(time_gamma, gamma_deg)
-    axs[1, 1].set_title("Flight Path Angle (deg)")
-    axs[1, 1].grid(True)
-    axs[2, 0].plot(time_theta, theta_deg)
-    axs[2, 0].set_title("Latitude (deg)")
-    axs[2, 0].grid(True)
-    axs[2, 1].plot(time_psi, psi_deg)
-    axs[2, 1].set_title("Azimuth (deg)")
-    axs[2, 1].grid(True)
-    plt.tight_layout()
-    plt.suptitle("State Variables", y=1.02)
+    main_plot_title = f"Space Shuttle Reentry {plot_title_suffix}"
+
+    fig_states, axs_states = plt.subplots(3, 2, figsize=(12, 12))
+    fig_states.suptitle(f"State Variables {plot_title_suffix}", fontsize=16)
+    axs_states[0, 0].plot(time_h, h_vals / 1e5)
+    axs_states[0, 0].set_title("Altitude (10⁵ ft)")
+    axs_states[0, 0].grid(True)
+    axs_states[0, 1].plot(time_v, v_vals / 1e3)
+    axs_states[0, 1].set_title("Velocity (10³ ft/s)")
+    axs_states[0, 1].grid(True)
+    axs_states[1, 0].plot(time_phi, phi_deg)
+    axs_states[1, 0].set_title("Longitude (deg)")
+    axs_states[1, 0].grid(True)
+    axs_states[1, 1].plot(time_gamma, gamma_deg)
+    axs_states[1, 1].set_title("Flight Path Angle (deg)")
+    axs_states[1, 1].grid(True)
+    axs_states[2, 0].plot(time_theta, theta_deg)
+    axs_states[2, 0].set_title("Latitude (deg)")
+    axs_states[2, 0].grid(True)
+    axs_states[2, 1].plot(time_psi, psi_deg)
+    axs_states[2, 1].set_title("Azimuth (deg)")
+    axs_states[2, 1].grid(True)
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
     plt.show()
 
-    fig_ctrl, axs_ctrl = plt.subplots(2, 1, figsize=(10, 8))
+    fig_ctrl, axs_ctrl = plt.subplots(2, 1, figsize=(10, 7))
+    fig_ctrl.suptitle(f"Control Variables {plot_title_suffix}", fontsize=16)
     axs_ctrl[0].plot(time_alpha, alpha_deg)
     axs_ctrl[0].set_title("Angle of Attack (deg)")
     axs_ctrl[0].grid(True)
     axs_ctrl[1].plot(time_beta, beta_deg)
     axs_ctrl[1].set_title("Bank Angle (deg)")
     axs_ctrl[1].grid(True)
-    plt.tight_layout()
-    plt.suptitle("Control Variables", y=1.02)
+    plt.tight_layout(rect=[0, 0, 1, 0.95])
     plt.show()
 
     fig_3d = plt.figure(figsize=(10, 8))
@@ -333,37 +401,67 @@ def plot_solution(solution, symbolic_vars):  # Added symbolic_vars
     ax_3d.plot(phi_deg, theta_deg, h_vals / 1e5)
     ax_3d.set_xlabel("Longitude (deg)")
     ax_3d.set_ylabel("Latitude (deg)")
-    ax_3d.set_zlabel("Altitude (100,000 ft)")
-    ax_3d.set_title("Space Shuttle Reentry Trajectory")
+    ax_3d.set_zlabel("Altitude (10⁵ ft)")
+    ax_3d.set_title(main_plot_title)
     plt.show()
+
+    # Also call the library's standard plot if desired
+    print("Displaying TrajectoLab standard solution plot...")
+    solution.plot()
 
 
 def main():
-    lit_J_ex137 = 5.9587608e-1  # Corresponds to ~34.14 degrees
+    lit_J_ex137 = 5.9587608e-1
     lit_tf_ex137 = 2.0085881e3
+    example_details = {
+        "name": "SHUTTLE MAX CROSSRANGE",
+        "num": "10.137 (Book Example)",
+        "bank_min": -90,
+        "heating_limit": None,
+        "lit_J": lit_J_ex137,
+        "lit_tf": lit_tf_ex137,
+    }
 
-    # Create problem and get symbolic variables
     problem, symbolic_vars = create_shuttle_reentry_problem(
-        heating_constraint=None, bank_angle_min=-90.0
+        heating_constraint=example_details["heating_limit"],
+        bank_angle_min=example_details["bank_min"],
     )
 
-    # Solve with fixed mesh, passing symbolic_vars
-    solution = solve_with_fixed_mesh(
+    # --- Solve with Fixed Mesh ---
+    # solution_fixed = solve_with_fixed_mesh(
+    #    problem,
+    #    symbolic_vars,
+    #    example_details["name"],
+    #    example_details["num"],
+    #    example_details["bank_min"],
+    #    example_details["heating_limit"],
+    #    example_details["lit_J"],
+    #    example_details["lit_tf"],
+    # )
+    # if solution_fixed.success:
+    #    plot_solution(solution_fixed, symbolic_vars, plot_title_suffix="(Fixed Mesh)")
+
+    # --- Solve with Adaptive Mesh ---
+    # Re-create problem or ensure it's in a clean state if modified by fixed_solve
+    # For TrajectoLab, set_mesh and set_initial_guess overwrite previous settings on the same problem object.
+    # So, we can reuse the 'problem' object.
+
+    # Note: Adaptive solver can be sensitive. Parameters might need tuning.
+    # For complex problems like shuttle, a good initial guess (even if coarse) helps.
+    solution_adaptive = solve_with_adaptive_mesh(
         problem,
-        symbolic_vars,  # Pass symbolic_vars
-        "SHUTTLE MAXIMUM CROSSRANGE",
-        "10.137 (Book Example)",
-        -90,
-        None,
-        lit_J_ex137,
-        lit_tf_ex137,
+        symbolic_vars,
+        example_details["name"],
+        example_details["num"],
+        example_details["bank_min"],
+        example_details["heating_limit"],
+        example_details["lit_J"],
+        example_details["lit_tf"],
+        error_tol=1e-7,  # May need to adjust this for shuttle convergence/accuracy
+        max_adapt_iter=20,  # Max adaptive refinement iterations
     )
-
-    if solution.success:
-        # Pass symbolic_vars to plot_solution
-        plot_solution(solution, symbolic_vars)
-        # Optionally, call the library's default plot
-        solution.plot()
+    if solution_adaptive.success:
+        plot_solution(solution_adaptive, symbolic_vars, plot_title_suffix="(Adaptive Mesh)")
 
 
 if __name__ == "__main__":
