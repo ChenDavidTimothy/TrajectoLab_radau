@@ -21,21 +21,6 @@ def solve_fixed_mesh(
 ) -> _Solution:
     """
     Solve optimal control problem with fixed mesh.
-
-    Args:
-        problem: The optimal control problem to solve
-        polynomial_degrees: Number of collocation nodes per mesh interval
-        mesh_points: Mesh points in normalized domain [-1, 1]
-        nlp_options: Optional NLP solver options
-
-    Returns:
-        Solution object containing the results
-
-    Note:
-        To provide an initial guess, use problem.set_initial_guess() before calling this function.
-
-    Raises:
-        ValueError: If mesh specification is invalid
     """
     # Set solver options on problem
     problem.solver_options = nlp_options or {
@@ -44,11 +29,8 @@ def solve_fixed_mesh(
         "print_time": 0,
     }
 
-    # Configure mesh on problem
+    # Configure mesh on problem (this will update scaling too)
     problem.set_mesh(polynomial_degrees, mesh_points)
-
-    # Initial guess is whatever was set on the problem (if any)
-    # No need to do anything - it's already stored in problem.initial_guess
 
     # Create protocol-compatible version and solve
     protocol_problem = cast(ProblemProtocol, problem)
@@ -71,27 +53,6 @@ def solve_adaptive(
 ) -> _Solution:
     """
     Solve optimal control problem with adaptive mesh refinement.
-
-    Args:
-        problem: The optimal control problem to solve
-        initial_polynomial_degrees: Initial polynomial degrees per interval
-        initial_mesh_points: Initial mesh points in normalized domain [-1, 1]
-        error_tolerance: Error tolerance threshold for mesh refinement
-        max_iterations: Maximum number of refinement iterations
-        min_polynomial_degree: Minimum polynomial degree allowed
-        max_polynomial_degree: Maximum polynomial degree allowed
-        ode_solver_tolerance: ODE solver tolerance for error estimation
-        num_error_sim_points: Number of simulation points for error estimation
-        nlp_options: Optional NLP solver options
-
-    Returns:
-        Solution object containing the results
-
-    Note:
-        To provide an initial guess, use problem.set_initial_guess() before calling this function.
-
-    Raises:
-        ValueError: If parameters are invalid
     """
     # Set solver options on problem
     problem.solver_options = nlp_options or {

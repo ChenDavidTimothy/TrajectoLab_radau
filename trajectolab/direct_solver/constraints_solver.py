@@ -49,6 +49,7 @@ def apply_collocation_constraints(
     terminal_time_variable: CasadiMX,
     dynamics_function: DynamicsCallable,
     problem_parameters: ProblemParameters,
+    problem: ProblemProtocol | None = None,
 ) -> None:
     """
     Apply collocation constraints for a single mesh interval using differential form.
@@ -64,6 +65,7 @@ def apply_collocation_constraints(
         terminal_time_variable: Terminal time variable
         dynamics_function: Dynamics function
         problem_parameters: Problem parameters
+        problem: Problem definition (for scaling)
 
     Raises:
         ValueError: If interval length is invalid
@@ -91,6 +93,12 @@ def apply_collocation_constraints(
     tau_to_time_scaling: CasadiMX = (
         (terminal_time_variable - initial_time_variable) * global_segment_length / 4.0
     )
+
+    # Check if scaling is available
+    use_scaling = problem is not None and hasattr(problem, "_scaling") and problem._scaling.enabled
+
+    # Get state names if available (for scaling)
+    state_names = list(problem._states.keys()) if problem is not None else []
 
     # Apply constraints at each collocation point
     for i_colloc in range(num_colloc_nodes):
@@ -122,11 +130,26 @@ def apply_collocation_constraints(
             state_derivative_rhs, num_states
         )
 
-        # Apply collocation constraint: state_derivative = time_scaling * dynamics
-        opti.subject_to(
-            state_derivative_at_colloc[:, i_colloc]
-            == tau_to_time_scaling * state_derivative_rhs_vector
-        )
+        # Apply collocation constraint with or without scaling
+        if use_scaling:
+            # Apply scaled constraints (Rule 3)
+            from trajectolab.scaling import apply_scaling_to_defect_constraints
+
+            apply_scaling_to_defect_constraints(
+                opti,
+                problem._scaling,
+                state_names,
+                state_derivative_at_colloc,
+                state_derivative_rhs_vector,
+                tau_to_time_scaling,
+                i_colloc,
+            )
+        else:
+            # Apply unscaled constraint (original implementation)
+            opti.subject_to(
+                state_derivative_at_colloc[:, i_colloc]
+                == tau_to_time_scaling * state_derivative_rhs_vector
+            )
 
 
 def apply_path_constraints(

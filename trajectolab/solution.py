@@ -108,6 +108,13 @@ class _Solution:
         if raw_solution:
             self._extract_solution_data(raw_solution)
 
+            # Apply unscaling if solution was scaled
+            if hasattr(raw_solution, "was_scaled") and raw_solution.was_scaled:
+                # Import here to avoid circular imports
+                from trajectolab.solution_extraction import unscale_solution_values
+
+                unscale_solution_values(raw_solution, self._state_names, self._control_names)
+
     def _extract_solution_data(self, raw_solution: OptimalControlSolution) -> None:
         self.success = bool(getattr(raw_solution, "success", False))
         self.message = str(getattr(raw_solution, "message", "Unknown"))

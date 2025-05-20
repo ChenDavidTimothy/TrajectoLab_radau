@@ -372,24 +372,6 @@ def solve_phs_adaptive_internal(
 ) -> OptimalControlSolution:
     """
     Internal PHS-Adaptive mesh refinement algorithm implementation.
-
-    Args:
-        problem: The optimal control problem
-        initial_polynomial_degrees: Initial polynomial degrees per interval
-        initial_mesh_points: Initial mesh points in normalized time domain [-1, 1]
-        error_tolerance: Error tolerance threshold for mesh refinement
-        max_iterations: Maximum number of refinement iterations
-        min_polynomial_degree: Minimum polynomial degree allowed
-        max_polynomial_degree: Maximum polynomial degree allowed
-        ode_solver_tolerance: ODE solver tolerance for error estimation
-        num_error_sim_points: Number of simulation points for error estimation
-        initial_guess: Optional initial guess for first iteration
-
-    Returns:
-        Final optimized solution
-
-    Raises:
-        ValueError: If problem configuration is invalid
     """
     # Validate parameters
     _validate_mesh_configuration(
@@ -413,6 +395,12 @@ def solve_phs_adaptive_internal(
     current_polynomial_degrees = list(initial_polynomial_degrees)
     current_mesh_points = initial_mesh_points.copy()
 
+    # Initialize scaling if available
+    use_scaling = hasattr(problem, "_scaling") and problem._scaling.enabled
+    if use_scaling:
+        # Initial scaling computation based on problem definition
+        problem._scaling.compute_from_problem(problem)
+
     # Track most recent successful solution
     most_recent_solution: OptimalControlSolution | None = None
 
@@ -422,7 +410,6 @@ def solve_phs_adaptive_internal(
     # Main adaptive refinement loop
     for iteration in range(max_iterations):
         logger.info(f"Adaptive Iteration {iteration}")
-        len(current_polynomial_degrees)
 
         # Configure problem mesh
         problem.set_mesh(current_polynomial_degrees, current_mesh_points)
@@ -488,6 +475,12 @@ def solve_phs_adaptive_internal(
             current_polynomial_degrees.copy()
         )
         most_recent_solution.global_mesh_nodes_at_solve_time = current_mesh_points.copy()
+
+        # Update scaling for next iteration if needed
+        if use_scaling and solution.success:
+            from trajectolab.scaling import update_scaling_after_mesh_refinement
+
+            update_scaling_after_mesh_refinement(problem._scaling, problem, solution)
 
         # Calculate gamma normalization factors
         gamma_factors = calculate_gamma_normalizers(solution, problem)

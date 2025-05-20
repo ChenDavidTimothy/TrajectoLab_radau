@@ -14,7 +14,7 @@ from .state import ConstraintState, MeshState, VariableState
 class Problem:
     """Main class for defining optimal control problems."""
 
-    def __init__(self, name: str = "Unnamed Problem") -> None:
+    def __init__(self, name: str = "Unnamed Problem", use_scaling: bool = True) -> None:
         self.name = name
 
         # State containers
@@ -27,6 +27,12 @@ class Problem:
 
         # Solver options
         self.solver_options: dict[str, Any] = {}
+
+        # Scaling configuration
+        self.use_scaling = use_scaling
+        from trajectolab.scaling import Scaling
+
+        self._scaling = Scaling(enabled=use_scaling)
 
     # Property access to state attributes for backward compatibility
     @property
@@ -157,9 +163,15 @@ class Problem:
     def set_mesh(
         self, polynomial_degrees: list[int], mesh_points: FloatArray | list[float]
     ) -> None:
+        """Configure mesh and update scaling if needed."""
         mesh.configure_mesh(self._mesh_state, polynomial_degrees, mesh_points)
+
         # Clear initial guess when mesh changes
         initial_guess_problem.clear_initial_guess(self._initial_guess_container)
+
+        # Compute scaling if needed and we have enough problem info
+        if hasattr(self, "_scaling") and self._scaling.enabled and len(self._states) > 0:
+            self._scaling.compute_from_problem(self)
 
     # Initial guess methods
     def set_initial_guess(self, **kwargs) -> None:
@@ -201,3 +213,7 @@ class Problem:
         return solver_interface.get_event_constraints_function_for_problem(
             self._constraint_state, self._variable_state
         )
+
+    def get_scaling(self) -> object:
+        """Get the scaling object."""
+        return self._scaling if hasattr(self, "_scaling") else None

@@ -278,6 +278,65 @@ def extract_and_format_solution(
             is_state=False,
         )
 
+    if hasattr(
+        casadi_optimization_problem_object,
+        "state_at_local_approximation_nodes_all_intervals_variables",
+    ):
+        solution.solved_state_trajectories_per_interval = []
+        for mesh_idx in range(num_mesh_intervals):
+            state_vars = casadi_optimization_problem_object.state_at_local_approximation_nodes_all_intervals_variables[
+                mesh_idx
+            ]
+            state_vals = casadi_solution_object.value(state_vars)
+
+            # Ensure proper dimensionality
+            if isinstance(state_vals, ca.DM | ca.MX):
+                state_vals = np.array(state_vals.full())
+            else:
+                state_vals = np.array(state_vals)
+
+            # Ensure it's 2D for consistent processing
+            if num_states == 1 and state_vals.ndim == 1:
+                state_vals = state_vals.reshape(1, -1)
+            elif num_states > 1 and state_vals.ndim == 1:
+                # Handle case where CasADi returns a flattened array
+                num_points = len(state_vals) // num_states
+                if num_points * num_states == len(state_vals):
+                    state_vals = state_vals.reshape(num_states, num_points)
+
+            solution.solved_state_trajectories_per_interval.append(state_vals)
+
+    if (
+        hasattr(
+            casadi_optimization_problem_object,
+            "control_at_local_collocation_nodes_all_intervals_variables",
+        )
+        and num_controls > 0
+    ):
+        solution.solved_control_trajectories_per_interval = []
+        for mesh_idx in range(num_mesh_intervals):
+            control_vars = casadi_optimization_problem_object.control_at_local_collocation_nodes_all_intervals_variables[
+                mesh_idx
+            ]
+            control_vals = casadi_solution_object.value(control_vars)
+
+            # Ensure proper dimensionality
+            if isinstance(control_vals, (ca.DM, ca.MX)):
+                control_vals = np.array(control_vals.full())
+            else:
+                control_vals = np.array(control_vals)
+
+            # Ensure it's 2D for consistent processing
+            if num_controls == 1 and control_vals.ndim == 1:
+                control_vals = control_vals.reshape(1, -1)
+            elif num_controls > 1 and control_vals.ndim == 1:
+                # Handle case where CasADi returns a flattened array
+                num_points = len(control_vals) // num_controls
+                if num_points * num_controls == len(control_vals):
+                    control_vals = control_vals.reshape(num_controls, num_points)
+
+            solution.solved_control_trajectories_per_interval.append(control_vals)
+
     solution.success = True
     solution.message = "NLP solved successfully."
     solution.time_states = np.array(state_trajectory_times, dtype=np.float64)
@@ -286,4 +345,106 @@ def extract_and_format_solution(
     solution.controls = [np.array(c_traj, dtype=np.float64) for c_traj in control_trajectory_values]
     solution.raw_solution = casadi_solution_object
 
+    # Store scaling info in solution for later unscaling
+    if hasattr(problem, "_scaling") and problem._scaling.enabled:
+        solution.was_scaled = True
+        solution.state_scaling = {}
+        solution.control_scaling = {}
+
+        # Store scaling factors for each variable
+        for name in problem._states.keys():
+            solution.state_scaling[name] = problem._scaling.get_state_scaling(name)
+
+        for name in problem._controls.keys():
+            solution.control_scaling[name] = problem._scaling.get_control_scaling(name)
+    else:
+        solution.was_scaled = False
+
     return solution
+
+
+def unscale_solution_values(
+    solution: OptimalControlSolution, state_names: list[str], control_names: list[str]
+) -> None:
+    """
+    Apply unscaling to solution values.
+
+    Args:
+        solution: Solution object to unscale
+        state_names: List of state variable names
+        control_names: List of control variable names
+    """
+    # Check if scaling was used
+    if not hasattr(solution, "was_scaled") or not solution.was_scaled:
+        return
+
+    # Check if we have the scaling information
+    if not hasattr(solution, "state_scaling") or not hasattr(solution, "control_scaling"):
+        return
+
+    # Unscale state trajectories
+    if solution.states:
+        for i, name in enumerate(state_names):
+            if i < len(solution.states) and solution.states[i].size > 0:
+                if name in solution.state_scaling:
+                    scale_factor, shift = solution.state_scaling[name]
+                    # Unscale: x = (x_scaled - shift) / scale_factor
+                    solution.states[i] = (solution.states[i] - shift) / scale_factor
+
+    # Unscale control trajectories
+    if solution.controls:
+        for i, name in enumerate(control_names):
+            if i < len(solution.controls) and solution.controls[i].size > 0:
+                if name in solution.control_scaling:
+                    scale_factor, shift = solution.control_scaling[name]
+                    # Unscale: u = (u_scaled - shift) / scale_factor
+                    solution.controls[i] = (solution.controls[i] - shift) / scale_factor
+
+    # Unscale per-interval trajectories if they exist
+    if (
+        hasattr(solution, "solved_state_trajectories_per_interval")
+        and solution.solved_state_trajectories_per_interval
+    ):
+        for interval_idx, interval_state_data in enumerate(
+            solution.solved_state_trajectories_per_interval
+        ):
+            for i, name in enumerate(state_names):
+                if name in solution.state_scaling:
+                    scale_factor, shift = solution.state_scaling[name]
+
+                    # Handle different array dimensions
+                    if interval_state_data.ndim == 1:
+                        # For 1D arrays, make sure we're within bounds
+                        if i == 0:  # Can only unscale if this is the first and only state
+                            solution.solved_state_trajectories_per_interval[interval_idx] = (
+                                interval_state_data - shift
+                            ) / scale_factor
+                    elif interval_state_data.ndim == 2 and i < interval_state_data.shape[0]:
+                        # For 2D arrays with proper shape
+                        solution.solved_state_trajectories_per_interval[interval_idx][i, :] = (
+                            interval_state_data[i, :] - shift
+                        ) / scale_factor
+
+    if (
+        hasattr(solution, "solved_control_trajectories_per_interval")
+        and solution.solved_control_trajectories_per_interval
+    ):
+        for interval_idx, interval_control_data in enumerate(
+            solution.solved_control_trajectories_per_interval
+        ):
+            for i, name in enumerate(control_names):
+                if name in solution.control_scaling:
+                    scale_factor, shift = solution.control_scaling[name]
+
+                    # Handle different array dimensions
+                    if interval_control_data.ndim == 1:
+                        # For 1D arrays, make sure we're within bounds
+                        if i == 0:  # Can only unscale if this is the first and only control
+                            solution.solved_control_trajectories_per_interval[interval_idx] = (
+                                interval_control_data - shift
+                            ) / scale_factor
+                    elif interval_control_data.ndim == 2 and i < interval_control_data.shape[0]:
+                        # For 2D arrays with proper shape
+                        solution.solved_control_trajectories_per_interval[interval_idx][i, :] = (
+                            interval_control_data[i, :] - shift
+                        ) / scale_factor
