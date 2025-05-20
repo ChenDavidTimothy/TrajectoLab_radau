@@ -103,16 +103,19 @@ def create_shuttle_reentry_problem(heating_constraint=None, bank_angle_min=-90.0
     qa = c0 + c1 * alpha_deg + c2 * alpha_deg**2 + c3 * alpha_deg**3
     q = qa * qr
 
-    # Define dynamics exactly as in Equations 10.1050-10.1054
+    # Define a small positive constant to avoid division by zero
+    eps = 1e-10
+
     problem.dynamics(
         {
             h: v * ca.sin(gamma),
-            phi: (v / r) * ca.cos(gamma) * ca.sin(psi) / ca.cos(theta),
+            phi: (v / r) * ca.cos(gamma) * ca.sin(psi) / (ca.cos(theta) + eps),
             theta: (v / r) * ca.cos(gamma) * ca.cos(psi),
             v: -(D / mass) - g * ca.sin(gamma),
-            gamma: (L / (mass * v)) * ca.cos(beta) + ca.cos(gamma) * ((v / r) - (g / v)),
-            psi: (1 / (mass * v * ca.cos(gamma))) * L * ca.sin(beta)
-            + (v / (r * ca.cos(theta))) * ca.cos(gamma) * ca.sin(psi) * ca.sin(theta),
+            gamma: (L / (mass * v + eps)) * ca.cos(beta)
+            + ca.cos(gamma) * ((v / r) - (g / (v + eps))),
+            psi: (1 / (mass * v * ca.cos(gamma) + eps)) * L * ca.sin(beta)
+            + (v / (r * (ca.cos(theta) + eps))) * ca.cos(gamma) * ca.sin(psi) * ca.sin(theta),
         }
     )
 
@@ -167,7 +170,7 @@ def solve_with_fixed_mesh(
 ):
     """Solve the shuttle reentry problem with fixed mesh and compare with literature"""
     # Define mesh with higher precision for accuracy
-    polynomial_degrees = [18, 18, 18]  # High degrees for complex dynamics
+    polynomial_degrees = [80, 80, 80]  # High degrees for complex dynamics
     mesh_points = np.array([-1.0, -0.5, 0.0, 1.0])
 
     # Set mesh
@@ -190,11 +193,17 @@ def solve_with_fixed_mesh(
         polynomial_degrees=polynomial_degrees,
         mesh_points=mesh_points,
         nlp_options={
-            "ipopt.print_level": 1,  # Reduced output
-            "ipopt.max_iter": 5000,
-            "ipopt.tol": 1e-7,
+            "ipopt.max_iter": 20000,
+            "ipopt.mumps_pivtol": 5e-7,
+            "ipopt.mumps_mem_percent": 50000,
+            "ipopt.linear_solver": "mumps",
+            "ipopt.constr_viol_tol": 1e-7,
+            "ipopt.print_level": 5,
+            "ipopt.nlp_scaling_method": "gradient-based",
             "ipopt.mu_strategy": "adaptive",
-            "ipopt.hessian_approximation": "limited-memory",
+            "ipopt.check_derivatives_for_naninf": "yes",
+            "ipopt.hessian_approximation": "exact",
+            "ipopt.tol": 1e-8,
         },
     )
 
@@ -251,11 +260,17 @@ def solve_with_adaptive_mesh(
         min_polynomial_degree=4,
         max_polynomial_degree=12,
         nlp_options={
-            "ipopt.print_level": 1,  # Reduced output
-            "ipopt.max_iter": 2000,
-            "ipopt.tol": 1e-6,
+            "ipopt.max_iter": 20000,
+            "ipopt.mumps_pivtol": 5e-7,
+            "ipopt.mumps_mem_percent": 50000,
+            "ipopt.linear_solver": "mumps",
+            "ipopt.constr_viol_tol": 1e-7,
+            "ipopt.print_level": 5,
+            "ipopt.nlp_scaling_method": "gradient-based",
             "ipopt.mu_strategy": "adaptive",
-            "ipopt.hessian_approximation": "limited-memory",
+            "ipopt.check_derivatives_for_naninf": "yes",
+            "ipopt.hessian_approximation": "exact",
+            "ipopt.tol": 1e-8,
         },
     )
 

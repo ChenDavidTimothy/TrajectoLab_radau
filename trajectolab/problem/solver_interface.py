@@ -102,7 +102,7 @@ def get_dynamics_function(variable_state: VariableState) -> DynamicsCallable:
 
 
 def get_objective_function(variable_state: VariableState) -> ObjectiveCallable:
-    """Get objective function for solver."""
+    """Get objective function for solver with automatic state substitution."""
     if variable_state.objective_expression is None:
         raise ValueError("Objective expression not defined")
 
@@ -119,31 +119,51 @@ def get_objective_function(variable_state: VariableState) -> ObjectiveCallable:
     t0 = (
         variable_state.sym_time_initial
         if variable_state.sym_time_initial is not None
-        else ca.MX.sym("t0", 1)  # type: ignore[arg-type]
-    )  # type: ignore[arg-type]
+        else ca.MX.sym("t0", 1)
+    )
     tf = (
         variable_state.sym_time_final
         if variable_state.sym_time_final is not None
-        else ca.MX.sym("tf", 1)  # type: ignore[arg-type]
-    )  # type: ignore[arg-type]
-    x0_vec = ca.vertcat(*[ca.MX.sym(f"x0_{i}", 1) for i in range(len(state_syms))])  # type: ignore[arg-type]
-    xf_vec = ca.vertcat(*[ca.MX.sym(f"xf_{i}", 1) for i in range(len(state_syms))])  # type: ignore[arg-type]
+        else ca.MX.sym("tf", 1)
+    )
+    x0_vec = ca.vertcat(*[ca.MX.sym(f"x0_{i}", 1) for i in range(len(state_syms))])
+    xf_vec = ca.vertcat(*[ca.MX.sym(f"xf_{i}", 1) for i in range(len(state_syms))])
     q = (
         ca.vertcat(*variable_state.integral_symbols)
         if variable_state.integral_symbols
-        else ca.MX.sym("q", 1)  # type: ignore[arg-type]
-    )  # type: ignore[arg-type]
+        else ca.MX.sym("q", 1)
+    )
     param_syms = (
         ca.vertcat(*variable_state.sym_parameters.values())
         if variable_state.sym_parameters
-        else ca.MX.sym("p", 0)  # type: ignore[arg-type]
+        else ca.MX.sym("p", 0)
     )
+
+    # Get the objective expression
+    objective_expr = variable_state.objective_expression
+
+    # Automatically substitute state variables with final state values
+    if state_syms:
+        # Create substitution mapping
+        old_syms = []
+        new_syms = []
+
+        for i, sym in enumerate(state_syms):
+            old_syms.append(sym)
+            # Handle dimension mismatch for single state
+            if len(state_syms) == 1:
+                new_syms.append(xf_vec)
+            else:
+                new_syms.append(xf_vec[i])
+
+        # Apply substitution
+        objective_expr = ca.substitute([objective_expr], old_syms, new_syms)[0]
 
     # Create unified objective function
     obj_func = ca.Function(
         "objective",
         [t0, tf, x0_vec, xf_vec, q, param_syms],
-        [variable_state.objective_expression],
+        [objective_expr],
     )
 
     # Create wrapper function
