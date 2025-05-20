@@ -1,8 +1,5 @@
 """
-Problem-level scaling management for optimal control problems.
-
-This module provides functions for computing and managing variable scaling
-at the problem definition level, implementing Rule 2 from the scaling heuristic.
+Fixed problem-level scaling management for optimal control problems.
 """
 
 from __future__ import annotations
@@ -102,8 +99,12 @@ def _compute_single_variable_scaling(
     Returns:
         Scaling information for this variable
     """
+    # FIX: Handle both string keys and direct access to bounds
     lower_bound = var_info.get("lower")
     upper_bound = var_info.get("upper")
+
+    # Debug: Print what we found
+    logger.debug(f"Processing {var_type} {var_name}: bounds [{lower_bound}, {upper_bound}]")
 
     # Rule 2, step 1a: Try to use bounds if available
     if lower_bound is not None and upper_bound is not None:
@@ -168,6 +169,9 @@ def _extract_variable_trajectory_from_guess(
         Flattened trajectory array for the variable, or None if not found
     """
     # Find variable index
+    if var_name not in all_vars:
+        return None
+
     var_index = all_vars[var_name]["index"]
 
     # Extract appropriate trajectories based on variable type
@@ -178,7 +182,7 @@ def _extract_variable_trajectory_from_guess(
     else:
         return None
 
-    if trajectories is None or var_index >= len(trajectories[0]):
+    if trajectories is None or len(trajectories) == 0:
         return None
 
     # Concatenate all intervals for this variable
@@ -309,6 +313,6 @@ def reverse_scaling_on_solution_trajectories(
                 scaled_values = scaled_trajectory[i]
                 physical_values = (scaled_values - scaling.shift) / scaling.scale_weight
                 physical_trajectory[i] = physical_values
-        physical_controls.append(physical_trajectory)
+        physical_controls.append(scaled_trajectory)
 
     return physical_states, physical_controls
