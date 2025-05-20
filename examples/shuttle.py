@@ -181,8 +181,10 @@ def solve_with_fixed_mesh(
 ):
     """Solve the shuttle reentry problem with fixed mesh and compare with literature"""
     # Define mesh with higher precision for accuracy
-    polynomial_degrees = [16, 20, 24, 20, 16]
-    mesh_points = np.array([-1.0, -0.6, -0.2, 0.4, 0.8, 1.0])
+    polynomial_degrees = [20, 22, 24, 26, 28, 30, 28, 26, 24, 22, 20, 22, 24, 22, 20]
+    mesh_points = np.array(
+        [-1.0, -0.9, -0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.2, -0.1, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
+    )
 
     # Set mesh
     problem.set_mesh(polynomial_degrees, mesh_points)
@@ -244,8 +246,10 @@ def solve_with_adaptive_mesh(
 ):
     """Solve the shuttle reentry problem with adaptive mesh and compare with literature"""
     # Define initial mesh for adaptive solution
-    initial_polynomial_degrees = [8, 10, 12, 10, 8]
-    initial_mesh_points = np.array([-1.0, -0.6, -0.2, 0.4, 0.8, 1.0])
+    initial_polynomial_degrees = [12, 14, 16, 18, 20, 18, 16, 14, 16, 18, 20, 18, 16, 14, 12]
+    initial_mesh_points = np.array(
+        [-1.0, -0.9, -0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.2, -0.1, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
+    )
 
     # Set initial mesh
     problem.set_mesh(initial_polynomial_degrees, initial_mesh_points)
@@ -269,7 +273,7 @@ def solve_with_adaptive_mesh(
         error_tolerance=1e-3,
         max_iterations=15,
         min_polynomial_degree=4,
-        max_polynomial_degree=12,
+        max_polynomial_degree=20,
         nlp_options={
             "ipopt.max_iter": 20000,
             "ipopt.mumps_pivtol": 5e-7,
