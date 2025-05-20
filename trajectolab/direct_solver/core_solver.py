@@ -151,6 +151,7 @@ def _process_mesh_intervals(
             variables.terminal_time,
             dynamics_function,
             problem._parameters,
+            problem,
         )
 
         # Apply path constraints if they exist

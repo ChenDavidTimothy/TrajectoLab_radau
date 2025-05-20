@@ -124,6 +124,12 @@ class Scaling:
         print("\n=== SCALING FACTORS COMPUTATION ===")
         print(f"Scaling enabled: {self.enabled}")
 
+        # Initialize scaling dictionaries if they don't exist already
+        if not hasattr(self, "state_scaling"):
+            self.state_scaling = {}
+        if not hasattr(self, "control_scaling"):
+            self.control_scaling = {}
+
         if not self.enabled:
             # Set all scaling factors to 1.0 and shifts to 0.0
             for name in state_names:
@@ -185,44 +191,64 @@ class Scaling:
                 shift = 0.0
                 print(f"    Default: scale_factor={scale_factor}, shift={shift}")
 
-        self.state_scaling[name] = (scale_factor, shift)
-        print(f"    FINAL: state_scaling[{name}] = ({scale_factor}, {shift})")
+            # Store each state's scaling factor in the dictionary
+            self.state_scaling[name] = (scale_factor, shift)
+            print(f"    DEBUG: Storing scaling factor {scale_factor} for state {name}")
+            print(f"    FINAL: state_scaling[{name}] = ({scale_factor}, {shift})")
 
-        # Compare to manual scaling if this is altitude or velocity
-        if name == "h":
-            print(f"    COMPARISON: Manual h_scale = 1e5, auto scale = {scale_factor}")
-        elif name == "v":
-            print(f"    COMPARISON: Manual v_scale = 1e4, auto scale = {scale_factor}")
+            # Compare to manual scaling if this is altitude or velocity
+            if name == "h":
+                print(f"    COMPARISON: Manual h_scale = 1e5, auto scale = {1.0 / scale_factor}")
+            elif name == "v":
+                print(f"    COMPARISON: Manual v_scale = 1e4, auto scale = {1.0 / scale_factor}")
 
         # Process control variables (similar logic as states)
-        for name in control_names or []:
-            bounds = control_bounds.get(name, {}) if control_bounds else {}
-            lower = bounds.get("lower")
-            upper = bounds.get("upper")
+        if control_names:
+            print("\nCONTROL VARIABLE SCALING:")
+            for name in control_names:
+                bounds = control_bounds.get(name, {}) if control_bounds else {}
+                lower = bounds.get("lower")
+                upper = bounds.get("upper")
 
-            if lower is not None and upper is not None and lower < upper:
-                scale_factor = 1.0 / (upper - lower)
-                shift = 0.5 - upper / (upper - lower)
-            elif control_guesses and name in control_guesses and len(control_guesses[name]) > 0:
-                guess_array = control_guesses[name]
-                min_val = np.min(guess_array)
-                max_val = np.max(guess_array)
+                print(f"  Control {name}:")
+                print(f"    Bounds: lower={lower}, upper={upper}")
 
-                if np.isclose(min_val, max_val):
-                    if np.abs(min_val) < 1e-10:
-                        scale_factor = 1.0
-                        shift = 0.0
+                if lower is not None and upper is not None and lower < upper:
+                    scale_factor = 1.0 / (upper - lower)
+                    shift = 0.5 - upper / (upper - lower)
+                    print("    Using bounds for scaling (Rule 2a)")
+                    print(f"    Calculated: scale_factor={scale_factor}, shift={shift}")
+                elif control_guesses and name in control_guesses and len(control_guesses[name]) > 0:
+                    guess_array = control_guesses[name]
+                    min_val = np.min(guess_array)
+                    max_val = np.max(guess_array)
+
+                    print("    Using initial guess for scaling (Rule 2b)")
+                    print(f"    Guess min={min_val}, max={max_val}")
+
+                    if np.isclose(min_val, max_val):
+                        if np.abs(min_val) < 1e-10:
+                            scale_factor = 1.0
+                            shift = 0.0
+                            print("    Near zero value, using default scaling")
+                        else:
+                            scale_factor = 1.0 / max(1.0, 2 * np.abs(min_val))
+                            shift = 0.0
+                            print("    Using magnitude-based scaling")
                     else:
-                        scale_factor = 1.0 / max(1.0, 2 * np.abs(min_val))
-                        shift = 0.0
+                        scale_factor = 1.0 / (max_val - min_val)
+                        shift = 0.5 - max_val / (max_val - min_val)
+                        print(f"    Calculated: scale_factor={scale_factor}, shift={shift}")
                 else:
-                    scale_factor = 1.0 / (max_val - min_val)
-                    shift = 0.5 - max_val / (max_val - min_val)
-            else:
-                scale_factor = 1.0
-                shift = 0.0
+                    scale_factor = 1.0
+                    shift = 0.0
+                    print("    No bounds or guess available, using default scaling")
+                    print(f"    Default: scale_factor={scale_factor}, shift={shift}")
 
-            self.control_scaling[name] = (scale_factor, shift)
+                # Store control variable scaling factor
+                self.control_scaling[name] = (scale_factor, shift)
+                print(f"    DEBUG: Storing scaling factor {scale_factor} for control {name}")
+                print(f"    FINAL: control_scaling[{name}] = ({scale_factor}, {shift})")
 
     def get_state_scaling(self, name: str) -> tuple[float, float]:
         """Get scaling factor and shift for a state variable."""
@@ -274,6 +300,8 @@ def apply_scaling_to_defect_constraints(
     # Apply scaled collocation constraints (Rule 3)
     for i_state in range(num_states):
         state_name = state_names[i_state]
+        print(f"DEBUG: Looking up scaling factor for state {state_name}")
+        print(f"DEBUG: Available state scaling keys: {scaling.state_scaling.keys()}")
         scale_factor = scaling.get_state_scaling_factor(state_name)
 
         print(f"    State {i_state} ({state_name}):")

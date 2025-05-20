@@ -367,8 +367,8 @@ def run_fair_comparison():
     )
 
     # Set up mesh
-    num_intervals = 15
-    polynomial_degrees = [20] * num_intervals
+    num_intervals = 2
+    polynomial_degrees = [2] * num_intervals
     mesh_points = np.linspace(-1.0, 1.0, num_intervals + 1)
     problem1.set_mesh(polynomial_degrees, mesh_points)
 
