@@ -84,81 +84,6 @@ class TimeVariableImpl:
         return self._sym_var != other
 
 
-class StateVariableImpl:
-    """Implementation of state variable with final property."""
-
-    def __init__(self, sym_var: SymType, name: str, index: int) -> None:
-        self._sym_var = sym_var
-        self._name = name
-        self._index = index
-        # Create symbolic variable for final value
-        self._sym_final = ca.MX.sym(f"{name}_final", 1)  # type: ignore[arg-type]
-
-    def __call__(self, other: Any = None) -> SymType:
-        if other is None:
-            return self._sym_var
-        raise NotImplementedError("State indexing not yet implemented")
-
-    @property
-    def final(self) -> SymType:
-        return self._sym_final
-
-    @property
-    def _state_index(self) -> int:
-        """Internal property to access the state index."""
-        return self._index
-
-    # Arithmetic operators
-    def __add__(self, other: Any) -> SymType:
-        return self._sym_var + other
-
-    def __radd__(self, other: Any) -> SymType:
-        return other + self._sym_var
-
-    def __sub__(self, other: Any) -> SymType:
-        return self._sym_var - other
-
-    def __rsub__(self, other: Any) -> SymType:
-        return other - self._sym_var
-
-    def __mul__(self, other: Any) -> SymType:
-        return self._sym_var * other
-
-    def __rmul__(self, other: Any) -> SymType:
-        return other * self._sym_var
-
-    def __truediv__(self, other: Any) -> SymType:
-        return self._sym_var / other
-
-    def __rtruediv__(self, other: Any) -> SymType:
-        return other / self._sym_var
-
-    def __pow__(self, other: Any) -> SymType:
-        return self._sym_var**other
-
-    def __neg__(self) -> SymType:
-        return cast(SymType, -self._sym_var)
-
-    # Comparison operators
-    def __lt__(self, other: Any) -> SymType:
-        return self._sym_var < other
-
-    def __le__(self, other: Any) -> SymType:
-        return self._sym_var <= other
-
-    def __gt__(self, other: Any) -> SymType:
-        return self._sym_var > other
-
-    def __ge__(self, other: Any) -> SymType:
-        return self._sym_var >= other
-
-    def __eq__(self, other: Any) -> SymType:
-        return self._sym_var == other
-
-    def __ne__(self, other: Any) -> SymType:
-        return self._sym_var != other
-
-
 # Internal constraint class for boundaries
 class _BoundaryConstraint:
     """Internal class for representing boundary constraints."""
@@ -219,16 +144,13 @@ def create_state_variable(
     final: float | None = None,
     lower: float | None = None,
     upper: float | None = None,
-) -> StateVariableImpl:
+) -> SymType:
     """Create a state variable."""
     sym_var = ca.MX.sym(name, 1)  # type: ignore[arg-type]
 
-    # Get the index for this state
-    index = len(state.states)
-
     # Store metadata
     state.states[name] = {
-        "index": index,
+        "index": len(state.states),
         "initial_constraint": None if initial is None else _BoundaryConstraint(equals=initial),
         "final_constraint": None if final is None else _BoundaryConstraint(equals=final),
         "lower": lower,
@@ -237,9 +159,7 @@ def create_state_variable(
 
     # Store symbolic variable
     state.sym_states[name] = sym_var
-
-    # Create and return the StateVariableImpl wrapper
-    return StateVariableImpl(sym_var, name, index)
+    return sym_var
 
 
 def create_control_variable(
@@ -275,23 +195,10 @@ def create_parameter_variable(
     return sym_var
 
 
-def extract_sym_var(variable: Any) -> SymType:
-    """Extract the symbolic variable from StateVariableImpl or return as is."""
-    if isinstance(variable, StateVariableImpl):
-        return variable._sym_var
-    return variable
-
-
-def set_dynamics(state: VariableState, dynamics_dict: dict[Any, SymExpr]) -> None:
+def set_dynamics(state: VariableState, dynamics_dict: dict[SymType, SymExpr]) -> None:
     """Set dynamics expressions."""
-    # Create a new dictionary with the proper symbolic variables
-    processed_dict = {}
-
-    for state_var, expr in dynamics_dict.items():
-        # Extract the symbolic variable if it's a StateVariableImpl
-        state_sym = extract_sym_var(state_var)
-
-        # Verify it corresponds to a defined state variable
+    # Verify all keys correspond to defined state variables
+    for state_sym in dynamics_dict.keys():
         found = False
         for sym in state.sym_states.values():
             if state_sym is sym:
@@ -301,9 +208,7 @@ def set_dynamics(state: VariableState, dynamics_dict: dict[Any, SymExpr]) -> Non
         if not found:
             raise ValueError("Dynamics provided for undefined state variable")
 
-        processed_dict[state_sym] = expr
-
-    state.dynamics_expressions = processed_dict
+    state.dynamics_expressions = dynamics_dict
 
 
 def add_integral(state: VariableState, integrand_expr: SymExpr) -> SymType:
@@ -320,5 +225,4 @@ def add_integral(state: VariableState, integrand_expr: SymExpr) -> SymType:
 
 def set_objective(state: VariableState, objective_expr: SymExpr) -> None:
     """Set the objective expression."""
-    # Safely extract the underlying symbolic variable if available, otherwise use the expression directly.
-    state.objective_expression = getattr(objective_expr, "_sym_var", objective_expr)
+    state.objective_expression = objective_expr

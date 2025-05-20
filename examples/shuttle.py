@@ -121,7 +121,7 @@ def create_shuttle_reentry_problem(heating_constraint=None, bank_angle_min=-90.0
         problem.subject_to(q <= heating_constraint)
 
     # Objective: Maximize final latitude (crossrange) - Equation (8.8)
-    problem.minimize(-theta.final)  # Negative since we're maximizing
+    problem.minimize(-theta)  # Negative since we're maximizing
 
     return problem
 
