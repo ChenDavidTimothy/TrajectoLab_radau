@@ -20,6 +20,7 @@ from .constraints_solver import (
     apply_collocation_constraints,
     apply_event_constraints,
     apply_path_constraints,
+    apply_scaled_collocation_constraints,
 )
 from .initial_guess_solver import apply_initial_guess
 from .integrals_solver import apply_integral_constraints, setup_integrals
