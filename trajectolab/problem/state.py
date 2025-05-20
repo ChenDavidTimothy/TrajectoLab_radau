@@ -8,7 +8,6 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ..tl_types import FloatArray, SymExpr, SymType
-from ..utils.variable_scaling import ProblemScalingInfo
 
 
 @dataclass
@@ -40,9 +39,6 @@ class VariableState:
     # Time bounds
     t0_bounds: tuple[float, float] = (0.0, 0.0)
     tf_bounds: tuple[float, float] = (1.0, 1.0)
-
-    # Variable scaling
-    scaling_info: ProblemScalingInfo | None = field(default=None)
 
 
 @dataclass

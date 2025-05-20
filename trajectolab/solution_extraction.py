@@ -5,8 +5,6 @@ Solution extraction and formatting utilities.
 import casadi as ca
 import numpy as np
 
-# Add these imports at the top
-from .problem.scaling import reverse_scaling_on_solution_trajectories
 from .tl_types import (
     CasadiOpti,
     CasadiOptiSol,
@@ -16,94 +14,6 @@ from .tl_types import (
     OptimalControlSolution,
     ProblemProtocol,
 )
-from .utils.variable_scaling import ProblemScalingInfo
-
-
-def extract_and_format_solution_with_scaling(
-    casadi_solution_object: CasadiOptiSol | None,
-    casadi_optimization_problem_object: CasadiOpti,
-    problem: ProblemProtocol,
-    num_collocation_nodes_per_interval: list[int],
-    global_normalized_mesh_nodes: FloatArray,
-    scaling_info: ProblemScalingInfo,
-) -> OptimalControlSolution:
-    """
-    Extract and format the solution with variable scaling support.
-
-    This function extracts the scaled solution from CasADi and converts
-    back to physical units using the provided scaling information.
-
-    Args:
-        casadi_solution_object: CasADi solution object (may be None if solve failed)
-        casadi_optimization_problem_object: CasADi optimization object
-        problem: Problem definition
-        num_collocation_nodes_per_interval: Collocation nodes per interval
-        global_normalized_mesh_nodes: Global mesh nodes
-        scaling_info: Scaling information used during optimization
-
-    Returns:
-        OptimalControlSolution with trajectories in physical units
-    """
-    # First extract solution using the standard method
-    solution = extract_and_format_solution(
-        casadi_solution_object,
-        casadi_optimization_problem_object,
-        problem,
-        num_collocation_nodes_per_interval,
-        global_normalized_mesh_nodes,
-    )
-
-    # If scaling is disabled or solution extraction failed, return as-is
-    if (
-        not scaling_info.scaling_enabled
-        or not solution.success
-        or not hasattr(solution, "solved_state_trajectories_per_interval")
-        or solution.solved_state_trajectories_per_interval is None
-    ):
-        return solution
-
-    try:
-        # Extract raw trajectories (these are in scaled space)
-        scaled_states = solution.solved_state_trajectories_per_interval
-        scaled_controls = getattr(solution, "solved_control_trajectories_per_interval", None)
-
-        if scaled_controls is None:
-            # Create empty control trajectories if none exist
-            scaled_controls = [
-                np.empty((0, N_k), dtype=np.float64) for N_k in num_collocation_nodes_per_interval
-            ]
-
-        # Convert back to physical units
-        physical_states, physical_controls = reverse_scaling_on_solution_trajectories(
-            scaled_states, scaled_controls, scaling_info, problem._variable_state
-        )
-
-        # Update solution with physical trajectories
-        solution.solved_state_trajectories_per_interval = physical_states
-        solution.solved_control_trajectories_per_interval = physical_controls
-
-        # Also update the user-facing trajectory arrays if they exist
-        if hasattr(solution, "states") and solution.states:
-            # Convert state trajectories
-            for i, phys_state_traj in enumerate(physical_states):
-                if i < len(solution.states):
-                    # Update the time-series trajectory
-                    # Note: This assumes 1-to-1 correspondence which may need refinement
-                    pass
-
-        if hasattr(solution, "controls") and solution.controls:
-            # Convert control trajectories
-            for i, phys_control_traj in enumerate(physical_controls):
-                if i < len(solution.controls):
-                    # Update the time-series trajectory
-                    # Note: This assumes 1-to-1 correspondence which may need refinement
-                    pass
-
-    except Exception as e:
-        print(f"Warning: Failed to reverse variable scaling in solution: {e}")
-        # Continue with scaled solution rather than failing completely
-
-    return solution
 
 
 def extract_integral_values(

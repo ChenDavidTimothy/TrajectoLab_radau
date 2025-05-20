@@ -1,5 +1,5 @@
 """
-Core orchestration for the direct solver with variable scaling support.
+Core orchestration for the direct solver.
 """
 
 from typing import cast
@@ -7,7 +7,7 @@ from typing import cast
 import casadi as ca
 
 from ..radau import RadauBasisComponents, compute_radau_collocation_components
-from ..solution_extraction import extract_and_format_solution_with_scaling
+from ..solution_extraction import extract_and_format_solution
 from ..tl_types import (
     CasadiMX,
     CasadiOpti,
@@ -19,19 +19,17 @@ from ..tl_types import (
 from .constraints_solver import (
     apply_collocation_constraints,
     apply_event_constraints,
-    apply_scaled_path_constraints,
+    apply_path_constraints,
 )
 from .initial_guess_solver import apply_initial_guess
 from .integrals_solver import apply_integral_constraints, setup_integrals
 from .types_solver import MetadataBundle, VariableReferences
-from .variables_solver import setup_optimization_variables_with_scaling
+from .variables_solver import setup_interval_state_variables, setup_optimization_variables
 
 
 def solve_single_phase_radau_collocation(problem: ProblemProtocol) -> OptimalControlSolution:
     """
     Solve a single-phase optimal control problem using Radau pseudospectral collocation.
-
-    Now includes automatic variable scaling support for improved numerical conditioning.
 
     Args:
         problem: The optimal control problem definition
@@ -53,10 +51,8 @@ def solve_single_phase_radau_collocation(problem: ProblemProtocol) -> OptimalCon
     num_mesh_intervals = len(problem.collocation_points_per_interval)
     num_integrals = problem._num_integrals
 
-    # Set up optimization variables with scaling
-    variables, scaling_info = setup_optimization_variables_with_scaling(
-        opti, problem, num_mesh_intervals
-    )
+    # Set up optimization variables
+    variables = setup_optimization_variables(opti, problem, num_mesh_intervals)
 
     # Initialize containers for interval processing
     metadata = MetadataBundle()
@@ -65,14 +61,8 @@ def solve_single_phase_radau_collocation(problem: ProblemProtocol) -> OptimalCon
     )
 
     # Process each mesh interval
-    _process_mesh_intervals_with_scaling(
-        opti,
-        variables,
-        metadata,
-        problem,
-        num_mesh_intervals,
-        accumulated_integral_expressions,
-        scaling_info,
+    _process_mesh_intervals(
+        opti, variables, metadata, problem, num_mesh_intervals, accumulated_integral_expressions
     )
 
     # Set up objective and event constraints
@@ -91,19 +81,36 @@ def solve_single_phase_radau_collocation(problem: ProblemProtocol) -> OptimalCon
     _configure_solver_and_store_references(opti, variables, metadata, problem)
 
     # Execute solve
-    return _execute_solve_with_scaling(opti, problem, num_mesh_intervals, scaling_info)
+    return _execute_solve(opti, problem, num_mesh_intervals)
 
 
-def _process_mesh_intervals_with_scaling(
+def _validate_problem_configuration(problem: ProblemProtocol) -> None:
+    """Validate that the problem is properly configured."""
+    if not hasattr(problem, "_mesh_configured") or not problem._mesh_configured:
+        raise ValueError(
+            "Problem mesh must be explicitly configured before solving. "
+            "Call problem.set_mesh(polynomial_degrees, mesh_points)"
+        )
+
+    if problem.initial_guess is not None:
+        problem.validate_initial_guess()
+
+    if not problem.collocation_points_per_interval:
+        raise ValueError("Problem must include 'collocation_points_per_interval'.")
+
+    if problem.global_normalized_mesh_nodes is None:
+        raise ValueError("Global normalized mesh nodes must be set")
+
+
+def _process_mesh_intervals(
     opti: CasadiOpti,
     variables: VariableReferences,
     metadata: MetadataBundle,
     problem: ProblemProtocol,
     num_mesh_intervals: int,
     accumulated_integral_expressions: list[CasadiMX],
-    scaling_info,  # ProblemScalingInfo type
 ) -> None:
-    """Process each mesh interval with scaling support."""
+    """Process each mesh interval to set up constraints and integrals."""
     num_states = len(problem._states)
     num_integrals = problem._num_integrals
     dynamics_function = problem.get_dynamics_function()
@@ -115,8 +122,6 @@ def _process_mesh_intervals_with_scaling(
         num_colloc_nodes = problem.collocation_points_per_interval[mesh_interval_index]
 
         # Set up state variables for this interval
-        from .variables_solver import setup_interval_state_variables
-
         state_at_nodes, interior_nodes_var = setup_interval_state_variables(
             opti, mesh_interval_index, num_states, num_colloc_nodes, variables.state_at_mesh_nodes
         )
@@ -134,7 +139,7 @@ def _process_mesh_intervals_with_scaling(
         metadata.local_state_tau.append(basis_components.state_approximation_nodes)
         metadata.local_control_tau.append(basis_components.collocation_nodes)
 
-        # Apply collocation constraints (dynamics)
+        # Apply collocation constraints
         apply_collocation_constraints(
             opti,
             mesh_interval_index,
@@ -148,21 +153,20 @@ def _process_mesh_intervals_with_scaling(
             problem._parameters,
         )
 
-        # Apply path constraints with scaling support
-        apply_scaled_path_constraints(
-            opti,
-            mesh_interval_index,
-            state_at_nodes,
-            variables.control_variables[mesh_interval_index],
-            basis_components,
-            global_mesh_nodes,
-            variables.initial_time,
-            variables.terminal_time,
-            path_constraints_function,
-            problem._parameters,
-            scaling_info,
-            problem,
-        )
+        # Apply path constraints if they exist
+        if path_constraints_function is not None:
+            apply_path_constraints(
+                opti,
+                mesh_interval_index,
+                state_at_nodes,
+                variables.control_variables[mesh_interval_index],
+                basis_components,
+                global_mesh_nodes,
+                variables.initial_time,
+                variables.terminal_time,
+                path_constraints_function,
+                problem._parameters,
+            )
 
         # Set up integrals if they exist
         if num_integrals > 0 and integral_integrand_function is not None:
@@ -183,71 +187,6 @@ def _process_mesh_intervals_with_scaling(
 
     # Store global mesh nodes
     metadata.global_mesh_nodes = global_mesh_nodes
-
-
-def _execute_solve_with_scaling(
-    opti: CasadiOpti,
-    problem: ProblemProtocol,
-    num_mesh_intervals: int,
-    scaling_info,  # ProblemScalingInfo type
-) -> OptimalControlSolution:
-    """Execute the solve and handle results with scaling support."""
-    global_mesh_nodes = cast(FloatArray, problem.global_normalized_mesh_nodes)
-    collocation_points = problem.collocation_points_per_interval
-
-    try:
-        solver_solution: CasadiOptiSol = opti.solve()
-        print("NLP problem formulated and solver called successfully.")
-        solution_obj = extract_and_format_solution_with_scaling(
-            solver_solution, opti, problem, collocation_points, global_mesh_nodes, scaling_info
-        )
-    except RuntimeError as e:
-        print(f"Error during NLP solution: {e}")
-        print("Solver failed.")
-        solution_obj = extract_and_format_solution_with_scaling(
-            None, opti, problem, collocation_points, global_mesh_nodes, scaling_info
-        )
-        solution_obj.success = False
-        solution_obj.message = f"Solver runtime error: {e}"
-
-        # Try to retrieve debug values if available
-        try:
-            if hasattr(opti, "debug") and opti.debug is not None:
-                if hasattr(opti, "initial_time_variable_reference"):
-                    solution_obj.initial_time_variable = float(
-                        opti.debug.value(opti.initial_time_variable_reference)
-                    )
-                if hasattr(opti, "terminal_time_variable_reference"):
-                    solution_obj.terminal_time_variable = float(
-                        opti.debug.value(opti.terminal_time_variable_reference)
-                    )
-        except Exception as debug_e:
-            print(f"  Could not retrieve debug values after solver error: {debug_e}")
-
-    # Store mesh information in solution
-    solution_obj.num_collocation_nodes_list_at_solve_time = list(collocation_points)
-    solution_obj.global_mesh_nodes_at_solve_time = global_mesh_nodes.copy()
-
-    return solution_obj
-
-
-# Keep all other existing functions unchanged
-def _validate_problem_configuration(problem: ProblemProtocol) -> None:
-    """Validate that the problem is properly configured."""
-    if not hasattr(problem, "_mesh_configured") or not problem._mesh_configured:
-        raise ValueError(
-            "Problem mesh must be explicitly configured before solving. "
-            "Call problem.set_mesh(polynomial_degrees, mesh_points)"
-        )
-
-    if problem.initial_guess is not None:
-        problem.validate_initial_guess()
-
-    if not problem.collocation_points_per_interval:
-        raise ValueError("Problem must include 'collocation_points_per_interval'.")
-
-    if problem.global_normalized_mesh_nodes is None:
-        raise ValueError("Global normalized mesh nodes must be set")
 
 
 def _setup_objective_and_event_constraints(
@@ -323,3 +262,46 @@ def _configure_solver_and_store_references(
         problem._parameters,
     )
     opti.symbolic_objective_function_reference = objective_expression
+
+
+def _execute_solve(
+    opti: CasadiOpti, problem: ProblemProtocol, num_mesh_intervals: int
+) -> OptimalControlSolution:
+    """Execute the solve and handle results."""
+    global_mesh_nodes = cast(FloatArray, problem.global_normalized_mesh_nodes)
+    collocation_points = problem.collocation_points_per_interval
+
+    try:
+        solver_solution: CasadiOptiSol = opti.solve()
+        print("NLP problem formulated and solver called successfully.")
+        solution_obj = extract_and_format_solution(
+            solver_solution, opti, problem, collocation_points, global_mesh_nodes
+        )
+    except RuntimeError as e:
+        print(f"Error during NLP solution: {e}")
+        print("Solver failed.")
+        solution_obj = extract_and_format_solution(
+            None, opti, problem, collocation_points, global_mesh_nodes
+        )
+        solution_obj.success = False
+        solution_obj.message = f"Solver runtime error: {e}"
+
+        # Try to retrieve debug values if available
+        try:
+            if hasattr(opti, "debug") and opti.debug is not None:
+                if hasattr(opti, "initial_time_variable_reference"):
+                    solution_obj.initial_time_variable = float(
+                        opti.debug.value(opti.initial_time_variable_reference)
+                    )
+                if hasattr(opti, "terminal_time_variable_reference"):
+                    solution_obj.terminal_time_variable = float(
+                        opti.debug.value(opti.terminal_time_variable_reference)
+                    )
+        except Exception as debug_e:
+            print(f"  Could not retrieve debug values after solver error: {debug_e}")
+
+    # Store mesh information in solution
+    solution_obj.num_collocation_nodes_list_at_solve_time = list(collocation_points)
+    solution_obj.global_mesh_nodes_at_solve_time = global_mesh_nodes.copy()
+
+    return solution_obj
