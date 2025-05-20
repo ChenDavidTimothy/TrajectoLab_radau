@@ -409,6 +409,11 @@ def solve_phs_adaptive_internal(
         num_error_sim_points=num_error_sim_points,
     )
 
+    # Initialize scaling ONCE at the beginning if enabled
+    if getattr(problem, "scaling_enabled", True):
+        if hasattr(problem, "initialize_scaling"):
+            problem.initialize_scaling()
+
     # Initialize mesh configuration
     current_polynomial_degrees = list(initial_polynomial_degrees)
     current_mesh_points = initial_mesh_points.copy()
