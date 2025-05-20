@@ -11,14 +11,6 @@ from . import constraints_problem, initial_guess_problem, mesh, solver_interface
 from .state import ConstraintState, MeshState, VariableState
 
 
-try:
-    from ..scaling import ScalingManager
-
-    _SCALING_AVAILABLE = True
-except ImportError:
-    _SCALING_AVAILABLE = False
-
-
 class Problem:
     """Main class for defining optimal control problems."""
 
@@ -29,10 +21,6 @@ class Problem:
         self._variable_state = VariableState()
         self._constraint_state = ConstraintState()
         self._mesh_state = MeshState()
-
-        # Add scaling support
-        self._scaling_enabled = True  # Default: Enable scaling
-        self._scaling_manager = None
 
         # Initial guess is stored as a mutable container to allow modification by functions
         self._initial_guess_container = [None]
@@ -213,48 +201,3 @@ class Problem:
         return solver_interface.get_event_constraints_function_for_problem(
             self._constraint_state, self._variable_state
         )
-
-    # Add these methods to the Problem class
-    @property
-    def scaling_enabled(self) -> bool:
-        """Check if scaling is enabled for this problem."""
-        return self._scaling_enabled and _SCALING_AVAILABLE
-
-    @property
-    def scaling_manager(self) -> ScalingManager | None:
-        """Get the scaling manager if initialized."""
-        return self._scaling_manager
-
-    def enable_scaling(self, enabled: bool = True) -> None:
-        """
-        Enable or disable scaling for this problem.
-
-        Args:
-            enabled: Whether scaling should be enabled (True) or disabled (False)
-        """
-        self._scaling_enabled = enabled
-
-        # If disabling scaling and manager exists, reset it
-        if not enabled and self._scaling_manager is not None:
-            self._scaling_manager = None
-
-    def initialize_scaling(self) -> None:
-        """
-        Initialize scaling for this problem if enabled.
-
-        This creates the scaling manager and computes initial scaling factors.
-        Called ONCE at the beginning of the solution process.
-        """
-        if not self.scaling_enabled:
-            self._scaling_manager = None
-            return
-
-        # Create scaling manager if needed
-        if self._scaling_manager is None and _SCALING_AVAILABLE:
-            from ..scaling import ScalingManager
-
-            self._scaling_manager = ScalingManager(self)
-
-        # Compute scaling factors
-        if self._scaling_manager is not None:
-            self._scaling_manager.compute_scaling(self, self.initial_guess)

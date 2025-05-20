@@ -20,7 +20,6 @@ from .constraints_solver import (
     apply_collocation_constraints,
     apply_event_constraints,
     apply_path_constraints,
-    apply_scaled_collocation_constraints,
 )
 from .initial_guess_solver import apply_initial_guess
 from .integrals_solver import apply_integral_constraints, setup_integrals
@@ -29,17 +28,21 @@ from .variables_solver import setup_interval_state_variables, setup_optimization
 
 
 def solve_single_phase_radau_collocation(problem: ProblemProtocol) -> OptimalControlSolution:
-    """Solve a single-phase optimal control problem using Radau pseudospectral collocation."""
+    """
+    Solve a single-phase optimal control problem using Radau pseudospectral collocation.
+
+    Args:
+        problem: The optimal control problem definition
+
+    Returns:
+        An OptimalControlSolution object containing the solution
+
+    Raises:
+        ValueError: If problem configuration is invalid
+        RuntimeError: If solver fails
+    """
     # Validate problem configuration
     _validate_problem_configuration(problem)
-
-    # Initialize scaling ONCE if enabled
-    scaling_manager = None
-    if getattr(problem, "scaling_enabled", True):
-        if hasattr(problem, "initialize_scaling"):
-            problem.initialize_scaling()
-        if hasattr(problem, "scaling_manager"):
-            scaling_manager = problem.scaling_manager
 
     # Initialize optimization problem
     opti: CasadiOpti = ca.Opti()
@@ -58,96 +61,9 @@ def solve_single_phase_radau_collocation(problem: ProblemProtocol) -> OptimalCon
     )
 
     # Process each mesh interval
-    for mesh_interval_index in range(num_mesh_intervals):
-        num_colloc_nodes = problem.collocation_points_per_interval[mesh_interval_index]
-
-        # Set up state variables for this interval
-        state_at_nodes, interior_nodes_var = setup_interval_state_variables(
-            opti,
-            mesh_interval_index,
-            len(problem._states),
-            num_colloc_nodes,
-            variables.state_at_mesh_nodes,
-        )
-
-        # Store state variables and interior nodes
-        variables.state_matrices.append(state_at_nodes)
-        variables.interior_variables.append(interior_nodes_var)
-
-        # Get Radau collocation components
-        basis_components = compute_radau_collocation_components(num_colloc_nodes)
-
-        # Store metadata
-        metadata.local_state_tau.append(basis_components.state_approximation_nodes)
-        metadata.local_control_tau.append(basis_components.collocation_nodes)
-
-        # Apply collocation constraints with scaling if enabled
-        if scaling_manager is not None and scaling_manager.is_initialized:
-            # Use scaled collocation constraints (Rule 3)
-            apply_scaled_collocation_constraints(
-                opti,
-                mesh_interval_index,
-                state_at_nodes,
-                variables.control_variables[mesh_interval_index],
-                basis_components,
-                problem.global_normalized_mesh_nodes,
-                variables.initial_time,
-                variables.terminal_time,
-                problem.get_dynamics_function(),
-                problem._parameters,
-                scaling_manager,
-            )
-        else:
-            # Use unscaled collocation constraints
-            apply_collocation_constraints(
-                opti,
-                mesh_interval_index,
-                state_at_nodes,
-                variables.control_variables[mesh_interval_index],
-                basis_components,
-                problem.global_normalized_mesh_nodes,
-                variables.initial_time,
-                variables.terminal_time,
-                problem.get_dynamics_function(),
-                problem._parameters,
-            )
-
-        # Apply path constraints (unscaled for now)
-        path_constraints_function = problem.get_path_constraints_function()
-        if path_constraints_function is not None:
-            apply_path_constraints(
-                opti,
-                mesh_interval_index,
-                state_at_nodes,
-                variables.control_variables[mesh_interval_index],
-                basis_components,
-                problem.global_normalized_mesh_nodes,
-                variables.initial_time,
-                variables.terminal_time,
-                path_constraints_function,
-                problem._parameters,
-            )
-
-        # Set up integrals (unscaled for now)
-        integral_integrand_function = problem.get_integrand_function()
-        if num_integrals > 0 and integral_integrand_function is not None:
-            setup_integrals(
-                opti,
-                mesh_interval_index,
-                state_at_nodes,
-                variables.control_variables[mesh_interval_index],
-                basis_components,
-                problem.global_normalized_mesh_nodes,
-                variables.initial_time,
-                variables.terminal_time,
-                integral_integrand_function,
-                problem._parameters,
-                num_integrals,
-                accumulated_integral_expressions,
-            )
-
-    # Store global mesh nodes
-    metadata.global_mesh_nodes = cast(FloatArray, problem.global_normalized_mesh_nodes)
+    _process_mesh_intervals(
+        opti, variables, metadata, problem, num_mesh_intervals, accumulated_integral_expressions
+    )
 
     # Set up objective and event constraints
     _setup_objective_and_event_constraints(opti, variables, problem, num_mesh_intervals)
@@ -158,69 +74,14 @@ def solve_single_phase_radau_collocation(problem: ProblemProtocol) -> OptimalCon
             opti, variables.integral_variables, accumulated_integral_expressions, num_integrals
         )
 
-    # Apply initial guess with proper scaling
-    if scaling_manager is not None and scaling_manager.is_initialized:
-        # Import function only when needed
-        from .initial_guess_solver import apply_scaled_initial_guess
-
-        apply_scaled_initial_guess(opti, variables, problem, num_mesh_intervals, scaling_manager)
-    else:
-        apply_initial_guess(opti, variables, problem, num_mesh_intervals)
+    # Apply initial guess
+    apply_initial_guess(opti, variables, problem, num_mesh_intervals)
 
     # Configure solver and store references
     _configure_solver_and_store_references(opti, variables, metadata, problem)
 
     # Execute solve
-    solution = _execute_solve(opti, problem, num_mesh_intervals)
-
-    # Unscale solution values if scaling was used
-    if scaling_manager is not None and scaling_manager.is_initialized and solution.success:
-        _unscale_solution(solution, scaling_manager)
-
-    return solution
-
-
-def _unscale_solution(solution: OptimalControlSolution, scaling_manager) -> None:
-    """
-    Unscale solution values to convert from scaled variables back to physical units.
-
-    Args:
-        solution: Solution with scaled values
-        scaling_manager: Scaling manager with scaling factors
-    """
-    # Unscale state trajectories
-    if solution.states and solution.time_states is not None:
-        for i in range(len(solution.states)):
-            if i < len(scaling_manager.state_scales):
-                state_traj = solution.states[i]
-                solution.states[i] = (
-                    state_traj - scaling_manager.state_shifts[i]
-                ) / scaling_manager.state_scales[i]
-
-    # Unscale control trajectories
-    if solution.controls and solution.time_controls is not None:
-        for i in range(len(solution.controls)):
-            if i < len(scaling_manager.control_scales):
-                control_traj = solution.controls[i]
-                solution.controls[i] = (
-                    control_traj - scaling_manager.control_shifts[i]
-                ) / scaling_manager.control_scales[i]
-
-    # Unscale solved state trajectories if available
-    if solution.solved_state_trajectories_per_interval is not None:
-        for k in range(len(solution.solved_state_trajectories_per_interval)):
-            scaled_states = solution.solved_state_trajectories_per_interval[k]
-            solution.solved_state_trajectories_per_interval[k] = scaling_manager.unscale_state(
-                scaled_states
-            )
-
-    # Unscale solved control trajectories if available
-    if solution.solved_control_trajectories_per_interval is not None:
-        for k in range(len(solution.solved_control_trajectories_per_interval)):
-            scaled_controls = solution.solved_control_trajectories_per_interval[k]
-            solution.solved_control_trajectories_per_interval[k] = scaling_manager.unscale_control(
-                scaled_controls
-            )
+    return _execute_solve(opti, problem, num_mesh_intervals)
 
 
 def _validate_problem_configuration(problem: ProblemProtocol) -> None:
