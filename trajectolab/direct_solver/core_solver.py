@@ -196,6 +196,21 @@ def _setup_objective_and_event_constraints(
     num_mesh_intervals: int,
 ) -> None:
     """Set up the objective function and apply event constraints."""
+    print("\n=== SETTING UP OBJECTIVE AND CONSTRAINTS ===")
+
+    # Check if scaling is enabled
+    scaling_enabled = hasattr(problem, "_scaling") and problem._scaling.enabled
+    print(f"Scaling enabled: {scaling_enabled}")
+
+    if scaling_enabled:
+        print("Scaling factors:")
+        for name, (factor, shift) in problem._scaling.state_scaling.items():
+            print(f"  State {name}: factor={factor}, shift={shift}")
+            # Compare to manual values for h and v
+            if name == "h":
+                print(f"  COMPARISON: Manual h_scale = 1e5, auto scale = {factor}")
+            elif name == "v":
+                print(f"  COMPARISON: Manual v_scale = 1e4, auto scale = {factor}")
     # Get objective function
     objective_function = problem.get_objective_function()
 

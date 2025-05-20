@@ -21,9 +21,6 @@ _ScalingDict: TypeAlias = dict[str, tuple[float, float]]  # (scale_factor, shift
 class Scaling:
     """
     Handles variable and constraint scaling for optimal control problems.
-
-    Implements the scaling approach described in Section 4.12 of the optimal
-    control document to improve numerical conditioning of NLP problems.
     """
 
     def __init__(self, enabled: bool = True) -> None:
@@ -123,60 +120,79 @@ class Scaling:
         control_bounds: dict[str, dict[str, float | None]] | None = None,
         control_guesses: dict[str, FloatArray] | None = None,
     ) -> None:
-        """
-        Compute scaling factors according to Rules 1 & 2.
+        """Compute scaling factors according to Rules 1 & 2."""
+        print("\n=== SCALING FACTORS COMPUTATION ===")
+        print(f"Scaling enabled: {self.enabled}")
 
-        Args:
-            state_names: List of state variable names
-            state_bounds: Dict of state bounds {name: {"lower": lower, "upper": upper}}
-            state_guesses: Dict of initial guesses {name: array}
-            control_names: List of control variable names
-            control_bounds: Dict of control bounds {name: {"lower": lower, "upper": upper}}
-            control_guesses: Dict of control initial guesses {name: array}
-        """
         if not self.enabled:
             # Set all scaling factors to 1.0 and shifts to 0.0
             for name in state_names:
                 self.state_scaling[name] = (1.0, 0.0)
+                print(f"  State {name}: Default scaling (1.0, 0.0) - scaling disabled")
             for name in control_names or []:
                 self.control_scaling[name] = (1.0, 0.0)
+                print(f"  Control {name}: Default scaling (1.0, 0.0) - scaling disabled")
             return
 
         # Process state variables
+        print("\nSTATE VARIABLE SCALING:")
         for name in state_names:
             bounds = state_bounds.get(name, {})
             lower = bounds.get("lower")
             upper = bounds.get("upper")
 
+            print(f"  State {name}:")
+            print(f"    Bounds: lower={lower}, upper={upper}")
+
             # Use bounds if available (Rule 2a)
             if lower is not None and upper is not None and lower < upper:
+                print("    Using bounds for scaling (Rule 2a)")
+                print(f"    Range: [{lower}, {upper}]")
                 scale_factor = 1.0 / (upper - lower)  # Equation (4.250)
                 shift = 0.5 - upper / (upper - lower)  # Equation (4.251)
+                print(f"    Calculated: scale_factor={scale_factor}, shift={shift}")
+
             # Otherwise use initial guess to estimate range (Rule 2b)
             elif state_guesses and name in state_guesses and len(state_guesses[name]) > 0:
                 guess_array = state_guesses[name]
                 min_val = np.min(guess_array)
                 max_val = np.max(guess_array)
 
+                print("    Using initial guess for scaling (Rule 2b)")
+                print(f"    Guess min={min_val}, max={max_val}")
+
                 if np.isclose(min_val, max_val):
                     # Handle case where all values are nearly identical
+                    print("    EDGE CASE: min_val ≈ max_val")
                     if np.abs(min_val) < 1e-10:
                         scale_factor = 1.0
                         shift = 0.0
+                        print("    Near zero value, using default scaling")
                     else:
                         # Use magnitude of value as scale factor
                         scale_factor = 1.0 / max(1.0, 2 * np.abs(min_val))
                         shift = 0.0
+                        print("    Using magnitude-based scaling")
                 else:
                     # Use range from guess values
                     scale_factor = 1.0 / (max_val - min_val)
                     shift = 0.5 - max_val / (max_val - min_val)
+                    print(f"    Calculated: scale_factor={scale_factor}, shift={shift}")
             else:
                 # Default scaling when no information is available (Rule 2 default)
+                print("    No bounds or guess available, using default scaling")
                 scale_factor = 1.0
                 shift = 0.0
+                print(f"    Default: scale_factor={scale_factor}, shift={shift}")
 
-            self.state_scaling[name] = (scale_factor, shift)
+        self.state_scaling[name] = (scale_factor, shift)
+        print(f"    FINAL: state_scaling[{name}] = ({scale_factor}, {shift})")
+
+        # Compare to manual scaling if this is altitude or velocity
+        if name == "h":
+            print(f"    COMPARISON: Manual h_scale = 1e5, auto scale = {scale_factor}")
+        elif name == "v":
+            print(f"    COMPARISON: Manual v_scale = 1e4, auto scale = {scale_factor}")
 
         # Process control variables (similar logic as states)
         for name in control_names or []:
@@ -224,8 +240,6 @@ class Scaling:
         """
         Scale a defect constraint according to Rule 3.
 
-        The defect constraint scaling matches the corresponding state variable scaling.
-
         Args:
             state_name: Name of the state variable
             constraint: Constraint expression to scale
@@ -233,6 +247,7 @@ class Scaling:
         Returns:
             Scaled constraint
         """
+        # Strict check for enabled flag
         if not self.enabled:
             return constraint
 
@@ -252,20 +267,18 @@ def apply_scaling_to_defect_constraints(
 ) -> None:
     """
     Apply scaled defect constraints implementing Rule 3.
-
-    Args:
-        opti: CasADi optimization object
-        scaling: Scaling object
-        state_names: List of state variable names
-        state_derivative_at_colloc: State derivatives at collocation points
-        state_derivative_rhs_vector: State derivatives from dynamics function
-        tau_to_time_scaling: Time scaling factor
-        i_colloc: Index of current collocation point
     """
     num_states = len(state_names)
+    print(f"  Applying scaled constraints for {num_states} states:")
 
     # Apply scaled collocation constraints (Rule 3)
     for i_state in range(num_states):
+        state_name = state_names[i_state]
+        scale_factor = scaling.get_state_scaling_factor(state_name)
+
+        print(f"    State {i_state} ({state_name}):")
+        print(f"      Scale factor: {scale_factor}")
+
         # Create defect constraint
         defect = (
             state_derivative_at_colloc[i_state, i_colloc]
@@ -274,6 +287,10 @@ def apply_scaling_to_defect_constraints(
 
         # Scale constraint using corresponding state scale (Rule 3: W_f = V_y)
         scaled_defect = scaling.scale_defect_constraint(state_names[i_state], defect)
+
+        print(f"      Defect type: {type(defect)}")
+        print(f"      Is symbolic: {hasattr(defect, 'is_symbolic')}")
+        print("      Scaled defect applied to NLP")
 
         # Apply the scaled constraint
         opti.subject_to(scaled_defect == 0)

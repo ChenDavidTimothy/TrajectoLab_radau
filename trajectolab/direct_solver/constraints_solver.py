@@ -53,22 +53,6 @@ def apply_collocation_constraints(
 ) -> None:
     """
     Apply collocation constraints for a single mesh interval using differential form.
-
-    Args:
-        opti: CasADi optimization object
-        mesh_interval_index: Index of mesh interval
-        state_at_nodes: State variables at all nodes in interval
-        control_variables: Control variables for interval
-        basis_components: Radau basis components
-        global_normalized_mesh_nodes: Global mesh nodes
-        initial_time_variable: Initial time variable
-        terminal_time_variable: Terminal time variable
-        dynamics_function: Dynamics function
-        problem_parameters: Problem parameters
-        problem: Problem definition (for scaling)
-
-    Raises:
-        ValueError: If interval length is invalid
     """
     num_colloc_nodes = len(basis_components.collocation_nodes)
     colloc_nodes_tau = basis_components.collocation_nodes.flatten()
@@ -94,11 +78,20 @@ def apply_collocation_constraints(
         (terminal_time_variable - initial_time_variable) * global_segment_length / 4.0
     )
 
-    # Check if scaling is available
-    use_scaling = problem is not None and hasattr(problem, "_scaling") and problem._scaling.enabled
+    # FIX 1: Proper determination of scaling status
+    # Check if scaling should be used - directly check problem object's use_scaling property
+    # The existing condition was not correctly evaluating
+    use_scaling = False
+    if problem is not None and hasattr(problem, "use_scaling"):
+        use_scaling = problem.use_scaling
 
-    # Get state names if available (for scaling)
-    state_names = list(problem._states.keys()) if problem is not None else []
+    # FIX 2: Add debugging to confirm the condition evaluation
+    print(f"SCALING CHECK: interval={mesh_interval_index}, use_scaling={use_scaling}")
+
+    # FIX 3: If we have state names for scaling, extract them
+    state_names = []
+    if problem is not None and hasattr(problem, "_states"):
+        state_names = list(problem._states.keys())
 
     # Apply constraints at each collocation point
     for i_colloc in range(num_colloc_nodes):
@@ -130,10 +123,14 @@ def apply_collocation_constraints(
             state_derivative_rhs, num_states
         )
 
-        # Apply collocation constraint with or without scaling
-        if use_scaling:
+        # FIX 4: Apply scaled or unscaled constraint based on fixed use_scaling flag
+        if use_scaling and problem is not None and hasattr(problem, "_scaling"):
             # Apply scaled constraints (Rule 3)
+            print(f"=== APPLYING SCALED DEFECT CONSTRAINTS (Interval {mesh_interval_index}) ===")
             from trajectolab.scaling import apply_scaling_to_defect_constraints
+
+            print(f"  State derivative at colloc shape: {state_derivative_at_colloc.shape}")
+            print(f"  RHS vector shape: {state_derivative_rhs_vector.shape}")
 
             apply_scaling_to_defect_constraints(
                 opti,
@@ -146,6 +143,7 @@ def apply_collocation_constraints(
             )
         else:
             # Apply unscaled constraint (original implementation)
+            print(f"=== APPLYING UNSCALED DEFECT CONSTRAINTS (Interval {mesh_interval_index}) ===")
             opti.subject_to(
                 state_derivative_at_colloc[:, i_colloc]
                 == tau_to_time_scaling * state_derivative_rhs_vector

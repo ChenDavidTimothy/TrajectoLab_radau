@@ -346,7 +346,7 @@ def extract_and_format_solution(
     solution.raw_solution = casadi_solution_object
 
     # Store scaling info in solution for later unscaling
-    if hasattr(problem, "_scaling") and problem._scaling.enabled:
+    if hasattr(problem, "use_scaling") and problem.use_scaling:
         solution.was_scaled = True
         solution.state_scaling = {}
         solution.control_scaling = {}
@@ -366,30 +366,57 @@ def extract_and_format_solution(
 def unscale_solution_values(
     solution: OptimalControlSolution, state_names: list[str], control_names: list[str]
 ) -> None:
-    """
-    Apply unscaling to solution values.
+    """Apply unscaling to solution values."""
+    print("\n=== UNSCALING SOLUTION VALUES ===")
 
-    Args:
-        solution: Solution object to unscale
-        state_names: List of state variable names
-        control_names: List of control variable names
-    """
     # Check if scaling was used
     if not hasattr(solution, "was_scaled") or not solution.was_scaled:
+        print("  Solution was not scaled, skipping unscaling")
         return
 
     # Check if we have the scaling information
     if not hasattr(solution, "state_scaling") or not hasattr(solution, "control_scaling"):
+        print("  Missing scaling information for unscaling")
         return
 
     # Unscale state trajectories
+    print("\nUNSCALING STATE TRAJECTORIES:")
     if solution.states:
         for i, name in enumerate(state_names):
+            print(f"  State {i} ({name}):")
             if i < len(solution.states) and solution.states[i].size > 0:
                 if name in solution.state_scaling:
                     scale_factor, shift = solution.state_scaling[name]
+                    print(f"    Scaling info: factor={scale_factor}, shift={shift}")
+
+                    # Sample values before unscaling
+                    if solution.states[i].size > 0:
+                        before_min = np.min(solution.states[i])
+                        before_max = np.max(solution.states[i])
+                        print(f"    Before unscaling: min={before_min}, max={before_max}")
+
                     # Unscale: x = (x_scaled - shift) / scale_factor
                     solution.states[i] = (solution.states[i] - shift) / scale_factor
+
+                    # Sample values after unscaling
+                    if solution.states[i].size > 0:
+                        after_min = np.min(solution.states[i])
+                        after_max = np.max(solution.states[i])
+                        print(f"    After unscaling: min={after_min}, max={after_max}")
+
+                    # Special comparison for h and v
+                    if name == "h":
+                        print(
+                            f"    COMPARISON: Manual h_scale = 1e5, auto range = [{after_min}, {after_max}]"
+                        )
+                    elif name == "v":
+                        print(
+                            f"    COMPARISON: Manual v_scale = 1e4, auto range = [{after_min}, {after_max}]"
+                        )
+                else:
+                    print(f"    No scaling info available for {name}")
+            else:
+                print("    No trajectory data available")
 
     # Unscale control trajectories
     if solution.controls:

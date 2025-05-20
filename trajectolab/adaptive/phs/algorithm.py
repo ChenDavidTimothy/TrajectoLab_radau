@@ -396,7 +396,7 @@ def solve_phs_adaptive_internal(
     current_mesh_points = initial_mesh_points.copy()
 
     # Initialize scaling if available
-    use_scaling = hasattr(problem, "_scaling") and problem._scaling.enabled
+    use_scaling = hasattr(problem, "use_scaling") and problem.use_scaling
     if use_scaling:
         # Initial scaling computation based on problem definition
         problem._scaling.compute_from_problem(problem)

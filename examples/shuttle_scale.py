@@ -1,3 +1,4 @@
+import sys
 import time
 
 import casadi as ca
@@ -307,6 +308,20 @@ def prepare_initial_guess(problem, polynomial_degrees, deg2rad, initial_terminal
 
 def run_fair_comparison():
     """Run a fair comparison with and without automatic scaling."""
+    # First, print the environment and setup
+    print("\n==== SCALING DIAGNOSTICS ENVIRONMENT ====")
+    print(f"Python version: {sys.version}")
+    print(f"NumPy version: {np.__version__}")
+    print(f"CasADi version: {ca.__version__}")
+    print(f"TrajectoLab version: {tl.__version__}")
+    print("\n==== TEST CONFIGURATION ====")
+    print("Will run 4 tests:")
+    print("1. Fixed mesh with manual scaling (original)")
+    print("2. Fixed mesh with automatic scaling")
+    print("3. Adaptive mesh with manual scaling (original)")
+    print("4. Adaptive mesh with automatic scaling")
+    print("\nEach test will be analyzed for scaling factor calculation and application")
+    """Run a fair comparison with and without automatic scaling."""
     results = {}
 
     # Example configuration from shuttle.py (example 10.137)
@@ -329,7 +344,7 @@ def run_fair_comparison():
 
     adaptive_mesh_options = {
         "ipopt.max_iter": 2000,
-        "ipopt.print_level": 5,
+        "ipopt.print_level": 0,
         "ipopt.tol": 1e-6,
         "ipopt.constr_viol_tol": 1e-6,
         "ipopt.nlp_scaling_method": "gradient-based",
@@ -346,6 +361,10 @@ def run_fair_comparison():
     )
     # Disable automatic scaling
     problem1.use_scaling = False
+    print(
+        f"Scaling status: problem1.use_scaling = {problem1.use_scaling}, "
+        f"problem1._scaling.enabled = {problem1._scaling.enabled}"
+    )
 
     # Set up mesh
     num_intervals = 15
@@ -379,13 +398,16 @@ def run_fair_comparison():
         print(f"  Solve time: {solve_time1:.2f} seconds")
 
     print("\n=== FIXED MESH WITH AUTOMATIC SCALING ===")
-    # 2. UNSCALED PROBLEM WITH AUTOMATIC SCALING (use_scaling=True)
     problem2, sym_vars2 = create_unscaled_shuttle_problem(
         heating_constraint=heating_limit,
         bank_angle_min=bank_min,
     )
-    # Ensure automatic scaling is enabled
+    # Ensure automatic scaling is enabled using property
     problem2.use_scaling = True
+    print(
+        f"Scaling status: problem2.use_scaling = {problem2.use_scaling}, "
+        f"problem2._scaling.enabled = {problem2._scaling.enabled}"
+    )
 
     # Set up identical mesh
     problem2.set_mesh(polynomial_degrees, mesh_points)

@@ -28,13 +28,30 @@ class Problem:
         # Solver options
         self.solver_options: dict[str, Any] = {}
 
-        # Scaling configuration
-        self.use_scaling = use_scaling
+        # Scaling configuration - use property setter for correct initialization
+        self._use_scaling = False  # Initial value doesn't matter, setter will handle it
         from trajectolab.scaling import Scaling
 
+        self._scaling = Scaling(enabled=False)  # Initially disabled, will be set by property
+        self.use_scaling = use_scaling  # Use setter to properly initialize
+
         self._scaling = Scaling(enabled=use_scaling)
+        print(f"Scaling object created with enabled={self._scaling.enabled}")
 
     # Property access to state attributes for backward compatibility
+
+    @property
+    def use_scaling(self) -> bool:
+        """Get the current scaling state."""
+        return self._use_scaling
+
+    @use_scaling.setter
+    def use_scaling(self, value: bool) -> None:
+        """Set scaling state and synchronize with scaling object."""
+        self._use_scaling = value
+        if hasattr(self, "_scaling"):
+            self._scaling.enabled = value
+
     @property
     def _states(self) -> dict[str, dict[str, Any]]:
         return self._variable_state.states
@@ -164,14 +181,23 @@ class Problem:
         self, polynomial_degrees: list[int], mesh_points: FloatArray | list[float]
     ) -> None:
         """Configure mesh and update scaling if needed."""
+        print("\n=== SETTING MESH ===")
+        print(f"Polynomial degrees: {polynomial_degrees}")
+        print(f"Mesh points: {mesh_points}")
+
         mesh.configure_mesh(self._mesh_state, polynomial_degrees, mesh_points)
+        print("Mesh configured successfully")
 
         # Clear initial guess when mesh changes
         initial_guess_problem.clear_initial_guess(self._initial_guess_container)
+        print("Initial guess cleared")
 
         # Compute scaling if needed and we have enough problem info
-        if hasattr(self, "_scaling") and self._scaling.enabled and len(self._states) > 0:
+        if self.use_scaling and len(self._states) > 0:
+            print(f"Computing scaling from problem (states: {list(self._states.keys())})")
             self._scaling.compute_from_problem(self)
+        else:
+            print("Skipping automatic scaling computation")
 
     # Initial guess methods
     def set_initial_guess(self, **kwargs) -> None:
