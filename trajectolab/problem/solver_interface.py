@@ -139,12 +139,34 @@ def get_objective_function(variable_state: VariableState) -> ObjectiveCallable:
         else ca.MX.sym("p", 0)  # type: ignore[arg-type]
     )
 
+    # Create substitution map for final state values
+    final_subs_map = {}
+
+    # Find all final state references and create mappings
+    for expr in ca.symvar(variable_state.objective_expression):
+        name = expr.name()
+        if name.endswith("_final"):
+            base_name = name[:-6]  # Remove "_final" suffix
+            if base_name in variable_state.states:
+                idx = variable_state.states[base_name]["index"]
+                final_subs_map[expr] = xf_vec[idx]
+
+    # Apply substitutions if any final state references were found
+    obj_expr = variable_state.objective_expression
+    if final_subs_map:
+        obj_expr = ca.substitute(
+            [obj_expr], list(final_subs_map.keys()), list(final_subs_map.values())
+        )[0]
+
     # Create unified objective function
     obj_func = ca.Function(
         "objective",
         [t0, tf, x0_vec, xf_vec, q, param_syms],
-        [variable_state.objective_expression],
+        [obj_expr],
     )
+
+    # Create wrapper function (rest of the function is unchanged)
+    # ...
 
     # Create wrapper function
     def unified_objective(

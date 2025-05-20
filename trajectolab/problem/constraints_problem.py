@@ -19,7 +19,11 @@ from .state import ConstraintState, VariableState
 
 def add_constraint(state: ConstraintState, constraint_expr: SymExpr) -> None:
     """Add a constraint expression."""
-    state.constraints.append(constraint_expr)
+    # Extract sym_var if needed
+    if hasattr(constraint_expr, "_sym_var"):
+        state.constraints.append(constraint_expr._sym_var)
+    else:
+        state.constraints.append(constraint_expr)
 
 
 def _is_path_constraint(expr: SymExpr, variable_state: VariableState) -> bool:
