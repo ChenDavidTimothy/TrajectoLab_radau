@@ -130,32 +130,43 @@ def create_shuttle_reentry_problem(heating_constraint=None, bank_angle_min=-90.0
 
 
 def prepare_initial_guess(problem, polynomial_degrees, deg2rad):
-    """Create an initial guess for the shuttle reentry problem"""
     states_guess = []
     controls_guess = []
 
-    for N in polynomial_degrees:
-        # Create state guess arrays with proper dimensions
-        h_guess = np.linspace(260000, 80000, N + 1)
-        phi_guess = np.zeros(N + 1)
-        theta_guess = np.linspace(0, 0.6, N + 1)  # Guess around expected final value
-        v_guess = np.linspace(25600, 2500, N + 1)
-        gamma_guess = np.linspace(-1 * deg2rad, -5 * deg2rad, N + 1)
-        psi_guess = np.ones(N + 1) * 90 * deg2rad
+    # Initial conditions
+    h0, v0 = 260000.0, 25600.0
+    phi0, theta0 = 0.0, 0.0
+    gamma0, psi0 = -1.0 * np.pi / 180.0, 90.0 * np.pi / 180.0
 
-        # Stack state guesses
-        state_array = np.vstack([h_guess, phi_guess, theta_guess, v_guess, gamma_guess, psi_guess])
+    # Final conditions
+    hf, vf = 80000.0, 2500.0
+    gammaF = -5.0 * np.pi / 180.0
+
+    for N in polynomial_degrees:
+        # Create linearly spaced points
+        t = np.linspace(0, 1, N + 1)
+
+        # Linear interpolation for states
+        h_vals = h0 + (hf - h0) * t
+        phi_vals = phi0 * np.ones(N + 1)
+        theta_vals = theta0 * np.ones(N + 1)
+        v_vals = v0 + (vf - v0) * t
+        gamma_vals = gamma0 + (gammaF - gamma0) * t
+        psi_vals = psi0 * np.ones(N + 1)
+
+        # Stack states
+        state_array = np.vstack([h_vals, phi_vals, theta_vals, v_vals, gamma_vals, psi_vals])
         states_guess.append(state_array)
 
-        # Control guesses
-        alpha_guess = np.zeros(N)  # Start with zero angle of attack
-        beta_guess = np.ones(N) * (-45 * deg2rad)  # Middle of bank angle range
+        # Simple zero controls
+        alpha_vals = np.zeros(N)
+        beta_vals = -45.0 * np.pi / 180.0 * np.ones(N)
 
-        # Stack control guesses
-        control_array = np.vstack([alpha_guess, beta_guess])
+        # Stack controls
+        control_array = np.vstack([alpha_vals, beta_vals])
         controls_guess.append(control_array)
 
-    # Set initial guess with a reasonable final time - close to expected values ~2000s
+    # Set with a reasonable final time
     problem.set_initial_guess(states=states_guess, controls=controls_guess, terminal_time=2000.0)
 
 
@@ -170,8 +181,8 @@ def solve_with_fixed_mesh(
 ):
     """Solve the shuttle reentry problem with fixed mesh and compare with literature"""
     # Define mesh with higher precision for accuracy
-    polynomial_degrees = [80, 80, 80]  # High degrees for complex dynamics
-    mesh_points = np.array([-1.0, -0.5, 0.0, 1.0])
+    polynomial_degrees = [16, 20, 24, 20, 16]
+    mesh_points = np.array([-1.0, -0.6, -0.2, 0.4, 0.8, 1.0])
 
     # Set mesh
     problem.set_mesh(polynomial_degrees, mesh_points)
@@ -202,7 +213,7 @@ def solve_with_fixed_mesh(
             "ipopt.nlp_scaling_method": "gradient-based",
             "ipopt.mu_strategy": "adaptive",
             "ipopt.check_derivatives_for_naninf": "yes",
-            "ipopt.hessian_approximation": "exact",
+            "ipopt.hessian_approximation": "limited-memory",
             "ipopt.tol": 1e-8,
         },
     )
@@ -233,8 +244,8 @@ def solve_with_adaptive_mesh(
 ):
     """Solve the shuttle reentry problem with adaptive mesh and compare with literature"""
     # Define initial mesh for adaptive solution
-    initial_polynomial_degrees = [8, 8, 8]  # Start with lower degree
-    initial_mesh_points = np.array([-1.0, -0.3, 0.3, 1.0])
+    initial_polynomial_degrees = [8, 10, 12, 10, 8]
+    initial_mesh_points = np.array([-1.0, -0.6, -0.2, 0.4, 0.8, 1.0])
 
     # Set initial mesh
     problem.set_mesh(initial_polynomial_degrees, initial_mesh_points)
@@ -269,7 +280,7 @@ def solve_with_adaptive_mesh(
             "ipopt.nlp_scaling_method": "gradient-based",
             "ipopt.mu_strategy": "adaptive",
             "ipopt.check_derivatives_for_naninf": "yes",
-            "ipopt.hessian_approximation": "exact",
+            "ipopt.hessian_approximation": "limited-memory",
             "ipopt.tol": 1e-8,
         },
     )
