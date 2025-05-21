@@ -84,6 +84,10 @@ def solve_single_phase_radau_collocation(
     # Configure solver and store references
     _configure_solver_and_store_references(opti, variables, metadata, problem)
 
+    # Log scaling information
+    if scaling_manager is not None and scaling_manager.enabled:
+        _log_scaling_info(problem, scaling_manager)
+
     # Execute solve
     return _execute_solve(opti, problem, num_mesh_intervals)
 
@@ -315,3 +319,36 @@ def _execute_solve(
     solution_obj.global_mesh_nodes_at_solve_time = global_mesh_nodes.copy()
 
     return solution_obj
+
+
+def _log_scaling_info(problem: ProblemProtocol, scaling_manager: ScalingManager | None) -> None:
+    """Log detailed scaling information before solving."""
+    if scaling_manager is None or not scaling_manager.enabled:
+        print("Automatic scaling disabled")
+        return
+
+    print("\n=== AUTOMATIC SCALING INFORMATION ===")
+    time_scale_info = scaling_manager._time_scale_factor
+    print(f"Time scaling: weight={time_scale_info[0]:.6e}, shift={time_scale_info[1]:.6f}")
+
+    state_names = sorted(problem._states.keys())
+    print("\nState variable scaling:")
+    for name in state_names:
+        if name in scaling_manager._state_scale_factors:
+            scale_info = scaling_manager._state_scale_factors[name]
+            method = scale_info[2] if len(scale_info) > 2 else "unknown"
+            print(
+                f"  {name}: weight={scale_info[0]:.6e}, shift={scale_info[1]:.6f}, method={method}"
+            )
+
+    control_names = sorted(problem._controls.keys())
+    print("\nControl variable scaling:")
+    for name in control_names:
+        if name in scaling_manager._control_scale_factors:
+            scale_info = scaling_manager._control_scale_factors[name]
+            method = scale_info[2] if len(scale_info) > 2 else "unknown"
+            print(
+                f"  {name}: weight={scale_info[0]:.6e}, shift={scale_info[1]:.6f}, method={method}"
+            )
+
+    print("===================================\n")

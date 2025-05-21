@@ -227,6 +227,8 @@ def solve_shuttle_reentry(
     print("\nSolving Shuttle Reentry Problem with Automatic Scaling")
     print(f"Parameters: {bank_str}, {heat_str}")
 
+    print_scaling_comparison(problem)
+
     # Solver options (unchanged from shuttle.py)
     solution = tl.solve_fixed_mesh(
         problem,
@@ -355,6 +357,42 @@ def plot_solution(solution, symbolic_vars):
     ax_3d.set_zlabel("Altitude (10⁵ ft)")
     ax_3d.set_title(plot_title)
     plt.show()
+
+
+# Extract and print the actual scaling factors used (for debugging)
+def print_scaling_comparison(problem):
+    """Print comparison between manual and automatic scaling."""
+    if hasattr(problem, "_scaling_manager"):
+        scaling_manager = problem._scaling_manager
+        if scaling_manager.enabled:
+            print("\n=== Scaling Factor Comparison ===")
+            print("Manual scaling in shuttle.py:")
+            print("  h_scale = 1e5 (factor = 1e-5)")
+            print("  v_scale = 1e4 (factor = 1e-4)")
+
+            print("\nAutomatic scaling calculated:")
+            if "h" in scaling_manager._state_scale_factors:
+                h_factor = scaling_manager._state_scale_factors["h"][0]
+                print(f"  h factor = {h_factor:.6e} (equivalent to h_scale = {1 / h_factor:.6e})")
+
+            if "v" in scaling_manager._state_scale_factors:
+                v_factor = scaling_manager._state_scale_factors["v"][0]
+                print(f"  v factor = {v_factor:.6e} (equivalent to v_scale = {1 / v_factor:.6e})")
+
+            print("\nDifference between manual and automatic scaling:")
+            if "h" in scaling_manager._state_scale_factors:
+                h_factor = scaling_manager._state_scale_factors["h"][0]
+                manual_h_factor = 1.0 / 1e5
+                ratio = h_factor / manual_h_factor
+                print(f"  h factor ratio: {ratio:.2f}x different")
+
+            if "v" in scaling_manager._state_scale_factors:
+                v_factor = scaling_manager._state_scale_factors["v"][0]
+                manual_v_factor = 1.0 / 1e4
+                ratio = v_factor / manual_v_factor
+                print(f"  v factor ratio: {ratio:.2f}x different")
+
+            print("================================\n")
 
 
 def main():

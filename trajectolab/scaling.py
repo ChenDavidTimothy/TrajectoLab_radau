@@ -65,7 +65,12 @@ class ScalingManager:
         scaling_logger.info(f"Automatic scaling {'enabled' if enabled else 'disabled'}")
 
     def register_state(
-        self, name: str, sym: SymType, lower: float | None = None, upper: float | None = None
+        self,
+        name: str,
+        sym: SymType,
+        lower: float | None = None,
+        upper: float | None = None,
+        initial_value: float | None = None,
     ) -> None:
         """
         Register a state variable for scaling.
@@ -75,25 +80,35 @@ class ScalingManager:
             sym: Symbolic variable
             lower: Lower bound or None
             upper: Upper bound or None
+            initial_value: Initial value for fallback scaling
         """
         # Skip if scaling disabled or variable already registered
         if not self.enabled or sym in self._sym_state_map:
             if not self.enabled:
-                self._state_scale_factors[name] = (1.0, 0.0)  # No scaling
+                self._state_scale_factors[name] = (1.0, 0.0, "disabled")
                 self._sym_state_map[sym] = name
             return
 
         # Calculate scale factors using Rule 2
-        scale_weight, scale_shift = self._calculate_scale_factors(name, lower, upper)
-        self._state_scale_factors[name] = (scale_weight, scale_shift)
+        scale_weight, scale_shift, method = self._calculate_scale_factors(
+            name, lower, upper, initial_value
+        )
+
+        self._state_scale_factors[name] = (scale_weight, scale_shift, method)
         self._sym_state_map[sym] = name
 
-        scaling_logger.debug(
-            f"Registered state '{name}' with scale factor: weight={scale_weight}, shift={scale_shift}"
+        scaling_logger.info(
+            f"Registered state '{name}' with {method} scaling: "
+            f"weight={scale_weight:.6e}, shift={scale_shift:.6f}"
         )
 
     def register_control(
-        self, name: str, sym: SymType, lower: float | None = None, upper: float | None = None
+        self,
+        name: str,
+        sym: SymType,
+        lower: float | None = None,
+        upper: float | None = None,
+        initial_value: float | None = None,
     ) -> None:
         """
         Register a control variable for scaling.
@@ -103,21 +118,26 @@ class ScalingManager:
             sym: Symbolic variable
             lower: Lower bound or None
             upper: Upper bound or None
+            initial_value: Initial value for fallback scaling
         """
         # Skip if scaling disabled or variable already registered
         if not self.enabled or sym in self._sym_control_map:
             if not self.enabled:
-                self._control_scale_factors[name] = (1.0, 0.0)  # No scaling
+                self._control_scale_factors[name] = (1.0, 0.0, "disabled")
                 self._sym_control_map[sym] = name
             return
 
         # Calculate scale factors using Rule 2
-        scale_weight, scale_shift = self._calculate_scale_factors(name, lower, upper)
-        self._control_scale_factors[name] = (scale_weight, scale_shift)
+        scale_weight, scale_shift, method = self._calculate_scale_factors(
+            name, lower, upper, initial_value
+        )
+
+        self._control_scale_factors[name] = (scale_weight, scale_shift, method)
         self._sym_control_map[sym] = name
 
-        scaling_logger.debug(
-            f"Registered control '{name}' with scale factor: weight={scale_weight}, shift={scale_shift}"
+        scaling_logger.info(
+            f"Registered control '{name}' with {method} scaling: "
+            f"weight={scale_weight:.6e}, shift={scale_shift:.6f}"
         )
 
     def register_time_bounds(self, lower: float, upper: float) -> None:
@@ -133,16 +153,21 @@ class ScalingManager:
             return
 
         # Calculate time scaling based on bounds using Rule 2
-        scale_weight, scale_shift = self._calculate_scale_factors("time", lower, upper)
+        scale_info = self._calculate_scale_factors("time", lower, upper)
+        scale_weight, scale_shift, method_used = scale_info  # Unpack all three values
         self._time_scale_factor = (scale_weight, scale_shift)
 
-        scaling_logger.debug(
-            f"Registered time with scale factor: weight={scale_weight}, shift={scale_shift}"
+        scaling_logger.info(
+            f"Registered time with {method_used} scaling: weight={scale_weight:.6e}, shift={scale_shift:.6f}"
         )
 
     def _calculate_scale_factors(
-        self, name: str, lower: float | None, upper: float | None
-    ) -> _ScaleFactor:
+        self,
+        name: str,
+        lower: float | None,
+        upper: float | None,
+        initial_value: float | None = None,
+    ) -> tuple[float, float, str]:
         """
         Calculate scale weight and shift based on Rule 2.
 
@@ -150,15 +175,18 @@ class ScalingManager:
             name: Variable name for logging
             lower: Lower bound or None
             upper: Upper bound or None
+            initial_value: Initial value if available
 
         Returns:
-            Tuple of (scale_weight, scale_shift)
+            Tuple of (scale_weight, scale_shift, method_used)
         """
         # Default: no scaling
         scale_weight = 1.0
         scale_shift = 0.0
 
-        # Rule 2: If bounds available, calculate scale factors
+        method_used = "default"
+
+        # Rule 2.a: If bounds available, calculate scale factors
         if lower is not None and upper is not None and abs(upper - lower) > 1e-10:
             # Weight: 1/(upper - lower)  (equation 4.250)
             scale_weight = 1.0 / (upper - lower)
@@ -166,17 +194,36 @@ class ScalingManager:
             # Shift: 0.5 - upper/(upper - lower)  (equation 4.251)
             scale_shift = 0.5 - upper / (upper - lower)
 
-            scaling_logger.debug(
-                f"Variable '{name}' has bounds [{lower}, {upper}]: "
-                f"weight={scale_weight}, shift={scale_shift}"
+            method_used = "bounds"
+            scaling_logger.info(
+                f"Variable '{name}' using bounds [{lower}, {upper}] for scaling: "
+                f"weight={scale_weight:.6e}, shift={scale_shift:.6f}"
             )
+        # Rule 2.b: If bounds not usable but initial guess available
+        elif initial_value is not None:
+            # Estimate a range based on the initial guess
+            # A simple approach: use initial_guess ± 50%
+            range_estimate = max(abs(initial_value) * 0.5, 1.0)  # Ensure minimum range
+            est_lower = initial_value - range_estimate
+            est_upper = initial_value + range_estimate
+
+            scale_weight = 1.0 / (est_upper - est_lower)
+            scale_shift = 0.5 - est_upper / (est_upper - est_lower)
+
+            method_used = "initial_guess"
+            scaling_logger.info(
+                f"Variable '{name}' using initial guess {initial_value} for scaling: "
+                f"estimated range [{est_lower}, {est_upper}], "
+                f"weight={scale_weight:.6e}, shift={scale_shift:.6f}"
+            )
+        # Rule 2.c: Default case
         else:
-            scaling_logger.debug(
-                f"Variable '{name}' has insufficient bound information for scaling. "
+            scaling_logger.info(
+                f"Variable '{name}' has insufficient information for scaling. "
                 f"Using default: weight=1.0, shift=0.0"
             )
 
-        return (scale_weight, scale_shift)
+        return (scale_weight, scale_shift, method_used)
 
     def get_state_scale_factors(self, name: str) -> _ScaleFactor:
         """Get scale factors for a state variable."""
@@ -200,7 +247,10 @@ class ScalingManager:
         if not self.enabled or name not in self._state_scale_factors:
             return value
 
-        scale_weight, scale_shift = self._state_scale_factors[name]
+        # Extract just the weight and shift, ignoring the method
+        scale_info = self._state_scale_factors[name]
+        scale_weight = scale_info[0]
+        scale_shift = scale_info[1]
 
         # Apply scaling: ỹ = v_y * y + r_y
         return scale_weight * value + scale_shift
@@ -219,7 +269,10 @@ class ScalingManager:
         if not self.enabled or name not in self._control_scale_factors:
             return value
 
-        scale_weight, scale_shift = self._control_scale_factors[name]
+        # Extract just the weight and shift, ignoring the method
+        scale_info = self._control_scale_factors[name]
+        scale_weight = scale_info[0]
+        scale_shift = scale_info[1]
 
         # Apply scaling: ũ = v_u * u + r_u
         return scale_weight * value + scale_shift
@@ -257,7 +310,10 @@ class ScalingManager:
         if not self.enabled or name not in self._state_scale_factors:
             return value
 
-        scale_weight, scale_shift = self._state_scale_factors[name]
+        # Extract just the weight and shift, ignoring the method
+        scale_info = self._state_scale_factors[name]
+        scale_weight = scale_info[0]
+        scale_shift = scale_info[1]
 
         # Invert scaling: y = (ỹ - r_y) / v_y
         return (value - scale_shift) / scale_weight
@@ -276,7 +332,10 @@ class ScalingManager:
         if not self.enabled or name not in self._control_scale_factors:
             return value
 
-        scale_weight, scale_shift = self._control_scale_factors[name]
+        # Extract just the weight and shift, ignoring the method
+        scale_info = self._control_scale_factors[name]
+        scale_weight = scale_info[0]
+        scale_shift = scale_info[1]
 
         # Invert scaling: u = (ũ - r_u) / v_u
         return (value - scale_shift) / scale_weight
@@ -316,13 +375,31 @@ class ScalingManager:
         # Get state name and scale factors
         state_name = self._sym_state_map.get(state_sym)
         if state_name is None:
+            scaling_logger.warning("Unknown state symbol in dynamics scaling")
             return expr
 
-        state_weight, _ = self._state_scale_factors.get(state_name, (1.0, 0.0))
-        time_weight, _ = self._time_scale_factor
+        # Extract weight from state scale factors
+        scale_info = self._state_scale_factors.get(state_name)
+        if scale_info is None:
+            return expr
+
+        state_weight = scale_info[0]
+
+        # Extract weight from time scale factors (always a 2-tuple)
+        time_weight = self._time_scale_factor[0]
 
         # Apply Rule 3: d(ỹ)/d(t̃) = (v_y/v_t) * f(y,u,t)
-        return (state_weight / time_weight) * expr
+        scaling_ratio = state_weight / time_weight
+        scaled_expr = scaling_ratio * expr
+
+        method = scale_info[2] if len(scale_info) > 2 else "unknown"
+        scaling_logger.info(
+            f"Scaling dynamics for state '{state_name}' ({method}): "
+            f"scale_weight={state_weight:.6e}, time_weight={time_weight:.6e}, "
+            f"ratio={scaling_ratio:.6e}"
+        )
+
+        return scaled_expr
 
     def scale_constraint(self, constraint: Constraint) -> Constraint:
         """

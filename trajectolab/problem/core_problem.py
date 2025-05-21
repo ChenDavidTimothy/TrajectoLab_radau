@@ -165,18 +165,20 @@ class Problem:
         lower: float | None = None,
         upper: float | None = None,
     ) -> SymType:
+        """Define a state variable."""
         sym_var = variables_problem.create_state_variable(
             self._variable_state, name, initial, final, lower, upper
         )
-        # Register with scaling manager - use actual physical bounds
-        self._scaling_manager.register_state(name, sym_var, lower, upper)
+        # Register with scaling manager - pass bounds AND initial value
+        self._scaling_manager.register_state(name, sym_var, lower, upper, initial_value=initial)
         return sym_var
 
     def control(self, name: str, lower: float | None = None, upper: float | None = None) -> SymType:
+        """Define a control variable."""
         sym_var = variables_problem.create_control_variable(
             self._variable_state, name, lower, upper
         )
-        # Register with scaling manager - use actual physical bounds
+        # Register with scaling manager - use only bounds for controls since we don't have initial values
         self._scaling_manager.register_control(name, sym_var, lower, upper)
         return sym_var
 
