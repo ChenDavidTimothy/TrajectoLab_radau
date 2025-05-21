@@ -343,7 +343,6 @@ class ProblemProtocol(Protocol):
     solver_options: dict[str, object]
 
     _mesh_configured: bool
-    _scaling: Any
 
     # Symbolic attributes
     _sym_states: dict[str, SymType]
@@ -358,10 +357,6 @@ class ProblemProtocol(Protocol):
     _constraints: list[SymExpr]
     _integral_expressions: list[SymExpr]
     _integral_symbols: list[SymType]
-
-    # FIXED: Add use_scaling property to protocol
-    @property
-    def use_scaling(self) -> bool: ...
 
     def set_mesh(
         self, polynomial_degrees: list[int], mesh_points: FloatArray | list[float]

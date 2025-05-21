@@ -112,12 +112,8 @@ def get_path_constraints_function(
     ]
 
     # State and control names in order (for scaling reference)
-    state_names = sorted(
-        variable_state.sym_states.keys(), key=lambda n: variable_state.states[n]["index"]
-    )
-    control_names = sorted(
-        variable_state.sym_controls.keys(), key=lambda n: variable_state.controls[n]["index"]
-    )
+    sorted(variable_state.sym_states.keys(), key=lambda n: variable_state.states[n]["index"])
+    sorted(variable_state.sym_controls.keys(), key=lambda n: variable_state.controls[n]["index"])
 
     def vectorized_path_constraints(
         states_vec: CasadiMX,
@@ -125,71 +121,34 @@ def get_path_constraints_function(
         time: CasadiMX,
         params: ProblemParameters,
     ) -> list[Constraint]:
+        """
+        Convert path constraints to unified Constraint format.
+
+        Args:
+            states_vec: State vector at collocation point
+            controls_vec: Control vector at collocation point
+            time: Time at collocation point
+            params: Problem parameters
+
+        Returns:
+            List of unified Constraint objects
+        """
         result: list[Constraint] = []
 
-        # Check if we have scaling info attached to the params
-        use_scaling = False
-        scaling_obj = None
+        # Create substitution map
+        subs_map = {}
 
-        if isinstance(params, dict):
-            # Special parameters added by apply_path_constraints
-            if "_use_scaling" in params:
-                use_scaling = bool(params["_use_scaling"])
-            if "_scaling_object" in params:
-                scaling_obj = params["_scaling_object"]
+        # Map state symbols
+        for i, state_sym in enumerate(state_syms):
+            subs_map[state_sym] = states_vec[i]
 
-        # Determine whether to unscale variables before evaluating constraints
-        if use_scaling and scaling_obj is not None:
-            # UNSCALE states and controls before evaluating constraints
-            unscaled_states = ca.MX(states_vec)
-            unscaled_controls = ca.MX(controls_vec)
+        # Map control symbols
+        for i, control_sym in enumerate(control_syms):
+            subs_map[control_sym] = controls_vec[i]
 
-            # Unscale each state
-            for i, name in enumerate(state_names):
-                if i < states_vec.shape[0]:
-                    factor, shift = scaling_obj.get_state_scaling(name)
-                    # Only unscale if we have non-default scaling
-                    if not (abs(factor - 1.0) < 1e-10 and abs(shift) < 1e-10):
-                        unscaled_states[i] = (states_vec[i] - shift) / factor
-
-            # Unscale each control
-            for i, name in enumerate(control_names):
-                if i < controls_vec.shape[0]:
-                    factor, shift = scaling_obj.get_control_scaling(name)
-                    # Only unscale if we have non-default scaling
-                    if not (abs(factor - 1.0) < 1e-10 and abs(shift) < 1e-10):
-                        unscaled_controls[i] = (controls_vec[i] - shift) / factor
-
-            # Create substitution map with unscaled values
-            subs_map = {}
-
-            # Map state symbols to unscaled values
-            for i, state_sym in enumerate(state_syms):
-                subs_map[state_sym] = unscaled_states[i]
-
-            # Map control symbols to unscaled values
-            for i, control_sym in enumerate(control_syms):
-                subs_map[control_sym] = unscaled_controls[i]
-
-            # Map time symbol
-            if variable_state.sym_time is not None:
-                subs_map[variable_state.sym_time] = time
-
-        else:
-            # Create substitution map with original scaled values
-            subs_map = {}
-
-            # Map state symbols
-            for i, state_sym in enumerate(state_syms):
-                subs_map[state_sym] = states_vec[i]
-
-            # Map control symbols
-            for i, control_sym in enumerate(control_syms):
-                subs_map[control_sym] = controls_vec[i]
-
-            # Map time symbol
-            if variable_state.sym_time is not None:
-                subs_map[variable_state.sym_time] = time
+        # Map time symbol
+        if variable_state.sym_time is not None:
+            subs_map[variable_state.sym_time] = time
 
         # Process path constraints
         for expr in path_constraints:
@@ -198,7 +157,7 @@ def get_path_constraints_function(
             )[0]
             result.append(_symbolic_constraint_to_constraint(substituted_expr))
 
-        # Add state bounds - these are already correctly defined in scaled or unscaled form
+        # Add state bounds
         for i, name in enumerate(
             sorted(
                 variable_state.states.keys(),
@@ -211,7 +170,7 @@ def get_path_constraints_function(
             if state_def.get("upper") is not None:
                 result.append(Constraint(val=states_vec[i], max_val=state_def["upper"]))
 
-        # Add control bounds - these are already correctly defined in scaled or unscaled form
+        # Add control bounds
         for i, name in enumerate(
             sorted(
                 variable_state.controls.keys(),

@@ -40,12 +40,8 @@ def get_dynamics_function(variable_state: VariableState) -> DynamicsCallable:
     ]
 
     # State and control names in order (for scaling reference)
-    state_names = sorted(
-        variable_state.sym_states.keys(), key=lambda n: variable_state.states[n]["index"]
-    )
-    control_names = sorted(
-        variable_state.sym_controls.keys(), key=lambda n: variable_state.controls[n]["index"]
-    )
+    sorted(variable_state.sym_states.keys(), key=lambda n: variable_state.states[n]["index"])
+    sorted(variable_state.sym_controls.keys(), key=lambda n: variable_state.controls[n]["index"])
 
     # Create combined vector for CasADi function input
     states_vec = ca.vertcat(*state_syms) if state_syms else ca.MX()
@@ -90,63 +86,8 @@ def get_dynamics_function(variable_state: VariableState) -> DynamicsCallable:
 
         param_vec = ca.DM(param_values) if param_values else ca.DM()
 
-        # Check if we have scaling info attached to the params
-        use_scaling = False
-        scaling_obj = None
-
-        if isinstance(params, dict):
-            # Special parameters added by apply_collocation_constraints
-            if "_use_scaling" in params:
-                use_scaling = bool(params["_use_scaling"])
-            if "_scaling_object" in params:
-                scaling_obj = params["_scaling_object"]
-
-        if use_scaling and scaling_obj is not None:
-            # UNSCALE states and controls before evaluating dynamics
-            unscaled_states = ca.MX(states_vec)
-            unscaled_controls = ca.MX(controls_vec)
-
-            # Unscale each state
-            for i, name in enumerate(state_names):
-                if i < states_vec.shape[0]:
-                    factor, shift = scaling_obj.get_state_scaling(name)
-                    # Only unscale if we have non-default scaling
-                    if not (abs(factor - 1.0) < 1e-10 and abs(shift) < 1e-10):
-                        unscaled_states[i] = (states_vec[i] - shift) / factor
-
-            # Unscale each control
-            for i, name in enumerate(control_names):
-                if i < controls_vec.shape[0]:
-                    factor, shift = scaling_obj.get_control_scaling(name)
-                    # Only unscale if we have non-default scaling
-                    if not (abs(factor - 1.0) < 1e-10 and abs(shift) < 1e-10):
-                        unscaled_controls[i] = (controls_vec[i] - shift) / factor
-
-            # Call dynamics with unscaled values
-            result = dynamics_func(unscaled_states, unscaled_controls, time, param_vec)
-
-            # NEW CODE: Scale dynamics output to match scaled states' derivatives
-            dynamics_output = result[0] if isinstance(result, list | tuple) else result
-            if isinstance(dynamics_output, ca.MX | ca.DM):
-                scaled_dynamics = ca.MX(dynamics_output)
-
-                # Scale each state derivative by the corresponding state factor
-                for i, name in enumerate(state_names):
-                    if i < dynamics_output.shape[0]:
-                        factor, _ = scaling_obj.get_state_scaling(name)
-                        # Only scale if not default scaling
-                        if abs(factor - 1.0) >= 1e-10:
-                            scaled_dynamics[i] = factor * dynamics_output[i]
-
-                # Convert to list for return
-                result_list: list[CasadiMX] = []
-                for i in range(scaled_dynamics.shape[0]):
-                    result_list.append(cast(CasadiMX, scaled_dynamics[i]))
-                return result_list
-
-        else:
-            # Standard call without scaling
-            result = dynamics_func(states_vec, controls_vec, time, param_vec)
+        # Standard call
+        result = dynamics_func(states_vec, controls_vec, time, param_vec)
 
         dynamics_output = result[0] if isinstance(result, list | tuple) else result
 

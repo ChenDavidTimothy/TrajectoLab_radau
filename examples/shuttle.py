@@ -186,8 +186,6 @@ def solve_with_fixed_mesh(
 
     solution = tl.solve_fixed_mesh(
         problem,
-        polynomial_degrees=polynomial_degrees,
-        mesh_points=mesh_points,
         nlp_options={
             "ipopt.max_iter": 2000,
             "ipopt.mumps_pivtol": 5e-7,
@@ -249,8 +247,6 @@ def solve_with_adaptive_mesh(
 
     solution = tl.solve_adaptive(
         problem,
-        initial_polynomial_degrees=initial_polynomial_degrees,
-        initial_mesh_points=initial_mesh_points,
         error_tolerance=error_tol,
         max_iterations=max_adapt_iter,
         min_polynomial_degree=4,  # Min degree for refinement
@@ -428,18 +424,18 @@ def main():
     )
 
     # --- Solve with Fixed Mesh ---
-    # solution_fixed = solve_with_fixed_mesh(
-    #    problem,
-    #    symbolic_vars,
-    #    example_details["name"],
-    #    example_details["num"],
-    #    example_details["bank_min"],
-    #    example_details["heating_limit"],
-    #    example_details["lit_J"],
-    #    example_details["lit_tf"],
-    # )
-    # if solution_fixed.success:
-    #    plot_solution(solution_fixed, symbolic_vars, plot_title_suffix="(Fixed Mesh)")
+    solution_fixed = solve_with_fixed_mesh(
+        problem,
+        symbolic_vars,
+        example_details["name"],
+        example_details["num"],
+        example_details["bank_min"],
+        example_details["heating_limit"],
+        example_details["lit_J"],
+        example_details["lit_tf"],
+    )
+    if solution_fixed.success:
+        plot_solution(solution_fixed, symbolic_vars, plot_title_suffix="(Fixed Mesh)")
 
     # --- Solve with Adaptive Mesh ---
     # Re-create problem or ensure it's in a clean state if modified by fixed_solve
@@ -457,7 +453,7 @@ def main():
         example_details["heating_limit"],
         example_details["lit_J"],
         example_details["lit_tf"],
-        error_tol=1e-7,  # May need to adjust this for shuttle convergence/accuracy
+        error_tol=1e-6,  # May need to adjust this for shuttle convergence/accuracy
         max_adapt_iter=20,  # Max adaptive refinement iterations
     )
     if solution_adaptive.success:

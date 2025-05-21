@@ -199,12 +199,6 @@ def _setup_objective_and_event_constraints(
     """Set up the objective function and apply event constraints."""
     print("\n=== SETTING UP OBJECTIVE AND CONSTRAINTS ===")
 
-    # FIXED: Use problem.use_scaling instead of checking _scaling directly
-    scaling_enabled = False
-    if hasattr(problem, "use_scaling"):
-        scaling_enabled = problem.use_scaling
-    print(f"Scaling enabled: {scaling_enabled}")
-
     # Get objective function
     objective_function = problem.get_objective_function()
 

@@ -439,36 +439,6 @@ def solve_phs_adaptive_internal(
             )
             problem.initial_guess = propagated_guess
 
-        # FIXED: Use consistent property access with proper checks
-        scaling_enabled = False
-        if hasattr(problem, "use_scaling"):
-            scaling_enabled = problem.use_scaling
-
-        if scaling_enabled and hasattr(problem, "_states") and len(problem._states) > 0:
-            logger.info(f"Computing scaling for adaptive iteration {iteration + 1}")
-            logger.info(f"States: {list(problem._states.keys())}")
-
-            if hasattr(problem, "_scaling") and problem._scaling is not None:
-                problem._scaling.compute_from_problem(problem)
-
-                # Update scaling after mesh refinement if we have a previous solution
-                if (
-                    iteration > 0
-                    and most_recent_solution is not None
-                    and most_recent_solution.success
-                ):
-                    logger.info("Updating scaling based on previous solution")
-                    from trajectolab.scaling import update_scaling_after_mesh_refinement
-
-                    update_scaling_after_mesh_refinement(
-                        problem._scaling, problem, most_recent_solution
-                    )
-            else:
-                logger.warning("Problem scaling object is missing or None")
-        else:
-            reason = "disabled" if not scaling_enabled else "no states"
-            logger.info(f"Scaling {reason} - skipping computation")
-
         # Solve optimal control problem
         solution = solve_single_phase_radau_collocation(problem)
 

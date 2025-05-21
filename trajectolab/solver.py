@@ -41,23 +41,9 @@ def solve_fixed_mesh(
         "print_time": 0,
     }
 
-    # FIXED: Use problem.use_scaling consistently for scaling check
-    if problem.use_scaling and len(problem._states) > 0:
-        solver_logger.info(
-            f"Computing scaling from problem (states: {list(problem._states.keys())})"
-        )
-        problem._scaling.compute_from_problem(problem)
-    else:
-        solver_logger.info("Scaling disabled or no states - skipping scaling computation")
-
     # Create protocol-compatible version and solve
     protocol_problem = cast(ProblemProtocol, problem)
     solution_data: OptimalControlSolution = solve_single_phase_radau_collocation(protocol_problem)
-
-    # Mark if scaling was used to enable proper unscaling
-    if hasattr(solution_data, "was_scaled") and problem.use_scaling:
-        solution_data.was_scaled = True
-        solver_logger.info("Solution marked as scaled for later unscaling")
 
     return _Solution(solution_data, protocol_problem)
 
@@ -105,15 +91,6 @@ def solve_adaptive(
     # Create protocol-compatible version
     protocol_problem = cast(ProblemProtocol, problem)
 
-    # FIXED: Use problem.use_scaling consistently
-    if problem.use_scaling and len(problem._states) > 0:
-        solver_logger.info(
-            f"Computing scaling from problem (states: {list(problem._states.keys())})"
-        )
-        problem._scaling.compute_from_problem(problem)
-    else:
-        solver_logger.info("Scaling disabled or no states - skipping scaling computation")
-
     # Call the internal adaptive solver
     from trajectolab.adaptive.phs.algorithm import solve_phs_adaptive_internal
 
@@ -129,11 +106,6 @@ def solve_adaptive(
         num_error_sim_points=num_error_sim_points,
         initial_guess=initial_guess,
     )
-
-    # Mark if scaling was used to enable proper unscaling
-    if hasattr(solution_data, "was_scaled") and problem.use_scaling:
-        solution_data.was_scaled = True
-        solver_logger.info("Solution marked as scaled for later unscaling")
 
     return _Solution(solution_data, protocol_problem)
 
@@ -161,7 +133,6 @@ def solve(
         ValueError: If mesh_method is not recognized
     """
     solver_logger.info(f"Solving problem '{problem.name}' with {mesh_method} mesh")
-    solver_logger.info(f"Scaling enabled: {problem.use_scaling}")
 
     if mesh_method == "fixed":
         return solve_fixed_mesh(problem, **kwargs)  # type: ignore[arg-type]

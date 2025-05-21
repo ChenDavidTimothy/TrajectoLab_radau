@@ -23,7 +23,13 @@ if not problem_logger.handlers:
 class Problem:
     """Main class for defining optimal control problems."""
 
-    def __init__(self, name: str = "Unnamed Problem", use_scaling: bool = True) -> None:
+    def __init__(self, name: str = "Unnamed Problem") -> None:
+        """
+        Initialize a new problem instance.
+
+        Args:
+            name: Name of the problem
+        """
         self.name = name
         problem_logger.info(f"Creating problem '{name}'")
 
@@ -37,45 +43,6 @@ class Problem:
 
         # Solver options
         self.solver_options: dict[str, Any] = {}
-
-        # Create scaling object with proper initialization
-        from trajectolab.scaling import Scaling
-
-        self._scaling = Scaling(enabled=use_scaling)
-        problem_logger.info(f"Scaling initialized with enabled={use_scaling}")
-
-    @property
-    def use_scaling(self) -> bool:
-        """
-        Get the current scaling state.
-
-        This property is the SINGLE SOURCE OF TRUTH for whether scaling is enabled.
-        """
-        scaling_enabled = False
-        if hasattr(self, "_scaling"):
-            scaling_enabled = self._scaling.enabled
-        else:
-            problem_logger.warning("Scaling object not initialized properly")
-
-        problem_logger.debug(f"Getting use_scaling = {scaling_enabled}")
-        return scaling_enabled
-
-    @use_scaling.setter
-    def use_scaling(self, value: bool) -> None:
-        """
-        Set scaling state.
-
-        This is the ONLY place where scaling state should be modified.
-        """
-        new_value = bool(value)  # Ensure boolean type
-
-        if hasattr(self, "_scaling"):
-            old_value = self._scaling.enabled
-            self._scaling.enabled = new_value
-            if old_value != new_value:
-                problem_logger.info(f"Scaling enabled changed: {old_value} -> {new_value}")
-        else:
-            problem_logger.warning("Cannot set scaling - scaling object not initialized")
 
     # Property access to state attributes for backward compatibility
 
@@ -212,9 +179,6 @@ class Problem:
         This method clears any existing initial guess, as mesh changes require
         a new guess that matches the new mesh structure. After setting the mesh,
         call set_initial_guess() to provide a starting point for the solver.
-
-        Note: When using automatic scaling, scaling factors will be computed
-        right before solving, using both bounds and any initial guess provided.
         """
         print("\n=== SETTING MESH ===")
         print(f"Polynomial degrees: {polynomial_degrees}")
@@ -226,9 +190,6 @@ class Problem:
         # Clear initial guess when mesh changes
         initial_guess_problem.clear_initial_guess(self._initial_guess_container)
         print("Initial guess cleared")
-
-        # NScaling computation removed from here - will happen at solve time
-        print("Scaling will be computed right before solving")
 
     # Initial guess methods
     def set_initial_guess(self, **kwargs) -> None:
@@ -270,7 +231,3 @@ class Problem:
         return solver_interface.get_event_constraints_function_for_problem(
             self._constraint_state, self._variable_state
         )
-
-    def get_scaling(self) -> object:
-        """Get the scaling object."""
-        return self._scaling if hasattr(self, "_scaling") else None
