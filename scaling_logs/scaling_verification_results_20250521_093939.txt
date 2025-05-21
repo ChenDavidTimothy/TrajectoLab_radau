@@ -1,6 +1,6 @@
 ================================================================================
 TRAJECTOLAB SCALING VERIFICATION REPORT
-Generated: 2025-05-21 09:34:47
+Generated: 2025-05-21 09:39:41
 ================================================================================
 
 OVERALL RESULT: FAILED
@@ -9,7 +9,7 @@ TEST RESULTS SUMMARY:
 --------------------------------------------------------------------------------
 basic_scaling_test: PASSED
 factor_calculation_test: PASSED
-problem_solve_test: FAILED
+problem_solve_test: PASSED
 solution_unscaling_test: FAILED
 adaptive_mesh_scaling_test: FAILED
 
@@ -35,20 +35,24 @@ METRICS:
 --------------------------------------------------------------------------------
 
 TEST: problem_solve_test
-RESULT: FAILED
-DETAILS: Exception: State array for interval 0 has shape (3, 6), expected (3, 11)
+RESULT: PASSED
+DETAILS: Both solutions succeeded with obj diff 2.770670
+METRICS:
+  scaled_objective: 27.343955056296206
+  unscaled_objective: 24.57328548734947
+  objective_difference: 2.7706695689467367
+  scaled_solve_time: 0.4106619358062744
+  unscaled_solve_time: 0.35686731338500977
 --------------------------------------------------------------------------------
 
 TEST: solution_unscaling_test
 RESULT: FAILED
-DETAILS: Solution failed to converge: Solver runtime error: Error in Opti::solve [OptiNode] at .../casadi/core/optistack.cpp:217:
-.../casadi/core/optistack_internal.cpp:1334: Assertion "return_success(accept_limit)" failed:
-Solver failed. You may use opti.debug.value to investigate the latest values of variables. return_status is 'Maximum_Iterations_Exceeded'
+DETAILS: Exception: '_Solution' object has no attribute 'states'
 --------------------------------------------------------------------------------
 
 TEST: adaptive_mesh_scaling_test
 RESULT: FAILED
-DETAILS: Exception: Polynomial degree 10 for interval 0 is above maximum 8
+DETAILS: Exception: '_Solution' object has no attribute 'states'
 --------------------------------------------------------------------------------
 
 

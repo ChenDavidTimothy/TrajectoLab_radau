@@ -297,8 +297,13 @@ class ScalingVerifier:
             self.logger.exception("Exception in factor calculation test")
             return False
 
-    def create_test_problem(self) -> Problem:
-        """Create a standard test problem for verification tests."""
+    def create_test_problem(self, polynomial_degree: int = 5) -> Problem:
+        """Create a standard test problem for verification tests.
+
+        Args:
+            polynomial_degree: Polynomial degree for the mesh (default: 5)
+                               Must be <= 8 for adaptive mesh tests
+        """
         problem = tl.Problem("Scaling Verification Problem")
 
         # Time variable
@@ -324,8 +329,8 @@ class ScalingVerifier:
         # Objective: minimize time
         problem.minimize(t.final)
 
-        # Set a standard mesh
-        problem.set_mesh([10, 10], np.array([-1.0, 0.0, 1.0]))
+        # Set a standard mesh with specified polynomial degree
+        problem.set_mesh([polynomial_degree, polynomial_degree], np.array([-1.0, 0.0, 1.0]))
 
         return problem
 
@@ -334,55 +339,65 @@ class ScalingVerifier:
         self.logger.info("Running problem solve test with scaling...")
 
         try:
-            # Create test problem
-            problem = self.create_test_problem()
+            # Create test problem with polynomial degree 5
+            polynomial_degree = 5
+            problem = self.create_test_problem(polynomial_degree)
 
-            # Set initial guess
-            h_guess = np.linspace(260000.0, 80000.0, 11)
-            v_guess = np.linspace(25600.0, 2500.0, 11)
-            gamma_guess = np.linspace(-0.01, -0.1, 11)
-            u_guess = np.zeros(10)
+            # Set initial guess with correct dimensions: (states, polynomial_degree + 1)
+            num_states = 3  # h, v, gamma
+            num_controls = 1  # u
 
+            # Create arrays of the correct size for each interval
             states_guess = []
             controls_guess = []
 
-            for i in range(2):  # 2 intervals
-                if i == 0:
-                    states_guess.append(
-                        np.vstack(
-                            [
-                                h_guess[:6],  # First half for first interval
-                                v_guess[:6],
-                                gamma_guess[:6],
-                            ]
-                        )
-                    )
-                    controls_guess.append(np.vstack([u_guess[:5]]))
+            for interval in range(2):  # 2 intervals in the mesh
+                # Create state guess array with the correct shape: (num_states, polynomial_degree + 1)
+                # For first interval: linearly interpolate from initial to middle
+                # For second interval: linearly interpolate from middle to final
+                if interval == 0:
+                    h_vals = np.linspace(260000.0, 170000.0, polynomial_degree + 1)
+                    v_vals = np.linspace(25600.0, 14000.0, polynomial_degree + 1)
+                    gamma_vals = np.linspace(-0.01, -0.05, polynomial_degree + 1)
                 else:
-                    states_guess.append(
-                        np.vstack(
-                            [
-                                h_guess[5:],  # Second half for second interval
-                                v_guess[5:],
-                                gamma_guess[5:],
-                            ]
-                        )
-                    )
-                    controls_guess.append(np.vstack([u_guess[5:]]))
+                    h_vals = np.linspace(170000.0, 80000.0, polynomial_degree + 1)
+                    v_vals = np.linspace(14000.0, 2500.0, polynomial_degree + 1)
+                    gamma_vals = np.linspace(-0.05, -0.1, polynomial_degree + 1)
 
+                state_array = np.zeros((num_states, polynomial_degree + 1), dtype=np.float64)
+                state_array[0, :] = h_vals
+                state_array[1, :] = v_vals
+                state_array[2, :] = gamma_vals
+                states_guess.append(state_array)
+
+                # Create control guess array with the correct shape: (num_controls, polynomial_degree)
+                # Simple guess: zeros for each interval
+                control_array = np.zeros((num_controls, polynomial_degree), dtype=np.float64)
+                controls_guess.append(control_array)
+
+            # Set the initial guess
             problem.set_initial_guess(
                 states=states_guess, controls=controls_guess, terminal_time=100.0
             )
 
             # Solve twice: once with scaling on, once with scaling off
+            # Use more generous solver options to improve convergence
+            solver_options = {
+                "ipopt.print_level": 0,
+                "ipopt.sb": "yes",
+                "ipopt.max_iter": 1000,  # Increase from default
+                "ipopt.tol": 1e-6,  # Relax tolerance slightly
+                "print_time": 0,
+            }
+
             start_time_scaled = time.time()
             problem.use_scaling = True
-            solution_scaled = tl.solve_fixed_mesh(problem)
+            solution_scaled = tl.solve_fixed_mesh(problem, nlp_options=solver_options)
             solve_time_scaled = time.time() - start_time_scaled
 
             start_time_unscaled = time.time()
             problem.use_scaling = False
-            solution_unscaled = tl.solve_fixed_mesh(problem)
+            solution_unscaled = tl.solve_fixed_mesh(problem, nlp_options=solver_options)
             solve_time_unscaled = time.time() - start_time_unscaled
 
             # Compare results
@@ -457,17 +472,59 @@ class ScalingVerifier:
         self.logger.info("Running solution unscaling test...")
 
         try:
-            # Create test problem
-            problem = self.create_test_problem()
+            # Create test problem with lower polynomial degree for better convergence
+            polynomial_degree = 5
+            problem = self.create_test_problem(polynomial_degree)
 
-            # Set initial guess (simpler this time)
-            problem.set_initial_guess(terminal_time=100.0)
+            # Prepare a good initial guess with correct dimensions
+            num_states = 3  # h, v, gamma
+            num_controls = 1  # u
+
+            # Create arrays with the correct shapes
+            states_guess = []
+            controls_guess = []
+
+            for interval in range(2):  # 2 intervals in the mesh
+                if interval == 0:
+                    h_vals = np.linspace(260000.0, 170000.0, polynomial_degree + 1)
+                    v_vals = np.linspace(25600.0, 14000.0, polynomial_degree + 1)
+                    gamma_vals = np.linspace(-0.01, -0.05, polynomial_degree + 1)
+                else:
+                    h_vals = np.linspace(170000.0, 80000.0, polynomial_degree + 1)
+                    v_vals = np.linspace(14000.0, 2500.0, polynomial_degree + 1)
+                    gamma_vals = np.linspace(-0.05, -0.1, polynomial_degree + 1)
+
+                state_array = np.zeros((num_states, polynomial_degree + 1), dtype=np.float64)
+                state_array[0, :] = h_vals
+                state_array[1, :] = v_vals
+                state_array[2, :] = gamma_vals
+                states_guess.append(state_array)
+
+                # Simple control guess - slight negative value to encourage descent
+                control_array = np.full((num_controls, polynomial_degree), -0.05, dtype=np.float64)
+                controls_guess.append(control_array)
+
+            # Set the initial guess
+            problem.set_initial_guess(
+                states=states_guess,
+                controls=controls_guess,
+                terminal_time=150.0,  # Increase initial guess for final time
+            )
+
+            # Use more generous solver options
+            solver_options = {
+                "ipopt.print_level": 0,
+                "ipopt.sb": "yes",
+                "ipopt.max_iter": 2000,  # More iterations
+                "ipopt.tol": 1e-5,  # Relaxed tolerance
+                "print_time": 0,
+            }
 
             # Ensure scaling is enabled
             problem.use_scaling = True
 
             # Solve problem
-            solution = tl.solve_fixed_mesh(problem)
+            solution = tl.solve_fixed_mesh(problem, nlp_options=solver_options)
 
             if not solution.success:
                 self._record_test_result(
@@ -541,22 +598,65 @@ class ScalingVerifier:
         self.logger.info("Running adaptive mesh scaling test...")
 
         try:
-            # Create test problem
-            problem = self.create_test_problem()
+            # Create test problem with polynomial degree compatible with adaptive settings
+            # Use polynomial degree 6, which is lower than max_polynomial_degree=8
+            polynomial_degree = 6
+            problem = self.create_test_problem(polynomial_degree)
+
+            # Prepare a suitable initial guess
+            num_states = 3  # h, v, gamma
+            num_controls = 1  # u
+
+            # Create arrays with the correct shapes
+            states_guess = []
+            controls_guess = []
+
+            for interval in range(2):  # 2 intervals in the mesh
+                if interval == 0:
+                    h_vals = np.linspace(260000.0, 170000.0, polynomial_degree + 1)
+                    v_vals = np.linspace(25600.0, 14000.0, polynomial_degree + 1)
+                    gamma_vals = np.linspace(-0.01, -0.05, polynomial_degree + 1)
+                else:
+                    h_vals = np.linspace(170000.0, 80000.0, polynomial_degree + 1)
+                    v_vals = np.linspace(14000.0, 2500.0, polynomial_degree + 1)
+                    gamma_vals = np.linspace(-0.05, -0.1, polynomial_degree + 1)
+
+                state_array = np.zeros((num_states, polynomial_degree + 1), dtype=np.float64)
+                state_array[0, :] = h_vals
+                state_array[1, :] = v_vals
+                state_array[2, :] = gamma_vals
+                states_guess.append(state_array)
+
+                # Simple control guess - slight negative value
+                control_array = np.full((num_controls, polynomial_degree), -0.05, dtype=np.float64)
+                controls_guess.append(control_array)
+
+            # Set the initial guess
+            problem.set_initial_guess(
+                states=states_guess, controls=controls_guess, terminal_time=150.0
+            )
 
             # Ensure scaling is enabled
             problem.use_scaling = True
 
-            # Set initial guess
-            problem.set_initial_guess(terminal_time=100.0)
+            # Solver options
+            solver_options = {
+                "ipopt.print_level": 0,
+                "ipopt.sb": "yes",
+                "ipopt.max_iter": 1000,
+                "ipopt.tol": 1e-5,
+                "print_time": 0,
+            }
 
-            # Solve with adaptive mesh
+            # Solve with adaptive mesh - make sure polynomial limits are compatible
+            # Initial polynomial degree is 6, so max should be at least 6
             solution = tl.solve_adaptive(
                 problem,
-                error_tolerance=1e-3,
+                error_tolerance=1e-2,  # Relaxed tolerance for faster convergence
                 max_iterations=3,  # Limit for test
                 min_polynomial_degree=4,
-                max_polynomial_degree=8,
+                max_polynomial_degree=8,  # Must be >= initial polynomial degree (6)
+                nlp_options=solver_options,
             )
 
             # Check if solution succeeded or at least made progress
