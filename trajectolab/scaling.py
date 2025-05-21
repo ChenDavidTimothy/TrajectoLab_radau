@@ -12,14 +12,12 @@ from __future__ import annotations
 import logging
 from typing import TypeAlias
 
-import casadi as ca
 import numpy as np
 
 from trajectolab.tl_types import (
     Constraint,
     FloatArray,
     InitialGuess,
-    OptimalControlSolution,
     SymExpr,
     SymType,
 )
@@ -62,12 +60,7 @@ class ScalingManager:
         self._control_scale_factors: dict[str, _ScaleFactor] = {}
         self._sym_state_map: dict[SymType, str] = {}
         self._sym_control_map: dict[SymType, str] = {}
-        self._param_scale_factors: dict[str, _ScaleFactor] = {}
         self._time_scale_factor: _ScaleFactor = (1.0, 0.0)  # Default: no scaling
-        self._original_state_syms: dict[str, SymType] = {}
-        self._original_control_syms: dict[str, SymType] = {}
-        self._scaled_state_syms: dict[str, SymType] = {}
-        self._scaled_control_syms: dict[str, SymType] = {}
 
         scaling_logger.info(f"Automatic scaling {'enabled' if enabled else 'disabled'}")
 
@@ -83,25 +76,17 @@ class ScalingManager:
             lower: Lower bound or None
             upper: Upper bound or None
         """
-        # Check if this symbolic variable is already registered
-        if sym in self._sym_state_map:
-            return
-
-        if not self.enabled:
-            self._state_scale_factors[name] = (1.0, 0.0)  # No scaling
-            self._sym_state_map[sym] = name
-            self._original_state_syms[name] = sym
+        # Skip if scaling disabled or variable already registered
+        if not self.enabled or sym in self._sym_state_map:
+            if not self.enabled:
+                self._state_scale_factors[name] = (1.0, 0.0)  # No scaling
+                self._sym_state_map[sym] = name
             return
 
         # Calculate scale factors using Rule 2
         scale_weight, scale_shift = self._calculate_scale_factors(name, lower, upper)
         self._state_scale_factors[name] = (scale_weight, scale_shift)
         self._sym_state_map[sym] = name
-        self._original_state_syms[name] = sym
-
-        # Create a new symbolic variable for the scaled version
-        scaled_sym = ca.MX.sym(f"{name}_scaled", sym.shape)
-        self._scaled_state_syms[name] = scaled_sym
 
         scaling_logger.debug(
             f"Registered state '{name}' with scale factor: weight={scale_weight}, shift={scale_shift}"
@@ -119,21 +104,17 @@ class ScalingManager:
             lower: Lower bound or None
             upper: Upper bound or None
         """
-        if not self.enabled:
-            self._control_scale_factors[name] = (1.0, 0.0)  # No scaling
-            self._sym_control_map[sym] = name
-            self._original_control_syms[name] = sym
+        # Skip if scaling disabled or variable already registered
+        if not self.enabled or sym in self._sym_control_map:
+            if not self.enabled:
+                self._control_scale_factors[name] = (1.0, 0.0)  # No scaling
+                self._sym_control_map[sym] = name
             return
 
         # Calculate scale factors using Rule 2
         scale_weight, scale_shift = self._calculate_scale_factors(name, lower, upper)
         self._control_scale_factors[name] = (scale_weight, scale_shift)
         self._sym_control_map[sym] = name
-        self._original_control_syms[name] = sym
-
-        # Create a new symbolic variable for the scaled version
-        scaled_sym = ca.MX.sym(f"{name}_scaled", sym.shape)
-        self._scaled_control_syms[name] = scaled_sym
 
         scaling_logger.debug(
             f"Registered control '{name}' with scale factor: weight={scale_weight}, shift={scale_shift}"
@@ -178,7 +159,7 @@ class ScalingManager:
         scale_shift = 0.0
 
         # Rule 2: If bounds available, calculate scale factors
-        if lower is not None and upper is not None and upper != lower:
+        if lower is not None and upper is not None and abs(upper - lower) > 1e-10:
             # Weight: 1/(upper - lower)  (equation 4.250)
             scale_weight = 1.0 / (upper - lower)
 
@@ -196,6 +177,14 @@ class ScalingManager:
             )
 
         return (scale_weight, scale_shift)
+
+    def get_state_scale_factors(self, name: str) -> _ScaleFactor:
+        """Get scale factors for a state variable."""
+        return self._state_scale_factors.get(name, (1.0, 0.0))
+
+    def get_control_scale_factors(self, name: str) -> _ScaleFactor:
+        """Get scale factors for a control variable."""
+        return self._control_scale_factors.get(name, (1.0, 0.0))
 
     def scale_state_value(self, name: str, value: float | FloatArray) -> float | FloatArray:
         """
@@ -240,6 +229,7 @@ class ScalingManager:
         Scale a time value.
 
         Args:
+            name: Time value name
             value: Physical value
 
         Returns:
@@ -309,97 +299,37 @@ class ScalingManager:
         # Invert scaling: t = (t̃ - r_t) / v_t
         return (value - scale_shift) / scale_weight
 
-    def create_scaled_dynamics(
-        self, dynamics_dict: dict[SymType, SymExpr]
-    ) -> dict[SymType, SymExpr]:
+    def scale_dynamics(self, state_sym: SymType, expr: SymExpr) -> SymExpr:
         """
-        Scale the dynamics equations.
-
-        This implements Rules 1 and 3 by:
-        1. Consistently scaling state variables
-        2. Applying appropriate ODE defect scaling
+        Scale a dynamics expression according to Rule 3.
 
         Args:
-            dynamics_dict: Mapping from state symbols to dynamics expressions (in physical units)
+            state_sym: State symbolic variable
+            expr: Dynamics expression (RHS of ODE)
 
         Returns:
-            Mapping from state symbols to scaled dynamics expressions
+            Scaled dynamics expression
         """
         if not self.enabled:
-            return dynamics_dict
+            return expr
 
-        # Create substitution maps for states and controls
-        state_subs_map = {}
-        control_subs_map = {}
+        # Get state name and scale factors
+        state_name = self._sym_state_map.get(state_sym)
+        if state_name is None:
+            return expr
 
-        # For each state, create substitution: original_sym → unscaled expression of scaled_sym
-        for name, orig_sym in self._original_state_syms.items():
-            if name not in self._scaled_state_syms:
-                continue
+        state_weight, _ = self._state_scale_factors.get(state_name, (1.0, 0.0))
+        time_weight, _ = self._time_scale_factor
 
-            scaled_sym = self._scaled_state_syms[name]
-            scale_weight, scale_shift = self._state_scale_factors[name]
-
-            # Unscaled expression: y = (ỹ - r_y) / v_y
-            unscaled_expr = (scaled_sym - scale_shift) / scale_weight
-            state_subs_map[orig_sym] = unscaled_expr
-
-        # Same for controls
-        for name, orig_sym in self._original_control_syms.items():
-            if name not in self._scaled_control_syms:
-                continue
-
-            scaled_sym = self._scaled_control_syms[name]
-            scale_weight, scale_shift = self._control_scale_factors[name]
-
-            # Unscaled expression: u = (ũ - r_u) / v_u
-            unscaled_expr = (scaled_sym - scale_shift) / scale_weight
-            control_subs_map[orig_sym] = unscaled_expr
-
-        # Combine substitution maps
-        full_subs_map = {**state_subs_map, **control_subs_map}
-
-        # Apply substitutions to dynamics expressions and scale appropriately
-        scaled_dynamics_dict = {}
-
-        for state_sym, dynamics_expr in dynamics_dict.items():
-            if state_sym not in self._sym_state_map:
-                # If state not registered, pass through unchanged
-                scaled_dynamics_dict[state_sym] = dynamics_expr
-                continue
-
-            state_name = self._sym_state_map[state_sym]
-            if state_name not in self._scaled_state_syms:
-                # If scaled sym not created, pass through unchanged
-                scaled_dynamics_dict[state_sym] = dynamics_expr
-                continue
-
-            scaled_state_sym = self._scaled_state_syms[state_name]
-            state_scale_weight, _ = self._state_scale_factors[state_name]
-            time_scale_weight, _ = self._time_scale_factor
-
-            # Step 1: Substitute all variables with their unscaled expressions
-            # This changes f(y,u,t) to f((ỹ-r_y)/v_y, (ũ-r_u)/v_u, (t̃-r_t)/v_t)
-            substituted_expr = ca.substitute(
-                [dynamics_expr], list(full_subs_map.keys()), list(full_subs_map.values())
-            )[0]
-
-            # Step 2: Apply scaling according to Rule 3
-            # For ODE ẏ = f(y,u,t), the scaled equation is:
-            # d(ỹ)/d(t̃) = (v_y/v_t) * f((ỹ-r_y)/v_y, (ũ-r_u)/v_u, (t̃-r_t)/v_t)
-            scaled_expr = (state_scale_weight / time_scale_weight) * substituted_expr
-
-            # Add to result with the scaled state symbol
-            scaled_dynamics_dict[state_sym] = scaled_expr
-
-        return scaled_dynamics_dict
+        # Apply Rule 3: d(ỹ)/d(t̃) = (v_y/v_t) * f(y,u,t)
+        return (state_weight / time_weight) * expr
 
     def scale_constraint(self, constraint: Constraint) -> Constraint:
         """
-        Scale a constraint by applying scaling to its variables and bounds.
+        Scale a constraint.
 
         Args:
-            constraint: Original constraint in physical units
+            constraint: Original constraint
 
         Returns:
             Scaled constraint
@@ -407,41 +337,10 @@ class ScalingManager:
         if not self.enabled:
             return constraint
 
-        # Create substitution maps for original to unscaled expressions
-        subs_map = {}
-
-        # Handle state variables
-        for name, orig_sym in self._original_state_syms.items():
-            if name in self._scaled_state_syms:
-                scaled_sym = self._scaled_state_syms[name]
-                scale_weight, scale_shift = self._state_scale_factors[name]
-                unscaled_expr = (scaled_sym - scale_shift) / scale_weight
-                subs_map[orig_sym] = unscaled_expr
-
-        # Handle control variables
-        for name, orig_sym in self._original_control_syms.items():
-            if name in self._scaled_control_syms:
-                scaled_sym = self._scaled_control_syms[name]
-                scale_weight, scale_shift = self._control_scale_factors[name]
-                unscaled_expr = (scaled_sym - scale_shift) / scale_weight
-                subs_map[orig_sym] = unscaled_expr
-
-        # Apply substitution to constraint expression
-        original_val = constraint.val
-        substituted_val = ca.substitute(
-            [original_val], list(subs_map.keys()), list(subs_map.values())
-        )[0]
-
-        # Create scaled constraint with original bounds
-        # The bounds will be applied to the scaled expression in the solver
-        scaled_constraint = Constraint(
-            val=substituted_val,
-            min_val=constraint.min_val,
-            max_val=constraint.max_val,
-            equals=constraint.equals,
-        )
-
-        return scaled_constraint
+        # For now, we're keeping constraints unscaled
+        # This is a simplification; a more complete implementation would
+        # need to analyze the constraint expression and scale it appropriately
+        return constraint
 
     def scale_initial_guess(self, initial_guess: InitialGuess | None) -> InitialGuess | None:
         """
@@ -468,7 +367,7 @@ class ScalingManager:
         # Scale state trajectories
         scaled_states = None
         if initial_guess.states is not None:
-            state_names = list(self._original_state_syms.keys())
+            state_names = list(self._sym_state_map.values())
             scaled_states = []
 
             # For each interval's state trajectory
@@ -486,7 +385,7 @@ class ScalingManager:
         # Scale control trajectories
         scaled_controls = None
         if initial_guess.controls is not None:
-            control_names = list(self._original_control_syms.keys())
+            control_names = list(self._sym_control_map.values())
             scaled_controls = []
 
             # For each interval's control trajectory
@@ -504,8 +403,7 @@ class ScalingManager:
                 scaled_controls.append(interval_scaled)
 
         # Return scaled initial guess
-        # Note: Integrals scaling would depend on problem formulation
-        # For simplicity, we leave integrals unscaled here
+        # Note: Integrals scaling is not implemented here
         return InitialGuess(
             initial_time_variable=scaled_t0,
             terminal_time_variable=scaled_tf,
@@ -513,104 +411,3 @@ class ScalingManager:
             controls=scaled_controls,
             integrals=initial_guess.integrals,
         )
-
-    def unscale_solution(self, solution: OptimalControlSolution) -> OptimalControlSolution:
-        """
-        Unscale an optimal control solution.
-
-        Args:
-            solution: Solution with scaled values
-
-        Returns:
-            Solution with physical values
-        """
-        if not self.enabled:
-            return solution
-
-        # Unscale time variables
-        if solution.initial_time_variable is not None:
-            solution.initial_time_variable = self.unscale_time_value(solution.initial_time_variable)
-        if solution.terminal_time_variable is not None:
-            solution.terminal_time_variable = self.unscale_time_value(
-                solution.terminal_time_variable
-            )
-
-        # Unscale state trajectories
-        if solution.states is not None:
-            state_names = list(self._original_state_syms.keys())
-            for i, name in enumerate(state_names):
-                if i < len(solution.states):
-                    solution.states[i] = self.unscale_state_value(name, solution.states[i])
-
-        # Unscale control trajectories
-        if solution.controls is not None:
-            control_names = list(self._original_control_syms.keys())
-            for i, name in enumerate(control_names):
-                if i < len(solution.controls):
-                    solution.controls[i] = self.unscale_control_value(name, solution.controls[i])
-
-        # Unscale per-interval trajectories if available
-        if solution.solved_state_trajectories_per_interval is not None:
-            state_names = list(self._original_state_syms.keys())
-            for interval_idx, interval_states in enumerate(
-                solution.solved_state_trajectories_per_interval
-            ):
-                for i, name in enumerate(state_names):
-                    if i < interval_states.shape[0]:
-                        solution.solved_state_trajectories_per_interval[interval_idx][i, :] = (
-                            self.unscale_state_value(name, interval_states[i, :])
-                        )
-
-        if solution.solved_control_trajectories_per_interval is not None:
-            control_names = list(self._original_control_syms.keys())
-            for interval_idx, interval_controls in enumerate(
-                solution.solved_control_trajectories_per_interval
-            ):
-                for i, name in enumerate(control_names):
-                    if i < interval_controls.shape[0]:
-                        solution.solved_control_trajectories_per_interval[interval_idx][i, :] = (
-                            self.unscale_control_value(name, interval_controls[i, :])
-                        )
-
-        return solution
-
-    def scale_objective(self, objective_expr: SymExpr) -> SymExpr:
-        """
-        Scale an objective function expression.
-
-        Args:
-            objective_expr: Objective expression (in physical units)
-
-        Returns:
-            Scaled objective expression
-        """
-        if not self.enabled:
-            return objective_expr
-
-        # Create substitution maps for states and controls
-        subs_map = {}
-
-        # For states: original_sym → unscaled expression of scaled_sym
-        for name, orig_sym in self._original_state_syms.items():
-            if name in self._scaled_state_syms:
-                scaled_sym = self._scaled_state_syms[name]
-                scale_weight, scale_shift = self._state_scale_factors[name]
-                unscaled_expr = (scaled_sym - scale_shift) / scale_weight
-                subs_map[orig_sym] = unscaled_expr
-
-        # For controls: original_sym → unscaled expression of scaled_sym
-        for name, orig_sym in self._original_control_syms.items():
-            if name in self._scaled_control_syms:
-                scaled_sym = self._scaled_control_syms[name]
-                scale_weight, scale_shift = self._control_scale_factors[name]
-                unscaled_expr = (scaled_sym - scale_shift) / scale_weight
-                subs_map[orig_sym] = unscaled_expr
-
-        # Apply substitution to objective expression
-        # This replaces original symbols with expressions containing scaled symbols
-        # J(y,u) → J((ỹ-r_y)/v_y, (ũ-r_u)/v_u)
-        substituted_obj = ca.substitute(
-            [objective_expr], list(subs_map.keys()), list(subs_map.values())
-        )[0]
-
-        return substituted_obj

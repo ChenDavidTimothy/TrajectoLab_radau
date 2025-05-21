@@ -136,7 +136,7 @@ def get_objective_function(variable_state: VariableState) -> ObjectiveCallable:
     q = (
         ca.vertcat(*variable_state.integral_symbols)
         if variable_state.integral_symbols
-        else ca.MX.sym("q", 1)  # type: ignore[arg-type]
+        else ca.MX.sym("q", variable_state.num_integrals if variable_state.num_integrals > 0 else 1)  # type: ignore[arg-type]
     )
     param_syms = (
         ca.vertcat(*variable_state.sym_parameters.values())
@@ -155,13 +155,12 @@ def get_objective_function(variable_state: VariableState) -> ObjectiveCallable:
 
         for i, sym in enumerate(state_syms):
             old_syms.append(sym)
-            # Handle dimension mismatch for single state
             if len(state_syms) == 1:
                 new_syms.append(xf_vec)
             else:
                 new_syms.append(xf_vec[i])
 
-        # Apply substitution
+        # Apply substitution - replace state vars with final state values
         objective_expr = ca.substitute([objective_expr], old_syms, new_syms)[0]
 
     # Create unified objective function
@@ -169,6 +168,8 @@ def get_objective_function(variable_state: VariableState) -> ObjectiveCallable:
         "objective",
         [t0, tf, x0_vec, xf_vec, q, param_syms],
         [objective_expr],
+        ["t0", "tf", "x0", "xf", "q", "p"],
+        ["obj"],
     )
 
     # Create wrapper function

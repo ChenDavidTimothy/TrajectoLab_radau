@@ -188,22 +188,15 @@ class Problem:
         Set dynamics expressions with automatic scaling.
 
         Args:
-            dynamics_dict: Mapping from original state symbols to dynamics expressions
+            dynamics_dict: Mapping from state symbols to dynamics expressions
         """
-        # When scaling is enabled, apply rule 3 to each expression
         if self._scaling_manager.enabled:
+            # Apply Rule 3 for ODE defect scaling
             scaled_dict = {}
             for state_sym, expr in dynamics_dict.items():
-                if state_sym in self._scaling_manager._sym_state_map:
-                    state_name = self._scaling_manager._sym_state_map[state_sym]
-                    state_weight = self._scaling_manager._state_scale_factors[state_name][0]
-                    time_weight = self._scaling_manager._time_scale_factor[0]
-
-                    # Apply the ODE defect scaling rule: d(ỹ)/d(t̃) = (v_y/v_t) * f(y,u,t)
-                    scaled_expr = (state_weight / time_weight) * expr
-                    scaled_dict[state_sym] = scaled_expr
-                else:
-                    scaled_dict[state_sym] = expr
+                # Scale each dynamics expression using Rule 3
+                scaled_expr = self._scaling_manager.scale_dynamics(state_sym, expr)
+                scaled_dict[state_sym] = scaled_expr
 
             variables_problem.set_dynamics(self._variable_state, scaled_dict)
         else:
@@ -214,18 +207,14 @@ class Problem:
 
     def minimize(self, objective_expr: SymExpr) -> None:
         """
-        Set the objective function with automatic scaling.
+        Set the objective function to minimize.
 
         Args:
-            objective_expr: Objective function expression (in physical units)
+            objective_expr: Objective function expression to minimize
         """
-        if self._scaling_manager.enabled:
-            # Scale the objective expression
-            scaled_obj = self._scaling_manager.scale_objective(objective_expr)
-            variables_problem.set_objective(self._variable_state, scaled_obj)
-        else:
-            # If scaling disabled, use objective as-is
-            variables_problem.set_objective(self._variable_state, objective_expr)
+        # We don't scale the objective expression directly
+        # Scaling will happen at the numerical level during optimization
+        variables_problem.set_objective(self._variable_state, objective_expr)
 
     def subject_to(self, constraint_expr: SymExpr | Constraint) -> None:
         """
