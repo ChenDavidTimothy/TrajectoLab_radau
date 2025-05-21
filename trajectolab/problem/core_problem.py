@@ -177,7 +177,15 @@ class Problem:
     def set_mesh(
         self, polynomial_degrees: list[int], mesh_points: FloatArray | list[float]
     ) -> None:
-        """Configure mesh and update scaling if needed."""
+        """Configure mesh structure for the problem.
+
+        This method clears any existing initial guess, as mesh changes require
+        a new guess that matches the new mesh structure. After setting the mesh,
+        call set_initial_guess() to provide a starting point for the solver.
+
+        Note: When using automatic scaling, scaling factors will be computed
+        right before solving, using both bounds and any initial guess provided.
+        """
         print("\n=== SETTING MESH ===")
         print(f"Polynomial degrees: {polynomial_degrees}")
         print(f"Mesh points: {mesh_points}")
@@ -189,12 +197,8 @@ class Problem:
         initial_guess_problem.clear_initial_guess(self._initial_guess_container)
         print("Initial guess cleared")
 
-        # Compute scaling if needed and we have enough problem info
-        if self.use_scaling and len(self._states) > 0:
-            print(f"Computing scaling from problem (states: {list(self._states.keys())})")
-            self._scaling.compute_from_problem(self)
-        else:
-            print("Skipping automatic scaling computation")
+        # NScaling computation removed from here - will happen at solve time
+        print("Scaling will be computed right before solving")
 
     # Initial guess methods
     def set_initial_guess(self, **kwargs) -> None:

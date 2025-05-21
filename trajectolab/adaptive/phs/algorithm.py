@@ -395,12 +395,6 @@ def solve_phs_adaptive_internal(
     current_polynomial_degrees = list(initial_polynomial_degrees)
     current_mesh_points = initial_mesh_points.copy()
 
-    # Initialize scaling if available
-    use_scaling = hasattr(problem, "use_scaling") and problem.use_scaling
-    if use_scaling:
-        # Initial scaling computation based on problem definition
-        problem._scaling.compute_from_problem(problem)
-
     # Track most recent successful solution
     most_recent_solution: OptimalControlSolution | None = None
 
@@ -441,6 +435,13 @@ def solve_phs_adaptive_internal(
                 current_mesh_points,
             )
             problem.initial_guess = propagated_guess
+
+        # Compute scaling right before solving - this will use latest mesh and initial guess
+        if use_scaling and hasattr(problem, "_states") and len(problem._states) > 0:
+            print(
+                f"\nComputing scaling for adaptive iteration {iteration + 1} (states: {list(problem._states.keys())})"
+            )
+            problem._scaling.compute_from_problem(problem)
 
         # Solve optimal control problem
         solution = solve_single_phase_radau_collocation(problem)

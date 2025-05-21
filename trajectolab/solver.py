@@ -27,6 +27,11 @@ def solve_fixed_mesh(
         "print_time": 0,
     }
 
+    # Compute scaling right before solving - this will use the latest information
+    if problem.use_scaling and len(problem._states) > 0:
+        print(f"\nComputing scaling from problem (states: {list(problem._states.keys())})")
+        problem._scaling.compute_from_problem(problem)
+
     # Create protocol-compatible version and solve
     protocol_problem = cast(ProblemProtocol, problem)
     solution_data: OptimalControlSolution = solve_single_phase_radau_collocation(protocol_problem)
@@ -86,6 +91,11 @@ def solve_adaptive(
 
     # Create protocol-compatible version
     protocol_problem = cast(ProblemProtocol, problem)
+
+    # Compute scaling right before passing to adaptive solver
+    if problem.use_scaling and len(problem._states) > 0:
+        print(f"\nComputing scaling from problem (states: {list(problem._states.keys())})")
+        problem._scaling.compute_from_problem(problem)
 
     # Call the internal adaptive solver
     solution_data: OptimalControlSolution = solve_phs_adaptive_internal(
