@@ -192,7 +192,7 @@ def solve_with_fixed_mesh(
             "ipopt.mumps_mem_percent": 50000,
             "ipopt.linear_solver": "mumps",
             "ipopt.constr_viol_tol": 1e-7,
-            "ipopt.print_level": 0,
+            "ipopt.print_level": 5,
             "ipopt.nlp_scaling_method": "gradient-based",
             "ipopt.mu_strategy": "adaptive",
             "ipopt.tol": 1e-8,
