@@ -456,7 +456,7 @@ def run_fair_comparison():
         max_iterations=10,
         min_polynomial_degree=4,
         max_polynomial_degree=10,
-        nlp_options=adaptive_mesh_options,
+        nlp_options=fixed_mesh_options,
     )
     solve_time3 = time.time() - start_time
 
@@ -499,7 +499,7 @@ def run_fair_comparison():
         max_iterations=10,
         min_polynomial_degree=4,
         max_polynomial_degree=10,
-        nlp_options=adaptive_mesh_options,
+        nlp_options=fixed_mesh_options,
     )
     solve_time4 = time.time() - start_time
 
