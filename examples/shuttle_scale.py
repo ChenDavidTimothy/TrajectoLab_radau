@@ -342,15 +342,6 @@ def run_fair_comparison():
         "ipopt.tol": 1e-8,
     }
 
-    adaptive_mesh_options = {
-        "ipopt.max_iter": 2000,
-        "ipopt.print_level": 0,
-        "ipopt.tol": 1e-6,
-        "ipopt.constr_viol_tol": 1e-6,
-        "ipopt.nlp_scaling_method": "gradient-based",
-        "ipopt.mu_strategy": "adaptive",
-    }
-
     print("\n=== FIXED MESH WITH MANUAL SCALING (ORIGINAL) ===")
     # Import original function with manual scaling
 
@@ -367,8 +358,8 @@ def run_fair_comparison():
     )
 
     # Set up mesh
-    num_intervals = 2
-    polynomial_degrees = [2] * num_intervals
+    num_intervals = 15
+    polynomial_degrees = [20] * num_intervals
     mesh_points = np.linspace(-1.0, 1.0, num_intervals + 1)
     problem1.set_mesh(polynomial_degrees, mesh_points)
 
@@ -437,7 +428,6 @@ def run_fair_comparison():
 
     print("\n=== ADAPTIVE MESH WITH MANUAL SCALING (ORIGINAL) ===")
 
-    """
     # 3. ORIGINAL PROBLEM WITH MANUAL SCALING (use_scaling=False)
     problem3, sym_vars3 = create_shuttle_reentry_problem(
         heating_constraint=heating_limit,
@@ -526,7 +516,7 @@ def run_fair_comparison():
         print(f"  Solve time: {solve_time4:.2f} seconds")
         print(f"  Final mesh intervals: {len(solution4.mesh_points) - 1}")
         print(f"  Final polynomial degrees: {solution4.polynomial_degrees}")
-    """
+
     return results
 
 

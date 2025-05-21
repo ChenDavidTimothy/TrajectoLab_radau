@@ -437,7 +437,7 @@ def solve_phs_adaptive_internal(
             problem.initial_guess = propagated_guess
 
         # Compute scaling right before solving - this will use latest mesh and initial guess
-        if use_scaling and hasattr(problem, "_states") and len(problem._states) > 0:
+        if hasattr(problem, "use_scaling") and problem.use_scaling and len(problem._states) > 0:
             print(
                 f"\nComputing scaling for adaptive iteration {iteration + 1} (states: {list(problem._states.keys())})"
             )
@@ -478,7 +478,7 @@ def solve_phs_adaptive_internal(
         most_recent_solution.global_mesh_nodes_at_solve_time = current_mesh_points.copy()
 
         # Update scaling for next iteration if needed
-        if use_scaling and solution.success:
+        if hasattr(problem, "use_scaling") and problem.use_scaling and solution.success:
             from trajectolab.scaling import update_scaling_after_mesh_refinement
 
             update_scaling_after_mesh_refinement(problem._scaling, problem, solution)
