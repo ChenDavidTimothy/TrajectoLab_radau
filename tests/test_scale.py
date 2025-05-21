@@ -535,8 +535,8 @@ class ScalingVerifier:
                 return False
 
             # Verify solution was properly unscaled
-            h_data = solution.states[0]
-            v_data = solution.states[1]
+            h_time, h_data = solution.get_state_trajectory("h")
+            v_time, v_data = solution.get_state_trajectory("v")
 
             h_min, h_max = np.min(h_data), np.max(h_data)
             v_min, v_max = np.min(v_data), np.max(v_data)
@@ -669,8 +669,8 @@ class ScalingVerifier:
                 return False
 
             # Check that solution values are in expected range
-            h_data = solution.states[0]
-            v_data = solution.states[1]
+            h_time, h_data = solution.get_state_trajectory("h")
+            v_time, v_data = solution.get_state_trajectory("v")
 
             h_min, h_max = np.min(h_data), np.max(h_data)
             v_min, v_max = np.min(v_data), np.max(v_data)
