@@ -3,7 +3,6 @@ Fixed collocation constraints application with proper scaling validation.
 """
 
 import logging
-from collections.abc import Sequence
 
 import casadi as ca
 
@@ -91,8 +90,7 @@ def apply_collocation_constraints(
         (terminal_time_variable - initial_time_variable) * global_segment_length / 4.0
     )
 
-    # FIXED: Use consistent scaling check with problem.use_scaling
-    # This is the CRITICAL fix: we consistently use problem.use_scaling property
+    # Check if scaling is enabled using consistent property
     use_scaling = False
     if problem is not None and hasattr(problem, "use_scaling"):
         use_scaling = problem.use_scaling
@@ -104,6 +102,15 @@ def apply_collocation_constraints(
     if problem is not None and hasattr(problem, "_states"):
         state_names = list(problem._states.keys())
         constraints_logger.debug(f"Found {len(state_names)} state names: {state_names}")
+
+    # Prepare parameters to pass to dynamics function - include scaling info
+    dynamics_params = dict(problem_parameters)
+    if problem is not None:
+        # Add scaling information to parameters for dynamics function
+        dynamics_params["_use_scaling"] = use_scaling
+        dynamics_params["_scaling_object"] = (
+            problem._scaling if hasattr(problem, "_scaling") else None
+        )
 
     # Apply constraints at each collocation point
     for i_colloc in range(num_colloc_nodes):
@@ -124,9 +131,9 @@ def apply_collocation_constraints(
             terminal_time_variable - initial_time_variable
         ) / 2 * global_colloc_tau_val + (terminal_time_variable + initial_time_variable) / 2
 
-        # Get dynamics and apply constraint
+        # Get dynamics - unscaling now happens in the dynamics_function wrapper
         state_derivative_rhs: list[CasadiMX] | CasadiMX | Sequence[CasadiMX] = dynamics_function(
-            state_at_colloc, control_at_colloc, physical_time_at_colloc, problem_parameters
+            state_at_colloc, control_at_colloc, physical_time_at_colloc, dynamics_params
         )
 
         # Validate and format dynamics output
@@ -135,7 +142,7 @@ def apply_collocation_constraints(
             state_derivative_rhs, num_states
         )
 
-        # FIXED: Simplified conditional for better readability and safety
+        # Apply scaled or unscaled constraints as appropriate
         if use_scaling and problem is not None and hasattr(problem, "_scaling"):
             # Apply scaled constraints using imported function
             from trajectolab.scaling import apply_scaling_to_defect_constraints
@@ -174,21 +181,10 @@ def apply_path_constraints(
     terminal_time_variable: CasadiMX,
     path_constraints_function: PathConstraintsCallable,
     problem_parameters: ProblemParameters,
+    problem: ProblemProtocol | None = None,
 ) -> None:
     """
     Apply path constraints for a single mesh interval.
-
-    Args:
-        opti: CasADi optimization object
-        mesh_interval_index: Index of mesh interval
-        state_at_nodes: State variables at all nodes in interval
-        control_variables: Control variables for interval
-        basis_components: Radau basis components
-        global_normalized_mesh_nodes: Global mesh nodes
-        initial_time_variable: Initial time variable
-        terminal_time_variable: Terminal time variable
-        path_constraints_function: Path constraints function
-        problem_parameters: Problem parameters
     """
     num_colloc_nodes = len(basis_components.collocation_nodes)
     colloc_nodes_tau = basis_components.collocation_nodes.flatten()
@@ -196,6 +192,20 @@ def apply_path_constraints(
         global_normalized_mesh_nodes[mesh_interval_index + 1]
         - global_normalized_mesh_nodes[mesh_interval_index]
     )
+
+    # Check if scaling is enabled using consistent property
+    use_scaling = False
+    if problem is not None and hasattr(problem, "use_scaling"):
+        use_scaling = problem.use_scaling
+
+    # Prepare parameters to pass to path constraints function - include scaling info
+    constraint_params = dict(problem_parameters)
+    if problem is not None:
+        # Add scaling information to parameters
+        constraint_params["_use_scaling"] = use_scaling
+        constraint_params["_scaling_object"] = (
+            problem._scaling if hasattr(problem, "_scaling") else None
+        )
 
     for i_colloc in range(num_colloc_nodes):
         state_at_colloc: CasadiMX = state_at_nodes[:, i_colloc]
@@ -215,12 +225,12 @@ def apply_path_constraints(
             terminal_time_variable - initial_time_variable
         ) / 2 * global_colloc_tau_val + (terminal_time_variable + initial_time_variable) / 2
 
-        # Get and apply path constraints
+        # Get and apply path constraints - passes scaling info through parameters
         path_constraints_result: list[Constraint] | Constraint = path_constraints_function(
             state_at_colloc,
             control_at_colloc,
             physical_time_at_colloc,
-            problem_parameters,
+            constraint_params,
         )
 
         constraints_to_apply = (

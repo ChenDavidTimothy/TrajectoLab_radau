@@ -428,94 +428,94 @@ def run_fair_comparison():
 
     print("\n=== ADAPTIVE MESH WITH MANUAL SCALING (ORIGINAL) ===")
 
-    # 3. ORIGINAL PROBLEM WITH MANUAL SCALING (use_scaling=False)
-    problem3, sym_vars3 = create_shuttle_reentry_problem(
-        heating_constraint=heating_limit,
-        bank_angle_min=bank_min,
-    )
-    # Disable automatic scaling
-    problem3.use_scaling = False
-
-    # Set up initial mesh for adaptive
-    initial_num_intervals = 9
-    initial_poly_degree = 6
-    initial_polynomial_degrees = [initial_poly_degree] * initial_num_intervals
-    initial_mesh_points = np.linspace(-1.0, 1.0, initial_num_intervals + 1)
-    problem3.set_mesh(initial_polynomial_degrees, initial_mesh_points)
-
-    # Use original initial guess
-    prepare_initial_guess(
-        problem3, initial_polynomial_degrees, deg2rad, initial_terminal_time=2000.0
-    )
-
-    # Solve with adaptive mesh
-    start_time = time.time()
-    solution3 = tl.solve_adaptive(
-        problem3,
-        error_tolerance=1e-5,
-        max_iterations=10,
-        min_polynomial_degree=4,
-        max_polynomial_degree=10,
-        nlp_options=fixed_mesh_options,
-    )
-    solve_time3 = time.time() - start_time
-
-    results["Adaptive Mesh - Manual Scaling"] = {
-        "solution": solution3,
-        "sym_vars": sym_vars3,
-        "solve_time": solve_time3,
-    }
-
-    print(f"  Success: {solution3.success}")
-    if solution3.success:
-        print(f"  Objective (final latitude): {-solution3.objective:.5f} radians")
-        print(f"  Final time: {solution3.final_time:.2f} seconds")
-        print(f"  Solve time: {solve_time3:.2f} seconds")
-        print(f"  Final mesh intervals: {len(solution3.mesh_points) - 1}")
-        print(f"  Final polynomial degrees: {solution3.polynomial_degrees}")
-
-    print("\n=== ADAPTIVE MESH WITH AUTOMATIC SCALING ===")
-    # 4. UNSCALED PROBLEM WITH AUTOMATIC SCALING (use_scaling=True)
-    problem4, sym_vars4 = create_unscaled_shuttle_problem(
-        heating_constraint=heating_limit,
-        bank_angle_min=bank_min,
-    )
-    # Ensure automatic scaling is enabled
-    problem4.use_scaling = True
-
-    # Set up identical initial mesh
-    problem4.set_mesh(initial_polynomial_degrees, initial_mesh_points)
-
-    # Use unscaled initial guess
-    prepare_unscaled_initial_guess(
-        problem4, initial_polynomial_degrees, deg2rad, initial_terminal_time=2000.0
-    )
-
-    # Solve with adaptive mesh
-    start_time = time.time()
-    solution4 = tl.solve_adaptive(
-        problem4,
-        error_tolerance=1e-5,
-        max_iterations=10,
-        min_polynomial_degree=4,
-        max_polynomial_degree=10,
-        nlp_options=fixed_mesh_options,
-    )
-    solve_time4 = time.time() - start_time
-
-    results["Adaptive Mesh - Automatic Scaling"] = {
-        "solution": solution4,
-        "sym_vars": sym_vars4,
-        "solve_time": solve_time4,
-    }
-
-    print(f"  Success: {solution4.success}")
-    if solution4.success:
-        print(f"  Objective (final latitude): {-solution4.objective:.5f} radians")
-        print(f"  Final time: {solution4.final_time:.2f} seconds")
-        print(f"  Solve time: {solve_time4:.2f} seconds")
-        print(f"  Final mesh intervals: {len(solution4.mesh_points) - 1}")
-        print(f"  Final polynomial degrees: {solution4.polynomial_degrees}")
+    ## 3. ORIGINAL PROBLEM WITH MANUAL SCALING (use_scaling=False)
+    # problem3, sym_vars3 = create_shuttle_reentry_problem(
+    #    heating_constraint=heating_limit,
+    #    bank_angle_min=bank_min,
+    # )
+    ## Disable automatic scaling
+    # problem3.use_scaling = False
+    #
+    ## Set up initial mesh for adaptive
+    # initial_num_intervals = 9
+    # initial_poly_degree = 6
+    # initial_polynomial_degrees = [initial_poly_degree] * initial_num_intervals
+    # initial_mesh_points = np.linspace(-1.0, 1.0, initial_num_intervals + 1)
+    # problem3.set_mesh(initial_polynomial_degrees, initial_mesh_points)
+    #
+    ## Use original initial guess
+    # prepare_initial_guess(
+    #    problem3, initial_polynomial_degrees, deg2rad, initial_terminal_time=2000.0
+    # )
+    #
+    ## Solve with adaptive mesh
+    # start_time = time.time()
+    # solution3 = tl.solve_adaptive(
+    #    problem3,
+    #    error_tolerance=1e-5,
+    #    max_iterations=10,
+    #    min_polynomial_degree=4,
+    #    max_polynomial_degree=10,
+    #    nlp_options=fixed_mesh_options,
+    # )
+    # solve_time3 = time.time() - start_time
+    #
+    # results["Adaptive Mesh - Manual Scaling"] = {
+    #    "solution": solution3,
+    #    "sym_vars": sym_vars3,
+    #    "solve_time": solve_time3,
+    # }
+    #
+    # print(f"  Success: {solution3.success}")
+    # if solution3.success:
+    #    print(f"  Objective (final latitude): {-solution3.objective:.5f} radians")
+    #    print(f"  Final time: {solution3.final_time:.2f} seconds")
+    #    print(f"  Solve time: {solve_time3:.2f} seconds")
+    #    print(f"  Final mesh intervals: {len(solution3.mesh_points) - 1}")
+    #    print(f"  Final polynomial degrees: {solution3.polynomial_degrees}")
+    #
+    # print("\n=== ADAPTIVE MESH WITH AUTOMATIC SCALING ===")
+    ## 4. UNSCALED PROBLEM WITH AUTOMATIC SCALING (use_scaling=True)
+    # problem4, sym_vars4 = create_unscaled_shuttle_problem(
+    #    heating_constraint=heating_limit,
+    #    bank_angle_min=bank_min,
+    # )
+    ## Ensure automatic scaling is enabled
+    # problem4.use_scaling = True
+    #
+    ## Set up identical initial mesh
+    # problem4.set_mesh(initial_polynomial_degrees, initial_mesh_points)
+    #
+    ## Use unscaled initial guess
+    # prepare_unscaled_initial_guess(
+    #    problem4, initial_polynomial_degrees, deg2rad, initial_terminal_time=2000.0
+    # )
+    #
+    ## Solve with adaptive mesh
+    # start_time = time.time()
+    # solution4 = tl.solve_adaptive(
+    #    problem4,
+    #    error_tolerance=1e-5,
+    #    max_iterations=10,
+    #    min_polynomial_degree=4,
+    #    max_polynomial_degree=10,
+    #    nlp_options=fixed_mesh_options,
+    # )
+    # solve_time4 = time.time() - start_time
+    #
+    # results["Adaptive Mesh - Automatic Scaling"] = {
+    #    "solution": solution4,
+    #    "sym_vars": sym_vars4,
+    #    "solve_time": solve_time4,
+    # }
+    #
+    # print(f"  Success: {solution4.success}")
+    # if solution4.success:
+    #    print(f"  Objective (final latitude): {-solution4.objective:.5f} radians")
+    #    print(f"  Final time: {solution4.final_time:.2f} seconds")
+    #    print(f"  Solve time: {solve_time4:.2f} seconds")
+    #    print(f"  Final mesh intervals: {len(solution4.mesh_points) - 1}")
+    #    print(f"  Final polynomial degrees: {solution4.polynomial_degrees}")
 
     return results
 
