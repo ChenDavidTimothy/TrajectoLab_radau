@@ -28,7 +28,7 @@ problem.subject_to(speed <= speed_limit)
 problem.minimize(t.final)
 
 # Set up the mesh and provide initial guess
-problem.set_mesh([10, 10, 10], np.array([-1.0, -0.3, 0.3, 1.0]))
+problem.set_mesh([8, 8, 8], np.array([-1.0, -0.3, 0.3, 1.0]))
 
 # Provide initial guess - only one way to do this
 problem.set_initial_guess(terminal_time=2.0)
@@ -36,8 +36,6 @@ problem.set_initial_guess(terminal_time=2.0)
 # Solve with adaptive mesh
 solution = tl.solve_adaptive(
     problem,
-    initial_polynomial_degrees=[8, 8, 8],
-    initial_mesh_points=[-1.0, -0.3, 0.3, 1.0],
     error_tolerance=1e-7,
     max_iterations=20,
     min_polynomial_degree=4,
