@@ -73,7 +73,6 @@ def get_dynamics_function(variable_state: VariableState) -> DynamicsCallable:
         "dynamics", [states_vec, controls_vec, time, param_syms], [dynamics_vec]
     )
 
-    # Create wrapper function that handles scaling/unscaling
     def vectorized_dynamics(
         states_vec: CasadiMX,
         controls_vec: CasadiMX,
@@ -126,8 +125,25 @@ def get_dynamics_function(variable_state: VariableState) -> DynamicsCallable:
             # Call dynamics with unscaled values
             result = dynamics_func(unscaled_states, unscaled_controls, time, param_vec)
 
-            # No need to rescale the result - this will be handled by apply_scaling_to_defect_constraints
-            # which applies Rule 3 (W_f = V_y)
+            # NEW CODE: Scale dynamics output to match scaled states' derivatives
+            dynamics_output = result[0] if isinstance(result, list | tuple) else result
+            if isinstance(dynamics_output, ca.MX | ca.DM):
+                scaled_dynamics = ca.MX(dynamics_output)
+
+                # Scale each state derivative by the corresponding state factor
+                for i, name in enumerate(state_names):
+                    if i < dynamics_output.shape[0]:
+                        factor, _ = scaling_obj.get_state_scaling(name)
+                        # Only scale if not default scaling
+                        if abs(factor - 1.0) >= 1e-10:
+                            scaled_dynamics[i] = factor * dynamics_output[i]
+
+                # Convert to list for return
+                result_list: list[CasadiMX] = []
+                for i in range(scaled_dynamics.shape[0]):
+                    result_list.append(cast(CasadiMX, scaled_dynamics[i]))
+                return result_list
+
         else:
             # Standard call without scaling
             result = dynamics_func(states_vec, controls_vec, time, param_vec)

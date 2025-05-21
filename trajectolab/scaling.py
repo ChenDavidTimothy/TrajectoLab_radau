@@ -428,7 +428,7 @@ def apply_scaling_to_defect_constraints(
         f"Applying scaled defect constraints for {num_states} states at collocation point {i_colloc}"
     )
 
-    # Apply scaled collocation constraints (Rule 3)
+    # Apply scaled collocation constraints
     for i_state in range(num_states):
         if i_state >= len(state_names):
             scaling_logger.warning(
@@ -437,21 +437,20 @@ def apply_scaling_to_defect_constraints(
             continue
 
         state_name = state_names[i_state]
-        scaling.get_state_scaling_factor(state_name)
+        factor = scaling.get_state_scaling_factor(state_name)
 
-        # Create defect constraint
-        defect = (
+        # Scale dynamics output to match scaled state derivative
+        scaled_dynamics_output = factor * state_derivative_rhs_vector[i_state]
+
+        # Apply constraint with consistent units
+        opti.subject_to(
             state_derivative_at_colloc[i_state, i_colloc]
-            - tau_to_time_scaling * state_derivative_rhs_vector[i_state]
+            == tau_to_time_scaling * scaled_dynamics_output
         )
 
-        # Scale constraint using corresponding state scale (Rule 3: W_f = V_y)
-        scaled_defect = scaling.scale_defect_constraint(state_name, defect)
-
-        # Apply the scaled constraint
-        opti.subject_to(scaled_defect == 0)
-
-    scaling_logger.debug(f"Successfully applied {num_states} scaled defect constraints")
+        scaling_logger.debug(
+            f"Applied scaled defect constraint for state '{state_name}' with factor {factor:.6g}"
+        )
 
 
 def update_scaling_after_mesh_refinement(scaling: Scaling, problem, solution) -> None:
