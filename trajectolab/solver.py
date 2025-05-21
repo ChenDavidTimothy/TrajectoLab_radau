@@ -43,7 +43,9 @@ def solve_fixed_mesh(
 
     # Create protocol-compatible version and solve
     protocol_problem = cast(ProblemProtocol, problem)
-    solution_data: OptimalControlSolution = solve_single_phase_radau_collocation(protocol_problem)
+    solution_data: OptimalControlSolution = solve_single_phase_radau_collocation(
+        protocol_problem, scaling_manager=getattr(problem, "_scaling_manager", None)
+    )
 
     return _Solution(solution_data, protocol_problem)
 
@@ -105,6 +107,7 @@ def solve_adaptive(
         ode_solver_tolerance=ode_solver_tolerance,
         num_error_sim_points=num_error_sim_points,
         initial_guess=initial_guess,
+        scaling_manager=getattr(problem, "_scaling_manager", None),
     )
 
     return _Solution(solution_data, protocol_problem)

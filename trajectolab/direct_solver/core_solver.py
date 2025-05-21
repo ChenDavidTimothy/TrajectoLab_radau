@@ -7,6 +7,7 @@ from typing import cast
 import casadi as ca
 
 from ..radau import RadauBasisComponents, compute_radau_collocation_components
+from ..scaling import ScalingManager
 from ..solution_extraction import extract_and_format_solution
 from ..tl_types import (
     CasadiMX,
@@ -27,12 +28,15 @@ from .types_solver import MetadataBundle, VariableReferences
 from .variables_solver import setup_interval_state_variables, setup_optimization_variables
 
 
-def solve_single_phase_radau_collocation(problem: ProblemProtocol) -> OptimalControlSolution:
+def solve_single_phase_radau_collocation(
+    problem: ProblemProtocol, scaling_manager: ScalingManager | None = None
+) -> OptimalControlSolution:
     """
     Solve a single-phase optimal control problem using Radau pseudospectral collocation.
 
     Args:
         problem: The optimal control problem definition
+        scaling_manager: Optional scaling manager for automatic scaling
 
     Returns:
         An OptimalControlSolution object containing the solution
@@ -268,7 +272,10 @@ def _configure_solver_and_store_references(
 
 
 def _execute_solve(
-    opti: CasadiOpti, problem: ProblemProtocol, num_mesh_intervals: int
+    opti: CasadiOpti,
+    problem: ProblemProtocol,
+    num_mesh_intervals: int,
+    scaling_manager: ScalingManager | None = None,
 ) -> OptimalControlSolution:
     """Execute the solve and handle results."""
     global_mesh_nodes = cast(FloatArray, problem.global_normalized_mesh_nodes)
@@ -278,13 +285,13 @@ def _execute_solve(
         solver_solution: CasadiOptiSol = opti.solve()
         print("NLP problem formulated and solver called successfully.")
         solution_obj = extract_and_format_solution(
-            solver_solution, opti, problem, collocation_points, global_mesh_nodes
+            solver_solution, opti, problem, collocation_points, global_mesh_nodes, scaling_manager
         )
     except RuntimeError as e:
         print(f"Error during NLP solution: {e}")
         print("Solver failed.")
         solution_obj = extract_and_format_solution(
-            None, opti, problem, collocation_points, global_mesh_nodes
+            None, opti, problem, collocation_points, global_mesh_nodes, scaling_manager
         )
         solution_obj.success = False
         solution_obj.message = f"Solver runtime error: {e}"

@@ -5,6 +5,7 @@ Solution extraction and formatting utilities.
 import casadi as ca
 import numpy as np
 
+from .scaling import ScalingManager
 from .tl_types import (
     CasadiOpti,
     CasadiOptiSol,
@@ -173,12 +174,16 @@ def extract_and_format_solution(
     problem: ProblemProtocol,
     num_collocation_nodes_per_interval: list[int],
     global_normalized_mesh_nodes: FloatArray,
+    scaling_manager: ScalingManager | None = None,
 ) -> OptimalControlSolution:
     """Extract and format the solution from CasADi optimization result."""
     solution = OptimalControlSolution()
     solution.opti_object = casadi_optimization_problem_object
     solution.num_collocation_nodes_per_interval = list(num_collocation_nodes_per_interval)
     solution.global_normalized_mesh_nodes = global_normalized_mesh_nodes.copy()
+    solution.num_collocation_nodes_list_at_solve_time = list(num_collocation_nodes_per_interval)
+    solution.global_mesh_nodes_at_solve_time = global_normalized_mesh_nodes.copy()
+    solution.raw_solution = casadi_solution_object
 
     if casadi_solution_object is None:
         solution.success = False
@@ -191,6 +196,7 @@ def extract_and_format_solution(
     num_integrals: int = problem._num_integrals
 
     try:
+        # Extract values from solver (these are scaled if scaling was used)
         solution.initial_time_variable = float(
             casadi_solution_object.value(
                 casadi_optimization_problem_object.initial_time_variable_reference
@@ -278,6 +284,7 @@ def extract_and_format_solution(
             is_state=False,
         )
 
+    # Extract state trajectories per interval
     if hasattr(
         casadi_optimization_problem_object,
         "state_at_local_approximation_nodes_all_intervals_variables",
@@ -306,6 +313,7 @@ def extract_and_format_solution(
 
             solution.solved_state_trajectories_per_interval.append(state_vals)
 
+    # Extract control trajectories per interval
     if (
         hasattr(
             casadi_optimization_problem_object,
@@ -337,12 +345,75 @@ def extract_and_format_solution(
 
             solution.solved_control_trajectories_per_interval.append(control_vals)
 
-    solution.success = True
-    solution.message = "NLP solved successfully."
+    # Convert trajectory lists to numpy arrays
     solution.time_states = np.array(state_trajectory_times, dtype=np.float64)
     solution.states = [np.array(s_traj, dtype=np.float64) for s_traj in state_trajectory_values]
     solution.time_controls = np.array(control_trajectory_times, dtype=np.float64)
     solution.controls = [np.array(c_traj, dtype=np.float64) for c_traj in control_trajectory_values]
-    solution.raw_solution = casadi_solution_object
 
+    # Apply unscaling if a scaling manager is provided and enabled
+    if scaling_manager is not None and scaling_manager.enabled:
+        # Unscale time variables
+        if solution.initial_time_variable is not None:
+            solution.initial_time_variable = scaling_manager.unscale_time_value(
+                solution.initial_time_variable
+            )
+        if solution.terminal_time_variable is not None:
+            solution.terminal_time_variable = scaling_manager.unscale_time_value(
+                solution.terminal_time_variable
+            )
+
+        # Unscale state trajectories
+        if solution.states:
+            state_names = sorted(problem._states.keys(), key=lambda n: problem._states[n]["index"])
+            for i, name in enumerate(state_names):
+                if i < len(solution.states):
+                    solution.states[i] = scaling_manager.unscale_state_value(
+                        name, solution.states[i]
+                    )
+
+        # Unscale control trajectories
+        if solution.controls:
+            control_names = sorted(
+                problem._controls.keys(), key=lambda n: problem._controls[n]["index"]
+            )
+            for i, name in enumerate(control_names):
+                if i < len(solution.controls):
+                    solution.controls[i] = scaling_manager.unscale_control_value(
+                        name, solution.controls[i]
+                    )
+
+        # Unscale per-interval trajectories
+        if solution.solved_state_trajectories_per_interval:
+            state_names = sorted(problem._states.keys(), key=lambda n: problem._states[n]["index"])
+            for interval_idx, interval_states in enumerate(
+                solution.solved_state_trajectories_per_interval
+            ):
+                for i, name in enumerate(state_names):
+                    if i < interval_states.shape[0]:
+                        solution.solved_state_trajectories_per_interval[interval_idx][i, :] = (
+                            scaling_manager.unscale_state_value(name, interval_states[i, :])
+                        )
+
+        if solution.solved_control_trajectories_per_interval:
+            control_names = sorted(
+                problem._controls.keys(), key=lambda n: problem._controls[n]["index"]
+            )
+            for interval_idx, interval_controls in enumerate(
+                solution.solved_control_trajectories_per_interval
+            ):
+                for i, name in enumerate(control_names):
+                    if i < interval_controls.shape[0]:
+                        solution.solved_control_trajectories_per_interval[interval_idx][i, :] = (
+                            scaling_manager.unscale_control_value(name, interval_controls[i, :])
+                        )
+
+        # Unscale time arrays for states and controls
+        if solution.time_states.size > 0:
+            solution.time_states = scaling_manager.unscale_time_value(solution.time_states)
+        if solution.time_controls.size > 0:
+            solution.time_controls = scaling_manager.unscale_time_value(solution.time_controls)
+
+    solution.success = True
+    solution.message = "NLP solved successfully."
     return solution
