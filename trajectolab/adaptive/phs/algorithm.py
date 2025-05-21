@@ -3,7 +3,7 @@ PHS adaptive algorithm implementation as a pure function.
 """
 
 import logging
-from typing import cast
+from typing import Any, cast
 
 import numpy as np
 
@@ -371,7 +371,7 @@ def solve_phs_adaptive_internal(
     initial_guess: InitialGuess | None = None,
 ) -> OptimalControlSolution:
     """
-    Internal PHS-Adaptive mesh refinement algorithm implementation.
+    Internal PHS-Adaptive mesh refinement algorithm implementation with auto-scaling support.
     """
     # Configure local logger
     logger = logging.getLogger("trajectolab.adaptive.phs")
@@ -394,6 +394,10 @@ def solve_phs_adaptive_internal(
         num_error_sim_points=num_error_sim_points,
     )
 
+    # *** NEW: Check and store auto-scaling information ***
+    auto_scaling_enabled = _check_auto_scaling_enabled(problem)
+    scaling_info = _extract_scaling_info_for_adaptive(problem) if auto_scaling_enabled else None
+
     # Initialize mesh configuration
     current_polynomial_degrees = list(initial_polynomial_degrees)
     current_mesh_points = initial_mesh_points.copy()
@@ -412,24 +416,17 @@ def solve_phs_adaptive_internal(
         problem.set_mesh(current_polynomial_degrees, current_mesh_points)
 
         if iteration == 0:
-            # FIRST ITERATION: Use provided initial guess
-            if problem.initial_guess is not None:
-                try:
-                    problem.validate_initial_guess()
-                except ValueError as e:
-                    raise ValueError(f"Initial guess invalid for mesh: {e}") from e
-            elif initial_guess is not None:
-                problem.initial_guess = initial_guess
-                try:
-                    problem.validate_initial_guess()
-                except ValueError as e:
-                    raise ValueError(f"Initial guess invalid for mesh: {e}") from e
-            else:
-                problem.initial_guess = None
+            # FIRST ITERATION: Handle initial guess with auto-scaling
+            _handle_first_iteration_initial_guess(
+                problem, initial_guess, auto_scaling_enabled, scaling_info
+            )
         else:
             # SUBSEQUENT ITERATIONS: Always use aggressive interpolation propagation
             if most_recent_solution is None:
                 raise ValueError("No previous solution available for propagation")
+
+            # *** NEW: Ensure scaling information is preserved during propagation ***
+            _preserve_scaling_info_in_solution(most_recent_solution, scaling_info)
 
             propagated_guess = propagate_solution_to_new_mesh(
                 most_recent_solution,
@@ -447,12 +444,16 @@ def solve_phs_adaptive_internal(
             logger.error(error_msg)
 
             if most_recent_solution is not None:
+                # *** NEW: Ensure scaling info is preserved in failed solutions ***
+                _ensure_scaling_info_in_solution(most_recent_solution, scaling_info)
                 most_recent_solution.message = (
                     f"Adaptive stopped due to solver failure: {error_msg}"
                 )
                 most_recent_solution.success = False
                 return most_recent_solution
             else:
+                # *** NEW: Add scaling info to failed solution ***
+                _ensure_scaling_info_in_solution(solution, scaling_info)
                 solution.message = error_msg
                 return solution
 
@@ -462,6 +463,8 @@ def solve_phs_adaptive_internal(
         except Exception as e:
             error_msg = f"Failed to extract trajectories: {e}"
             logger.error(error_msg)
+            # *** NEW: Preserve scaling info in error case ***
+            _ensure_scaling_info_in_solution(solution, scaling_info)
             solution.message = error_msg
             solution.success = False
             return solution
@@ -473,11 +476,15 @@ def solve_phs_adaptive_internal(
         )
         most_recent_solution.global_mesh_nodes_at_solve_time = current_mesh_points.copy()
 
+        # *** NEW: Ensure scaling information is preserved ***
+        _ensure_scaling_info_in_solution(most_recent_solution, scaling_info)
+
         # Calculate gamma normalization factors
         gamma_factors = calculate_gamma_normalizers(solution, problem)
         if gamma_factors is None and len(problem._states) > 0:
             error_msg = f"Failed to calculate gamma normalizers at iteration {iteration}"
             logger.error(error_msg)
+            _ensure_scaling_info_in_solution(solution, scaling_info)
             solution.message = error_msg
             solution.success = False
             return solution
@@ -519,6 +526,8 @@ def solve_phs_adaptive_internal(
                 f"Adaptive mesh converged to tolerance {adaptive_params.error_tolerance:.1e} "
                 f"in {iteration + 1} iterations"
             )
+            # *** NEW: Final scaling info preservation ***
+            _ensure_scaling_info_in_solution(solution, scaling_info)
             return solution
 
         # Refine mesh for next iteration
@@ -538,6 +547,7 @@ def solve_phs_adaptive_internal(
             error_msg = f"Mesh refinement failed: {e}"
             logger.error(error_msg)
             if most_recent_solution is not None:
+                _ensure_scaling_info_in_solution(most_recent_solution, scaling_info)
                 most_recent_solution.message = error_msg
                 most_recent_solution.success = False
                 return most_recent_solution
@@ -553,6 +563,8 @@ def solve_phs_adaptive_internal(
         most_recent_solution.message = max_iter_msg
         most_recent_solution.num_collocation_nodes_per_interval = current_polynomial_degrees.copy()
         most_recent_solution.global_normalized_mesh_nodes = current_mesh_points.copy()
+        # *** NEW: Final scaling info preservation ***
+        _ensure_scaling_info_in_solution(most_recent_solution, scaling_info)
         return most_recent_solution
     else:
         # Create failure solution
@@ -561,4 +573,144 @@ def solve_phs_adaptive_internal(
         failed_solution.message = max_iter_msg + " No successful solution obtained."
         failed_solution.num_collocation_nodes_per_interval = current_polynomial_degrees
         failed_solution.global_normalized_mesh_nodes = current_mesh_points
+        # *** NEW: Add scaling info to failed solution ***
+        _ensure_scaling_info_in_solution(failed_solution, scaling_info)
         return failed_solution
+
+
+# *** NEW: Helper functions for auto-scaling support in adaptive solver ***
+
+
+def _check_auto_scaling_enabled(problem: ProblemProtocol) -> bool:
+    """
+    Check if auto-scaling is enabled for the problem.
+
+    Args:
+        problem: The problem to check
+
+    Returns:
+        True if auto-scaling is enabled, False otherwise
+    """
+    return hasattr(problem, "_auto_scaling_enabled") and problem._auto_scaling_enabled
+
+
+def _extract_scaling_info_for_adaptive(problem: ProblemProtocol) -> dict[str, Any] | None:
+    """
+    Extract scaling information from the problem for adaptive solver use.
+
+    Args:
+        problem: The problem containing scaling information
+
+    Returns:
+        Dictionary with scaling information or None if not available
+    """
+    if not _check_auto_scaling_enabled(problem):
+        return None
+
+    scaling_info = {}
+
+    if hasattr(problem, "_scaling_factors"):
+        scaling_info["scaling_factors"] = problem._scaling_factors.copy()
+
+    if hasattr(problem, "_physical_to_tilde_map"):
+        scaling_info["physical_to_tilde_map"] = problem._physical_to_tilde_map.copy()
+
+    if hasattr(problem, "_tilde_to_physical_map"):
+        scaling_info["tilde_to_physical_map"] = problem._tilde_to_physical_map.copy()
+
+    if hasattr(problem, "_physical_symbols"):
+        scaling_info["physical_symbols"] = problem._physical_symbols.copy()
+
+    return scaling_info
+
+
+def _handle_first_iteration_initial_guess(
+    problem: ProblemProtocol,
+    initial_guess: InitialGuess | None,
+    auto_scaling_enabled: bool,
+    scaling_info: dict[str, Any] | None,
+) -> None:
+    """
+    Handle initial guess for the first iteration with auto-scaling support.
+
+    Args:
+        problem: The problem object
+        initial_guess: User-provided initial guess
+        auto_scaling_enabled: Whether auto-scaling is enabled
+        scaling_info: Scaling information if available
+    """
+    if problem.initial_guess is not None:
+        try:
+            problem.validate_initial_guess()
+        except ValueError as e:
+            raise ValueError(f"Initial guess invalid for mesh: {e}") from e
+    elif initial_guess is not None:
+        if auto_scaling_enabled:
+            # For auto-scaling, the initial guess should already be in physical space
+            # The problem's set_initial_guess method will handle the scaling
+            # So we can just set it directly
+            problem.initial_guess = initial_guess
+        else:
+            problem.initial_guess = initial_guess
+
+        try:
+            problem.validate_initial_guess()
+        except ValueError as e:
+            raise ValueError(f"Initial guess invalid for mesh: {e}") from e
+    else:
+        problem.initial_guess = None
+
+
+def _preserve_scaling_info_in_solution(
+    solution: OptimalControlSolution,
+    scaling_info: dict[str, Any] | None,
+) -> None:
+    """
+    Preserve scaling information in a solution object.
+
+    Args:
+        solution: The solution object to update
+        scaling_info: Scaling information to preserve
+    """
+    if scaling_info is None:
+        return
+
+    # Ensure solution has scaling attributes
+    if not hasattr(solution, "auto_scaling_enabled"):
+        solution.auto_scaling_enabled = True
+
+    # Copy scaling information
+    for key, value in scaling_info.items():
+        if not hasattr(solution, key):
+            setattr(solution, key, value.copy() if hasattr(value, "copy") else value)
+
+
+def _ensure_scaling_info_in_solution(
+    solution: OptimalControlSolution,
+    scaling_info: dict[str, Any] | None,
+) -> None:
+    """
+    Ensure scaling information is present in a solution object.
+
+    Args:
+        solution: The solution object to update
+        scaling_info: Scaling information to add
+    """
+    if scaling_info is None:
+        # No scaling information available
+        if not hasattr(solution, "auto_scaling_enabled"):
+            solution.auto_scaling_enabled = False
+        if not hasattr(solution, "scaling_factors"):
+            solution.scaling_factors = {}
+        if not hasattr(solution, "physical_to_tilde_map"):
+            solution.physical_to_tilde_map = {}
+        if not hasattr(solution, "tilde_to_physical_map"):
+            solution.tilde_to_physical_map = {}
+        if not hasattr(solution, "physical_symbols"):
+            solution.physical_symbols = {}
+    else:
+        # Add scaling information
+        solution.auto_scaling_enabled = True
+
+        for key, value in scaling_info.items():
+            setattr(solution, key, value.copy() if hasattr(value, "copy") else value)

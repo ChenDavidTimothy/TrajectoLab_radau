@@ -81,7 +81,55 @@ def solve_single_phase_radau_collocation(problem: ProblemProtocol) -> OptimalCon
     _configure_solver_and_store_references(opti, variables, metadata, problem)
 
     # Execute solve
-    return _execute_solve(opti, problem, num_mesh_intervals)
+    solution_obj = _execute_solve(opti, problem, num_mesh_intervals)
+
+    # *** NEW: Record auto-scaling information in the solution ***
+    _record_scaling_information(solution_obj, problem)
+
+    return solution_obj
+
+
+def _record_scaling_information(solution: OptimalControlSolution, problem: ProblemProtocol) -> None:
+    """
+    Record auto-scaling information in the solution object.
+
+    Args:
+        solution: The solution object to update
+        problem: The problem containing scaling information
+    """
+    # Check if auto-scaling is enabled
+    if hasattr(problem, "_auto_scaling_enabled") and problem._auto_scaling_enabled:
+        solution.auto_scaling_enabled = True
+
+        # Copy scaling factors
+        if hasattr(problem, "_scaling_factors"):
+            solution.scaling_factors = problem._scaling_factors.copy()
+        else:
+            solution.scaling_factors = {}
+
+        # Copy variable mappings
+        if hasattr(problem, "_physical_to_tilde_map"):
+            solution.physical_to_tilde_map = problem._physical_to_tilde_map.copy()
+        else:
+            solution.physical_to_tilde_map = {}
+
+        if hasattr(problem, "_tilde_to_physical_map"):
+            solution.tilde_to_physical_map = problem._tilde_to_physical_map.copy()
+        else:
+            solution.tilde_to_physical_map = {}
+
+        # Store physical symbols mapping for trajectory extraction
+        if hasattr(problem, "_physical_symbols"):
+            solution.physical_symbols = problem._physical_symbols.copy()
+        else:
+            solution.physical_symbols = {}
+    else:
+        # No auto-scaling
+        solution.auto_scaling_enabled = False
+        solution.scaling_factors = {}
+        solution.physical_to_tilde_map = {}
+        solution.tilde_to_physical_map = {}
+        solution.physical_symbols = {}
 
 
 def _validate_problem_configuration(problem: ProblemProtocol) -> None:

@@ -6,7 +6,7 @@ of an optimal control problem.
 """
 
 from collections.abc import Iterable, Sequence
-from typing import TypeAlias, cast
+from typing import Any, TypeAlias, cast
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -68,6 +68,7 @@ class _Solution:
         self._problem: ProblemProtocol | None = problem
         self._raw_solution: OptimalControlSolution | None = raw_solution
 
+        # Original state names from problem
         self._state_names: list[str] = []
         if problem and hasattr(problem, "_states") and hasattr(problem._states, "keys"):
             self._state_names = list(problem._states.keys())
@@ -76,11 +77,11 @@ class _Solution:
         if problem and hasattr(problem, "_controls") and hasattr(problem._controls, "keys"):
             self._control_names = list(problem._controls.keys())
 
-        # Map to store symbolic variables to their names
+        # Map to store symbolic variables to their names (original implementation)
         self._sym_state_map: _SymbolMap = {}
         self._sym_control_map: _SymbolMap = {}
 
-        # If the problem has symbolic variables, create mappings
+        # If the problem has symbolic variables, create mappings (original implementation)
         if problem and hasattr(problem, "_sym_states"):
             for name, sym in problem._sym_states.items():
                 self._sym_state_map[sym] = name
@@ -89,6 +90,16 @@ class _Solution:
             for name, sym in problem._sym_controls.items():
                 self._sym_control_map[sym] = name
 
+        # *** NEW: Auto-scaling related fields ***
+        self._auto_scaling_enabled = False
+        self._scaling_factors: dict[str, dict[str, float]] = {}
+        self._physical_to_tilde_map: dict[str, str] = {}
+        self._tilde_to_physical_map: dict[str, str] = {}
+        self._physical_symbols: dict[str, SymType] = {}
+        self._physical_state_names: list[str] = []
+        self._physical_control_names: list[str] = []
+
+        # Initialize core solution data
         self.success: bool = False
         self.message: str = "No solution data"
         self.initial_time: float | None = None
@@ -107,8 +118,56 @@ class _Solution:
 
         if raw_solution:
             self._extract_solution_data(raw_solution)
+            # *** NEW: Extract auto-scaling information ***
+            self._extract_scaling_information(raw_solution)
+
+    def _extract_scaling_information(self, raw_solution: OptimalControlSolution) -> None:
+        """
+        Extract auto-scaling information from the raw solution.
+
+        Args:
+            raw_solution: The raw solution containing scaling information
+        """
+        # Extract auto-scaling flag
+        if hasattr(raw_solution, "auto_scaling_enabled"):
+            self._auto_scaling_enabled = raw_solution.auto_scaling_enabled
+
+        # Extract scaling factors
+        if hasattr(raw_solution, "scaling_factors"):
+            self._scaling_factors = raw_solution.scaling_factors
+
+        # Extract variable mappings
+        if hasattr(raw_solution, "physical_to_tilde_map"):
+            self._physical_to_tilde_map = raw_solution.physical_to_tilde_map
+
+        if hasattr(raw_solution, "tilde_to_physical_map"):
+            self._tilde_to_physical_map = raw_solution.tilde_to_physical_map
+
+        if hasattr(raw_solution, "physical_symbols"):
+            self._physical_symbols = raw_solution.physical_symbols
+
+        # If auto-scaling is enabled, build physical variable name lists
+        if self._auto_scaling_enabled:
+            self._build_physical_variable_lists()
+
+    def _build_physical_variable_lists(self) -> None:
+        """Build lists of physical variable names for auto-scaling."""
+        # Extract physical state names from tilde names
+        self._physical_state_names = []
+        for tilde_name in self._state_names:
+            if tilde_name.endswith("_tilde") and tilde_name in self._tilde_to_physical_map:
+                physical_name = self._tilde_to_physical_map[tilde_name]
+                self._physical_state_names.append(physical_name)
+
+        # Extract physical control names from tilde names
+        self._physical_control_names = []
+        for tilde_name in self._control_names:
+            if tilde_name.endswith("_tilde") and tilde_name in self._tilde_to_physical_map:
+                physical_name = self._tilde_to_physical_map[tilde_name]
+                self._physical_control_names.append(physical_name)
 
     def _extract_solution_data(self, raw_solution: OptimalControlSolution) -> None:
+        """Extract solution data from raw solution (original implementation)."""
         self.success = bool(getattr(raw_solution, "success", False))
         self.message = str(getattr(raw_solution, "message", "Unknown"))
 
@@ -162,6 +221,60 @@ class _Solution:
             alpha = (self.final_time - self.initial_time) / 2.0
             alpha_0 = (self.final_time + self.initial_time) / 2.0
             self._mesh_points_time = alpha * self._mesh_points_normalized + alpha_0
+
+    def _unscale_values(self, scaled_values: FloatArray, physical_var_name: str) -> FloatArray:
+        """
+        Unscale values from scaled space to physical space.
+
+        Args:
+            scaled_values: Values in scaled space
+            physical_var_name: Name of the physical variable
+
+        Returns:
+            Values in physical space
+        """
+        if not self._auto_scaling_enabled or physical_var_name not in self._scaling_factors:
+            return scaled_values
+
+        sf = self._scaling_factors[physical_var_name]
+        unscaled_values = (scaled_values - sf["r"]) / sf["v"]
+        return unscaled_values
+
+    def _resolve_variable_for_trajectory_access(
+        self, identifier: _VariableIdentifier, variable_type: str
+    ) -> tuple[_VariableIdentifier, str | None]:
+        """
+        Resolve variable identifier for trajectory access, handling auto-scaling.
+
+        Args:
+            identifier: Variable identifier (name, index, or symbolic)
+            variable_type: "state" or "control"
+
+        Returns:
+            Tuple of (actual_identifier_for_lookup, physical_name_for_unscaling)
+        """
+        if not self._auto_scaling_enabled or not isinstance(identifier, str):
+            return identifier, None
+
+        var_name = identifier
+
+        # Case 1: User requests a physical variable name (e.g., "h")
+        # We need to find the corresponding tilde name for lookup
+        if var_name in self._physical_to_tilde_map:
+            tilde_name = self._physical_to_tilde_map[var_name]
+            return tilde_name, var_name  # Return tilde name for lookup, physical name for unscaling
+
+        # Case 2: User requests a tilde variable name directly (e.g., "h_tilde")
+        # We can use it directly for lookup, and get physical name for unscaling
+        if var_name.endswith("_tilde") and var_name in self._tilde_to_physical_map:
+            physical_name = self._tilde_to_physical_map[var_name]
+            return (
+                var_name,
+                physical_name,
+            )  # Return tilde name for lookup, physical name for unscaling
+
+        # Case 3: Variable not related to auto-scaling
+        return identifier, None
 
     @property
     def num_intervals(self) -> int:
@@ -267,43 +380,90 @@ class _Solution:
         return time_arr, values_list[index]
 
     def get_state_trajectory(self, identifier: _VariableIdentifier) -> _TrajectoryTuple:
-        """Get state trajectory data."""
-        return self._get_trajectory(identifier, "state")
-
-    def get_control_trajectory(self, identifier: _VariableIdentifier) -> _TrajectoryTuple:
-        """Get control trajectory data."""
-        return self._get_trajectory(identifier, "control")
-
-    def _interpolate_trajectory(
-        self, identifier: _VariableIdentifier, time_point: float | FloatArray, variable_type: str
-    ) -> _InterpolationResult:
         """
-        Unified interpolation for states and controls.
+        Get state trajectory data with automatic unscaling.
 
         Args:
             identifier: Variable name, index, or symbolic variable
-            time_point: Time point(s) to interpolate at
-            variable_type: Either "state" or "control"
 
         Returns:
-            Interpolated variable value(s)
+            Tuple of (time_array, value_array) in physical space if auto-scaling enabled
         """
-        time, values = self._get_trajectory(identifier, variable_type)
-        if time.size == 0 or values.size == 0:
-            return None
-        return cast(_InterpolationResult, np.interp(time_point, time, values))
+        # Resolve the identifier for trajectory access
+        lookup_identifier, physical_name = self._resolve_variable_for_trajectory_access(
+            identifier, "state"
+        )
+
+        # Get the trajectory using the resolved identifier
+        time_arr, values = self._get_trajectory(lookup_identifier, "state")
+
+        # Unscale if needed
+        if physical_name is not None:
+            unscaled_values = self._unscale_values(values, physical_name)
+            return time_arr, unscaled_values
+
+        return time_arr, values
+
+    def get_control_trajectory(self, identifier: _VariableIdentifier) -> _TrajectoryTuple:
+        """
+        Get control trajectory data with automatic unscaling.
+
+        Args:
+            identifier: Variable name, index, or symbolic variable
+
+        Returns:
+            Tuple of (time_array, value_array) in physical space if auto-scaling enabled
+        """
+        # Resolve the identifier for trajectory access
+        lookup_identifier, physical_name = self._resolve_variable_for_trajectory_access(
+            identifier, "control"
+        )
+
+        # Get the trajectory using the resolved identifier
+        time_arr, values = self._get_trajectory(lookup_identifier, "control")
+
+        # Unscale if needed
+        if physical_name is not None:
+            unscaled_values = self._unscale_values(values, physical_name)
+            return time_arr, unscaled_values
+
+        return time_arr, values
 
     def interpolate_state(
         self, identifier: _VariableIdentifier, time_point: float | FloatArray
     ) -> _InterpolationResult:
-        """Interpolate state value at specified time point(s)."""
-        return self._interpolate_trajectory(identifier, time_point, "state")
+        """
+        Interpolate state value at specified time point(s) with automatic unscaling.
+
+        Args:
+            identifier: Variable name, index, or symbolic variable
+            time_point: Time point(s) to interpolate at
+
+        Returns:
+            Interpolated value(s) in physical space if auto-scaling enabled
+        """
+        time, values = self.get_state_trajectory(identifier)  # This handles unscaling
+        if time.size == 0 or values.size == 0:
+            return None
+        return cast(_InterpolationResult, np.interp(time_point, time, values))
 
     def interpolate_control(
         self, identifier: _VariableIdentifier, time_point: float | FloatArray
     ) -> _InterpolationResult:
-        """Interpolate control value at specified time point(s)."""
-        return self._interpolate_trajectory(identifier, time_point, "control")
+        """
+        Interpolate control value at specified time point(s) with automatic unscaling.
+
+        Args:
+            identifier: Variable name, index, or symbolic variable
+            time_point: Time point(s) to interpolate at
+
+        Returns:
+            Interpolated value(s) in physical space if auto-scaling enabled
+        """
+        time, values = self.get_control_trajectory(identifier)  # This handles unscaling
+        if time.size == 0 or values.size == 0:
+            return None
+        return cast(_InterpolationResult, np.interp(time_point, time, values))
 
     def get_data_for_interval(self, interval_index: int) -> IntervalData | None:
         if not (0 <= interval_index < self.num_intervals):
@@ -662,14 +822,22 @@ class _Solution:
             self._plot_variables("control", None, figsize)
 
     def get_symbolic_trajectory(self, var: SymType) -> _TrajectoryTuple:
-        """Get the trajectory for a symbolic variable."""
-        # First check if the variable is in our maps
+        """
+        Get the trajectory for a symbolic variable with automatic unscaling.
+
+        Args:
+            var: Symbolic variable
+
+        Returns:
+            Tuple of (time_array, value_array) in physical space if auto-scaling enabled
+        """
+        # First check if the variable is in our maps (original implementation)
         if var in self._sym_state_map:
             return self.get_state_trajectory(self._sym_state_map[var])
         elif var in self._sym_control_map:
             return self.get_control_trajectory(self._sym_control_map[var])
 
-        # Identify the variable by searching the problem
+        # Identify the variable by searching the problem (original implementation)
         var_name = self._resolve_symbolic_variable(var, self._sym_state_map, "_sym_states")
         if var_name is not None:
             return self.get_state_trajectory(var_name)
@@ -685,14 +853,23 @@ class _Solution:
     def interpolate_symbolic(
         self, var: SymType, time_point: float | FloatArray
     ) -> _InterpolationResult:
-        """Interpolate the value of a symbolic variable at given time points."""
-        # First check if the variable is in our maps
+        """
+        Interpolate the value of a symbolic variable at given time points with automatic unscaling.
+
+        Args:
+            var: Symbolic variable
+            time_point: Time point(s) to interpolate at
+
+        Returns:
+            Interpolated value(s) in physical space if auto-scaling enabled
+        """
+        # First check if the variable is in our maps (original implementation)
         if var in self._sym_state_map:
             return self.interpolate_state(self._sym_state_map[var], time_point)
         elif var in self._sym_control_map:
             return self.interpolate_control(self._sym_control_map[var], time_point)
 
-        # Identify the variable by searching the problem
+        # Identify the variable by searching the problem (original implementation)
         var_name = self._resolve_symbolic_variable(var, self._sym_state_map, "_sym_states")
         if var_name is not None:
             return self.interpolate_state(var_name, time_point)
@@ -703,3 +880,44 @@ class _Solution:
 
         # Return None if variable not found
         return None
+
+    # *** NEW: Methods for auto-scaling information access ***
+    def get_scaling_info(self) -> dict[str, Any]:
+        """
+        Get scaling information for analysis and debugging.
+
+        Returns:
+            Dictionary containing scaling factors and variable mappings
+        """
+        return {
+            "auto_scaling_enabled": self._auto_scaling_enabled,
+            "scaling_factors": self._scaling_factors,
+            "physical_to_tilde_map": self._physical_to_tilde_map,
+            "tilde_to_physical_map": self._tilde_to_physical_map,
+            "physical_state_names": self._physical_state_names,
+            "physical_control_names": self._physical_control_names,
+        }
+
+    def print_scaling_summary(self) -> None:
+        """Print a summary of the scaling information."""
+        if not self._auto_scaling_enabled:
+            print("Auto-scaling was not used for this solution.")
+            return
+
+        print("\n--- Auto-Scaling Summary ---")
+        print(f"Auto-scaling enabled: {self._auto_scaling_enabled}")
+        print(f"Number of scaled variables: {len(self._scaling_factors)}")
+
+        if self._scaling_factors:
+            print("\nScaling factors:")
+            for var_name, sf_info in sorted(self._scaling_factors.items()):
+                rule = sf_info.get("rule", "Unknown")
+                v_factor = sf_info.get("v", 1.0)
+                r_factor = sf_info.get("r", 0.0)
+                print(
+                    f"  {var_name:<12s} | Rule: {rule:<28s} | v: {v_factor:.3e} | r: {r_factor:.3f}"
+                )
+
+        print(f"\nPhysical states available: {self._physical_state_names}")
+        print(f"Physical controls available: {self._physical_control_names}")
+        print("Note: All trajectories returned are automatically unscaled to physical units.")

@@ -259,6 +259,12 @@ class OptimalControlSolution:
         self.solved_state_trajectories_per_interval: list[FloatMatrix] | None = None
         self.solved_control_trajectories_per_interval: list[FloatMatrix] | None = None
 
+        # Auto-scaling related fields
+        self.auto_scaling_enabled: bool = False
+        self.scaling_factors: dict[str, dict[str, float]] = {}
+        self.physical_to_tilde_map: dict[str, str] = {}
+        self.tilde_to_physical_map: dict[str, str] = {}
+
 
 # User-facing function types using Protocol classes
 DynamicsFuncType: TypeAlias = DynamicsFuncProtocol
