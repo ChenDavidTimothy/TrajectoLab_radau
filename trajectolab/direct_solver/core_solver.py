@@ -7,7 +7,6 @@ from typing import cast
 import casadi as ca
 
 from ..radau import RadauBasisComponents, compute_radau_collocation_components
-from ..scaling import ScalingManager
 from ..solution_extraction import extract_and_format_solution
 from ..tl_types import (
     CasadiMX,
@@ -28,15 +27,12 @@ from .types_solver import MetadataBundle, VariableReferences
 from .variables_solver import setup_interval_state_variables, setup_optimization_variables
 
 
-def solve_single_phase_radau_collocation(
-    problem: ProblemProtocol, scaling_manager: ScalingManager | None = None
-) -> OptimalControlSolution:
+def solve_single_phase_radau_collocation(problem: ProblemProtocol) -> OptimalControlSolution:
     """
     Solve a single-phase optimal control problem using Radau pseudospectral collocation.
 
     Args:
         problem: The optimal control problem definition
-        scaling_manager: Optional scaling manager for automatic scaling
 
     Returns:
         An OptimalControlSolution object containing the solution
@@ -83,10 +79,6 @@ def solve_single_phase_radau_collocation(
 
     # Configure solver and store references
     _configure_solver_and_store_references(opti, variables, metadata, problem)
-
-    # Log scaling information
-    if scaling_manager is not None and scaling_manager.enabled:
-        _log_scaling_info(problem, scaling_manager)
 
     # Execute solve
     return _execute_solve(opti, problem, num_mesh_intervals)
@@ -276,10 +268,7 @@ def _configure_solver_and_store_references(
 
 
 def _execute_solve(
-    opti: CasadiOpti,
-    problem: ProblemProtocol,
-    num_mesh_intervals: int,
-    scaling_manager: ScalingManager | None = None,
+    opti: CasadiOpti, problem: ProblemProtocol, num_mesh_intervals: int
 ) -> OptimalControlSolution:
     """Execute the solve and handle results."""
     global_mesh_nodes = cast(FloatArray, problem.global_normalized_mesh_nodes)
@@ -289,13 +278,13 @@ def _execute_solve(
         solver_solution: CasadiOptiSol = opti.solve()
         print("NLP problem formulated and solver called successfully.")
         solution_obj = extract_and_format_solution(
-            solver_solution, opti, problem, collocation_points, global_mesh_nodes, scaling_manager
+            solver_solution, opti, problem, collocation_points, global_mesh_nodes
         )
     except RuntimeError as e:
         print(f"Error during NLP solution: {e}")
         print("Solver failed.")
         solution_obj = extract_and_format_solution(
-            None, opti, problem, collocation_points, global_mesh_nodes, scaling_manager
+            None, opti, problem, collocation_points, global_mesh_nodes
         )
         solution_obj.success = False
         solution_obj.message = f"Solver runtime error: {e}"
@@ -319,36 +308,3 @@ def _execute_solve(
     solution_obj.global_mesh_nodes_at_solve_time = global_mesh_nodes.copy()
 
     return solution_obj
-
-
-def _log_scaling_info(problem: ProblemProtocol, scaling_manager: ScalingManager | None) -> None:
-    """Log detailed scaling information before solving."""
-    if scaling_manager is None or not scaling_manager.enabled:
-        print("Automatic scaling disabled")
-        return
-
-    print("\n=== AUTOMATIC SCALING INFORMATION ===")
-    time_scale_info = scaling_manager._time_scale_factor
-    print(f"Time scaling: weight={time_scale_info[0]:.6e}, shift={time_scale_info[1]:.6f}")
-
-    state_names = sorted(problem._states.keys())
-    print("\nState variable scaling:")
-    for name in state_names:
-        if name in scaling_manager._state_scale_factors:
-            scale_info = scaling_manager._state_scale_factors[name]
-            method = scale_info[2] if len(scale_info) > 2 else "unknown"
-            print(
-                f"  {name}: weight={scale_info[0]:.6e}, shift={scale_info[1]:.6f}, method={method}"
-            )
-
-    control_names = sorted(problem._controls.keys())
-    print("\nControl variable scaling:")
-    for name in control_names:
-        if name in scaling_manager._control_scale_factors:
-            scale_info = scaling_manager._control_scale_factors[name]
-            method = scale_info[2] if len(scale_info) > 2 else "unknown"
-            print(
-                f"  {name}: weight={scale_info[0]:.6e}, shift={scale_info[1]:.6f}, method={method}"
-            )
-
-    print("===================================\n")

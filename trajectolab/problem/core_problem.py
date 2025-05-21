@@ -3,10 +3,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from ..scaling import ScalingManager
 from ..tl_types import FloatArray, SymExpr, SymType
 from . import constraints_problem, initial_guess_problem, mesh, solver_interface, variables_problem
-from .constraints_problem import Constraint
 from .state import ConstraintState, MeshState, VariableState
 
 
@@ -25,13 +23,12 @@ if not problem_logger.handlers:
 class Problem:
     """Main class for defining optimal control problems."""
 
-    def __init__(self, name: str = "Unnamed Problem", auto_scaling: bool = True) -> None:
+    def __init__(self, name: str = "Unnamed Problem") -> None:
         """
         Initialize a new problem instance.
 
         Args:
             name: Name of the problem
-            auto_scaling: Whether to enable automatic scaling
         """
         self.name = name
         problem_logger.info(f"Creating problem '{name}'")
@@ -40,9 +37,6 @@ class Problem:
         self._variable_state = VariableState()
         self._constraint_state = ConstraintState()
         self._mesh_state = MeshState()
-
-        # Initialize scaling manager
-        self._scaling_manager = ScalingManager(enabled=auto_scaling)
 
         # Initial guess is stored as a mutable container to allow modification by functions
         self._initial_guess_container = [None]
@@ -142,20 +136,9 @@ class Problem:
 
     # Variable creation methods
     def time(self, initial: float = 0.0, final: float | None = None, free_final: bool = False):
-        time_var = variables_problem.create_time_variable(
+        return variables_problem.create_time_variable(
             self._variable_state, initial, final, free_final
         )
-
-        # Register time bounds with scaling manager
-        if free_final and final is not None:
-            self._scaling_manager.register_time_bounds(initial, final)
-        elif free_final:
-            # Rough estimate for time bounds with free final time
-            self._scaling_manager.register_time_bounds(initial, initial + 1000.0)
-        elif final is not None:
-            self._scaling_manager.register_time_bounds(initial, final)
-
-        return time_var
 
     def state(
         self,
@@ -165,79 +148,27 @@ class Problem:
         lower: float | None = None,
         upper: float | None = None,
     ) -> SymType:
-        """Define a state variable."""
-        sym_var = variables_problem.create_state_variable(
+        return variables_problem.create_state_variable(
             self._variable_state, name, initial, final, lower, upper
         )
-        # Register with scaling manager - pass bounds AND initial value
-        self._scaling_manager.register_state(name, sym_var, lower, upper, initial_value=initial)
-        return sym_var
 
     def control(self, name: str, lower: float | None = None, upper: float | None = None) -> SymType:
-        """Define a control variable."""
-        sym_var = variables_problem.create_control_variable(
-            self._variable_state, name, lower, upper
-        )
-        # Register with scaling manager - use only bounds for controls since we don't have initial values
-        self._scaling_manager.register_control(name, sym_var, lower, upper)
-        return sym_var
+        return variables_problem.create_control_variable(self._variable_state, name, lower, upper)
 
     def parameter(self, name: str, value: Any) -> SymType:
         return variables_problem.create_parameter_variable(self._variable_state, name, value)
 
     def dynamics(self, dynamics_dict: dict[SymType, SymExpr]) -> None:
-        """
-        Set dynamics expressions with automatic scaling.
-
-        Args:
-            dynamics_dict: Mapping from state symbols to dynamics expressions
-        """
-        if self._scaling_manager.enabled:
-            # Apply Rule 3 for ODE defect scaling
-            scaled_dict = {}
-            for state_sym, expr in dynamics_dict.items():
-                # Scale each dynamics expression using Rule 3
-                scaled_expr = self._scaling_manager.scale_dynamics(state_sym, expr)
-                scaled_dict[state_sym] = scaled_expr
-
-            variables_problem.set_dynamics(self._variable_state, scaled_dict)
-        else:
-            variables_problem.set_dynamics(self._variable_state, dynamics_dict)
+        variables_problem.set_dynamics(self._variable_state, dynamics_dict)
 
     def add_integral(self, integrand_expr: SymExpr) -> SymType:
         return variables_problem.add_integral(self._variable_state, integrand_expr)
 
     def minimize(self, objective_expr: SymExpr) -> None:
-        """
-        Set the objective function to minimize.
-
-        Args:
-            objective_expr: Objective function expression to minimize
-        """
-        # We don't scale the objective expression directly
-        # Scaling will happen at the numerical level during optimization
         variables_problem.set_objective(self._variable_state, objective_expr)
 
-    def subject_to(self, constraint_expr: SymExpr | Constraint) -> None:
-        """
-        Add a constraint with automatic scaling.
-
-        Args:
-            constraint_expr: Constraint expression or Constraint object (physical units)
-        """
-        # Convert SymExpr to Constraint if needed
-        if not isinstance(constraint_expr, Constraint):
-            constraint = Constraint(val=constraint_expr, equals=0.0)
-        else:
-            constraint = constraint_expr
-
-        # Apply scaling if enabled
-        if self._scaling_manager.enabled:
-            scaled_constraint = self._scaling_manager.scale_constraint(constraint)
-            constraints_problem.add_constraint(self._constraint_state, scaled_constraint)
-        else:
-            # If scaling disabled, use constraint as-is
-            constraints_problem.add_constraint(self._constraint_state, constraint)
+    def subject_to(self, constraint_expr: SymExpr) -> None:
+        constraints_problem.add_constraint(self._constraint_state, constraint_expr)
 
     # Mesh management methods
     def set_mesh(
@@ -262,22 +193,9 @@ class Problem:
 
     # Initial guess methods
     def set_initial_guess(self, **kwargs) -> None:
-        """
-        Set initial guess with automatic scaling.
-
-        Args:
-            **kwargs: Initial guess components (states, controls, times, etc.)
-        """
-        # First, create the initial guess with physical values
         initial_guess_problem.set_initial_guess(
             self._initial_guess_container, self._mesh_state, self._variable_state, **kwargs
         )
-
-        # Scale the initial guess if scaling is enabled
-        if self._scaling_manager.enabled and self._initial_guess_container[0] is not None:
-            original_guess = self._initial_guess_container[0]
-            scaled_guess = self._scaling_manager.scale_initial_guess(original_guess)
-            self._initial_guess_container[0] = scaled_guess
 
     def get_initial_guess_requirements(self):
         return initial_guess_problem.get_initial_guess_requirements(

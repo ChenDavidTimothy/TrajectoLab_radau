@@ -48,7 +48,7 @@ class ScalingManager:
     3. ODE Defect Scaling: Scale constraints based on state scaling
     """
 
-    def __init__(self, enabled: bool = True) -> None:
+    def __init__(self, enabled: bool = True, variable_state=None) -> None:
         """
         Initialize scaling manager.
 
@@ -61,6 +61,7 @@ class ScalingManager:
         self._sym_state_map: dict[SymType, str] = {}
         self._sym_control_map: dict[SymType, str] = {}
         self._time_scale_factor: _ScaleFactor = (1.0, 0.0)  # Default: no scaling
+        self._variable_state = variable_state
 
         scaling_logger.info(f"Automatic scaling {'enabled' if enabled else 'disabled'}")
 
@@ -360,14 +361,10 @@ class ScalingManager:
 
     def scale_dynamics(self, state_sym: SymType, expr: SymExpr) -> SymExpr:
         """
-        Scale a dynamics expression according to Rule 3.
+        Properly scale a dynamics expression according to Rule 3.
 
-        Args:
-            state_sym: State symbolic variable
-            expr: Dynamics expression (RHS of ODE)
-
-        Returns:
-            Scaled dynamics expression
+        This transforms the dynamics from dx/dt = f(x,u,t) to dx̃/dt̃ correctly
+        by substituting scaled variables and applying the appropriate scaling ratio.
         """
         if not self.enabled:
             return expr
@@ -375,24 +372,50 @@ class ScalingManager:
         # Get state name and scale factors
         state_name = self._sym_state_map.get(state_sym)
         if state_name is None:
-            scaling_logger.warning("Unknown state symbol in dynamics scaling")
             return expr
 
-        # Extract weight from state scale factors
-        scale_info = self._state_scale_factors.get(state_name)
-        if scale_info is None:
+        # Extract scaling factors
+        state_info = self._state_scale_factors.get(state_name)
+        if state_info is None:
             return expr
 
-        state_weight = scale_info[0]
+        state_weight, state_shift = state_info[0], state_info[1]
+        time_weight, time_shift = self._time_scale_factor
 
-        # Extract weight from time scale factors (always a 2-tuple)
-        time_weight = self._time_scale_factor[0]
+        # Create substitution maps for scaled to unscaled variables
+        scaled_to_unscaled = {}
 
-        # Apply Rule 3: d(ỹ)/d(t̃) = (v_y/v_t) * f(y,u,t)
+        # For each state variable
+        for sym, name in self._sym_state_map.items():
+            if name in self._state_scale_factors:
+                v_y, r_y = self._state_scale_factors[name][0:2]
+                # Transform x̃ to x: x = (x̃ - r_y) / v_y
+                scaled_to_unscaled[sym] = (sym - r_y) / v_y
+
+        # For each control variable
+        for sym, name in self._sym_control_map.items():
+            if name in self._control_scale_factors:
+                v_u, r_u = self._control_scale_factors[name][0:2]
+                # Transform ũ to u: u = (ũ - r_u) / v_u
+                scaled_to_unscaled[sym] = (sym - r_u) / v_u
+
+        # For time variable
+        if self._variable_state.sym_time is not None:
+            # Transform t̃ to t: t = (t̃ - r_t) / v_t
+            scaled_to_unscaled[self._variable_state.sym_time] = (
+                self._variable_state.sym_time - time_shift
+            ) / time_weight
+
+        # First substitute all variables to work with unscaled expressions
+        unscaled_expr = ca.substitute(
+            [expr], list(scaled_to_unscaled.keys()), list(scaled_to_unscaled.values())
+        )[0]
+
+        # Then apply the proper scaling ratio as per rule 3
         scaling_ratio = state_weight / time_weight
-        scaled_expr = scaling_ratio * expr
+        scaled_expr = scaling_ratio * unscaled_expr
 
-        method = scale_info[2] if len(scale_info) > 2 else "unknown"
+        method = state_info[2] if len(state_info) > 2 else "unknown"
         scaling_logger.info(
             f"Scaling dynamics for state '{state_name}' ({method}): "
             f"scale_weight={state_weight:.6e}, time_weight={time_weight:.6e}, "

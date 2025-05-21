@@ -33,7 +33,6 @@ from trajectolab.radau import (
     compute_barycentric_weights,
     compute_radau_collocation_components,
 )
-from trajectolab.scaling import ScalingManager
 from trajectolab.tl_types import (
     ControlEvaluator,
     FloatArray,
@@ -370,7 +369,6 @@ def solve_phs_adaptive_internal(
     ode_solver_tolerance: float,
     num_error_sim_points: int,
     initial_guess: InitialGuess | None = None,
-    scaling_manager: ScalingManager | None = None,
 ) -> OptimalControlSolution:
     """
     Internal PHS-Adaptive mesh refinement algorithm implementation.
@@ -442,7 +440,7 @@ def solve_phs_adaptive_internal(
             problem.initial_guess = propagated_guess
 
         # Solve optimal control problem
-        solution = solve_single_phase_radau_collocation(problem, scaling_manager=scaling_manager)
+        solution = solve_single_phase_radau_collocation(problem)
 
         if not solution.success:
             error_msg = f"Solver failed in iteration {iteration}: {solution.message}"
