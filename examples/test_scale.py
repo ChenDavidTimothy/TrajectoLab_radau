@@ -17,15 +17,15 @@ from pathlib import Path
 import casadi as ca
 import numpy as np
 
-import trajectolab as tl
-from trajectolab.problem import Problem
-from trajectolab.scaling import Scaling
-
 
 # Add trajectolab to path if needed
 project_root = Path(__file__).parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
+
+import trajectolab as tl
+from trajectolab.problem import Problem
+from trajectolab.scaling import Scaling
 
 
 class ScalingVerifier:
@@ -95,11 +95,7 @@ class ScalingVerifier:
         problem_logger.addHandler(file_handler)
 
     def _record_test_result(
-        self,
-        test_name: str,
-        passed: bool,
-        details: str = "",
-        metrics: dict[str, float] | None = None,
+        self, test_name: str, passed: bool, details: str = "", metrics: dict[str, float] = None
     ) -> None:
         """Record the result of a test."""
         result = {
@@ -125,7 +121,7 @@ class ScalingVerifier:
             scaling1 = Scaling(enabled=True)
             scaling2 = Scaling(enabled=False)
 
-            if not (scaling1.enabled and not scaling2.enabled):
+            if not (scaling1.enabled == True and scaling2.enabled == False):
                 self._record_test_result(
                     "basic_scaling_initialization",
                     False,
@@ -137,7 +133,7 @@ class ScalingVerifier:
             problem1 = tl.Problem("Test1", use_scaling=True)
             problem2 = tl.Problem("Test2", use_scaling=False)
 
-            if not (problem1.use_scaling and not problem2.use_scaling):
+            if not (problem1.use_scaling == True and problem2.use_scaling == False):
                 self._record_test_result(
                     "basic_scaling_property",
                     False,
@@ -149,7 +145,7 @@ class ScalingVerifier:
             problem1.use_scaling = False
             problem2.use_scaling = True
 
-            if not (not problem1.use_scaling and problem2.use_scaling):
+            if not (problem1.use_scaling == False and problem2.use_scaling == True):
                 self._record_test_result(
                     "basic_scaling_setter",
                     False,
@@ -391,7 +387,7 @@ class ScalingVerifier:
 
             if scaled_success and unscaled_success:
                 # Both succeeded, compare objectives
-                obj_diff = abs(solution_scaled.objective - solution_unscaled.objective)
+                obj_diff = fabs(solution_scaled.objective - solution_unscaled.objective)
                 self.logger.info(f"Both solutions succeeded: obj diff = {obj_diff}")
                 self.logger.info(
                     f"Scaled solve time: {solve_time_scaled:.2f}s, unscaled: {solve_time_unscaled:.2f}s"
