@@ -10,13 +10,11 @@ from trajectolab.adaptive.phs.algorithm import solve_phs_adaptive_internal
 from trajectolab.direct_solver import solve_single_phase_radau_collocation
 from trajectolab.problem import Problem
 from trajectolab.solution import _Solution
-from trajectolab.tl_types import FloatArray, OptimalControlSolution, ProblemProtocol
+from trajectolab.tl_types import OptimalControlSolution, ProblemProtocol
 
 
 def solve_fixed_mesh(
     problem: Problem,
-    polynomial_degrees: list[int],
-    mesh_points: FloatArray | list[float],
     nlp_options: dict[str, object] | None = None,
 ) -> _Solution:
     """
@@ -29,9 +27,6 @@ def solve_fixed_mesh(
         "print_time": 0,
     }
 
-    # Configure mesh on problem (this will update scaling too)
-    problem.set_mesh(polynomial_degrees, mesh_points)
-
     # Create protocol-compatible version and solve
     protocol_problem = cast(ProblemProtocol, problem)
     solution_data: OptimalControlSolution = solve_single_phase_radau_collocation(protocol_problem)
@@ -41,8 +36,6 @@ def solve_fixed_mesh(
 
 def solve_adaptive(
     problem: Problem,
-    initial_polynomial_degrees: list[int],
-    initial_mesh_points: FloatArray | list[float],
     error_tolerance: float = 1e-3,
     max_iterations: int = 30,
     min_polynomial_degree: int = 4,
@@ -53,7 +46,34 @@ def solve_adaptive(
 ) -> _Solution:
     """
     Solve optimal control problem with adaptive mesh refinement.
+
+    Args:
+        problem: The optimal control problem with mesh already configured
+        error_tolerance: Tolerance for adaptive mesh refinement
+        max_iterations: Maximum number of mesh refinement iterations
+        min_polynomial_degree: Minimum polynomial degree for refinement
+        max_polynomial_degree: Maximum polynomial degree for refinement
+        ode_solver_tolerance: Tolerance for ODE solver
+        num_error_sim_points: Number of error simulation points
+        nlp_options: Nonlinear programming solver options
+
+    Returns:
+        Solution object containing the results
+
+    Raises:
+        ValueError: If mesh is not configured on the problem
     """
+    # Verify mesh is configured
+    if not problem._mesh_configured:
+        raise ValueError(
+            "Initial mesh must be configured before solving. "
+            "Call problem.set_mesh(polynomial_degrees, mesh_points) first."
+        )
+
+    # Extract initial mesh configuration from problem
+    initial_polynomial_degrees = problem.collocation_points_per_interval
+    initial_mesh_points = problem.global_normalized_mesh_nodes
+
     # Set solver options on problem
     problem.solver_options = nlp_options or {
         "ipopt.print_level": 0,

@@ -47,8 +47,6 @@ problem.set_initial_guess(
 # Solve with adaptive mesh - clean and simple!
 solution = tl.solve_adaptive(
     problem,
-    initial_polynomial_degrees=initial_polynomial_degrees,
-    initial_mesh_points=initial_mesh_points,
     error_tolerance=1e-3,
     max_iterations=30,
     min_polynomial_degree=4,
@@ -76,11 +74,16 @@ else:
 # Use the fixed mesh solver
 print("\nSolving with fixed mesh...")
 
+# Configure the fixed mesh problem
+fixed_polynomial_degrees = [20, 12, 20]
+fixed_mesh_points = [-1.0, -1 / 3, 1 / 3, 1.0]
+
+# Set mesh first
+problem.set_mesh(fixed_polynomial_degrees, fixed_mesh_points)
+
 # Create complete initial guess for fixed mesh
 states_guess = []
 controls_guess = []
-fixed_polynomial_degrees = [20, 12, 20]
-fixed_mesh_points = [-1.0, -1 / 3, 1 / 3, 1.0]
 
 for N in fixed_polynomial_degrees:
     # Create simple linear state guess
@@ -91,10 +94,7 @@ for N in fixed_polynomial_degrees:
     # Create zero control guess
     controls_guess.append(np.zeros((1, N), dtype=np.float64))
 
-# Set mesh first (this clears any existing initial guess)
-problem.set_mesh(fixed_polynomial_degrees, fixed_mesh_points)
-
-# Then set the new initial guess - only one way to do this!
+# Then set the new initial guess
 problem.set_initial_guess(
     states=states_guess,
     controls=controls_guess,
@@ -103,11 +103,9 @@ problem.set_initial_guess(
     integrals=0.1,
 )
 
-# Solve with fixed mesh - clean function call
+# Solve with fixed mesh - clean function call without mesh parameters
 fixed_solution = tl.solve_fixed_mesh(
     problem,
-    polynomial_degrees=fixed_polynomial_degrees,
-    mesh_points=fixed_mesh_points,
     nlp_options={"ipopt.print_level": 0, "ipopt.sb": "yes", "print_time": 0, "ipopt.max_iter": 200},
 )
 

@@ -379,8 +379,6 @@ def run_fair_comparison():
     start_time = time.time()
     solution1 = tl.solve_fixed_mesh(
         problem1,
-        polynomial_degrees=polynomial_degrees,
-        mesh_points=mesh_points,
         nlp_options=fixed_mesh_options,
     )
     solve_time1 = time.time() - start_time
@@ -421,8 +419,6 @@ def run_fair_comparison():
     start_time = time.time()
     solution2 = tl.solve_fixed_mesh(
         problem2,
-        polynomial_degrees=polynomial_degrees,
-        mesh_points=mesh_points,
         nlp_options=fixed_mesh_options,
     )
     solve_time2 = time.time() - start_time
@@ -440,6 +436,8 @@ def run_fair_comparison():
         print(f"  Solve time: {solve_time2:.2f} seconds")
 
     print("\n=== ADAPTIVE MESH WITH MANUAL SCALING (ORIGINAL) ===")
+
+    """
     # 3. ORIGINAL PROBLEM WITH MANUAL SCALING (use_scaling=False)
     problem3, sym_vars3 = create_shuttle_reentry_problem(
         heating_constraint=heating_limit,
@@ -464,8 +462,6 @@ def run_fair_comparison():
     start_time = time.time()
     solution3 = tl.solve_adaptive(
         problem3,
-        initial_polynomial_degrees=initial_polynomial_degrees,
-        initial_mesh_points=initial_mesh_points,
         error_tolerance=1e-5,
         max_iterations=10,
         min_polynomial_degree=4,
@@ -509,8 +505,6 @@ def run_fair_comparison():
     start_time = time.time()
     solution4 = tl.solve_adaptive(
         problem4,
-        initial_polynomial_degrees=initial_polynomial_degrees,
-        initial_mesh_points=initial_mesh_points,
         error_tolerance=1e-5,
         max_iterations=10,
         min_polynomial_degree=4,
@@ -532,7 +526,7 @@ def run_fair_comparison():
         print(f"  Solve time: {solve_time4:.2f} seconds")
         print(f"  Final mesh intervals: {len(solution4.mesh_points) - 1}")
         print(f"  Final polynomial degrees: {solution4.polynomial_degrees}")
-
+    """
     return results
 
 
