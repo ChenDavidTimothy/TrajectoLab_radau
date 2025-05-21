@@ -94,5 +94,3 @@ docs/_build/
 
 # Profiling
 *.prof
-
-scaling_logs/

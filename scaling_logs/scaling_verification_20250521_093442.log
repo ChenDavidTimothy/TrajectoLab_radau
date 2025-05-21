@@ -1,0 +1,111 @@
+2025-05-21 09:34:42 - scaling_verifier - INFO - Scaling verification tool initialized
+2025-05-21 09:34:42 - scaling_verifier - INFO - Log file: C:\Development\Projects\TrajectoLab_radau\scaling_logs\scaling_verification_20250521_093442.log
+2025-05-21 09:34:42 - scaling_verifier - INFO - Results file: C:\Development\Projects\TrajectoLab_radau\scaling_logs\scaling_verification_results_20250521_093442.txt
+2025-05-21 09:34:42 - scaling_verifier - INFO - Starting all scaling verification tests...
+2025-05-21 09:34:42 - scaling_verifier - INFO - Running basic scaling test...
+2025-05-21 09:34:42 - trajectolab.scaling - INFO - Scaling system initialized with enabled=True
+2025-05-21 09:34:42 - trajectolab.scaling - INFO - Scaling system initialized with enabled=False
+2025-05-21 09:34:42 - trajectolab.problem - INFO - Creating problem 'Test1'
+2025-05-21 09:34:42 - trajectolab.scaling - INFO - Scaling system initialized with enabled=True
+2025-05-21 09:34:42 - trajectolab.problem - INFO - Scaling initialized with enabled=True
+2025-05-21 09:34:42 - trajectolab.problem - INFO - Creating problem 'Test2'
+2025-05-21 09:34:42 - trajectolab.scaling - INFO - Scaling system initialized with enabled=False
+2025-05-21 09:34:42 - trajectolab.problem - INFO - Scaling initialized with enabled=False
+2025-05-21 09:34:42 - trajectolab.scaling - INFO - Scaling enabled set to: False
+2025-05-21 09:34:42 - trajectolab.scaling - INFO - Reset 0 state and 0 control scaling factors to defaults
+2025-05-21 09:34:42 - trajectolab.problem - INFO - Scaling enabled changed: True -> False
+2025-05-21 09:34:42 - trajectolab.scaling - INFO - Scaling enabled set to: True
+2025-05-21 09:34:42 - trajectolab.problem - INFO - Scaling enabled changed: False -> True
+2025-05-21 09:34:42 - trajectolab.scaling - INFO - Scaling enabled set to: True
+2025-05-21 09:34:42 - trajectolab.problem - INFO - Scaling enabled changed: False -> True
+2025-05-21 09:34:42 - scaling_verifier - INFO - Test basic_scaling_test: PASSED - All basic scaling checks passed
+2025-05-21 09:34:42 - scaling_verifier - INFO - Running scaling factor calculation test...
+2025-05-21 09:34:42 - trajectolab.scaling - INFO - Scaling system initialized with enabled=True
+2025-05-21 09:34:42 - trajectolab.scaling - INFO - Computing scaling factors
+2025-05-21 09:34:42 - trajectolab.scaling - INFO - Computing state variable scaling factors:
+2025-05-21 09:34:42 - trajectolab.scaling - INFO -   State x: Using bounds for scaling (Rule 2a)
+2025-05-21 09:34:42 - trajectolab.scaling - INFO -     Range: [0.0, 10.0], factor=0.1, shift=-0.5
+2025-05-21 09:34:42 - trajectolab.scaling - INFO -   State y: Using bounds for scaling (Rule 2a)
+2025-05-21 09:34:42 - trajectolab.scaling - INFO -     Range: [-5.0, 5.0], factor=0.1, shift=0
+2025-05-21 09:34:42 - trajectolab.scaling - INFO -   State z: Using bounds for scaling (Rule 2a)
+2025-05-21 09:34:42 - trajectolab.scaling - INFO -     Range: [100.0, 1000.0], factor=0.00111111, shift=-0.611111
+2025-05-21 09:34:42 - trajectolab.scaling - INFO - Scaling system initialized with enabled=True
+2025-05-21 09:34:42 - trajectolab.scaling - INFO - Computing scaling factors
+2025-05-21 09:34:42 - trajectolab.scaling - INFO - Computing state variable scaling factors:
+2025-05-21 09:34:42 - trajectolab.scaling - INFO -   State v: Using initial guess for scaling (Rule 2b)
+2025-05-21 09:34:42 - trajectolab.scaling - INFO -     Guess range: [0, 10]
+2025-05-21 09:34:42 - trajectolab.scaling - INFO -     Calculated with 10% margin: factor=0.0833333, shift=-0.416667
+2025-05-21 09:34:42 - trajectolab.scaling - INFO -     NOTE: Velocity scaling - manual v_scale=1e4, auto=12
+2025-05-21 09:34:42 - trajectolab.scaling - INFO - Scaling system initialized with enabled=False
+2025-05-21 09:34:42 - trajectolab.scaling - INFO - Scaling is disabled - skipping factor computation
+2025-05-21 09:34:42 - trajectolab.scaling - INFO - Scaling system initialized with enabled=True
+2025-05-21 09:34:42 - trajectolab.scaling - INFO - Computing scaling factors
+2025-05-21 09:34:42 - trajectolab.scaling - INFO - Computing state variable scaling factors:
+2025-05-21 09:34:42 - trajectolab.scaling - INFO -   State altitude: Using bounds for scaling (Rule 2a)
+2025-05-21 09:34:42 - trajectolab.scaling - INFO -     Range: [0.0, 260000.0], factor=3.84615e-06, shift=-0.5
+2025-05-21 09:34:42 - trajectolab.scaling - INFO -   State velocity: Using bounds for scaling (Rule 2a)
+2025-05-21 09:34:42 - trajectolab.scaling - INFO -     Range: [0.0, 25600.0], factor=3.90625e-05, shift=-0.5
+2025-05-21 09:34:42 - scaling_verifier - INFO - Test factor_calculation_test: PASSED - All factor calculation checks passed
+2025-05-21 09:34:42 - scaling_verifier - INFO - Running problem solve test with scaling...
+2025-05-21 09:34:42 - trajectolab.problem - INFO - Creating problem 'Scaling Verification Problem'
+2025-05-21 09:34:42 - trajectolab.scaling - INFO - Scaling system initialized with enabled=True
+2025-05-21 09:34:42 - trajectolab.problem - INFO - Scaling initialized with enabled=True
+2025-05-21 09:34:42 - scaling_verifier - INFO - Test problem_solve_test: FAILED - Exception: State array for interval 0 has shape (3, 6), expected (3, 11)
+2025-05-21 09:34:42 - scaling_verifier - ERROR - Exception in problem solve test
+Traceback (most recent call last):
+  File "C:\Development\Projects\TrajectoLab_radau\tests\test_scale.py", line 373, in run_problem_solve_test
+    problem.set_initial_guess(
+  File "C:\Development\Projects\TrajectoLab_radau\trajectolab\problem\core_problem.py", line 235, in set_initial_guess
+    initial_guess_problem.set_initial_guess(
+  File "C:\Development\Projects\TrajectoLab_radau\trajectolab\problem\initial_guess_problem.py", line 127, in set_initial_guess
+    raise ValueError(
+ValueError: State array for interval 0 has shape (3, 6), expected (3, 11)
+2025-05-21 09:34:42 - scaling_verifier - INFO - Running solution unscaling test...
+2025-05-21 09:34:42 - trajectolab.problem - INFO - Creating problem 'Scaling Verification Problem'
+2025-05-21 09:34:42 - trajectolab.scaling - INFO - Scaling system initialized with enabled=True
+2025-05-21 09:34:42 - trajectolab.problem - INFO - Scaling initialized with enabled=True
+2025-05-21 09:34:42 - trajectolab.scaling - INFO - Scaling enabled set to: True
+2025-05-21 09:34:42 - trajectolab.scaling - INFO - Computing scaling factors from problem 'Scaling Verification Problem'
+2025-05-21 09:34:42 - trajectolab.scaling - INFO - Computing scaling factors
+2025-05-21 09:34:42 - trajectolab.scaling - INFO - Computing state variable scaling factors:
+2025-05-21 09:34:42 - trajectolab.scaling - INFO -   State h: No bounds or guess available, using default (1.0, 0.0)
+2025-05-21 09:34:42 - trajectolab.scaling - INFO -     NOTE: Altitude scaling - manual h_scale=1e5, auto=1
+2025-05-21 09:34:42 - trajectolab.scaling - INFO -   State v: No bounds or guess available, using default (1.0, 0.0)
+2025-05-21 09:34:42 - trajectolab.scaling - INFO -     NOTE: Velocity scaling - manual v_scale=1e4, auto=1
+2025-05-21 09:34:42 - trajectolab.scaling - INFO -   State gamma: No bounds or guess available, using default (1.0, 0.0)
+2025-05-21 09:34:42 - trajectolab.scaling - INFO - Computing control variable scaling factors:
+2025-05-21 09:34:42 - trajectolab.scaling - INFO -   Control u: Using bounds, factor=0.5, shift=0
+2025-05-21 09:34:47 - scaling_verifier - INFO - Test solution_unscaling_test: FAILED - Solution failed to converge: Solver runtime error: Error in Opti::solve [OptiNode] at .../casadi/core/optistack.cpp:217:
+.../casadi/core/optistack_internal.cpp:1334: Assertion "return_success(accept_limit)" failed:
+Solver failed. You may use opti.debug.value to investigate the latest values of variables. return_status is 'Maximum_Iterations_Exceeded'
+2025-05-21 09:34:47 - scaling_verifier - INFO - Running adaptive mesh scaling test...
+2025-05-21 09:34:47 - trajectolab.problem - INFO - Creating problem 'Scaling Verification Problem'
+2025-05-21 09:34:47 - trajectolab.scaling - INFO - Scaling system initialized with enabled=True
+2025-05-21 09:34:47 - trajectolab.problem - INFO - Scaling initialized with enabled=True
+2025-05-21 09:34:47 - trajectolab.scaling - INFO - Scaling enabled set to: True
+2025-05-21 09:34:47 - trajectolab.scaling - INFO - Computing scaling factors from problem 'Scaling Verification Problem'
+2025-05-21 09:34:47 - trajectolab.scaling - INFO - Computing scaling factors
+2025-05-21 09:34:47 - trajectolab.scaling - INFO - Computing state variable scaling factors:
+2025-05-21 09:34:47 - trajectolab.scaling - INFO -   State h: No bounds or guess available, using default (1.0, 0.0)
+2025-05-21 09:34:47 - trajectolab.scaling - INFO -     NOTE: Altitude scaling - manual h_scale=1e5, auto=1
+2025-05-21 09:34:47 - trajectolab.scaling - INFO -   State v: No bounds or guess available, using default (1.0, 0.0)
+2025-05-21 09:34:47 - trajectolab.scaling - INFO -     NOTE: Velocity scaling - manual v_scale=1e4, auto=1
+2025-05-21 09:34:47 - trajectolab.scaling - INFO -   State gamma: No bounds or guess available, using default (1.0, 0.0)
+2025-05-21 09:34:47 - trajectolab.scaling - INFO - Computing control variable scaling factors:
+2025-05-21 09:34:47 - trajectolab.scaling - INFO -   Control u: Using bounds, factor=0.5, shift=0
+2025-05-21 09:34:47 - scaling_verifier - INFO - Test adaptive_mesh_scaling_test: FAILED - Exception: Polynomial degree 10 for interval 0 is above maximum 8
+2025-05-21 09:34:47 - scaling_verifier - ERROR - Exception in adaptive mesh scaling test
+Traceback (most recent call last):
+  File "C:\Development\Projects\TrajectoLab_radau\tests\test_scale.py", line 554, in run_adaptive_mesh_scaling_test
+    solution = tl.solve_adaptive(
+               ^^^^^^^^^^^^^^^^^^
+  File "C:\Development\Projects\TrajectoLab_radau\trajectolab\solver.py", line 120, in solve_adaptive
+    solution_data: OptimalControlSolution = solve_phs_adaptive_internal(
+                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Development\Projects\TrajectoLab_radau\trajectolab\adaptive\phs\algorithm.py", line 380, in solve_phs_adaptive_internal
+    _validate_mesh_configuration(
+  File "C:\Development\Projects\TrajectoLab_radau\trajectolab\adaptive\phs\algorithm.py", line 81, in _validate_mesh_configuration
+    raise ValueError(
+ValueError: Polynomial degree 10 for interval 0 is above maximum 8
+2025-05-21 09:34:47 - scaling_verifier - INFO - All tests completed: FAILED
+2025-05-21 09:34:47 - scaling_verifier - INFO - Detailed results written to: C:\Development\Projects\TrajectoLab_radau\scaling_logs\scaling_verification_results_20250521_093442.txt
