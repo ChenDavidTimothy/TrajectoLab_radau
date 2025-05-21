@@ -378,7 +378,7 @@ def plot_solution(solution, symbolic_vars, plot_title_suffix=""):
     axs_states[2, 1].plot(time_psi, psi_deg)
     axs_states[2, 1].set_title("Azimuth (deg)")
     axs_states[2, 1].grid(True)
-    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.tight_layout(rect=(0, 0, 1, 0.96))
     plt.show()
 
     fig_ctrl, axs_ctrl = plt.subplots(2, 1, figsize=(10, 7))
@@ -389,7 +389,7 @@ def plot_solution(solution, symbolic_vars, plot_title_suffix=""):
     axs_ctrl[1].plot(time_beta, beta_deg)
     axs_ctrl[1].set_title("Bank Angle (deg)")
     axs_ctrl[1].grid(True)
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.tight_layout(rect=(0, 0, 1, 0.95))
     plt.show()
 
     fig_3d = plt.figure(figsize=(10, 8))

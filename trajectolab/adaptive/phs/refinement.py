@@ -26,7 +26,7 @@ from trajectolab.tl_types import (
     ProblemProtocol,
     StateEvaluator,
 )
-from trajectolab.utils.casadi_utils import convert_casadi_to_numpy
+from trajectolab.utils.casadi_utils import CasadiFunction, convert_casadi_to_numpy
 from trajectolab.utils.constants import DEFAULT_ODE_ATOL_FACTOR
 
 
@@ -131,7 +131,7 @@ def h_reduce_intervals(
     num_sim_points = adaptive_params.num_error_sim_points
 
     num_states = len(problem._states)
-    casadi_dynamics_function = problem.get_dynamics_function()
+    casadi_dynamics_function = cast(CasadiFunction, problem.get_dynamics_function())
     problem_parameters = problem._parameters
 
     if solution.raw_solution is None:
@@ -192,7 +192,11 @@ def h_reduce_intervals(
 
         # Use consolidated conversion function
         f_rhs_np = convert_casadi_to_numpy(
-            casadi_dynamics_function, state_clipped, u_val, t_actual, problem_parameters
+            cast(CasadiFunction, casadi_dynamics_function),
+            state_clipped,
+            u_val,
+            t_actual,
+            problem_parameters,
         )
         return cast(FloatArray, scaling_k * f_rhs_np)
 

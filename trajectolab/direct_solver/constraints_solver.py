@@ -3,6 +3,7 @@ Fixed collocation constraints application with proper scaling validation.
 """
 
 import logging
+from collections.abc import Sequence
 
 import casadi as ca
 
