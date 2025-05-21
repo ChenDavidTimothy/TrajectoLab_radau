@@ -1,16 +1,28 @@
 """
-Functional solver interface for optimal control problems using the Radau Pseudospectral Method.
+Fixed solver functions with consistent scaling property access.
 """
 
+import logging
 from typing import cast
 
 import numpy as np
 
-from trajectolab.adaptive.phs.algorithm import solve_phs_adaptive_internal
 from trajectolab.direct_solver import solve_single_phase_radau_collocation
 from trajectolab.problem import Problem
 from trajectolab.solution import _Solution
 from trajectolab.tl_types import OptimalControlSolution, ProblemProtocol
+
+
+# Configure solver-specific logger
+solver_logger = logging.getLogger("trajectolab.solver")
+if not solver_logger.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s", datefmt="%H:%M:%S"
+    )
+    handler.setFormatter(formatter)
+    solver_logger.addHandler(handler)
+    solver_logger.setLevel(logging.INFO)
 
 
 def solve_fixed_mesh(
@@ -20,6 +32,8 @@ def solve_fixed_mesh(
     """
     Solve optimal control problem with fixed mesh.
     """
+    solver_logger.info(f"Starting fixed-mesh solve for problem '{problem.name}'")
+
     # Set solver options on problem
     problem.solver_options = nlp_options or {
         "ipopt.print_level": 0,
@@ -27,14 +41,23 @@ def solve_fixed_mesh(
         "print_time": 0,
     }
 
-    # Compute scaling right before solving - this will use the latest information
+    # FIXED: Use problem.use_scaling consistently for scaling check
     if problem.use_scaling and len(problem._states) > 0:
-        print(f"\nComputing scaling from problem (states: {list(problem._states.keys())})")
+        solver_logger.info(
+            f"Computing scaling from problem (states: {list(problem._states.keys())})"
+        )
         problem._scaling.compute_from_problem(problem)
+    else:
+        solver_logger.info("Scaling disabled or no states - skipping scaling computation")
 
     # Create protocol-compatible version and solve
     protocol_problem = cast(ProblemProtocol, problem)
     solution_data: OptimalControlSolution = solve_single_phase_radau_collocation(protocol_problem)
+
+    # Mark if scaling was used to enable proper unscaling
+    if hasattr(solution_data, "was_scaled") and problem.use_scaling:
+        solution_data.was_scaled = True
+        solver_logger.info("Solution marked as scaled for later unscaling")
 
     return _Solution(solution_data, protocol_problem)
 
@@ -51,23 +74,13 @@ def solve_adaptive(
 ) -> _Solution:
     """
     Solve optimal control problem with adaptive mesh refinement.
-
-    Args:
-        problem: The optimal control problem with mesh already configured
-        error_tolerance: Tolerance for adaptive mesh refinement
-        max_iterations: Maximum number of mesh refinement iterations
-        min_polynomial_degree: Minimum polynomial degree for refinement
-        max_polynomial_degree: Maximum polynomial degree for refinement
-        ode_solver_tolerance: Tolerance for ODE solver
-        num_error_sim_points: Number of error simulation points
-        nlp_options: Nonlinear programming solver options
-
-    Returns:
-        Solution object containing the results
-
-    Raises:
-        ValueError: If mesh is not configured on the problem
     """
+    solver_logger.info(f"Starting adaptive solve for problem '{problem.name}'")
+    solver_logger.info(f"Settings: error_tol={error_tolerance}, max_iter={max_iterations}")
+    solver_logger.info(
+        f"Polynomial degree range: [{min_polynomial_degree}, {max_polynomial_degree}]"
+    )
+
     # Verify mesh is configured
     if not problem._mesh_configured:
         raise ValueError(
@@ -92,12 +105,18 @@ def solve_adaptive(
     # Create protocol-compatible version
     protocol_problem = cast(ProblemProtocol, problem)
 
-    # Compute scaling right before passing to adaptive solver
+    # FIXED: Use problem.use_scaling consistently
     if problem.use_scaling and len(problem._states) > 0:
-        print(f"\nComputing scaling from problem (states: {list(problem._states.keys())})")
+        solver_logger.info(
+            f"Computing scaling from problem (states: {list(problem._states.keys())})"
+        )
         problem._scaling.compute_from_problem(problem)
+    else:
+        solver_logger.info("Scaling disabled or no states - skipping scaling computation")
 
     # Call the internal adaptive solver
+    from trajectolab.adaptive.phs.algorithm import solve_phs_adaptive_internal
+
     solution_data: OptimalControlSolution = solve_phs_adaptive_internal(
         problem=protocol_problem,
         initial_polynomial_degrees=initial_polynomial_degrees,
@@ -110,6 +129,11 @@ def solve_adaptive(
         num_error_sim_points=num_error_sim_points,
         initial_guess=initial_guess,
     )
+
+    # Mark if scaling was used to enable proper unscaling
+    if hasattr(solution_data, "was_scaled") and problem.use_scaling:
+        solution_data.was_scaled = True
+        solver_logger.info("Solution marked as scaled for later unscaling")
 
     return _Solution(solution_data, protocol_problem)
 
@@ -136,6 +160,9 @@ def solve(
     Raises:
         ValueError: If mesh_method is not recognized
     """
+    solver_logger.info(f"Solving problem '{problem.name}' with {mesh_method} mesh")
+    solver_logger.info(f"Scaling enabled: {problem.use_scaling}")
+
     if mesh_method == "fixed":
         return solve_fixed_mesh(problem, **kwargs)  # type: ignore[arg-type]
     elif mesh_method == "adaptive":

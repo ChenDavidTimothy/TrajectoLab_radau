@@ -1,0 +1,171 @@
+09:06:32 - scaling_test - INFO - ======== TRAJECTOLAB SCALING VALIDATION TESTS ========
+09:06:32 - scaling_test - INFO - TrajectoLab version: 0.1.0
+09:06:32 - scaling_test - INFO - Log level: INFO
+09:06:32 - scaling_test - INFO - ======================================================
+09:06:32 - scaling_test - INFO - TEST STARTED: Scaling Property Consistency
+09:06:32 - trajectolab.problem - INFO - Creating problem 'PropertyTest1'
+09:06:32 - scaling_test - ERROR - Exception running test test_scaling_property_consistency: name 'OptimalControlSolution' is not defined
+09:06:32 - scaling_test - ERROR - Traceback (most recent call last):
+  File "C:\Development\Projects\TrajectoLab_radau\examples\test_scale.py", line 970, in run_all_tests
+    result = test_func()
+             ^^^^^^^^^^^
+  File "C:\Development\Projects\TrajectoLab_radau\examples\test_scale.py", line 259, in test_scaling_property_consistency
+    problem = tl.Problem("PropertyTest1", use_scaling=True)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Development\Projects\TrajectoLab_radau\trajectolab\problem\core_problem.py", line 42, in __init__
+    from trajectolab.scaling import Scaling
+  File "C:\Development\Projects\TrajectoLab_radau\trajectolab\scaling.py", line 511, in <module>
+    solution: OptimalControlSolution, state_names: list[str], control_names: list[str]
+              ^^^^^^^^^^^^^^^^^^^^^^
+NameError: name 'OptimalControlSolution' is not defined
+
+09:06:32 - scaling_test - INFO - TEST STARTED: Scaling Factor Calculation
+09:06:32 - trajectolab.problem - INFO - Creating problem 'Scaling Test Problem'
+09:06:32 - scaling_test - ERROR - Exception running test test_scaling_factor_calculation: name 'OptimalControlSolution' is not defined
+09:06:32 - scaling_test - ERROR - Traceback (most recent call last):
+  File "C:\Development\Projects\TrajectoLab_radau\examples\test_scale.py", line 970, in run_all_tests
+    result = test_func()
+             ^^^^^^^^^^^
+  File "C:\Development\Projects\TrajectoLab_radau\examples\test_scale.py", line 310, in test_scaling_factor_calculation
+    problem = create_test_problem(use_scaling=True)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Development\Projects\TrajectoLab_radau\examples\test_scale.py", line 125, in create_test_problem
+    problem = tl.Problem("Scaling Test Problem", use_scaling=use_scaling)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Development\Projects\TrajectoLab_radau\trajectolab\problem\core_problem.py", line 42, in __init__
+    from trajectolab.scaling import Scaling
+  File "C:\Development\Projects\TrajectoLab_radau\trajectolab\scaling.py", line 511, in <module>
+    solution: OptimalControlSolution, state_names: list[str], control_names: list[str]
+              ^^^^^^^^^^^^^^^^^^^^^^
+NameError: name 'OptimalControlSolution' is not defined
+
+09:06:32 - scaling_test - INFO - TEST STARTED: Scaling Application in Solver
+09:06:32 - trajectolab.problem - INFO - Creating problem 'Scaling Test Problem'
+09:06:32 - scaling_test - ERROR - Exception running test test_scaling_application_in_solver: name 'OptimalControlSolution' is not defined
+09:06:32 - scaling_test - ERROR - Traceback (most recent call last):
+  File "C:\Development\Projects\TrajectoLab_radau\examples\test_scale.py", line 970, in run_all_tests
+    result = test_func()
+             ^^^^^^^^^^^
+  File "C:\Development\Projects\TrajectoLab_radau\examples\test_scale.py", line 392, in test_scaling_application_in_solver
+    problem_scaled = create_test_problem(use_scaling=True)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Development\Projects\TrajectoLab_radau\examples\test_scale.py", line 125, in create_test_problem
+    problem = tl.Problem("Scaling Test Problem", use_scaling=use_scaling)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Development\Projects\TrajectoLab_radau\trajectolab\problem\core_problem.py", line 42, in __init__
+    from trajectolab.scaling import Scaling
+  File "C:\Development\Projects\TrajectoLab_radau\trajectolab\scaling.py", line 511, in <module>
+    solution: OptimalControlSolution, state_names: list[str], control_names: list[str]
+              ^^^^^^^^^^^^^^^^^^^^^^
+NameError: name 'OptimalControlSolution' is not defined
+
+09:06:32 - scaling_test - INFO - TEST STARTED: Extreme Value Scaling
+09:06:32 - trajectolab.problem - INFO - Creating problem 'Extreme Value Problem'
+09:06:32 - scaling_test - ERROR - Exception running test test_extreme_value_scaling: name 'OptimalControlSolution' is not defined
+09:06:32 - scaling_test - ERROR - Traceback (most recent call last):
+  File "C:\Development\Projects\TrajectoLab_radau\examples\test_scale.py", line 970, in run_all_tests
+    result = test_func()
+             ^^^^^^^^^^^
+  File "C:\Development\Projects\TrajectoLab_radau\examples\test_scale.py", line 465, in test_extreme_value_scaling
+    extreme_problem = create_extreme_value_problem(use_scaling=True)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Development\Projects\TrajectoLab_radau\examples\test_scale.py", line 172, in create_extreme_value_problem
+    problem = tl.Problem("Extreme Value Problem", use_scaling=use_scaling)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Development\Projects\TrajectoLab_radau\trajectolab\problem\core_problem.py", line 42, in __init__
+    from trajectolab.scaling import Scaling
+  File "C:\Development\Projects\TrajectoLab_radau\trajectolab\scaling.py", line 511, in <module>
+    solution: OptimalControlSolution, state_names: list[str], control_names: list[str]
+              ^^^^^^^^^^^^^^^^^^^^^^
+NameError: name 'OptimalControlSolution' is not defined
+
+09:06:32 - scaling_test - INFO - TEST STARTED: Adaptive Mesh Scaling
+09:06:32 - trajectolab.problem - INFO - Creating problem 'Scaling Test Problem'
+09:06:32 - scaling_test - ERROR - Exception running test test_adaptive_mesh_scaling: name 'OptimalControlSolution' is not defined
+09:06:32 - scaling_test - ERROR - Traceback (most recent call last):
+  File "C:\Development\Projects\TrajectoLab_radau\examples\test_scale.py", line 970, in run_all_tests
+    result = test_func()
+             ^^^^^^^^^^^
+  File "C:\Development\Projects\TrajectoLab_radau\examples\test_scale.py", line 587, in test_adaptive_mesh_scaling
+    problem = create_test_problem(use_scaling=True)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Development\Projects\TrajectoLab_radau\examples\test_scale.py", line 125, in create_test_problem
+    problem = tl.Problem("Scaling Test Problem", use_scaling=use_scaling)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Development\Projects\TrajectoLab_radau\trajectolab\problem\core_problem.py", line 42, in __init__
+    from trajectolab.scaling import Scaling
+  File "C:\Development\Projects\TrajectoLab_radau\trajectolab\scaling.py", line 511, in <module>
+    solution: OptimalControlSolution, state_names: list[str], control_names: list[str]
+              ^^^^^^^^^^^^^^^^^^^^^^
+NameError: name 'OptimalControlSolution' is not defined
+
+09:06:32 - scaling_test - INFO - TEST STARTED: Scaling Flow Tracing (use_scaling=True)
+09:06:32 - trajectolab.problem - INFO - Creating problem 'Scaling Test Problem'
+09:06:32 - scaling_test - ERROR - Exception running test <lambda>: name 'OptimalControlSolution' is not defined
+09:06:32 - scaling_test - ERROR - Traceback (most recent call last):
+  File "C:\Development\Projects\TrajectoLab_radau\examples\test_scale.py", line 970, in run_all_tests
+    result = test_func()
+             ^^^^^^^^^^^
+  File "C:\Development\Projects\TrajectoLab_radau\examples\test_scale.py", line 961, in <lambda>
+    lambda: trace_scaling_flow(use_scaling=True),
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Development\Projects\TrajectoLab_radau\examples\test_scale.py", line 662, in trace_scaling_flow
+    problem = create_test_problem(use_scaling=use_scaling)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Development\Projects\TrajectoLab_radau\examples\test_scale.py", line 125, in create_test_problem
+    problem = tl.Problem("Scaling Test Problem", use_scaling=use_scaling)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Development\Projects\TrajectoLab_radau\trajectolab\problem\core_problem.py", line 42, in __init__
+    from trajectolab.scaling import Scaling
+  File "C:\Development\Projects\TrajectoLab_radau\trajectolab\scaling.py", line 511, in <module>
+    solution: OptimalControlSolution, state_names: list[str], control_names: list[str]
+              ^^^^^^^^^^^^^^^^^^^^^^
+NameError: name 'OptimalControlSolution' is not defined
+
+09:06:32 - scaling_test - INFO - TEST STARTED: Scaling Flow Tracing (use_scaling=False)
+09:06:32 - trajectolab.problem - INFO - Creating problem 'Scaling Test Problem'
+09:06:32 - scaling_test - ERROR - Exception running test <lambda>: name 'OptimalControlSolution' is not defined
+09:06:32 - scaling_test - ERROR - Traceback (most recent call last):
+  File "C:\Development\Projects\TrajectoLab_radau\examples\test_scale.py", line 970, in run_all_tests
+    result = test_func()
+             ^^^^^^^^^^^
+  File "C:\Development\Projects\TrajectoLab_radau\examples\test_scale.py", line 962, in <lambda>
+    lambda: trace_scaling_flow(use_scaling=False),
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Development\Projects\TrajectoLab_radau\examples\test_scale.py", line 662, in trace_scaling_flow
+    problem = create_test_problem(use_scaling=use_scaling)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Development\Projects\TrajectoLab_radau\examples\test_scale.py", line 125, in create_test_problem
+    problem = tl.Problem("Scaling Test Problem", use_scaling=use_scaling)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Development\Projects\TrajectoLab_radau\trajectolab\problem\core_problem.py", line 42, in __init__
+    from trajectolab.scaling import Scaling
+  File "C:\Development\Projects\TrajectoLab_radau\trajectolab\scaling.py", line 511, in <module>
+    solution: OptimalControlSolution, state_names: list[str], control_names: list[str]
+              ^^^^^^^^^^^^^^^^^^^^^^
+NameError: name 'OptimalControlSolution' is not defined
+
+09:06:32 - scaling_test - INFO - TEST STARTED: Toggle Scaling During Process
+09:06:32 - trajectolab.problem - INFO - Creating problem 'Scaling Test Problem'
+09:06:32 - scaling_test - ERROR - Exception running test test_toggle_scaling_during_process: name 'OptimalControlSolution' is not defined
+09:06:32 - scaling_test - ERROR - Traceback (most recent call last):
+  File "C:\Development\Projects\TrajectoLab_radau\examples\test_scale.py", line 970, in run_all_tests
+    result = test_func()
+             ^^^^^^^^^^^
+  File "C:\Development\Projects\TrajectoLab_radau\examples\test_scale.py", line 847, in test_toggle_scaling_during_process
+    problem = create_test_problem(use_scaling=True)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Development\Projects\TrajectoLab_radau\examples\test_scale.py", line 125, in create_test_problem
+    problem = tl.Problem("Scaling Test Problem", use_scaling=use_scaling)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Development\Projects\TrajectoLab_radau\trajectolab\problem\core_problem.py", line 42, in __init__
+    from trajectolab.scaling import Scaling
+  File "C:\Development\Projects\TrajectoLab_radau\trajectolab\scaling.py", line 511, in <module>
+    solution: OptimalControlSolution, state_names: list[str], control_names: list[str]
+              ^^^^^^^^^^^^^^^^^^^^^^
+NameError: name 'OptimalControlSolution' is not defined
+
+09:06:32 - scaling_test - INFO - 
+======== TEST SUMMARY ========
+09:06:32 - scaling_test - INFO - Total: 0 tests, 0 passed, 0 failed
+09:06:32 - scaling_test - INFO - ===============================

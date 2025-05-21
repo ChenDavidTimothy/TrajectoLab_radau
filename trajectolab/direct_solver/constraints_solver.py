@@ -1,14 +1,15 @@
 """
-Constraint application functions for the direct solver.
+Fixed collocation constraints application with proper scaling validation.
 """
 
+import logging
 from collections.abc import Sequence
 
 import casadi as ca
 
-from ..input_validation import validate_dynamics_output, validate_interval_length
-from ..radau import RadauBasisComponents
-from ..tl_types import (
+from trajectolab.input_validation import validate_dynamics_output, validate_interval_length
+from trajectolab.radau import RadauBasisComponents
+from trajectolab.tl_types import (
     CasadiDM,
     CasadiMatrix,
     CasadiMX,
@@ -20,6 +21,18 @@ from ..tl_types import (
     ProblemParameters,
     ProblemProtocol,
 )
+
+
+# Configure constraints-specific logger
+constraints_logger = logging.getLogger("trajectolab.constraints")
+if not constraints_logger.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s", datefmt="%H:%M:%S"
+    )
+    handler.setFormatter(formatter)
+    constraints_logger.addHandler(handler)
+    constraints_logger.setLevel(logging.INFO)
 
 
 def apply_constraint(opti: CasadiOpti, constraint: Constraint) -> None:
@@ -78,18 +91,19 @@ def apply_collocation_constraints(
         (terminal_time_variable - initial_time_variable) * global_segment_length / 4.0
     )
 
-    # SIMPLIFIED: Check scaling is enabled directly from the scaling object
+    # FIXED: Use consistent scaling check with problem.use_scaling
+    # This is the CRITICAL fix: we consistently use problem.use_scaling property
     use_scaling = False
-    if problem is not None and hasattr(problem, "_scaling"):
-        use_scaling = problem._scaling.enabled  # Single source of truth
+    if problem is not None and hasattr(problem, "use_scaling"):
+        use_scaling = problem.use_scaling
 
-    # Output debug info
-    print(f"SCALING CHECK: interval={mesh_interval_index}, use_scaling={use_scaling}")
+    constraints_logger.info(f"Interval {mesh_interval_index}: use_scaling={use_scaling}")
 
     # Extract state names for scaling if needed
     state_names = []
     if problem is not None and hasattr(problem, "_states"):
         state_names = list(problem._states.keys())
+        constraints_logger.debug(f"Found {len(state_names)} state names: {state_names}")
 
     # Apply constraints at each collocation point
     for i_colloc in range(num_colloc_nodes):
@@ -121,10 +135,9 @@ def apply_collocation_constraints(
             state_derivative_rhs, num_states
         )
 
-        # Apply appropriate scaling based on single source of truth
+        # FIXED: Simplified conditional for better readability and safety
         if use_scaling and problem is not None and hasattr(problem, "_scaling"):
-            # Apply scaled constraints (Rule 3)
-            print(f"=== APPLYING SCALED DEFECT CONSTRAINTS (Interval {mesh_interval_index}) ===")
+            # Apply scaled constraints using imported function
             from trajectolab.scaling import apply_scaling_to_defect_constraints
 
             apply_scaling_to_defect_constraints(
@@ -136,9 +149,14 @@ def apply_collocation_constraints(
                 tau_to_time_scaling,
                 i_colloc,
             )
+            constraints_logger.debug(
+                f"Applied scaled defect constraints for collocation point {i_colloc}"
+            )
         else:
             # Apply unscaled constraint (original implementation)
-            print(f"=== APPLYING UNSCALED DEFECT CONSTRAINTS (Interval {mesh_interval_index}) ===")
+            constraints_logger.debug(
+                f"Applied unscaled defect constraints for collocation point {i_colloc}"
+            )
             opti.subject_to(
                 state_derivative_at_colloc[:, i_colloc]
                 == tau_to_time_scaling * state_derivative_rhs_vector

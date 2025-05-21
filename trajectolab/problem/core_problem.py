@@ -1,9 +1,6 @@
-"""
-Core Problem class for optimal control problem definition.
-"""
-
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from ..tl_types import FloatArray, SymExpr, SymType
@@ -11,11 +8,24 @@ from . import constraints_problem, initial_guess_problem, mesh, solver_interface
 from .state import ConstraintState, MeshState, VariableState
 
 
+# Configure problem-specific logger
+problem_logger = logging.getLogger("trajectolab.problem")
+if not problem_logger.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s", datefmt="%H:%M:%S"
+    )
+    handler.setFormatter(formatter)
+    problem_logger.addHandler(handler)
+    problem_logger.setLevel(logging.INFO)
+
+
 class Problem:
     """Main class for defining optimal control problems."""
 
     def __init__(self, name: str = "Unnamed Problem", use_scaling: bool = True) -> None:
         self.name = name
+        problem_logger.info(f"Creating problem '{name}'")
 
         # State containers
         self._variable_state = VariableState()
@@ -28,24 +38,44 @@ class Problem:
         # Solver options
         self.solver_options: dict[str, Any] = {}
 
-        # Create scaling object ONCE with the desired initial state
+        # Create scaling object with proper initialization
         from trajectolab.scaling import Scaling
 
         self._scaling = Scaling(enabled=use_scaling)
-        print(f"Scaling object created with enabled={self._scaling.enabled}")
+        problem_logger.info(f"Scaling initialized with enabled={use_scaling}")
 
-    # SIMPLIFIED - Direct delegation to _scaling object as single source of truth
     @property
     def use_scaling(self) -> bool:
-        """Get the current scaling state directly from the scaling object."""
-        return self._scaling.enabled if hasattr(self, "_scaling") else False
+        """
+        Get the current scaling state.
+
+        This property is the SINGLE SOURCE OF TRUTH for whether scaling is enabled.
+        """
+        scaling_enabled = False
+        if hasattr(self, "_scaling"):
+            scaling_enabled = self._scaling.enabled
+        else:
+            problem_logger.warning("Scaling object not initialized properly")
+
+        problem_logger.debug(f"Getting use_scaling = {scaling_enabled}")
+        return scaling_enabled
 
     @use_scaling.setter
     def use_scaling(self, value: bool) -> None:
-        """Set scaling state directly on the scaling object."""
+        """
+        Set scaling state.
+
+        This is the ONLY place where scaling state should be modified.
+        """
+        new_value = bool(value)  # Ensure boolean type
+
         if hasattr(self, "_scaling"):
-            self._scaling.enabled = value
-            print(f"Scaling enabled set to: {self._scaling.enabled}")
+            old_value = self._scaling.enabled
+            self._scaling.enabled = new_value
+            if old_value != new_value:
+                problem_logger.info(f"Scaling enabled changed: {old_value} -> {new_value}")
+        else:
+            problem_logger.warning("Cannot set scaling - scaling object not initialized")
 
     # Property access to state attributes for backward compatibility
 
