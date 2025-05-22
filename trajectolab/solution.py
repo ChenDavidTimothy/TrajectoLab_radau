@@ -239,7 +239,7 @@ class _Solution:
 
         # Convert scaling factors dict to ScalingFactors object
         sf_dict = self._scaling_factors[physical_var_name]
-        factors = ScalingFactors(v=sf_dict["v"], r=sf_dict["r"], rule=sf_dict["rule"])
+        factors = ScalingFactors(v=sf_dict["v"], r=sf_dict["r"], rule=str(sf_dict["rule"]))
 
         return unscale_values(scaled_values, factors)
 

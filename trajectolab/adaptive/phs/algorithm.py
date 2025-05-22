@@ -396,7 +396,7 @@ def solve_phs_adaptive_internal(
     )
 
     # Check if auto-scaling is enabled (simplified)
-    auto_scaling_enabled = _check_auto_scaling_enabled(problem)
+    _check_auto_scaling_enabled(problem)
 
     # Initialize mesh configuration
     current_polynomial_degrees = list(initial_polynomial_degrees)
