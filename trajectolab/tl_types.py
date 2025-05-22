@@ -262,8 +262,8 @@ class OptimalControlSolution:
         # Auto-scaling related fields
         self.auto_scaling_enabled: bool = False
         self.scaling_factors: dict[str, dict[str, float]] = {}
-        self.physical_to_tilde_map: dict[str, str] = {}
-        self.tilde_to_physical_map: dict[str, str] = {}
+        self.physical_to_scaled_map: dict[str, str] = {}
+        self.scaled_to_physical_map: dict[str, str] = {}
 
 
 # User-facing function types using Protocol classes

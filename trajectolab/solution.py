@@ -93,8 +93,8 @@ class _Solution:
         # *** NEW: Auto-scaling related fields ***
         self._auto_scaling_enabled = False
         self._scaling_factors: dict[str, dict[str, float]] = {}
-        self._physical_to_tilde_map: dict[str, str] = {}
-        self._tilde_to_physical_map: dict[str, str] = {}
+        self._physical_to_scaled_map: dict[str, str] = {}
+        self._scaled_to_physical_map: dict[str, str] = {}
         self._physical_symbols: dict[str, SymType] = {}
         self._physical_state_names: list[str] = []
         self._physical_control_names: list[str] = []
@@ -137,11 +137,11 @@ class _Solution:
             self._scaling_factors = raw_solution.scaling_factors
 
         # Extract variable mappings
-        if hasattr(raw_solution, "physical_to_tilde_map"):
-            self._physical_to_tilde_map = raw_solution.physical_to_tilde_map
+        if hasattr(raw_solution, "physical_to_scaled_map"):
+            self._physical_to_scaled_map = raw_solution.physical_to_scaled_map
 
-        if hasattr(raw_solution, "tilde_to_physical_map"):
-            self._tilde_to_physical_map = raw_solution.tilde_to_physical_map
+        if hasattr(raw_solution, "scaled_to_physical_map"):
+            self._scaled_to_physical_map = raw_solution.scaled_to_physical_map
 
         if hasattr(raw_solution, "physical_symbols"):
             self._physical_symbols = raw_solution.physical_symbols
@@ -152,18 +152,18 @@ class _Solution:
 
     def _build_physical_variable_lists(self) -> None:
         """Build lists of physical variable names for auto-scaling."""
-        # Extract physical state names from tilde names
+        # Extract physical state names from scaled names
         self._physical_state_names = []
-        for tilde_name in self._state_names:
-            if tilde_name.endswith("_tilde") and tilde_name in self._tilde_to_physical_map:
-                physical_name = self._tilde_to_physical_map[tilde_name]
+        for scaled_name in self._state_names:
+            if scaled_name.endswith("_scaled") and scaled_name in self._scaled_to_physical_map:
+                physical_name = self._scaled_to_physical_map[scaled_name]
                 self._physical_state_names.append(physical_name)
 
-        # Extract physical control names from tilde names
+        # Extract physical control names from scaled names
         self._physical_control_names = []
-        for tilde_name in self._control_names:
-            if tilde_name.endswith("_tilde") and tilde_name in self._tilde_to_physical_map:
-                physical_name = self._tilde_to_physical_map[tilde_name]
+        for scaled_name in self._control_names:
+            if scaled_name.endswith("_scaled") and scaled_name in self._scaled_to_physical_map:
+                physical_name = self._scaled_to_physical_map[scaled_name]
                 self._physical_control_names.append(physical_name)
 
     def _extract_solution_data(self, raw_solution: OptimalControlSolution) -> None:
@@ -259,19 +259,22 @@ class _Solution:
         var_name = identifier
 
         # Case 1: User requests a physical variable name (e.g., "h")
-        # We need to find the corresponding tilde name for lookup
-        if var_name in self._physical_to_tilde_map:
-            tilde_name = self._physical_to_tilde_map[var_name]
-            return tilde_name, var_name  # Return tilde name for lookup, physical name for unscaling
+        # We need to find the corresponding scaled name for lookup
+        if var_name in self._physical_to_scaled_map:
+            scaled_name = self._physical_to_scaled_map[var_name]
+            return (
+                scaled_name,
+                var_name,
+            )  # Return scaled name for lookup, physical name for unscaling
 
-        # Case 2: User requests a tilde variable name directly (e.g., "h_tilde")
+        # Case 2: User requests a scaled variable name directly (e.g., "h_scaled")
         # We can use it directly for lookup, and get physical name for unscaling
-        if var_name.endswith("_tilde") and var_name in self._tilde_to_physical_map:
-            physical_name = self._tilde_to_physical_map[var_name]
+        if var_name.endswith("_scaled") and var_name in self._scaled_to_physical_map:
+            physical_name = self._scaled_to_physical_map[var_name]
             return (
                 var_name,
                 physical_name,
-            )  # Return tilde name for lookup, physical name for unscaling
+            )  # Return scaled name for lookup, physical name for unscaling
 
         # Case 3: Variable not related to auto-scaling
         return identifier, None
@@ -892,8 +895,8 @@ class _Solution:
         return {
             "auto_scaling_enabled": self._auto_scaling_enabled,
             "scaling_factors": self._scaling_factors,
-            "physical_to_tilde_map": self._physical_to_tilde_map,
-            "tilde_to_physical_map": self._tilde_to_physical_map,
+            "physical_to_scaled_map": self._physical_to_scaled_map,
+            "scaled_to_physical_map": self._scaled_to_physical_map,
             "physical_state_names": self._physical_state_names,
             "physical_control_names": self._physical_control_names,
         }

@@ -107,7 +107,7 @@ class AutoscaledProblem:
         )
         self.scaling_factors = {}
         self._physical_sx = {}
-        self._tilde_sx = {}
+        self._scaled_sx = {}
         self._state_names_ordered = []
         self._control_names_ordered = []
         self.time_symbol = None
@@ -161,12 +161,12 @@ class AutoscaledProblem:
         )
         scaled_props = self._get_scaled_props(name_physical, vk, rk, initial, final, lower, upper)
 
-        tilde_name = f"{name_physical}_tilde"
-        tilde_symbol = self.internal_problem.state(tilde_name, **scaled_props)
-        self._tilde_sx[name_physical] = tilde_symbol
+        scaled_name = f"{name_physical}_scaled"
+        scaled_symbol = self.internal_problem.state(scaled_name, **scaled_props)
+        self._scaled_sx[name_physical] = scaled_symbol
         if np.isclose(vk, 0):
             raise ValueError(f"Scaling factor 'v' for {name_physical} is zero.")
-        self._physical_sx[name_physical] = (tilde_symbol - rk) / vk
+        self._physical_sx[name_physical] = (scaled_symbol - rk) / vk
         if name_physical not in self._state_names_ordered:
             self._state_names_ordered.append(name_physical)
         # Return symbolic physical variable for user to build expressions
@@ -180,12 +180,12 @@ class AutoscaledProblem:
         )
         scaled_props = self._get_scaled_props(name_physical, vk, rk, None, None, lower, upper)
 
-        tilde_name = f"{name_physical}_tilde"
-        tilde_symbol = self.internal_problem.control(tilde_name, **scaled_props)
-        self._tilde_sx[name_physical] = tilde_symbol
+        scaled_name = f"{name_physical}_scaled"
+        scaled_symbol = self.internal_problem.control(scaled_name, **scaled_props)
+        self._scaled_sx[name_physical] = scaled_symbol
         if np.isclose(vk, 0):
             raise ValueError(f"Scaling factor 'v' for {name_physical} is zero.")
-        self._physical_sx[name_physical] = (tilde_symbol - rk) / vk
+        self._physical_sx[name_physical] = (scaled_symbol - rk) / vk
         if name_physical not in self._control_names_ordered:
             self._control_names_ordered.append(name_physical)
         return self._physical_sx[name_physical]
@@ -200,13 +200,13 @@ class AutoscaledProblem:
     def dynamics(self, dynamics_dict_physical):
         scaled_dynamics_dict = {}
         for name_physical, physical_rhs_expr in dynamics_dict_physical.items():
-            if name_physical not in self.scaling_factors or name_physical not in self._tilde_sx:
+            if name_physical not in self.scaling_factors or name_physical not in self._scaled_sx:
                 raise KeyError(
-                    f"Scaling factors or tilde symbol for '{name_physical}' not found. Ensure it's a defined state."
+                    f"Scaling factors or scaled symbol for '{name_physical}' not found. Ensure it's a defined state."
                 )
             vk = self.scaling_factors[name_physical]["v"]
-            tilde_symbol = self._tilde_sx[name_physical]
-            scaled_dynamics_dict[tilde_symbol] = vk * physical_rhs_expr
+            scaled_symbol = self._scaled_sx[name_physical]
+            scaled_dynamics_dict[scaled_symbol] = vk * physical_rhs_expr
         self.internal_problem.dynamics(scaled_dynamics_dict)
 
     def subject_to(self, constraint_expr_physical):
@@ -256,8 +256,8 @@ class AutoscaledProblem:
                     )
                 vk = self.scaling_factors[var_name]["v"]
                 rk = self.scaling_factors[var_name]["r"]
-                tilde_vals = vk * actual_vals_interval + rk
-                current_scaled_states_list.append(tilde_vals)
+                scaled_vals = vk * actual_vals_interval + rk
+                current_scaled_states_list.append(scaled_vals)
             scaled_states_guess_intervals.append(np.vstack(current_scaled_states_list))
 
             num_control_pts_interval = N_poly_degree_state
@@ -281,8 +281,8 @@ class AutoscaledProblem:
                         )
                     vk = self.scaling_factors[var_name]["v"]
                     rk = self.scaling_factors[var_name]["r"]
-                    tilde_vals_ctrl = vk * actual_vals_ctrl_interval + rk
-                    current_scaled_controls_list.append(tilde_vals_ctrl)
+                    scaled_vals_ctrl = vk * actual_vals_ctrl_interval + rk
+                    current_scaled_controls_list.append(scaled_vals_ctrl)
                 scaled_controls_guess_intervals.append(np.vstack(current_scaled_controls_list))
             elif (
                 num_intervals == 1 and num_control_pts_interval == 0
@@ -301,10 +301,10 @@ class AutoscaledProblem:
         output = {"scaling_factors": self.scaling_factors}
         if self.time_symbol is not None:
             output["t"] = self.time_symbol
-        for name_physical, tilde_sym in self._tilde_sx.items():
-            output[f"{name_physical}_tilde"] = tilde_sym
+        for name_physical, scaled_sym in self._scaled_sx.items():
+            output[f"{name_physical}_scaled"] = scaled_sym
         # For plot_solution, it might also need direct access to physical symbols if it was changed
-        # but current plot_solution gets tilde and unscales, so this is fine.
+        # but current plot_solution gets scaled and unscales, so this is fine.
         return output
 
 
@@ -323,7 +323,7 @@ def analyze_solution(
 ):
     if solution.success:
         final_time = solution.final_time
-        # Objective is -theta_actual, and theta_actual is (theta_tilde - r_theta)/v_theta
+        # Objective is -theta_actual, and theta_actual is (theta_scaled - r_theta)/v_theta
         # If the objective was set as -ap.symbol("theta"), then solution.objective is already this value.
         final_theta_actual_rad = -solution.objective
         final_theta_actual_deg = final_theta_actual_rad * RAD2DEG
@@ -376,31 +376,31 @@ def analyze_solution(
 def plot_solution(solution, symbolic_vars, plot_title_suffix=""):
     scaling_factors = symbolic_vars["scaling_factors"]
 
-    def unscale_var(var_tilde_vals, var_name):
+    def unscale_var(var_scaled_vals, var_name):
         sf = scaling_factors[var_name]
         if np.isclose(sf["v"], 0):
-            return var_tilde_vals
-        return (var_tilde_vals - sf["r"]) / sf["v"]
+            return var_scaled_vals
+        return (var_scaled_vals - sf["r"]) / sf["v"]
 
-    # Get scaled trajectories using _tilde names from symbolic_vars
-    time_h, h_tilde_vals = solution.get_symbolic_trajectory(symbolic_vars["h_tilde"])
-    time_phi, phi_tilde_vals = solution.get_symbolic_trajectory(symbolic_vars["phi_tilde"])
-    time_theta, theta_tilde_vals = solution.get_symbolic_trajectory(symbolic_vars["theta_tilde"])
-    time_v, v_tilde_vals = solution.get_symbolic_trajectory(symbolic_vars["v_tilde"])
-    time_gamma, gamma_tilde_vals = solution.get_symbolic_trajectory(symbolic_vars["gamma_tilde"])
-    time_psi, psi_tilde_vals = solution.get_symbolic_trajectory(symbolic_vars["psi_tilde"])
-    time_alpha, alpha_tilde_vals = solution.get_symbolic_trajectory(symbolic_vars["alpha_tilde"])
-    time_beta, beta_tilde_vals = solution.get_symbolic_trajectory(symbolic_vars["beta_tilde"])
+    # Get scaled trajectories using _scaled names from symbolic_vars
+    time_h, h_scaled_vals = solution.get_symbolic_trajectory(symbolic_vars["h_scaled"])
+    time_phi, phi_scaled_vals = solution.get_symbolic_trajectory(symbolic_vars["phi_scaled"])
+    time_theta, theta_scaled_vals = solution.get_symbolic_trajectory(symbolic_vars["theta_scaled"])
+    time_v, v_scaled_vals = solution.get_symbolic_trajectory(symbolic_vars["v_scaled"])
+    time_gamma, gamma_scaled_vals = solution.get_symbolic_trajectory(symbolic_vars["gamma_scaled"])
+    time_psi, psi_scaled_vals = solution.get_symbolic_trajectory(symbolic_vars["psi_scaled"])
+    time_alpha, alpha_scaled_vals = solution.get_symbolic_trajectory(symbolic_vars["alpha_scaled"])
+    time_beta, beta_scaled_vals = solution.get_symbolic_trajectory(symbolic_vars["beta_scaled"])
 
     # Unscale for plotting physical values
-    h_vals_actual = unscale_var(h_tilde_vals, "h")
-    phi_vals_actual = unscale_var(phi_tilde_vals, "phi")
-    theta_vals_actual = unscale_var(theta_tilde_vals, "theta")
-    v_vals_actual = unscale_var(v_tilde_vals, "v")
-    gamma_vals_actual = unscale_var(gamma_tilde_vals, "gamma")
-    psi_vals_actual = unscale_var(psi_tilde_vals, "psi")
-    alpha_vals_actual = unscale_var(alpha_tilde_vals, "alpha")
-    beta_vals_actual = unscale_var(beta_tilde_vals, "beta")
+    h_vals_actual = unscale_var(h_scaled_vals, "h")
+    phi_vals_actual = unscale_var(phi_scaled_vals, "phi")
+    theta_vals_actual = unscale_var(theta_scaled_vals, "theta")
+    v_vals_actual = unscale_var(v_scaled_vals, "v")
+    gamma_vals_actual = unscale_var(gamma_scaled_vals, "gamma")
+    psi_vals_actual = unscale_var(psi_scaled_vals, "psi")
+    alpha_vals_actual = unscale_var(alpha_scaled_vals, "alpha")
+    beta_vals_actual = unscale_var(beta_scaled_vals, "beta")
 
     phi_deg = phi_vals_actual * RAD2DEG
     theta_deg = theta_vals_actual * RAD2DEG

@@ -108,15 +108,15 @@ def _record_scaling_information(solution: OptimalControlSolution, problem: Probl
             solution.scaling_factors = {}
 
         # Copy variable mappings
-        if hasattr(problem, "_physical_to_tilde_map"):
-            solution.physical_to_tilde_map = problem._physical_to_tilde_map.copy()
+        if hasattr(problem, "_physical_to_scaled_map"):
+            solution.physical_to_scaled_map = problem._physical_to_scaled_map.copy()
         else:
-            solution.physical_to_tilde_map = {}
+            solution.physical_to_scaled_map = {}
 
-        if hasattr(problem, "_tilde_to_physical_map"):
-            solution.tilde_to_physical_map = problem._tilde_to_physical_map.copy()
+        if hasattr(problem, "_scaled_to_physical_map"):
+            solution.scaled_to_physical_map = problem._scaled_to_physical_map.copy()
         else:
-            solution.tilde_to_physical_map = {}
+            solution.scaled_to_physical_map = {}
 
         # Store physical symbols mapping for trajectory extraction
         if hasattr(problem, "_physical_symbols"):
@@ -127,8 +127,8 @@ def _record_scaling_information(solution: OptimalControlSolution, problem: Probl
         # No auto-scaling
         solution.auto_scaling_enabled = False
         solution.scaling_factors = {}
-        solution.physical_to_tilde_map = {}
-        solution.tilde_to_physical_map = {}
+        solution.physical_to_scaled_map = {}
+        solution.scaled_to_physical_map = {}
         solution.physical_symbols = {}
 
 

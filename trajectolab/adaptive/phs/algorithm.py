@@ -612,11 +612,11 @@ def _extract_scaling_info_for_adaptive(problem: ProblemProtocol) -> dict[str, An
     if hasattr(problem, "_scaling_factors"):
         scaling_info["scaling_factors"] = problem._scaling_factors.copy()
 
-    if hasattr(problem, "_physical_to_tilde_map"):
-        scaling_info["physical_to_tilde_map"] = problem._physical_to_tilde_map.copy()
+    if hasattr(problem, "_physical_to_scaled_map"):
+        scaling_info["physical_to_scaled_map"] = problem._physical_to_scaled_map.copy()
 
-    if hasattr(problem, "_tilde_to_physical_map"):
-        scaling_info["tilde_to_physical_map"] = problem._tilde_to_physical_map.copy()
+    if hasattr(problem, "_scaled_to_physical_map"):
+        scaling_info["scaled_to_physical_map"] = problem._scaled_to_physical_map.copy()
 
     if hasattr(problem, "_physical_symbols"):
         scaling_info["physical_symbols"] = problem._physical_symbols.copy()
@@ -702,10 +702,10 @@ def _ensure_scaling_info_in_solution(
             solution.auto_scaling_enabled = False
         if not hasattr(solution, "scaling_factors"):
             solution.scaling_factors = {}
-        if not hasattr(solution, "physical_to_tilde_map"):
-            solution.physical_to_tilde_map = {}
-        if not hasattr(solution, "tilde_to_physical_map"):
-            solution.tilde_to_physical_map = {}
+        if not hasattr(solution, "physical_to_scaled_map"):
+            solution.physical_to_scaled_map = {}
+        if not hasattr(solution, "scaled_to_physical_map"):
+            solution.scaled_to_physical_map = {}
         if not hasattr(solution, "physical_symbols"):
             solution.physical_symbols = {}
     else:

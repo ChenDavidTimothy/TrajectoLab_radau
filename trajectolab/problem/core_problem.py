@@ -41,8 +41,8 @@ class Problem:
         # Auto-scaling support
         self._auto_scaling_enabled = auto_scaling
         self._scaling_factors: dict[str, dict[str, float]] = {}
-        self._physical_to_tilde_map: dict[str, str] = {}
-        self._tilde_to_physical_map: dict[str, str] = {}
+        self._physical_to_scaled_map: dict[str, str] = {}
+        self._scaled_to_physical_map: dict[str, str] = {}
         self._physical_symbols: dict[str, SymType] = {}
         self._initial_guess_ranges: dict[str, dict[str, float | None]] = {}
 
@@ -192,21 +192,21 @@ class Problem:
         explicit_upper = scale_guide_upper if scale_guide_upper is not None else upper
         vk, rk = self._determine_scaling_factors(name, explicit_lower, explicit_upper)
 
-        # Transform bounds and initial/final values for the tilde (scaled) variable
+        # Transform bounds and initial/final values for the scaled (scaled) variable
         scaled_props = self._get_scaled_props(name, vk, rk, initial, final, lower, upper)
 
         # Create internal scaled variable
-        tilde_name = f"{name}_tilde"
-        tilde_symbol = variables_problem.create_state_variable(
-            self._variable_state, tilde_name, **scaled_props
+        scaled_name = f"{name}_scaled"
+        scaled_symbol = variables_problem.create_state_variable(
+            self._variable_state, scaled_name, **scaled_props
         )
 
         # Store mappings
-        self._physical_to_tilde_map[name] = tilde_name
-        self._tilde_to_physical_map[tilde_name] = name
+        self._physical_to_scaled_map[name] = scaled_name
+        self._scaled_to_physical_map[scaled_name] = name
 
         # Create physical view of the variable
-        physical_symbol = self._create_physical_symbol(name, tilde_symbol, vk, rk)
+        physical_symbol = self._create_physical_symbol(name, scaled_symbol, vk, rk)
         self._physical_symbols[name] = physical_symbol
 
         return physical_symbol
@@ -246,24 +246,24 @@ class Problem:
         explicit_upper = scale_guide_upper if scale_guide_upper is not None else upper
         vk, rk = self._determine_scaling_factors(name, explicit_lower, explicit_upper)
 
-        # Transform bounds for the tilde (scaled) variable
+        # Transform bounds for the scaled (scaled) variable
         scaled_props = self._get_scaled_props(name, vk, rk, None, None, lower, upper)
 
         # Create internal scaled variable
-        tilde_name = f"{name}_tilde"
-        tilde_symbol = variables_problem.create_control_variable(
+        scaled_name = f"{name}_scaled"
+        scaled_symbol = variables_problem.create_control_variable(
             self._variable_state,
-            tilde_name,
+            scaled_name,
             lower=scaled_props.get("lower"),
             upper=scaled_props.get("upper"),
         )
 
         # Store mappings
-        self._physical_to_tilde_map[name] = tilde_name
-        self._tilde_to_physical_map[tilde_name] = name
+        self._physical_to_scaled_map[name] = scaled_name
+        self._scaled_to_physical_map[scaled_name] = name
 
         # Create physical view of the variable
-        physical_symbol = self._create_physical_symbol(name, tilde_symbol, vk, rk)
+        physical_symbol = self._create_physical_symbol(name, scaled_symbol, vk, rk)
         self._physical_symbols[name] = physical_symbol
 
         return physical_symbol
@@ -300,23 +300,23 @@ class Problem:
 
             print(f"\n  📊 Processing state '{physical_name}':")
 
-            # Get the corresponding tilde symbol
-            tilde_name = self._physical_to_tilde_map.get(physical_name)
-            if tilde_name is None:
-                print("    🚨 ERROR: No tilde mapping found")
-                raise ValueError(f"Tilde variable not found for physical variable {physical_name}")
+            # Get the corresponding scaled symbol
+            scaled_name = self._physical_to_scaled_map.get(physical_name)
+            if scaled_name is None:
+                print("    🚨 ERROR: No scaled mapping found")
+                raise ValueError(f"scaled variable not found for physical variable {physical_name}")
 
-            print(f"    🔗 Physical '{physical_name}' → Tilde '{tilde_name}'")
+            print(f"    🔗 Physical '{physical_name}' → scaled '{scaled_name}'")
 
-            tilde_sym = None
+            scaled_sym = None
             for name, sym in self._variable_state.sym_states.items():
-                if name == tilde_name:
-                    tilde_sym = sym
+                if name == scaled_name:
+                    scaled_sym = sym
                     break
 
-            if tilde_sym is None:
-                print("    🚨 ERROR: Tilde symbol not found")
-                raise ValueError(f"Tilde symbol not found for {tilde_name}")
+            if scaled_sym is None:
+                print("    🚨 ERROR: scaled symbol not found")
+                raise ValueError(f"scaled symbol not found for {scaled_name}")
 
             # Get scaling factor and apply to dynamics
             if physical_name not in self._scaling_factors:
@@ -328,12 +328,12 @@ class Problem:
 
             print(f"    📐 Scaling factor: vk = {vk:.6e}")
             print(f"    📋 Scaling rule: {scaling_rule}")
-            print(f"    🔄 Transformation: d(tilde)/dt = {vk:.6e} * d(physical)/dt")
+            print(f"    🔄 Transformation: d(scaled)/dt = {vk:.6e} * d(physical)/dt")
             print("    ✅ Rule 3 compliance: W_f = V_y (ODE defect scaling = state scaling)")
 
-            # Apply scaling to the dynamics: dx_tilde/dt = v * dx/dt
+            # Apply scaling to the dynamics: dx_scaled/dt = v * dx/dt
             scaled_rhs = vk * rhs_expr
-            scaled_dynamics_dict[tilde_sym] = scaled_rhs
+            scaled_dynamics_dict[scaled_sym] = scaled_rhs
 
             print("    ✔️  Successfully scaled dynamics equation")
 
@@ -473,37 +473,37 @@ class Problem:
 
         scaled_trajectories = []
 
-        # Get ordered list of tilde variable names
+        # Get ordered list of scaled variable names
         if is_state:
-            tilde_variables = [
+            scaled_variables = [
                 name
                 for name, meta in sorted(
                     self._variable_state.states.items(), key=lambda x: x[1]["index"]
                 )
-                if name.endswith("_tilde")
+                if name.endswith("_scaled")
             ]
         else:
-            tilde_variables = [
+            scaled_variables = [
                 name
                 for name, meta in sorted(
                     self._variable_state.controls.items(), key=lambda x: x[1]["index"]
                 )
-                if name.endswith("_tilde")
+                if name.endswith("_scaled")
             ]
 
-        print(f"  📋 Found {len(tilde_variables)} tilde variables: {tilde_variables}")
+        print(f"  📋 Found {len(scaled_variables)} scaled variables: {scaled_variables}")
 
         # Get corresponding physical names in the correct order
         physical_names = []
-        for tilde_var in tilde_variables:
-            physical_name = self._tilde_to_physical_map.get(tilde_var)
+        for scaled_var in scaled_variables:
+            physical_name = self._scaled_to_physical_map.get(scaled_var)
             if physical_name is None:
-                print(f"  🚨 CRITICAL ERROR: No physical mapping for '{tilde_var}'")
-                raise ValueError(f"Physical name not found for tilde variable '{tilde_var}'")
+                print(f"  🚨 CRITICAL ERROR: No physical mapping for '{scaled_var}'")
+                raise ValueError(f"Physical name not found for scaled variable '{scaled_var}'")
             physical_names.append(physical_name)
 
         # Safety validation: Check that we have the expected number of variables
-        expected_num_vars = len(tilde_variables)
+        expected_num_vars = len(scaled_variables)
         if len(physical_names) != expected_num_vars:
             raise ValueError(
                 f"CRITICAL ERROR: Variable count mismatch for {'states' if is_state else 'controls'}: "
@@ -519,8 +519,8 @@ class Problem:
             )
 
         print("  🔗 Variable mapping:")
-        for i, (phys, tilde) in enumerate(zip(physical_names, tilde_variables, strict=False)):
-            print(f"    [{i}] {phys} ↔ {tilde}")
+        for i, (phys, scaled) in enumerate(zip(physical_names, scaled_variables, strict=False)):
+            print(f"    [{i}] {phys} ↔ {scaled}")
 
         # Process each trajectory array
         for traj_idx, traj_array in enumerate(trajectories):
@@ -556,7 +556,7 @@ class Problem:
                 orig_min, orig_max = np.min(orig_row), np.max(orig_row)
                 print(f"      📥 Physical range: [{orig_min:.6e}, {orig_max:.6e}]")
 
-                # Apply scaling: tilde = v * physical + r
+                # Apply scaling: scaled = v * physical + r
                 scaled_row = vk * orig_row + rk
                 scaled_min, scaled_max = np.min(scaled_row), np.max(scaled_row)
                 print(f"      📤 Scaled range: [{scaled_min:.6e}, {scaled_max:.6e}]")
@@ -765,7 +765,7 @@ class Problem:
     def _create_physical_symbol(
         self,
         name: str,
-        tilde_symbol: SymType,
+        scaled_symbol: SymType,
         vk: float,
         rk: float,
     ) -> SymType:
@@ -774,7 +774,7 @@ class Problem:
 
         Args:
             name: Physical variable name
-            tilde_symbol: Scaled symbolic variable
+            scaled_symbol: Scaled symbolic variable
             vk: Scaling factor v
             rk: Scaling factor r
 
@@ -786,8 +786,8 @@ class Problem:
                 f"Scaling factor 'v' for {name} is zero, cannot create physical symbol"
             )
 
-        # Create physical view as (tilde - r) / v
-        physical_symbol = (tilde_symbol - rk) / vk
+        # Create physical view as (scaled - r) / v
+        physical_symbol = (scaled_symbol - rk) / vk
         return physical_symbol
 
     def _update_initial_guess_range(
@@ -875,8 +875,8 @@ class Problem:
         return {
             "auto_scaling_enabled": True,
             "scaling_factors": self._scaling_factors,
-            "physical_to_tilde_map": self._physical_to_tilde_map,
-            "tilde_to_physical_map": self._tilde_to_physical_map,
+            "physical_to_scaled_map": self._physical_to_scaled_map,
+            "scaled_to_physical_map": self._scaled_to_physical_map,
         }
 
     def print_scaling_summary(self) -> None:
@@ -925,10 +925,10 @@ class Problem:
             )
 
         print("\n🔗 VARIABLE MAPPINGS:")
-        print(f"{'Physical':<15} ↔ {'Tilde'}")
+        print(f"{'Physical':<15} ↔ {'scaled'}")
         print(f"{'-' * 15}---{'-' * 15}")
-        for phys, tilde in sorted(self._physical_to_tilde_map.items()):
-            print(f"{phys:<15} ↔ {tilde}")
+        for phys, scaled in sorted(self._physical_to_scaled_map.items()):
+            print(f"{phys:<15} ↔ {scaled}")
 
         print("\n✅ Scaling configuration is consistent and ready for use")
         print(f"{'=' * 80}")
