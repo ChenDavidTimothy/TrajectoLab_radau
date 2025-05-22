@@ -4,6 +4,7 @@ import logging
 from collections.abc import Sequence
 from typing import Any
 
+import casadi as ca
 import numpy as np
 
 from ..tl_types import FloatArray, FloatMatrix, SymExpr, SymType
@@ -289,7 +290,7 @@ class Problem:
             # Find the physical variable name
             physical_name = None
             for name, sym in self._physical_symbols.items():
-                if sym is state_sym:
+                if ca.is_equal(sym, state_sym):  # Use CasADi equality check
                     physical_name = name
                     break
 
