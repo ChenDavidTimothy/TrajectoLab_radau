@@ -99,30 +99,14 @@ def _record_scaling_information(solution: OptimalControlSolution, problem: Probl
     """
     # Check if auto-scaling is enabled
     if hasattr(problem, "_auto_scaling_enabled") and problem._auto_scaling_enabled:
+        # Get scaling info from problem
+        scaling_info = problem.get_scaling_info()
+
         solution.auto_scaling_enabled = True
-
-        # Copy scaling factors
-        if hasattr(problem, "_scaling_factors"):
-            solution.scaling_factors = problem._scaling_factors.copy()
-        else:
-            solution.scaling_factors = {}
-
-        # Copy variable mappings
-        if hasattr(problem, "_physical_to_scaled_map"):
-            solution.physical_to_scaled_map = problem._physical_to_scaled_map.copy()
-        else:
-            solution.physical_to_scaled_map = {}
-
-        if hasattr(problem, "_scaled_to_physical_map"):
-            solution.scaled_to_physical_map = problem._scaled_to_physical_map.copy()
-        else:
-            solution.scaled_to_physical_map = {}
-
-        # Store physical symbols mapping for trajectory extraction
-        if hasattr(problem, "_physical_symbols"):
-            solution.physical_symbols = problem._physical_symbols.copy()
-        else:
-            solution.physical_symbols = {}
+        solution.scaling_factors = scaling_info.get("scaling_factors", {})
+        solution.physical_to_scaled_map = scaling_info.get("physical_to_scaled_map", {})
+        solution.scaled_to_physical_map = scaling_info.get("scaled_to_physical_map", {})
+        solution.physical_symbols = scaling_info.get("physical_symbols", {})
     else:
         # No auto-scaling
         solution.auto_scaling_enabled = False

@@ -13,6 +13,7 @@ import numpy as np
 from matplotlib.axes import Axes as MplAxes
 from matplotlib.lines import Line2D
 
+from .scaling import ScalingFactors, unscale_values
 from .tl_types import FloatArray, IntArray, OptimalControlSolution, ProblemProtocol, SymType
 
 
@@ -236,9 +237,11 @@ class _Solution:
         if not self._auto_scaling_enabled or physical_var_name not in self._scaling_factors:
             return scaled_values
 
-        sf = self._scaling_factors[physical_var_name]
-        unscaled_values = (scaled_values - sf["r"]) / sf["v"]
-        return unscaled_values
+        # Convert scaling factors dict to ScalingFactors object
+        sf_dict = self._scaling_factors[physical_var_name]
+        factors = ScalingFactors(v=sf_dict["v"], r=sf_dict["r"], rule=sf_dict["rule"])
+
+        return unscale_values(scaled_values, factors)
 
     def _resolve_variable_for_trajectory_access(
         self, identifier: _VariableIdentifier, variable_type: str
