@@ -8,7 +8,7 @@ from typing import Any
 
 import numpy as np
 
-from trajectolab.tl_types import FloatArray, FloatMatrix
+from trajectolab.tl_types import FloatArray, FloatMatrix, ODESolverCallable
 
 
 __all__ = [
@@ -31,8 +31,34 @@ class AdaptiveParameters:
     max_iterations: int
     min_polynomial_degree: int
     max_polynomial_degree: int
-    ode_solver_tolerance: float = 1e-7
+    ode_solver_tolerance: float = 1e-7  # Already exists - reuse this
     num_error_sim_points: int = 50
+    ode_method: str = "RK45"  # NEW: Simple method selection
+    ode_max_step: float | None = None  # NEW: Optional step size limit
+    ode_solver: ODESolverCallable | None = None  # Advanced users only
+
+    def get_ode_solver(self) -> ODESolverCallable:
+        """Get the configured ODE solver function."""
+        if self.ode_solver is not None:
+            # Advanced user provided custom solver - use it
+            return self.ode_solver
+
+        # Create solver with user's simple parameters
+        from scipy.integrate import solve_ivp
+
+        def configured_solver(fun, t_span, y0, t_eval=None, **kwargs):
+            # Use user's method and tolerance settings
+            kwargs.setdefault("method", self.ode_method)
+            kwargs.setdefault("rtol", self.ode_solver_tolerance)
+            kwargs.setdefault("atol", self.ode_solver_tolerance * 1e-2)
+
+            # Optional step size limit
+            if self.ode_max_step is not None:
+                kwargs.setdefault("max_step", self.ode_max_step)
+
+            return solve_ivp(fun, t_span, y0, t_eval=t_eval, **kwargs)
+
+        return configured_solver
 
 
 @dataclass

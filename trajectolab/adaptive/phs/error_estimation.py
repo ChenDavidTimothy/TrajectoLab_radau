@@ -6,7 +6,6 @@ import logging
 from typing import cast
 
 import numpy as np
-from scipy.integrate import solve_ivp
 
 from trajectolab.adaptive.phs.data_structures import IntervalSimulationBundle
 from trajectolab.tl_types import (
@@ -86,13 +85,13 @@ def simulate_dynamics_for_error_estimation(
     problem: ProblemProtocol,
     state_evaluator: StateEvaluator,
     control_evaluator: ControlEvaluator,
-    ode_solver: ODESolverCallable = solve_ivp,
+    ode_solver: ODESolverCallable,
     ode_rtol: float = DEFAULT_ODE_RTOL,
     n_eval_points: int = 50,
 ) -> IntervalSimulationBundle:
     """
     Simulates dynamics forward and backward for error estimation.
-    Uses pre-computed polynomial interpolants for state and control.
+    ODE solver is now user-configurable per specification Section 4.4.
     """
     result = IntervalSimulationBundle(are_forward_and_backward_simulations_successful=False)
 

@@ -227,13 +227,14 @@ def _estimate_errors(
             errors[k] = np.inf
             continue
 
-        # Simulate dynamics for error estimation
+        # Pass configurable ODE solver
         sim_bundle = simulate_dynamics_for_error_estimation(
             k,
             solution,
             problem,
             state_eval,
             control_eval,
+            adaptive_params.get_ode_solver(),  # Use configured solver
             ode_rtol=adaptive_params.ode_solver_tolerance,
             n_eval_points=adaptive_params.num_error_sim_points,
         )
@@ -256,104 +257,171 @@ def _refine_mesh(
     control_evaluators: list[ControlEvaluator | None],
     gamma_factors: FloatArray,
 ) -> tuple[list[int], FloatArray]:
-    """Refine mesh for next iteration."""
+    """Refine mesh for next iteration with correct h-reduction ordering."""
+    from typing import NamedTuple
+
+    class MergeCandidate(NamedTuple):
+        """Candidate for h-reduction merge."""
+
+        first_idx: int
+        second_idx: int
+        overall_max_error: float
+        merged_degree: int
+
+    # Step 1: Identify intervals needing refinement vs reduction
     num_intervals = len(polynomial_degrees)
+    intervals_needing_refinement = set()
+    intervals_for_reduction = set()
+
+    for k in range(num_intervals):
+        error_k = errors[k]
+        if np.isnan(error_k) or np.isinf(error_k) or error_k > adaptive_params.error_tolerance:
+            intervals_needing_refinement.add(k)
+        else:
+            intervals_for_reduction.add(k)
+
+    # Step 2: Process refinement intervals (p-refine or h-refine)
+    refinement_actions = {}  # k -> ('p', new_N) or ('h', [N1, N2, ...])
+
+    for k in intervals_needing_refinement:
+        error_k = errors[k]
+        N_k = polynomial_degrees[k]
+
+        # Try p-refinement first
+        p_result = p_refine_interval(
+            error_k, N_k, adaptive_params.error_tolerance, adaptive_params.max_polynomial_degree
+        )
+
+        if p_result.was_p_successful:
+            refinement_actions[k] = ("p", p_result.actual_Nk_to_use)
+        else:
+            # P-refinement failed -> use h-refinement
+            h_result = h_refine_params(
+                p_result.unconstrained_target_Nk, adaptive_params.min_polynomial_degree
+            )
+            refinement_actions[k] = ("h", h_result.collocation_nodes_for_new_subintervals)
+
+    # Step 3: Identify h-reduction candidates (CRITICAL: Error-based ordering)
+    merge_candidates: list[MergeCandidate] = []
+
+    for k in intervals_for_reduction:
+        if (k + 1) in intervals_for_reduction and (k + 1) < num_intervals:
+            # Both intervals are candidates for reduction
+            state_eval_first = state_evaluators[k]
+            state_eval_second = state_evaluators[k + 1]
+            control_eval_first = control_evaluators[k]
+            control_eval_second = control_evaluators[k + 1]
+
+            # Check if merge is possible
+            if (
+                state_eval_first is not None
+                and state_eval_second is not None
+                and (
+                    len(problem._controls) == 0
+                    or (control_eval_first is not None and control_eval_second is not None)
+                )
+            ):
+                can_merge = h_reduce_intervals(
+                    k,
+                    solution,
+                    problem,
+                    adaptive_params,
+                    gamma_factors,
+                    cast(StateEvaluator, state_eval_first),
+                    control_eval_first,
+                    cast(StateEvaluator, state_eval_second),
+                    control_eval_second,
+                )
+
+                if can_merge:
+                    # Calculate overall maximum error as per specification
+                    error_k = errors[k]
+                    error_k_plus_1 = errors[k + 1]
+                    overall_max_error = max(error_k, error_k_plus_1)
+
+                    merged_degree = max(polynomial_degrees[k], polynomial_degrees[k + 1])
+                    merged_degree = max(
+                        adaptive_params.min_polynomial_degree,
+                        min(adaptive_params.max_polynomial_degree, merged_degree),
+                    )
+
+                    merge_candidates.append(
+                        MergeCandidate(
+                            first_idx=k,
+                            second_idx=k + 1,
+                            overall_max_error=overall_max_error,
+                            merged_degree=merged_degree,
+                        )
+                    )
+
+    # CRITICAL: Sort merge candidates by overall maximum relative error (ascending order)
+    merge_candidates.sort(key=lambda x: x.overall_max_error)
+
+    # Step 4: Process merges in error-based order, checking for conflicts
+    merged_intervals = set()  # Track which intervals have been merged
+    approved_merges = []
+
+    for candidate in merge_candidates:
+        # Check if either interval is already involved in a merge
+        if (
+            candidate.first_idx not in merged_intervals
+            and candidate.second_idx not in merged_intervals
+        ):
+            approved_merges.append(candidate)
+            merged_intervals.add(candidate.first_idx)
+            merged_intervals.add(candidate.second_idx)
+
+    # Step 5: Apply p-reduction to remaining intervals
+    reduction_actions = {}  # k -> new_N
+
+    for k in intervals_for_reduction:
+        if k not in merged_intervals:  # Not merged
+            p_reduce = p_reduce_interval(
+                polynomial_degrees[k],
+                errors[k],
+                adaptive_params.error_tolerance,
+                adaptive_params.min_polynomial_degree,
+                adaptive_params.max_polynomial_degree,
+            )
+            reduction_actions[k] = p_reduce.new_num_collocation_nodes
+
+    # Step 6: Build new mesh configuration
     next_polynomial_degrees: list[int] = []
     next_mesh_points = [mesh_points[0]]
 
     k = 0
     while k < num_intervals:
-        error_k = errors[k]
-        N_k = polynomial_degrees[k]
-
-        if np.isnan(error_k) or np.isinf(error_k) or error_k > adaptive_params.error_tolerance:
-            # Error above tolerance - try p-refinement
-            p_result = p_refine_interval(
-                error_k, N_k, adaptive_params.error_tolerance, adaptive_params.max_polynomial_degree
-            )
-
-            if p_result.was_p_successful:
-                # p-refinement successful
-                next_polynomial_degrees.append(p_result.actual_Nk_to_use)
+        if k in refinement_actions:
+            # Apply refinement
+            action_type, action_data = refinement_actions[k]
+            if action_type == "p":
+                next_polynomial_degrees.append(action_data)
                 next_mesh_points.append(mesh_points[k + 1])
-                k += 1
-            else:
-                # p-refinement failed - apply h-refinement
-                h_result = h_refine_params(
-                    p_result.unconstrained_target_Nk, adaptive_params.min_polynomial_degree
-                )
-
-                next_polynomial_degrees.extend(h_result.collocation_nodes_for_new_subintervals)
-
+            else:  # h-refinement
+                next_polynomial_degrees.extend(action_data)
                 # Create new mesh nodes for subintervals
                 tau_start = mesh_points[k]
                 tau_end = mesh_points[k + 1]
-                new_nodes = np.linspace(
-                    tau_start, tau_end, h_result.num_new_subintervals + 1, dtype=np.float64
-                )
+                num_subintervals = len(action_data)
+                new_nodes = np.linspace(tau_start, tau_end, num_subintervals + 1, dtype=np.float64)
                 next_mesh_points.extend(new_nodes[1:].tolist())
-                k += 1
+            k += 1
+
+        elif any(merge.first_idx == k for merge in approved_merges):
+            # Apply h-reduction merge
+            merge = next(merge for merge in approved_merges if merge.first_idx == k)
+            next_polynomial_degrees.append(merge.merged_degree)
+            next_mesh_points.append(mesh_points[k + 2])  # Skip shared mesh point
+            k += 2  # Skip both merged intervals
+
         else:
-            # Error within tolerance - check for h-reduction or p-reduction
-            can_merge = False
-            if k < num_intervals - 1:
-                next_error = errors[k + 1]
-                if (
-                    not (np.isnan(next_error) or np.isinf(next_error))
-                    and next_error <= adaptive_params.error_tolerance
-                ):
-                    # Check if interpolants are available
-                    if (
-                        state_evaluators[k] is not None
-                        and state_evaluators[k + 1] is not None
-                        and (
-                            len(problem._controls) == 0
-                            or (
-                                control_evaluators[k] is not None
-                                and control_evaluators[k + 1] is not None
-                            )
-                        )
-                    ):
-                        state_eval_first = cast(StateEvaluator, state_evaluators[k])
-                        state_eval_second = cast(StateEvaluator, state_evaluators[k + 1])
-                        control_eval_first = control_evaluators[k]
-                        control_eval_second = control_evaluators[k + 1]
-
-                        can_merge = h_reduce_intervals(
-                            k,
-                            solution,
-                            problem,
-                            adaptive_params,
-                            gamma_factors,
-                            state_eval_first,
-                            control_eval_first,
-                            state_eval_second,
-                            control_eval_second,
-                        )
-
-            if can_merge:
-                # h-reduction successful
-                merged_N = max(polynomial_degrees[k], polynomial_degrees[k + 1])
-                merged_N = max(
-                    adaptive_params.min_polynomial_degree,
-                    min(adaptive_params.max_polynomial_degree, merged_N),
-                )
-                next_polynomial_degrees.append(merged_N)
-                next_mesh_points.append(mesh_points[k + 2])
-                k += 2
+            # Apply p-reduction or keep unchanged
+            if k in reduction_actions:
+                next_polynomial_degrees.append(reduction_actions[k])
             else:
-                # Try p-reduction
-                p_reduce = p_reduce_interval(
-                    N_k,
-                    error_k,
-                    adaptive_params.error_tolerance,
-                    adaptive_params.min_polynomial_degree,
-                    adaptive_params.max_polynomial_degree,
-                )
-
-                next_polynomial_degrees.append(p_reduce.new_num_collocation_nodes)
-                next_mesh_points.append(mesh_points[k + 1])
-                k += 1
+                next_polynomial_degrees.append(polynomial_degrees[k])
+            next_mesh_points.append(mesh_points[k + 1])
+            k += 1
 
     return next_polynomial_degrees, np.array(next_mesh_points, dtype=np.float64)
 
@@ -368,7 +436,10 @@ def solve_phs_adaptive_internal(
     max_polynomial_degree: int,
     ode_solver_tolerance: float,
     num_error_sim_points: int,
+    ode_solver,  # Added parameter for ODE solver
     initial_guess: InitialGuess | None = None,
+    ode_method: str = "RK45",  # NEW
+    ode_max_step: float | None = None,  # NEW
 ) -> OptimalControlSolution:
     """
     Internal PHS-Adaptive mesh refinement algorithm implementation.
@@ -392,6 +463,9 @@ def solve_phs_adaptive_internal(
         max_polynomial_degree=max_polynomial_degree,
         ode_solver_tolerance=ode_solver_tolerance,
         num_error_sim_points=num_error_sim_points,
+        ode_method=ode_method,  # NEW
+        ode_max_step=ode_max_step,  # NEW
+        ode_solver=ode_solver,  # Advanced option
     )
 
     # Initialize mesh configuration

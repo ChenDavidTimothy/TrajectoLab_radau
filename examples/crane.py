@@ -67,16 +67,9 @@ def main_cst2_reactor_unscaled():
         "x5": (0.0, 0.0),
         "x6": (0.0, 0.0),
     }
-    # The order of states/controls in the guess list must match how TrajectoLab expects them
-    # Usually, this is the order of definition if not using named dictionaries.
-    # For tl.Problem, set_initial_guess uses list of lists/arrays based on definition order.
 
     states_physical_guess_intervals = []
     controls_physical_guess_intervals = []
-
-    # For tl.Problem, the states and controls in the guess must be in the order they were defined.
-    # We can get this order from problem._states_ordered and problem._controls_ordered if they exist and are public,
-    # or maintain it manually. Assuming definition order: x1, x2, x3, x4, x5, x6 and u1, u2.
 
     # State initial guesses (physical)
     s_names_ordered_for_guess = ["x1", "x2", "x3", "x4", "x5", "x6"]
@@ -110,14 +103,20 @@ def main_cst2_reactor_unscaled():
         integrals=0.1,  # Guess for the integral value
     )
 
-    print("Solving CST2 Reactor (Unscaled) with fixed mesh...")
+    # =================================================================
+    # TEST 1: Default RK45 Method (Original Behavior)
+    # =================================================================
+    print("\n=== TEST 1: Default RK45 Method ===")
+    print("Solving CST2 Reactor with default ODE solver (RK45)...")
     nlp_max_iter = 2000
-    print(f"NLP max iterations: {nlp_max_iter}")
-    fixed_solution = tl.solve_adaptive(
+
+    solution_rk45 = tl.solve_adaptive(
         problem,
         error_tolerance=5e-7,
+        ode_method="RK45",  # NEW: Default method (explicit)
+        ode_solver_tolerance=1e-8,  # NEW: Tight ODE tolerance
         nlp_options={
-            "ipopt.print_level": 5,  # Increased print level
+            "ipopt.print_level": 3,
             "ipopt.sb": "yes",
             "print_time": 1,
             "ipopt.max_iter": nlp_max_iter,
@@ -126,109 +125,249 @@ def main_cst2_reactor_unscaled():
         },
     )
 
-    if fixed_solution.success:
-        fixed_solution.plot()
-        # For unscaled problem, fixed_solution.objective is the direct physical objective
-        physical_objective_cst2 = fixed_solution.objective
-        print("CST2 (Unscaled) Fixed mesh solution successful!")
-        print(f"  Physical Objective (J_phys):      {physical_objective_cst2:.8f}")
+    if solution_rk45.success:
+        print("✅ RK45 Solution Successful!")
+        print(f"   Objective: {solution_rk45.objective:.8f}")
+        print(f"   Final message: {solution_rk45.message}")
+    else:
+        print(f"❌ RK45 Solution Failed: {solution_rk45.message}")
 
-        reference_objective_cst2 = 0.0375194596
-        print(f"  Reference Objective (J*):         {reference_objective_cst2:.8f}")
-        error_percentage = (
-            abs(physical_objective_cst2 - reference_objective_cst2) / reference_objective_cst2 * 100
-        )
-        print(f"  Error from reference:             {error_percentage:.4f}%")
+    # =================================================================
+    # TEST 2: High-Precision DOP853 Method (NASA-Grade)
+    # =================================================================
+    print("\n=== TEST 2: High-Precision DOP853 Method ===")
+    print("Solving CST2 Reactor with high-precision DOP853 solver...")
 
-        # Plotting (optional, can be adapted from the scaled version)
-        # For simplicity, we'll reuse the plotting structure if needed,
-        # but the variables are directly from fixed_solution.get_trajectory(symbol)
+    solution_dop853 = tl.solve_adaptive(
+        problem,
+        error_tolerance=1e-8,  # Tighter error tolerance
+        ode_method="DOP853",  # NEW: 8th order method
+        ode_solver_tolerance=1e-10,  # NEW: Very tight ODE tolerance
+        ode_max_step=0.5,  # NEW: Limit step size for stability
+        max_iterations=15,  # Allow more adaptive iterations
+        nlp_options={
+            "ipopt.print_level": 3,
+            "ipopt.sb": "yes",
+            "print_time": 1,
+            "ipopt.max_iter": nlp_max_iter,
+            "ipopt.tol": 1e-8,  # Match error tolerance
+            "ipopt.constr_viol_tol": 1e-8,
+        },
+    )
 
-        # Example for plotting x1 and u1:
-        time_plot, x1_sol = fixed_solution.get_trajectory(x1)  # Use direct symbol x1
-        _, u1_sol = fixed_solution.get_trajectory(u1)  # Use direct symbol u1
+    if solution_dop853.success:
+        print("✅ DOP853 Solution Successful!")
+        print(f"   Objective: {solution_dop853.objective:.8f}")
+        print(f"   Final message: {solution_dop853.message}")
+    else:
+        print(f"❌ DOP853 Solution Failed: {solution_dop853.message}")
 
-        # Fetch all trajectories for plotting
-        traj_x1 = fixed_solution.get_trajectory(x1)[1]
-        traj_x2 = fixed_solution.get_trajectory(x2)[1]
-        traj_x3 = fixed_solution.get_trajectory(x3)[1]
-        traj_x4 = fixed_solution.get_trajectory(x4)[1]
-        traj_x5 = fixed_solution.get_trajectory(x5)[1]
-        time_plot_x6, traj_x6 = fixed_solution.get_trajectory(
-            x6
-        )  # Get time from last state for consistency
+    # =================================================================
+    # TEST 3: Stiff System Solver (Radau) - Best for Chemical Reactors
+    # =================================================================
+    print("\n=== TEST 3: Stiff System Solver (Radau) ===")
+    print("Solving CST2 Reactor with Radau solver (best for stiff systems)...")
 
-        time_plot_u1, traj_u1 = fixed_solution.get_trajectory(u1)
-        _, traj_u2 = fixed_solution.get_trajectory(u2)
+    solution_radau = tl.solve_adaptive(
+        problem,
+        error_tolerance=5e-7,
+        ode_method="Radau",  # NEW: Implicit method for stiff systems
+        ode_solver_tolerance=1e-9,  # NEW: Tight tolerance for chemical dynamics
+        ode_max_step=1.0,  # NEW: Conservative step size
+        max_iterations=20,  # More iterations for stiff problems
+        nlp_options={
+            "ipopt.print_level": 3,
+            "ipopt.sb": "yes",
+            "print_time": 1,
+            "ipopt.max_iter": nlp_max_iter,
+            "ipopt.tol": 1e-7,
+            "ipopt.constr_viol_tol": 1e-7,
+        },
+    )
 
+    if solution_radau.success:
+        print("✅ Radau Solution Successful!")
+        print(f"   Objective: {solution_radau.objective:.8f}")
+        print(f"   Final message: {solution_radau.message}")
+    else:
+        print(f"❌ Radau Solution Failed: {solution_radau.message}")
+
+    # =================================================================
+    # TEST 4: Fast Solver for Testing (RK23)
+    # =================================================================
+    print("\n=== TEST 4: Fast Solver (RK23) ===")
+    print("Solving CST2 Reactor with fast RK23 solver...")
+
+    solution_rk23 = tl.solve_adaptive(
+        problem,
+        error_tolerance=1e-5,  # Looser tolerance for speed
+        ode_method="RK23",  # NEW: 2nd/3rd order (faster)
+        ode_solver_tolerance=1e-6,  # NEW: Looser ODE tolerance
+        max_iterations=10,  # Fewer iterations
+        nlp_options={
+            "ipopt.print_level": 1,  # Less verbose
+            "ipopt.sb": "yes",
+            "print_time": 0,
+            "ipopt.max_iter": 1000,  # Fewer NLP iterations
+            "ipopt.tol": 1e-5,
+            "ipopt.constr_viol_tol": 1e-5,
+        },
+    )
+
+    if solution_rk23.success:
+        print("✅ RK23 Solution Successful!")
+        print(f"   Objective: {solution_rk23.objective:.8f}")
+        print(f"   Final message: {solution_rk23.message}")
+    else:
+        print(f"❌ RK23 Solution Failed: {solution_rk23.message}")
+
+    # =================================================================
+    # COMPARISON AND ANALYSIS
+    # =================================================================
+    print("\n" + "=" * 60)
+    print("COMPARISON OF ODE SOLVER METHODS")
+    print("=" * 60)
+
+    solutions = [
+        ("RK45 (Default)", solution_rk45),
+        ("DOP853 (High-Precision)", solution_dop853),
+        ("Radau (Stiff)", solution_radau),
+        ("RK23 (Fast)", solution_rk23),
+    ]
+
+    reference_objective = 0.0375194596
+
+    for name, sol in solutions:
+        if sol.success:
+            error_pct = abs(sol.objective - reference_objective) / reference_objective * 100
+            print(f"{name:20s}: Obj={sol.objective:.8f}, Error={error_pct:.4f}%")
+        else:
+            print(f"{name:20s}: FAILED - {sol.message}")
+
+    print(f"Reference Objective: {reference_objective:.8f}")
+
+    # =================================================================
+    # PLOT BEST SOLUTION
+    # =================================================================
+    # Choose the most successful solution for plotting
+    best_solution = None
+    best_name = ""
+
+    for name, sol in solutions:
+        if sol.success:
+            best_solution = sol
+            best_name = name
+            break
+
+    if best_solution is not None:
+        print(f"\nPlotting results from: {best_name}")
+
+        # Get trajectories
+        time_plot_x6, traj_x1 = best_solution.get_trajectory(x1)
+        _, traj_x2 = best_solution.get_trajectory(x2)
+        _, traj_x3 = best_solution.get_trajectory(x3)
+        _, traj_x4 = best_solution.get_trajectory(x4)
+        _, traj_x5 = best_solution.get_trajectory(x5)
+        _, traj_x6 = best_solution.get_trajectory(x6)
+
+        time_plot_u1, traj_u1 = best_solution.get_trajectory(u1)
+        _, traj_u2 = best_solution.get_trajectory(u2)
+
+        # Plot states
         plt.figure(figsize=(12, 10))
         plt.subplot(3, 2, 1)
-        plt.plot(time_plot_x6, traj_x1, label="x1")
+        plt.plot(time_plot_x6, traj_x1, label="x1", linewidth=2)
         plt.title("x1")
         plt.grid(True)
         plt.legend()
+
         plt.subplot(3, 2, 2)
-        plt.plot(time_plot_x6, traj_x2, label="x2")
+        plt.plot(time_plot_x6, traj_x2, label="x2", linewidth=2)
         plt.title("x2")
         plt.grid(True)
         plt.legend()
+
         plt.subplot(3, 2, 3)
-        plt.plot(time_plot_x6, traj_x3, label="x3")
+        plt.plot(time_plot_x6, traj_x3, label="x3", linewidth=2)
         plt.title("x3")
         plt.grid(True)
         plt.legend()
+
         plt.subplot(3, 2, 4)
-        plt.plot(time_plot_x6, traj_x4, label="x4")
+        plt.plot(time_plot_x6, traj_x4, label="x4", linewidth=2)
         plt.hlines(
-            [-2.5, 2.5], xmin=time_plot_x6[0], xmax=time_plot_x6[-1], colors="r", linestyles="--"
+            [-2.5, 2.5],
+            xmin=time_plot_x6[0],
+            xmax=time_plot_x6[-1],
+            colors="r",
+            linestyles="--",
+            alpha=0.7,
         )
         plt.title("x4")
         plt.grid(True)
         plt.legend()
+
         plt.subplot(3, 2, 5)
-        plt.plot(time_plot_x6, traj_x5, label="x5")
+        plt.plot(time_plot_x6, traj_x5, label="x5", linewidth=2)
         plt.hlines(
-            [-1.0, 1.0], xmin=time_plot_x6[0], xmax=time_plot_x6[-1], colors="r", linestyles="--"
+            [-1.0, 1.0],
+            xmin=time_plot_x6[0],
+            xmax=time_plot_x6[-1],
+            colors="r",
+            linestyles="--",
+            alpha=0.7,
         )
         plt.title("x5")
         plt.grid(True)
         plt.legend()
+
         plt.subplot(3, 2, 6)
-        plt.plot(time_plot_x6, traj_x6, label="x6")
+        plt.plot(time_plot_x6, traj_x6, label="x6", linewidth=2)
         plt.title("x6")
         plt.grid(True)
         plt.legend()
-        plt.suptitle("CST2 Reactor States (Unscaled)")
+
+        plt.suptitle(f"CST2 Reactor States - {best_name}")
         plt.tight_layout(rect=[0, 0, 1, 0.96])
         plt.show()
 
+        # Plot controls
         plt.figure(figsize=(12, 5))
         plt.subplot(1, 2, 1)
-        plt.plot(time_plot_u1, traj_u1, label="u1")
+        plt.plot(time_plot_u1, traj_u1, label="u1", linewidth=2)
         plt.hlines(
-            [-c1, c1], xmin=time_plot_u1[0], xmax=time_plot_u1[-1], colors="r", linestyles="--"
+            [-c1, c1],
+            xmin=time_plot_u1[0],
+            xmax=time_plot_u1[-1],
+            colors="r",
+            linestyles="--",
+            alpha=0.7,
         )
         plt.title("u1")
         plt.grid(True)
         plt.legend()
+
         plt.subplot(1, 2, 2)
-        plt.plot(time_plot_u1, traj_u2, label="u2")
+        plt.plot(time_plot_u1, traj_u2, label="u2", linewidth=2)
         plt.hlines(
-            [c2, c3], xmin=time_plot_u1[0], xmax=time_plot_u1[-1], colors="r", linestyles="--"
+            [c2, c3],
+            xmin=time_plot_u1[0],
+            xmax=time_plot_u1[-1],
+            colors="r",
+            linestyles="--",
+            alpha=0.7,
         )
         plt.title("u2")
         plt.grid(True)
         plt.legend()
-        plt.suptitle("CST2 Reactor Controls (Unscaled)")
+
+        plt.suptitle(f"CST2 Reactor Controls - {best_name}")
         plt.tight_layout(rect=[0, 0, 1, 0.96])
         plt.show()
 
     else:
-        print(f"CST2 (Unscaled) Fixed mesh solution failed: {fixed_solution.message}")
+        print("❌ All solver methods failed!")
 
 
-# To run this new problem, modify the main execution block:
 if __name__ == "__main__":
-    # main_hypersensitive()
-    # main_cst2_reactor() # Run the autoscaled version
-    main_cst2_reactor_unscaled()  # Run the unscaled version
+    main_cst2_reactor_unscaled()

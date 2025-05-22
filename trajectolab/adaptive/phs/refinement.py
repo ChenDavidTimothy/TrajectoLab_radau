@@ -77,31 +77,39 @@ def h_refine_params(target_Nk: int, N_min: int) -> HRefineResult:
 def p_reduce_interval(
     current_Nk: int, max_error: float, error_tol: float, N_min: int, N_max: int
 ) -> PReduceResult:
-    """Determines new polynomial degree for an interval using p-reduction."""
+    """
+    Determines new polynomial degree using p-reduction per Eq. 36.
+    SAFETY-CRITICAL: Always uses mathematical formula from specification.
+    """
     # Only reduce if error is below tolerance and current Nk > minimum
     if max_error > error_tol or current_Nk <= N_min:
         return PReduceResult(new_num_collocation_nodes=current_Nk, was_reduction_applied=False)
 
-    # Calculate reduction control parameter delta
+    # Calculate reduction control parameter delta per specification
     delta = float(N_min + N_max - current_Nk)
     if abs(delta) < 1e-9:
         delta = 1.0  # Avoid division by zero
 
-    # Calculate number of nodes to remove
-    if max_error < 1e-16:  # Error is essentially zero
-        nodes_to_remove = current_Nk - N_min
-    else:
-        ratio = error_tol / max_error  # Should be >= 1
+    # CRITICAL: Always use Eq. 36 mathematical formula - no special cases
+    try:
+        ratio = error_tol / max_error  # Should be >= 1 since max_error <= error_tol
         if ratio < 1.0:
+            # Mathematical inconsistency - should not happen
             nodes_to_remove = 0
         else:
-            try:
-                log_arg = np.power(ratio, 1.0 / delta)
-                nodes_to_remove = np.floor(np.log10(log_arg)) if log_arg >= 1.0 else 0
-            except (ValueError, OverflowError, ZeroDivisionError):
+            # Apply Eq. 36: P_k^- = floor(log10((ε/e_max^(k))^(1/δ)))
+            power_arg = np.power(ratio, 1.0 / delta)
+            if power_arg >= 1.0:
+                nodes_to_remove = int(np.floor(np.log10(power_arg)))
+            else:
                 nodes_to_remove = 0
 
-    nodes_to_remove = max(0, int(nodes_to_remove))
+    except (ValueError, OverflowError, ZeroDivisionError, FloatingPointError):
+        # Mathematical operation failed - conservative fallback
+        nodes_to_remove = 0
+
+    # Apply reduction with bounds checking
+    nodes_to_remove = max(0, nodes_to_remove)
     new_Nk = max(N_min, current_Nk - nodes_to_remove)
     was_reduced = new_Nk < current_Nk
 
