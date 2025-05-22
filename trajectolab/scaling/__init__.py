@@ -8,7 +8,7 @@ For NASA safety-critical applications, all mathematical transformations are impl
 as pure functions that can be independently verified and tested.
 """
 
-from .core import (
+from .core_scale import (
     AutoScalingManager,
     ScalingFactors,
     VariableMappings,

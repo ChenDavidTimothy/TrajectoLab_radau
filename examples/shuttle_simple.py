@@ -136,6 +136,7 @@ def solve_and_analyze(problem, method="adaptive"):
                 "ipopt.print_level": 0,  # Quiet solve
                 "ipopt.max_iter": 2000,
                 "ipopt.tol": 1e-8,
+                "ipopt.sb": "yes",
             },
         )
     else:  # fixed mesh
