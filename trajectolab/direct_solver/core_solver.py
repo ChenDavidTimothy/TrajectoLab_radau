@@ -83,7 +83,7 @@ def solve_single_phase_radau_collocation(problem: ProblemProtocol) -> OptimalCon
     # Execute solve
     solution_obj = _execute_solve(opti, problem, num_mesh_intervals)
 
-    # *** NEW: Record auto-scaling information in the solution ***
+    # Record auto-scaling information in the solution
     _record_scaling_information(solution_obj, problem)
 
     return solution_obj
@@ -97,16 +97,24 @@ def _record_scaling_information(solution: OptimalControlSolution, problem: Probl
         solution: The solution object to update
         problem: The problem containing scaling information
     """
-    # Check if auto-scaling is enabled
+    # Check if auto-scaling is enabled using hasattr for safety
     if hasattr(problem, "_auto_scaling_enabled") and problem._auto_scaling_enabled:
-        # Get scaling info from problem
-        scaling_info = problem.get_scaling_info()
+        # Get scaling info from problem using hasattr for safety
+        if hasattr(problem, "get_scaling_info"):
+            scaling_info = problem.get_scaling_info()
 
-        solution.auto_scaling_enabled = True
-        solution.scaling_factors = scaling_info.get("scaling_factors", {})
-        solution.physical_to_scaled_map = scaling_info.get("physical_to_scaled_map", {})
-        solution.scaled_to_physical_map = scaling_info.get("scaled_to_physical_map", {})
-        solution.physical_symbols = scaling_info.get("physical_symbols", {})
+            solution.auto_scaling_enabled = True
+            solution.scaling_factors = scaling_info.get("scaling_factors", {})
+            solution.physical_to_scaled_map = scaling_info.get("physical_to_scaled_map", {})
+            solution.scaled_to_physical_map = scaling_info.get("scaled_to_physical_map", {})
+            solution.physical_symbols = scaling_info.get("physical_symbols", {})
+        else:
+            # Fallback if get_scaling_info method is not available
+            solution.auto_scaling_enabled = False
+            solution.scaling_factors = {}
+            solution.physical_to_scaled_map = {}
+            solution.scaled_to_physical_map = {}
+            solution.physical_symbols = {}
     else:
         # No auto-scaling
         solution.auto_scaling_enabled = False

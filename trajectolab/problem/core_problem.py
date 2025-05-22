@@ -184,7 +184,7 @@ class Problem:
         self._scaling_manager.update_initial_guess_range(name, initial, final, lower, upper)
 
         # Set up scaling for this variable
-        scaling_factors = self._scaling_manager.setup_variable_scaling(
+        self._scaling_manager.setup_variable_scaling(
             name, lower, upper, scale_guide_lower, scale_guide_upper
         )
 
@@ -238,7 +238,7 @@ class Problem:
         self._scaling_manager.update_initial_guess_range(name, None, None, lower, upper)
 
         # Set up scaling for this variable
-        scaling_factors = self._scaling_manager.setup_variable_scaling(
+        self._scaling_manager.setup_variable_scaling(
             name, lower, upper, scale_guide_lower, scale_guide_upper
         )
 
