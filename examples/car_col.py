@@ -90,10 +90,13 @@ opti.subject_to(pos[N] == 1)  # Finish line at position 1 (Note: X index goes up
 for k in range(N):
     opti.subject_to(opti.bounded(0, U[0, k], 1))  # Control is limited [0,1]
 
+
 # Path constraints (speed limit)
 # Applied at all mesh points X[:,k] for k=0...N
 # And at all collocation points Xkj
-limit_func = lambda p: 1 - ca.sin(2 * ca.pi * p) / 2
+def limit_func(p):
+    return 1 - ca.sin(2 * ca.pi * p) / 2
+
 
 for k in range(N + 1):  # For X0, X1, ..., XN
     opti.subject_to(speed[k] <= limit_func(pos[k]))  # Track speed limit

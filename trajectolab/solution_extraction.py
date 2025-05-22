@@ -1,11 +1,5 @@
 """
-Redesigned solution extraction with proper optimal control scaling support.
-
-Key changes:
-1. Extract proper scaling information from problem
-2. Handle objective unscaling (from w_0 * J back to J)
-3. Proper trajectory unscaling using variable scaling factors
-4. Clean separation of scaling components
+Solution extraction and formatting utilities.
 """
 
 import casadi as ca
@@ -25,7 +19,7 @@ from .tl_types import (
 def extract_integral_values(
     casadi_solution_object: ca.OptiSol | None, opti_object: ca.Opti, num_integrals: int
 ) -> float | FloatArray | None:
-    """Extract integral values from CasADi solution."""
+    """Extract integral values from the CasADi solution."""
     if (
         num_integrals == 0
         or not hasattr(opti_object, "integral_variables_object_reference")
@@ -40,17 +34,48 @@ def extract_integral_values(
         if isinstance(raw_value, ca.DM):
             np_array_value = np.asarray(raw_value.toarray())
             if num_integrals == 1:
-                return float(np_array_value.item()) if np_array_value.size == 1 else np.nan
+                if np_array_value.size == 1:
+                    return float(np_array_value.item())
+                else:
+                    print(
+                        f"Warning: For num_integrals=1, CasADi DM value resulted in array shape {np_array_value.shape} "
+                        f"after toarray(). Attempting to use the first element."
+                    )
+                    if np_array_value.size > 0:
+                        return float(np_array_value.flatten()[0])
+                    else:
+                        print(
+                            "Warning: For num_integrals=1, CasADi DM value is empty after conversion."
+                        )
+                        return np.nan
             else:
                 return np_array_value.flatten().astype(np.float64)
+
         elif isinstance(raw_value, float | int):
-            return float(raw_value) if num_integrals == 1 else np.full(num_integrals, np.nan)
+            if num_integrals == 1:
+                return float(raw_value)
+            else:
+                print(
+                    f"Warning: Expected array for {num_integrals} integrals, but CasADi value() returned scalar {raw_value}."
+                )
+                return np.full(num_integrals, np.nan, dtype=np.float64)
         else:
-            return np.nan if num_integrals == 1 else np.full(num_integrals, np.nan)
+            print(
+                f"Warning: CasADi .value() returned an unexpected type: {type(raw_value)}. Value: {raw_value}"
+            )
+            if num_integrals > 1:
+                return np.full(num_integrals, np.nan, dtype=np.float64)
+            elif num_integrals == 1:
+                return np.nan
+            return None
 
     except Exception as e:
         print(f"Warning: Could not extract integral values: {e}")
-        return np.nan if num_integrals == 1 else np.full(num_integrals, np.nan)
+        if num_integrals > 1:
+            return np.full(num_integrals, np.nan, dtype=np.float64)
+        elif num_integrals == 1:
+            return np.nan
+        return None
 
 
 def process_trajectory_points(
@@ -68,8 +93,31 @@ def process_trajectory_points(
     num_variables: int,
     is_state: bool = True,
 ) -> float:
-    """Process trajectory points for a single mesh interval."""
+    """
+    Process trajectory points for a single mesh interval.
+
+    Args:
+        mesh_interval_index: Index of the current mesh interval
+        casadi_solution_object: CasADi solution object
+        opti_object: CasADi optimization object
+        variables_list: List of CasADi variables for this trajectory type
+        local_tau_nodes: Local tau values for each interval
+        global_normalized_mesh_nodes: Global mesh nodes
+        initial_time: Problem initial time
+        terminal_time: Problem terminal time
+        last_added_point: Last time point added (to avoid duplicates)
+        trajectory_times: Output list for time points
+        trajectory_values_lists: Output list for trajectory values
+        num_variables: Number of variables (states or controls)
+        is_state: True for states, False for controls
+
+    Returns:
+        Updated last_added_point value
+    """
     if mesh_interval_index >= len(variables_list) or mesh_interval_index >= len(local_tau_nodes):
+        print(
+            f"Error: Variable list or tau nodes not found or incomplete for interval {mesh_interval_index}."
+        )
         return last_added_point
 
     current_interval_variables = variables_list[mesh_interval_index]
@@ -79,7 +127,7 @@ def process_trajectory_points(
     if num_variables == 1 and solved_values.ndim == 1:
         solved_values = solved_values.reshape(1, -1)
 
-    # Process nodes (controls exclude final point)
+    # For controls, we don't include the final point (which belongs to states)
     num_nodes_to_process = len(current_interval_local_tau_values)
     if not is_state and num_nodes_to_process > 0:
         num_nodes_to_process -= 1
@@ -99,13 +147,18 @@ def process_trajectory_points(
             terminal_time + initial_time
         ) / 2
 
-        # Add point if sufficiently different or is final point
-        is_last_point = (
+        # Check if this is the last point in the trajectory or if we should add it
+        is_last_point_in_trajectory: bool = (
             mesh_interval_index == len(variables_list) - 1
             and node_index == num_nodes_to_process - 1
         )
 
-        if abs(physical_time - last_added_point) > 1e-9 or is_last_point or not trajectory_times:
+        # Add point if it's sufficiently different from the last one, or if it's the final point
+        if (
+            abs(physical_time - last_added_point) > 1e-9
+            or is_last_point_in_trajectory
+            or not trajectory_times
+        ):
             trajectory_times.append(physical_time)
             for var_index in range(num_variables):
                 trajectory_values_lists[var_index].append(solved_values[var_index, node_index])
@@ -121,80 +174,38 @@ def extract_and_format_solution(
     num_collocation_nodes_per_interval: list[int],
     global_normalized_mesh_nodes: FloatArray,
 ) -> OptimalControlSolution:
-    """
-    Extract and format solution with proper scaling support.
-
-    Key improvements:
-    1. Proper objective unscaling (w_0 * J -> J)
-    2. Correct scaling information extraction
-    3. Clean trajectory unscaling
-    """
+    """Extract and format the solution from CasADi optimization result."""
     solution = OptimalControlSolution()
     solution.opti_object = casadi_optimization_problem_object
     solution.num_collocation_nodes_per_interval = list(num_collocation_nodes_per_interval)
     solution.global_normalized_mesh_nodes = global_normalized_mesh_nodes.copy()
 
-    print("📊 Extracting solution with proper scaling support")
-
-    # Extract scaling information from problem
+    # *** CRITICAL FIX: Extract scaling information from problem ***
     try:
         scaling_info = problem.get_scaling_info()
         solution.auto_scaling_enabled = scaling_info.get("auto_scaling_enabled", False)
-
-        if solution.auto_scaling_enabled:
-            print("  ✅ Auto-scaling detected in solution")
-
-            # Extract variable scaling factors
-            solution.variable_scaling_factors = scaling_info.get("variable_scaling_factors", {})
-
-            # Extract objective scaling
-            obj_scaling_info = scaling_info.get("objective_scaling", {})
-            solution.objective_scaling_factor = obj_scaling_info.get("w_0", 1.0)
-            solution.objective_computed_from_hessian = obj_scaling_info.get(
-                "computed_from_hessian", False
-            )
-            solution.gerschgorin_omega = obj_scaling_info.get("gerschgorin_omega")
-
-            # Extract constraint scaling
-            constraint_scaling_info = scaling_info.get("constraint_scaling", {})
-            solution.ode_defect_scaling_factors = constraint_scaling_info.get("W_f", {})
-            solution.path_constraint_scaling_factors = constraint_scaling_info.get("W_g", {})
-
-            # Extract symbol mappings
-            solution.original_physical_symbols = scaling_info.get("original_physical_symbols", {})
-            solution.scaled_nlp_symbols = scaling_info.get("scaled_nlp_symbols", {})
-            solution.physical_to_scaled_names = scaling_info.get("physical_to_scaled_names", {})
-
-            print(f"    📐 Objective scaling factor w_0: {solution.objective_scaling_factor:.3e}")
-            print(f"    📊 Variable scaling factors: {len(solution.variable_scaling_factors)}")
-        else:
-            print("  ➡️  No auto-scaling used")
-            # Initialize default values
-            solution.variable_scaling_factors = {}
-            solution.objective_scaling_factor = 1.0
-            solution.ode_defect_scaling_factors = {}
-            solution.path_constraint_scaling_factors = {}
-            solution.original_physical_symbols = {}
-            solution.scaled_nlp_symbols = {}
-            solution.physical_to_scaled_names = {}
-
+        solution.scaling_factors = scaling_info.get("scaling_factors", {})
+        solution.physical_to_scaled_map = scaling_info.get("physical_to_scaled_map", {})
+        solution.scaled_to_physical_map = scaling_info.get("scaled_to_physical_map", {})
+        solution.physical_symbols = scaling_info.get("physical_symbols", {})
     except Exception as e:
-        print(f"⚠️  Warning: Could not extract scaling information: {e}")
+        print(f"Warning: Could not extract scaling information from problem: {e}")
         solution.auto_scaling_enabled = False
-        solution.variable_scaling_factors = {}
-        solution.objective_scaling_factor = 1.0
+        solution.scaling_factors = {}
+        solution.physical_to_scaled_map = {}
+        solution.scaled_to_physical_map = {}
+        solution.physical_symbols = {}
 
     if casadi_solution_object is None:
         solution.success = False
         solution.message = "Solver did not find a solution or was not run."
         return solution
 
-    num_mesh_intervals = len(num_collocation_nodes_per_interval)
-    num_states = len(problem._states)
-    num_controls = len(problem._controls)
-    num_integrals = problem._num_integrals
+    num_mesh_intervals: int = len(num_collocation_nodes_per_interval)
+    num_states: int = len(problem._states)
+    num_controls: int = len(problem._controls)
+    num_integrals: int = problem._num_integrals
 
-    # Extract core solution values
     try:
         solution.initial_time_variable = float(
             casadi_solution_object.value(
@@ -206,33 +217,17 @@ def extract_and_format_solution(
                 casadi_optimization_problem_object.terminal_time_variable_reference
             )
         )
-
-        # Extract and properly unscale objective value
-        raw_objective = float(
+        solution.objective = float(
             casadi_solution_object.value(
                 casadi_optimization_problem_object.symbolic_objective_function_reference
             )
         )
-
-        # Apply proper objective unscaling
-        if solution.auto_scaling_enabled and solution.objective_scaling_factor != 1.0:
-            # The NLP solved: minimize w_0 * J
-            # So the physical objective is: J = (w_0 * J) / w_0
-            solution.objective = raw_objective / solution.objective_scaling_factor
-            print(
-                f"  📐 Objective unscaled: {raw_objective:.6f} / {solution.objective_scaling_factor:.3e} = {solution.objective:.6f}"
-            )
-        else:
-            solution.objective = raw_objective
-            print(f"  📊 Objective (no scaling): {solution.objective:.6f}")
-
     except Exception as e:
         solution.success = False
         solution.message = f"Failed to extract core solution values: {e}"
         solution.raw_solution = casadi_solution_object
         return solution
 
-    # Extract integral values
     solution.integrals = extract_integral_values(
         casadi_solution_object, casadi_optimization_problem_object, num_integrals
     )
@@ -243,27 +238,30 @@ def extract_and_format_solution(
     last_time_point_added_to_state_trajectory: float = -np.inf
 
     for mesh_idx in range(num_mesh_intervals):
-        if hasattr(
+        if not hasattr(
             casadi_optimization_problem_object,
             "state_at_local_approximation_nodes_all_intervals_variables",
-        ) and hasattr(
+        ) or not hasattr(
             casadi_optimization_problem_object, "metadata_local_state_approximation_nodes_tau"
         ):
-            last_time_point_added_to_state_trajectory = process_trajectory_points(
-                mesh_idx,
-                casadi_solution_object,
-                casadi_optimization_problem_object,
-                casadi_optimization_problem_object.state_at_local_approximation_nodes_all_intervals_variables,
-                casadi_optimization_problem_object.metadata_local_state_approximation_nodes_tau,
-                global_normalized_mesh_nodes,
-                solution.initial_time_variable,
-                solution.terminal_time_variable,
-                last_time_point_added_to_state_trajectory,
-                state_trajectory_times,
-                state_trajectory_values,
-                num_states,
-                is_state=True,
-            )
+            print("Error: State trajectory attributes missing in optimization object.")
+            continue
+
+        last_time_point_added_to_state_trajectory = process_trajectory_points(
+            mesh_idx,
+            casadi_solution_object,
+            casadi_optimization_problem_object,
+            casadi_optimization_problem_object.state_at_local_approximation_nodes_all_intervals_variables,
+            casadi_optimization_problem_object.metadata_local_state_approximation_nodes_tau,
+            global_normalized_mesh_nodes,
+            solution.initial_time_variable,
+            solution.terminal_time_variable,
+            last_time_point_added_to_state_trajectory,
+            state_trajectory_times,
+            state_trajectory_values,
+            num_states,
+            is_state=True,
+        )
 
     # Extract control trajectories
     control_trajectory_times: list[float] = []
@@ -271,27 +269,31 @@ def extract_and_format_solution(
     last_time_point_added_to_control_trajectory: float = -np.inf
 
     for mesh_idx in range(num_mesh_intervals):
-        if hasattr(
+        if not hasattr(
             casadi_optimization_problem_object,
             "control_at_local_collocation_nodes_all_intervals_variables",
-        ) and hasattr(casadi_optimization_problem_object, "metadata_local_collocation_nodes_tau"):
-            last_time_point_added_to_control_trajectory = process_trajectory_points(
-                mesh_idx,
-                casadi_solution_object,
-                casadi_optimization_problem_object,
-                casadi_optimization_problem_object.control_at_local_collocation_nodes_all_intervals_variables,
-                casadi_optimization_problem_object.metadata_local_collocation_nodes_tau,
-                global_normalized_mesh_nodes,
-                solution.initial_time_variable,
-                solution.terminal_time_variable,
-                last_time_point_added_to_control_trajectory,
-                control_trajectory_times,
-                control_trajectory_values,
-                num_controls,
-                is_state=False,
-            )
+        ) or not hasattr(
+            casadi_optimization_problem_object, "metadata_local_collocation_nodes_tau"
+        ):
+            print("Error: Control trajectory attributes missing in optimization object.")
+            continue
 
-    # Extract per-interval trajectories (scaled values from NLP)
+        last_time_point_added_to_control_trajectory = process_trajectory_points(
+            mesh_idx,
+            casadi_solution_object,
+            casadi_optimization_problem_object,
+            casadi_optimization_problem_object.control_at_local_collocation_nodes_all_intervals_variables,
+            casadi_optimization_problem_object.metadata_local_collocation_nodes_tau,
+            global_normalized_mesh_nodes,
+            solution.initial_time_variable,
+            solution.terminal_time_variable,
+            last_time_point_added_to_control_trajectory,
+            control_trajectory_times,
+            control_trajectory_values,
+            num_controls,
+            is_state=False,
+        )
+
     if hasattr(
         casadi_optimization_problem_object,
         "state_at_local_approximation_nodes_all_intervals_variables",
@@ -303,15 +305,17 @@ def extract_and_format_solution(
             ]
             state_vals = casadi_solution_object.value(state_vars)
 
-            # Ensure proper array format
+            # Ensure proper dimensionality
             if isinstance(state_vals, ca.DM | ca.MX):
                 state_vals = np.array(state_vals.full())
             else:
                 state_vals = np.array(state_vals)
 
+            # Ensure it's 2D for consistent processing
             if num_states == 1 and state_vals.ndim == 1:
                 state_vals = state_vals.reshape(1, -1)
             elif num_states > 1 and state_vals.ndim == 1:
+                # Handle case where CasADi returns a flattened array
                 num_points = len(state_vals) // num_states
                 if num_points * num_states == len(state_vals):
                     state_vals = state_vals.reshape(num_states, num_points)
@@ -332,33 +336,29 @@ def extract_and_format_solution(
             ]
             control_vals = casadi_solution_object.value(control_vars)
 
-            # Ensure proper array format
+            # Ensure proper dimensionality
             if isinstance(control_vals, ca.DM | ca.MX):
                 control_vals = np.array(control_vals.full())
             else:
                 control_vals = np.array(control_vals)
 
+            # Ensure it's 2D for consistent processing
             if num_controls == 1 and control_vals.ndim == 1:
                 control_vals = control_vals.reshape(1, -1)
             elif num_controls > 1 and control_vals.ndim == 1:
+                # Handle case where CasADi returns a flattened array
                 num_points = len(control_vals) // num_controls
                 if num_points * num_controls == len(control_vals):
                     control_vals = control_vals.reshape(num_controls, num_points)
 
             solution.solved_control_trajectories_per_interval.append(control_vals)
 
-    # Finalize solution
     solution.success = True
-    solution.message = "NLP solved successfully with proper scaling."
+    solution.message = "NLP solved successfully."
     solution.time_states = np.array(state_trajectory_times, dtype=np.float64)
     solution.states = [np.array(s_traj, dtype=np.float64) for s_traj in state_trajectory_values]
     solution.time_controls = np.array(control_trajectory_times, dtype=np.float64)
     solution.controls = [np.array(c_traj, dtype=np.float64) for c_traj in control_trajectory_values]
     solution.raw_solution = casadi_solution_object
-
-    print("  ✅ Solution extracted successfully")
-    if solution.auto_scaling_enabled:
-        print(f"    📊 Final objective (physical): {solution.objective:.6f}")
-        print(f"    📐 Scaling factor used: w_0 = {solution.objective_scaling_factor:.3e}")
 
     return solution

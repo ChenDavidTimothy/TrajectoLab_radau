@@ -5,10 +5,9 @@ import numpy as np
 import trajectolab as tl
 
 
-# --- Constants --- (remain the same)
+# --- Constants ---
 DEG2RAD = np.pi / 180.0
 RAD2DEG = 180.0 / np.pi
-# ... (all other physical constants) ...
 A0_CL = -0.20704
 A1_CL = 0.029244
 B0_CD = 0.07854
@@ -28,7 +27,7 @@ WEIGHT = 203000.0
 MASS = WEIGHT / G0
 
 
-# --- get_scaling_params_generalized --- (remains the same)
+# --- get_scaling_params_generalized ---
 def get_scaling_params_generalized(
     var_name,
     explicit_lower_bound,
@@ -39,12 +38,14 @@ def get_scaling_params_generalized(
 ):
     vk = 1.0
     rk = 0.0
-    rule_applied = "2.4 (Default)"
+    rule_applied = "2.4 (Default)"  # Corresponds to Rule 2 default in scale.txt if no info
     if (
         explicit_lower_bound is not None
         and explicit_upper_bound is not None
         and not np.isclose(explicit_upper_bound, explicit_lower_bound)
     ):
+        # Implements Eqs. (4.250) and (4.251) from scale.txt
+        # This is Rule 2.a from scale.txt
         vk = 1.0 / (explicit_upper_bound - explicit_lower_bound)
         rk = 0.5 - explicit_upper_bound / (explicit_upper_bound - explicit_lower_bound)
         rule_applied = "2.1.a (Explicit Bounds)"
@@ -53,6 +54,8 @@ def get_scaling_params_generalized(
         and initial_guess_max is not None
         and not np.isclose(initial_guess_max, initial_guess_min)
     ):
+        # Implements Eqs. (4.250) and (4.251) using guess range
+        # This is Rule 2.b from scale.txt
         vk = 1.0 / (initial_guess_max - initial_guess_min)
         rk = 0.5 - initial_guess_max / (initial_guess_max - initial_guess_min)
         rule_applied = "2.1.b (Initial Guess Range)"
@@ -60,7 +63,7 @@ def get_scaling_params_generalized(
     return vk, rk
 
 
-# --- generate_physical_guess_and_ranges --- (remains the same)
+# --- generate_physical_guess_and_ranges ---
 def generate_physical_guess_and_ranges(bank_angle_min_deg, num_guess_points=21):
     h0_actual, v0_actual = 260000.0, 25600.0
     phi0_actual, theta0_actual = 0.0 * DEG2RAD, 0.0 * DEG2RAD
@@ -71,7 +74,7 @@ def generate_physical_guess_and_ranges(bank_angle_min_deg, num_guess_points=21):
     beta0_actual = -30.0 * DEG2RAD
     if beta0_actual < bank_angle_min_deg * DEG2RAD:
         beta0_actual = bank_angle_min_deg * DEG2RAD
-    if beta0_actual > 1.0 * DEG2RAD:  # Max bank angle for guess is 1 degree
+    if beta0_actual > 1.0 * DEG2RAD:
         beta0_actual = 1.0 * DEG2RAD
 
     t_param = np.linspace(0, 1, num_guess_points)
@@ -94,36 +97,32 @@ def generate_physical_guess_and_ranges(bank_angle_min_deg, num_guess_points=21):
     for var_name, traj in controls_physical_traj_flat.items():
         if traj.size > 0:
             initial_guess_ranges[var_name] = {"min": np.min(traj), "max": np.max(traj)}
-        else:  # Handle case with zero control points if num_guess_points = 1
+        else:
             initial_guess_ranges[var_name] = {"min": None, "max": None}
     return initial_guess_ranges, states_physical_traj_flat, controls_physical_traj_flat
 
 
 class AutoscaledProblem:
     def __init__(self, name, initial_guess_ranges_physical=None):
-        self.internal_problem = tl.Problem(name)
+        self.internal_problem = tl.Problem(name, auto_scaling=False)
         self.initial_guess_ranges_physical = (
             initial_guess_ranges_physical if initial_guess_ranges_physical else {}
         )
         self.scaling_factors = {}
         self._physical_sx = {}
-        self._scaled_sx = {}
+        self._tilde_sx = {}
         self._state_names_ordered = []
         self._control_names_ordered = []
         self.time_symbol = None
         self._raw_states_physical_guess_flat = {}
         self._raw_controls_physical_guess_flat = {}
         self._raw_terminal_time_guess = None
+        self.objective_scale_weight_ = 1.0
 
     def time(self, initial, free_final):
         self.time_symbol = self.internal_problem.time(initial=initial, free_final=free_final)
-        # Not returning, user doesn't directly need the time symbol from here
 
     def _determine_and_store_scaling(self, var_name, scale_guide_L, scale_guide_U, op_L, op_U):
-        # Use op_L, op_U if scale_guide_L/U are None and guess is also None,
-        # for a more informed default scaling than just (1,0) if possible for Rule 2.4.
-        # However, get_scaling_params_generalized only uses explicit or guess.
-        # We pass what we have.
         guess_min = self.initial_guess_ranges_physical.get(var_name, {}).get("min")
         guess_max = self.initial_guess_ranges_physical.get(var_name, {}).get("max")
         vk, rk = get_scaling_params_generalized(
@@ -139,6 +138,7 @@ class AutoscaledProblem:
             scaled_def["final"] = vk * final_P + rk
 
         if self.scaling_factors[var_name]["rule"] != "2.4 (Default)":
+            # If scaled based on explicit or guess range, map to [-0.5, 0.5]
             scaled_def["lower"] = -0.5
             scaled_def["upper"] = 0.5
         else:
@@ -161,15 +161,14 @@ class AutoscaledProblem:
         )
         scaled_props = self._get_scaled_props(name_physical, vk, rk, initial, final, lower, upper)
 
-        scaled_name = f"{name_physical}_scaled"
-        scaled_symbol = self.internal_problem.state(scaled_name, **scaled_props)
-        self._scaled_sx[name_physical] = scaled_symbol
+        tilde_name = f"{name_physical}_tilde"
+        tilde_symbol = self.internal_problem.state(tilde_name, **scaled_props)
+        self._tilde_sx[name_physical] = tilde_symbol
         if np.isclose(vk, 0):
             raise ValueError(f"Scaling factor 'v' for {name_physical} is zero.")
-        self._physical_sx[name_physical] = (scaled_symbol - rk) / vk
+        self._physical_sx[name_physical] = (tilde_symbol - rk) / vk
         if name_physical not in self._state_names_ordered:
             self._state_names_ordered.append(name_physical)
-        # Return symbolic physical variable for user to build expressions
         return self._physical_sx[name_physical]
 
     def control(
@@ -180,12 +179,12 @@ class AutoscaledProblem:
         )
         scaled_props = self._get_scaled_props(name_physical, vk, rk, None, None, lower, upper)
 
-        scaled_name = f"{name_physical}_scaled"
-        scaled_symbol = self.internal_problem.control(scaled_name, **scaled_props)
-        self._scaled_sx[name_physical] = scaled_symbol
+        tilde_name = f"{name_physical}_tilde"
+        tilde_symbol = self.internal_problem.control(tilde_name, **scaled_props)
+        self._tilde_sx[name_physical] = tilde_symbol
         if np.isclose(vk, 0):
             raise ValueError(f"Scaling factor 'v' for {name_physical} is zero.")
-        self._physical_sx[name_physical] = (scaled_symbol - rk) / vk
+        self._physical_sx[name_physical] = (tilde_symbol - rk) / vk
         if name_physical not in self._control_names_ordered:
             self._control_names_ordered.append(name_physical)
         return self._physical_sx[name_physical]
@@ -200,23 +199,35 @@ class AutoscaledProblem:
     def dynamics(self, dynamics_dict_physical):
         scaled_dynamics_dict = {}
         for name_physical, physical_rhs_expr in dynamics_dict_physical.items():
-            if name_physical not in self.scaling_factors or name_physical not in self._scaled_sx:
+            if name_physical not in self.scaling_factors or name_physical not in self._tilde_sx:
                 raise KeyError(
-                    f"Scaling factors or scaled symbol for '{name_physical}' not found. Ensure it's a defined state."
+                    f"Scaling factors or tilde symbol for '{name_physical}' not found. Ensure it's a defined state."
                 )
             vk = self.scaling_factors[name_physical]["v"]
-            scaled_symbol = self._scaled_sx[name_physical]
-            scaled_dynamics_dict[scaled_symbol] = vk * physical_rhs_expr
+            # physical_rhs_expr is f_phys(y_phys, u_phys, t)
+            # This implements Rule 3: ODE Defect Scaling (W_f = V_y)
+            # d(y_tilde)/dt = vk * f_phys(y_phys(y_tilde), u_phys(u_tilde), t)
+            scaled_dynamics_dict[self._tilde_sx[name_physical]] = vk * physical_rhs_expr
         self.internal_problem.dynamics(scaled_dynamics_dict)
 
-    def subject_to(self, constraint_expr_physical):
-        self.internal_problem.subject_to(constraint_expr_physical)
+    def subject_to(self, constraint_expr_physical, constraint_scale_weight=1.0):
+        # constraint_expr_physical is g(y_phys, u_phys, t) <= C_phys or similar.
+        # y_phys and u_phys are CasADi symbols already defined in terms of y_tilde, u_tilde.
+        # This implements Rule 4: Path Constraint Scaling by W_g
+        # The scaled constraint is constraint_scale_weight * constraint_expr_physical.
+        # Default weight is 1.0 (Rule 4.b if no other info).
+        self.internal_problem.subject_to(constraint_scale_weight * constraint_expr_physical)
 
-    def minimize(self, objective_expr_physical):
-        self.internal_problem.minimize(objective_expr_physical)
+    def minimize(self, objective_expr_physical, objective_scale_weight=1.0):
+        # objective_expr_physical is J(y_phys, u_phys, t).
+        # y_phys and u_phys are CasADi symbols already defined in terms of y_tilde, u_tilde.
+        # This implements Rule 5: Objective Scaling by w_0
+        # The scaled objective is objective_scale_weight * objective_expr_physical.
+        # Default weight is 1.0 (user-specified option in Rule 5.b).
+        self.objective_scale_weight_ = objective_scale_weight
+        self.internal_problem.minimize(objective_scale_weight * objective_expr_physical)
 
     def set_mesh(self, degrees, points):
-        # Store for guess preparation, then delegate
         self._current_mesh_degrees = degrees
         self.internal_problem.set_mesh(degrees, points)
 
@@ -226,10 +237,9 @@ class AutoscaledProblem:
         self._raw_states_physical_guess_flat = states_physical_flat_dict
         self._raw_controls_physical_guess_flat = controls_physical_flat_dict
         self._raw_terminal_time_guess = terminal_time
-        # Actual scaling and setting on internal_problem happens in _prepare_and_set_scaled_guess
 
     def _prepare_and_set_scaled_guess_on_internal_problem(self, polynomial_degrees_for_solve=None):
-        if polynomial_degrees_for_solve is None:  # Use mesh degrees if available
+        if polynomial_degrees_for_solve is None:
             if not hasattr(self, "_current_mesh_degrees"):
                 raise ValueError(
                     "Polynomial degrees for guess preparation not provided and no mesh set."
@@ -248,7 +258,7 @@ class AutoscaledProblem:
                 phys_traj = self._raw_states_physical_guess_flat[var_name]
                 if len(phys_traj) >= num_state_pts_interval:
                     actual_vals_interval = phys_traj[:num_state_pts_interval]
-                else:  # Interpolate if guess trajectory is too short
+                else:
                     actual_vals_interval = np.interp(
                         np.linspace(0, 1, num_state_pts_interval),
                         np.linspace(0, 1, len(phys_traj)),
@@ -256,8 +266,8 @@ class AutoscaledProblem:
                     )
                 vk = self.scaling_factors[var_name]["v"]
                 rk = self.scaling_factors[var_name]["r"]
-                scaled_vals = vk * actual_vals_interval + rk
-                current_scaled_states_list.append(scaled_vals)
+                tilde_vals = vk * actual_vals_interval + rk
+                current_scaled_states_list.append(tilde_vals)
             scaled_states_guess_intervals.append(np.vstack(current_scaled_states_list))
 
             num_control_pts_interval = N_poly_degree_state
@@ -267,7 +277,7 @@ class AutoscaledProblem:
                     phys_traj_ctrl = self._raw_controls_physical_guess_flat[var_name]
                     if len(phys_traj_ctrl) >= num_control_pts_interval:
                         actual_vals_ctrl_interval = phys_traj_ctrl[:num_control_pts_interval]
-                    else:  # Interpolate or use zeros
+                    else:
                         actual_vals_ctrl_interval = (
                             np.interp(
                                 np.linspace(0, 1, num_control_pts_interval),
@@ -275,18 +285,14 @@ class AutoscaledProblem:
                                 phys_traj_ctrl,
                             )
                             if len(phys_traj_ctrl) > 0
-                            else np.zeros(
-                                num_control_pts_interval
-                            )  # Default to zeros if no guess points
+                            else np.zeros(num_control_pts_interval)
                         )
                     vk = self.scaling_factors[var_name]["v"]
                     rk = self.scaling_factors[var_name]["r"]
-                    scaled_vals_ctrl = vk * actual_vals_ctrl_interval + rk
-                    current_scaled_controls_list.append(scaled_vals_ctrl)
+                    tilde_vals_ctrl = vk * actual_vals_ctrl_interval + rk
+                    current_scaled_controls_list.append(tilde_vals_ctrl)
                 scaled_controls_guess_intervals.append(np.vstack(current_scaled_controls_list))
-            elif (
-                num_intervals == 1 and num_control_pts_interval == 0
-            ):  # Single interval, 0 control points
+            elif num_intervals == 1 and num_control_pts_interval == 0:
                 scaled_controls_guess_intervals.append(
                     np.empty((len(self._control_names_ordered), 0))
                 )
@@ -298,18 +304,18 @@ class AutoscaledProblem:
         )
 
     def get_symbolic_vars_for_postprocessing(self):
-        output = {"scaling_factors": self.scaling_factors}
+        output = {
+            "scaling_factors": self.scaling_factors,
+            "objective_scale_weight": getattr(self, "objective_scale_weight_", 1.0),
+        }
         if self.time_symbol is not None:
             output["t"] = self.time_symbol
-        for name_physical, scaled_sym in self._scaled_sx.items():
-            output[f"{name_physical}_scaled"] = scaled_sym
-        # For plot_solution, it might also need direct access to physical symbols if it was changed
-        # but current plot_solution gets scaled and unscales, so this is fine.
+        for name_physical, tilde_sym in self._tilde_sx.items():
+            output[f"{name_physical}_tilde"] = tilde_sym
         return output
 
 
-# --- analyze_solution --- (remains largely the same)
-# It takes symbolic_vars from AutoscaledProblem.get_symbolic_vars_for_postprocessing()
+# --- analyze_solution ---
 def analyze_solution(
     solution,
     symbolic_vars,
@@ -321,11 +327,21 @@ def analyze_solution(
     literature_J=None,
     literature_tf=None,
 ):
+    objective_scale_weight = symbolic_vars.get("objective_scale_weight", 1.0)
+
     if solution.success:
         final_time = solution.final_time
-        # Objective is -theta_actual, and theta_actual is (theta_scaled - r_theta)/v_theta
-        # If the objective was set as -ap.symbol("theta"), then solution.objective is already this value.
-        final_theta_actual_rad = -solution.objective
+
+        if np.isclose(objective_scale_weight, 0):
+            final_theta_actual_rad = -solution.objective
+            print(
+                "\nWARNING: Objective scale weight is close to zero. Physical objective calculation might be inaccurate."
+            )
+        else:
+            # solution.objective is w_0 * J_physical. To get J_physical, divide by w_0.
+            # Here, J_physical is -theta_physical_rad
+            final_theta_actual_rad = -solution.objective / objective_scale_weight
+
         final_theta_actual_deg = final_theta_actual_rad * RAD2DEG
 
         J_formatted = f"{final_theta_actual_rad:.7e}".replace("e-0", "e-").replace("e+0", "e+")
@@ -335,9 +351,12 @@ def analyze_solution(
         print(f"\nExample {example_num}: {example_name} ({method})")
         print(f"Parameters: {bank_str}, {heat_str}")
         print("Optimal Results:")
-        print(f"  J* = {J_formatted}  (final latitude in radians, -objective)")
+        print(f"  J* = {J_formatted}  (final latitude in radians, -objective_physical)")
         print(f"  t_F* = {tf_formatted}  (final time in seconds)")
         print(f"  Final latitude: {final_theta_actual_deg:.4f}°")
+        print(
+            f"  (Solver objective was {solution.objective:.7e}, objective_scale_weight was {objective_scale_weight:.3e})"
+        )
 
         if literature_J is not None and literature_tf is not None:
             J_abs_lit = abs(literature_J)
@@ -371,36 +390,34 @@ def analyze_solution(
         return False
 
 
-# --- plot_solution --- (remains largely the same)
-# It takes symbolic_vars from AutoscaledProblem.get_symbolic_vars_for_postprocessing()
+# --- plot_solution ---
 def plot_solution(solution, symbolic_vars, plot_title_suffix=""):
     scaling_factors = symbolic_vars["scaling_factors"]
 
-    def unscale_var(var_scaled_vals, var_name):
+    def unscale_var(var_tilde_vals, var_name):
         sf = scaling_factors[var_name]
         if np.isclose(sf["v"], 0):
-            return var_scaled_vals
-        return (var_scaled_vals - sf["r"]) / sf["v"]
+            print(f"Warning: Scaling factor 'v' for {var_name} is zero during unscaling.")
+            return var_tilde_vals
+        return (var_tilde_vals - sf["r"]) / sf["v"]
 
-    # Get scaled trajectories using _scaled names from symbolic_vars
-    time_h, h_scaled_vals = solution.get_trajectory(symbolic_vars["h_scaled"])
-    time_phi, phi_scaled_vals = solution.get_trajectory(symbolic_vars["phi_scaled"])
-    time_theta, theta_scaled_vals = solution.get_trajectory(symbolic_vars["theta_scaled"])
-    time_v, v_scaled_vals = solution.get_trajectory(symbolic_vars["v_scaled"])
-    time_gamma, gamma_scaled_vals = solution.get_trajectory(symbolic_vars["gamma_scaled"])
-    time_psi, psi_scaled_vals = solution.get_trajectory(symbolic_vars["psi_scaled"])
-    time_alpha, alpha_scaled_vals = solution.get_trajectory(symbolic_vars["alpha_scaled"])
-    time_beta, beta_scaled_vals = solution.get_trajectory(symbolic_vars["beta_scaled"])
+    time_h, h_tilde_vals = solution.get_trajectory(symbolic_vars["h_tilde"])
+    time_phi, phi_tilde_vals = solution.get_trajectory(symbolic_vars["phi_tilde"])
+    time_theta, theta_tilde_vals = solution.get_trajectory(symbolic_vars["theta_tilde"])
+    time_v, v_tilde_vals = solution.get_trajectory(symbolic_vars["v_tilde"])
+    time_gamma, gamma_tilde_vals = solution.get_trajectory(symbolic_vars["gamma_tilde"])
+    time_psi, psi_tilde_vals = solution.get_trajectory(symbolic_vars["psi_tilde"])
+    time_alpha, alpha_tilde_vals = solution.get_trajectory(symbolic_vars["alpha_tilde"])
+    time_beta, beta_tilde_vals = solution.get_trajectory(symbolic_vars["beta_tilde"])
 
-    # Unscale for plotting physical values
-    h_vals_actual = unscale_var(h_scaled_vals, "h")
-    phi_vals_actual = unscale_var(phi_scaled_vals, "phi")
-    theta_vals_actual = unscale_var(theta_scaled_vals, "theta")
-    v_vals_actual = unscale_var(v_scaled_vals, "v")
-    gamma_vals_actual = unscale_var(gamma_scaled_vals, "gamma")
-    psi_vals_actual = unscale_var(psi_scaled_vals, "psi")
-    alpha_vals_actual = unscale_var(alpha_scaled_vals, "alpha")
-    beta_vals_actual = unscale_var(beta_scaled_vals, "beta")
+    h_vals_actual = unscale_var(h_tilde_vals, "h")
+    phi_vals_actual = unscale_var(phi_tilde_vals, "phi")
+    theta_vals_actual = unscale_var(theta_tilde_vals, "theta")
+    v_vals_actual = unscale_var(v_tilde_vals, "v")
+    gamma_vals_actual = unscale_var(gamma_tilde_vals, "gamma")
+    psi_vals_actual = unscale_var(psi_tilde_vals, "psi")
+    alpha_vals_actual = unscale_var(alpha_tilde_vals, "alpha")
+    beta_vals_actual = unscale_var(beta_tilde_vals, "beta")
 
     phi_deg = phi_vals_actual * RAD2DEG
     theta_deg = theta_vals_actual * RAD2DEG
@@ -428,7 +445,6 @@ def plot_solution(solution, symbolic_vars, plot_title_suffix=""):
         for ax in ax_row:
             ax.grid(True)
     plt.tight_layout(rect=(0, 0, 1, 0.96))
-    plt.show()
 
     fig_ctrl, axs_ctrl = plt.subplots(2, 1, figsize=(10, 7))
     fig_ctrl.suptitle(f"Control Variables (Physical Units) {plot_title_suffix}", fontsize=16)
@@ -439,7 +455,6 @@ def plot_solution(solution, symbolic_vars, plot_title_suffix=""):
     for ax in axs_ctrl:
         ax.grid(True)
     plt.tight_layout(rect=(0, 0, 1, 0.95))
-    plt.show()
 
     fig_3d = plt.figure(figsize=(10, 8))
     ax_3d = fig_3d.add_subplot(111, projection="3d")
@@ -450,7 +465,6 @@ def plot_solution(solution, symbolic_vars, plot_title_suffix=""):
     ax_3d.set_title(main_plot_title)
     plt.show()
 
-    # TrajectoLab's own plot will show scaled variables of the internal problem
     print("Displaying TrajectoLab standard solution plot (scaled variables of internal problem)...")
     solution.plot()
 
@@ -461,12 +475,10 @@ def solve_with_fixed_mesh(
     example_name,
     example_num,
     bank_min_deg,
-    # polynomial_degrees_solve is implicit from autoscaled_problem._current_mesh_degrees
     heating_limit=None,
     literature_J=None,
     literature_tf=None,
 ):
-    # Mesh should be set on autoscaled_problem before calling this
     if not hasattr(autoscaled_problem, "_current_mesh_degrees"):
         raise ValueError(
             "Mesh must be set on AutoscaledProblem before calling solve_with_fixed_mesh."
@@ -474,7 +486,6 @@ def solve_with_fixed_mesh(
 
     autoscaled_problem._prepare_and_set_scaled_guess_on_internal_problem()
 
-    # Robustly access mesh info for printing
     try:
         current_mesh_degrees = (
             autoscaled_problem.internal_problem._collocation_options.polynomial_degrees
@@ -491,7 +502,7 @@ def solve_with_fixed_mesh(
     print(mesh_info_str)
 
     solution = tl.solve_fixed_mesh(
-        autoscaled_problem.internal_problem,  # Use the internal problem
+        autoscaled_problem.internal_problem,
         nlp_options={
             "ipopt.max_iter": 2000,
             "ipopt.mumps_pivtol": 5e-7,
@@ -524,7 +535,6 @@ def solve_with_adaptive_mesh(
     example_name,
     example_num,
     bank_min_deg,
-    # initial_polynomial_degrees_adaptive is implicit from autoscaled_problem._current_mesh_degrees
     heating_limit=None,
     literature_J=None,
     literature_tf=None,
@@ -556,7 +566,7 @@ def solve_with_adaptive_mesh(
     print(mesh_info_str)
 
     solution = tl.solve_adaptive(
-        autoscaled_problem.internal_problem,  # Use internal problem
+        autoscaled_problem.internal_problem,
         error_tolerance=error_tol,
         max_iterations=max_adapt_iter,
         min_polynomial_degree=4,
@@ -590,15 +600,14 @@ def main():
     lit_tf_ex137 = 2.0085881e3
     example_details = {
         "name": "SHUTTLE MAX CROSSRANGE",
-        "num": "10.137 (Book Example)",
+        "num": "10.137 (Book Example - Corrected Scaling Logic)",
         "bank_min_deg": -90.0,
-        "heating_limit": None,  # Set to a value like 70.0 for heating constraint
+        # "heating_limit": 70.0,
+        "heating_limit": None,  # No heating constraint for this run
         "lit_J": lit_J_ex137,
         "lit_tf": lit_tf_ex137,
     }
 
-    # For AutoscaledProblem, user defines scale_guide_... if they want to override guess-based scaling
-    # These are the same as `explicit_scaling_bounds` from the original script
     user_scaling_guides = {
         "h": {"lower": 0.0, "upper": 260000.0},
         "theta": {"lower": -89.0 * DEG2RAD, "upper": 89.0 * DEG2RAD},
@@ -608,20 +617,18 @@ def main():
         "beta": {"lower": example_details["bank_min_deg"] * DEG2RAD, "upper": 1.0 * DEG2RAD},
     }
 
-    # Generate physical initial guess trajectories and ranges
     initial_guess_ranges, states_physical_traj_flat, controls_physical_traj_flat = (
         generate_physical_guess_and_ranges(
             bank_angle_min_deg=example_details["bank_min_deg"],
-            num_guess_points=21,  # More points for a smoother guess
+            num_guess_points=21,
         )
     )
 
-    # Instantiate AutoscaledProblem
     ap = AutoscaledProblem(
-        "Space Shuttle Reentry (Autoscaled)", initial_guess_ranges_physical=initial_guess_ranges
+        "Space Shuttle Reentry (Autoscaled - Corrected)",
+        initial_guess_ranges_physical=initial_guess_ranges,
     )
 
-    # --- Define problem using PHYSICAL values ---
     ap.time(initial=0.0, free_final=True)
 
     h = ap.state(
@@ -633,10 +640,10 @@ def main():
         scale_guide_lower=user_scaling_guides.get("h", {}).get("lower"),
         scale_guide_upper=user_scaling_guides.get("h", {}).get("upper"),
     )
-    phi = ap.state(
+    ap.state(
         "phi",
-        initial=0.0 * DEG2RAD,  # No explicit bounds, will be free-er
-        scale_guide_lower=user_scaling_guides.get("phi", {}).get("lower"),  # Example: can be None
+        initial=0.0 * DEG2RAD,
+        scale_guide_lower=user_scaling_guides.get("phi", {}).get("lower"),
         scale_guide_upper=user_scaling_guides.get("phi", {}).get("upper"),
     )
     theta = ap.state(
@@ -687,7 +694,6 @@ def main():
         scale_guide_upper=user_scaling_guides.get("beta", {}).get("upper"),
     )
 
-    # Dynamics (using physical symbolic variables h, phi, theta, v, gamma, psi, alpha, beta)
     eps_div = 1e-10
     r_planet_dist = R_EARTH + h
     rho_atm = RHO0 * ca.exp(-h / H_R)
@@ -726,10 +732,28 @@ def main():
         q_a_poly_heat = (
             C0_QA + C1_QA * alpha_deg_calc + C2_QA * alpha_deg_calc**2 + C3_QA * alpha_deg_calc**3
         )
-        q_heat_actual = q_a_poly_heat * q_r_heat
-        ap.subject_to(q_heat_actual <= example_details["heating_limit"])
+        q_heat_actual = q_a_poly_heat * q_r_heat  # This is a physical value expression
 
-    ap.minimize(-theta)  # Maximize final latitude
+        # Physical constraint: q_heat_actual <= example_details["heating_limit"]
+        # The expression passed to subject_to for an inequality g(x) <= C is g(x) - C.
+        # We want to scale this g(x)-C or g(x) itself.
+        # If heating_limit is a good measure of the scale of q_heat_actual,
+        # then 1.0 / heating_limit is a reasonable W_g.
+        constraint_expression = q_heat_actual <= example_details["heating_limit"]
+        path_constraint_weight = 1.0
+        if example_details["heating_limit"] > 1e-6:
+            path_constraint_weight = 1.0 / example_details["heating_limit"]
+
+        print(f"Path constraint (heating) weight W_g: {path_constraint_weight:.3e}")
+        ap.subject_to(constraint_expression, constraint_scale_weight=path_constraint_weight)
+
+    # Objective is to maximize theta_final, so minimize -theta_final.
+    # -theta is the physical objective expression.
+    # Rule 5 from scale.txt involves scaling this physical objective expression.
+    # User-specified w_0 is an option. Defaulting to 1.0 if no other info.
+    objective_w0 = 1.0
+    print(f"Objective weight w_0: {objective_w0:.3e}")
+    ap.minimize(-theta, objective_scale_weight=objective_w0)
 
     print("\n--- Scaling Information (from AutoscaledProblem) ---")
     for var_name, sf_info in sorted(ap.scaling_factors.items()):
@@ -738,7 +762,6 @@ def main():
         )
     print("-------------------------\n")
 
-    # --- Solve with Fixed Mesh ---
     fixed_mesh_poly_degrees = [20] * 15
     num_intervals_fixed = len(fixed_mesh_poly_degrees)
     mesh_points_fixed = np.linspace(-1.0, 1.0, num_intervals_fixed + 1)
@@ -761,15 +784,14 @@ def main():
         plot_solution(
             solution_fixed,
             ap.get_symbolic_vars_for_postprocessing(),
-            plot_title_suffix="(Fixed Mesh)",
+            plot_title_suffix="(Fixed Mesh - Corrected Scaling)",
         )
 
-    # --- Solve with Adaptive Mesh ---
     adaptive_initial_poly_degrees = [6] * 9
     num_intervals_adaptive_initial = len(adaptive_initial_poly_degrees)
     mesh_points_adaptive_initial = np.linspace(-1.0, 1.0, num_intervals_adaptive_initial + 1)
-    ap.set_mesh(adaptive_initial_poly_degrees, mesh_points_adaptive_initial)  # Set new mesh
-    ap.set_initial_guess(  # Reset guess for the new mesh structure
+    ap.set_mesh(adaptive_initial_poly_degrees, mesh_points_adaptive_initial)
+    ap.set_initial_guess(
         states_physical_flat_dict=states_physical_traj_flat,
         controls_physical_flat_dict=controls_physical_traj_flat,
         terminal_time=example_details["lit_tf"] or 2000.0,
@@ -789,7 +811,7 @@ def main():
         plot_solution(
             solution_adaptive,
             ap.get_symbolic_vars_for_postprocessing(),
-            plot_title_suffix="(Adaptive Mesh)",
+            plot_title_suffix="(Adaptive Mesh - Corrected Scaling)",
         )
 
 

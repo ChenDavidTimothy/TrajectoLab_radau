@@ -5,7 +5,7 @@ import trajectolab as tl
 
 
 # Create the car race problem - minimize time to complete the track
-problem = tl.Problem("Car Race", auto_scaling=False)
+problem = tl.Problem("Car Race", auto_scaling=True)
 
 # Time is free (we want to minimize it)
 t = problem.time(initial=0.0, free_final=True)

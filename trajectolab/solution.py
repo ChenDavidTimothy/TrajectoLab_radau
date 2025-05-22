@@ -13,7 +13,7 @@ import numpy as np
 from matplotlib.axes import Axes as MplAxes
 from matplotlib.lines import Line2D
 
-from .scaling import ScalingFactors
+from .scaling import ScalingFactors, unscale_values
 from .tl_types import FloatArray, IntArray, OptimalControlSolution, ProblemProtocol, SymType
 
 
