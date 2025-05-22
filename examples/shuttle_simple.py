@@ -181,14 +181,14 @@ def plot_solution(solution, title_suffix=""):
         return
 
     # Get trajectories (automatically in physical units thanks to auto-scaling!)
-    time_h, h_vals = solution.get_state_trajectory("h")
-    time_phi, phi_vals = solution.get_state_trajectory("phi")
-    time_theta, theta_vals = solution.get_state_trajectory("theta")
-    time_v, v_vals = solution.get_state_trajectory("v")
-    time_gamma, gamma_vals = solution.get_state_trajectory("gamma")
-    time_psi, psi_vals = solution.get_state_trajectory("psi")
-    time_alpha, alpha_vals = solution.get_control_trajectory("alpha")
-    time_beta, beta_vals = solution.get_control_trajectory("beta")
+    time_h, h_vals = solution.get_trajectory("h")
+    time_phi, phi_vals = solution.get_trajectory("phi")
+    time_theta, theta_vals = solution.get_trajectory("theta")
+    time_v, v_vals = solution.get_trajectory("v")
+    time_gamma, gamma_vals = solution.get_trajectory("gamma")
+    time_psi, psi_vals = solution.get_trajectory("psi")
+    time_alpha, alpha_vals = solution.get_trajectory("alpha")
+    time_beta, beta_vals = solution.get_trajectory("beta")
 
     # Convert to convenient units
     h_km = h_vals / 3280.84  # ft to km

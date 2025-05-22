@@ -385,7 +385,7 @@ class _Solution:
             return time_arr, empty_arr
         return time_arr, values_list[index]
 
-    def get_state_trajectory(self, identifier: _VariableIdentifier) -> _TrajectoryTuple:
+    def _get_state_trajectory(self, identifier: _VariableIdentifier) -> _TrajectoryTuple:
         """
         Get state trajectory data with automatic unscaling.
 
@@ -410,7 +410,7 @@ class _Solution:
 
         return time_arr, values
 
-    def get_control_trajectory(self, identifier: _VariableIdentifier) -> _TrajectoryTuple:
+    def _get_control_trajectory(self, identifier: _VariableIdentifier) -> _TrajectoryTuple:
         """
         Get control trajectory data with automatic unscaling.
 
@@ -791,32 +791,71 @@ class _Solution:
         else:
             self._plot_variables("control", None, figsize)
 
-    def get_symbolic_trajectory(self, var: SymType) -> _TrajectoryTuple:
+    def get_trajectory(self, identifier: _VariableIdentifier) -> _TrajectoryTuple:
         """
-        Get the trajectory for a symbolic variable with automatic unscaling.
+        Get trajectory data for any variable (state or control) with automatic unscaling.
 
         Args:
-            var: Symbolic variable
+            identifier: Variable identifier - string name or symbolic variable
 
         Returns:
-            Tuple of (time_array, value_array) in physical space if auto-scaling enabled
+            Tuple of (time_array, value_array) in PHYSICAL UNITS (auto-unscaled)
         """
-        # First check if the variable is in our maps (original implementation)
-        if var in self._sym_state_map:
-            return self.get_state_trajectory(self._sym_state_map[var])
-        elif var in self._sym_control_map:
-            return self.get_control_trajectory(self._sym_control_map[var])
+        if not self.success:
+            print("Warning: Solution was not successful, returning empty trajectory")
+            empty_arr = np.array([], dtype=np.float64)
+            return empty_arr, empty_arr
 
-        # Identify the variable by searching the problem (original implementation)
-        var_name = self._resolve_symbolic_variable(var, self._sym_state_map, "_sym_states")
-        if var_name is not None:
-            return self.get_state_trajectory(var_name)
+        # Handle both symbolic variables AND strings with the same logic
+        return self._get_unified_trajectory(identifier)
 
-        var_name = self._resolve_symbolic_variable(var, self._sym_control_map, "_sym_controls")
-        if var_name is not None:
-            return self.get_control_trajectory(var_name)
+    def _get_unified_trajectory(self, identifier: _VariableIdentifier) -> _TrajectoryTuple:
+        """
+        Unified trajectory getter that handles both symbolic variables and strings.
+        Uses the same search logic for both types.
+        """
+        # Case 1: Symbolic variable - check existing maps first
+        if self._is_symbolic_variable(identifier):
+            sym_var = cast(SymType, identifier)
 
-        # Return empty arrays if variable not found
+            if sym_var in self._sym_state_map:
+                return self._get_state_trajectory(self._sym_state_map[sym_var])
+            elif sym_var in self._sym_control_map:
+                return self._get_control_trajectory(self._sym_control_map[sym_var])
+
+            # Search in problem if not in maps
+            var_name = self._resolve_symbolic_variable(sym_var, self._sym_state_map, "_sym_states")
+            if var_name is not None:
+                return self._get_state_trajectory(var_name)
+
+            var_name = self._resolve_symbolic_variable(
+                sym_var, self._sym_control_map, "_sym_controls"
+            )
+            if var_name is not None:
+                return self._get_control_trajectory(var_name)
+
+        # Case 2: String variable - use same search pattern
+        elif isinstance(identifier, str):
+            var_name = identifier
+
+            # Check states first (handles both direct names and auto-scaling)
+            if var_name in self._state_names or (
+                self._auto_scaling_enabled
+                and var_name in self._physical_to_scaled_map
+                and self._physical_to_scaled_map[var_name] in self._state_names
+            ):
+                return self._get_state_trajectory(var_name)
+
+            # Check controls second (handles both direct names and auto-scaling)
+            if var_name in self._control_names or (
+                self._auto_scaling_enabled
+                and var_name in self._physical_to_scaled_map
+                and self._physical_to_scaled_map[var_name] in self._control_names
+            ):
+                return self._get_control_trajectory(var_name)
+
+        # Not found - return empty arrays
+        print(f"Warning: Variable '{identifier}' not found")
         empty_arr = np.array([], dtype=np.float64)
         return empty_arr, empty_arr
 
@@ -824,7 +863,6 @@ class _Solution:
     def get_scaling_info(self) -> dict[str, Any]:
         """
         Get scaling information for analysis and debugging.
-
         Returns:
             Dictionary containing scaling factors and variable mappings
         """
