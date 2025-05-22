@@ -383,14 +383,14 @@ def plot_solution(solution, symbolic_vars, plot_title_suffix=""):
         return (var_scaled_vals - sf["r"]) / sf["v"]
 
     # Get scaled trajectories using _scaled names from symbolic_vars
-    time_h, h_scaled_vals = solution.get_trajectory(symbolic_vars["h_scaled"])
-    time_phi, phi_scaled_vals = solution.get_trajectory(symbolic_vars["phi_scaled"])
-    time_theta, theta_scaled_vals = solution.get_trajectory(symbolic_vars["theta_scaled"])
-    time_v, v_scaled_vals = solution.get_trajectory(symbolic_vars["v_scaled"])
-    time_gamma, gamma_scaled_vals = solution.get_trajectory(symbolic_vars["gamma_scaled"])
-    time_psi, psi_scaled_vals = solution.get_trajectory(symbolic_vars["psi_scaled"])
-    time_alpha, alpha_scaled_vals = solution.get_trajectory(symbolic_vars["alpha_scaled"])
-    time_beta, beta_scaled_vals = solution.get_trajectory(symbolic_vars["beta_scaled"])
+    time_h, h_scaled_vals = solution.get_symbolic_trajectory(symbolic_vars["h_scaled"])
+    time_phi, phi_scaled_vals = solution.get_symbolic_trajectory(symbolic_vars["phi_scaled"])
+    time_theta, theta_scaled_vals = solution.get_symbolic_trajectory(symbolic_vars["theta_scaled"])
+    time_v, v_scaled_vals = solution.get_symbolic_trajectory(symbolic_vars["v_scaled"])
+    time_gamma, gamma_scaled_vals = solution.get_symbolic_trajectory(symbolic_vars["gamma_scaled"])
+    time_psi, psi_scaled_vals = solution.get_symbolic_trajectory(symbolic_vars["psi_scaled"])
+    time_alpha, alpha_scaled_vals = solution.get_symbolic_trajectory(symbolic_vars["alpha_scaled"])
+    time_beta, beta_scaled_vals = solution.get_symbolic_trajectory(symbolic_vars["beta_scaled"])
 
     # Unscale for plotting physical values
     h_vals_actual = unscale_var(h_scaled_vals, "h")

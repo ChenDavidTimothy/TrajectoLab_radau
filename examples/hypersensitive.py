@@ -64,7 +64,7 @@ if solution.success:
         print("Mesh points: None")
 
     # Get state trajectory using the symbolic variable
-    t_vals, x_vals = solution.get_trajectory(x)
+    t_vals, x_vals = solution.get_symbolic_trajectory(x)
 
     # Plot the solution
     solution.plot()

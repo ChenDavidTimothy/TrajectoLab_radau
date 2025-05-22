@@ -48,9 +48,9 @@ if solution.success:
     print(f"Objective: {solution.objective:.6f}")
 
     # Get results
-    t_states, pos_vals = solution.get_trajectory(pos)
-    t_states, speed_vals = solution.get_trajectory(speed)
-    t_controls, throttle_vals = solution.get_trajectory(throttle)
+    t_states, pos_vals = solution.get_symbolic_trajectory(pos)
+    t_states, speed_vals = solution.get_symbolic_trajectory(speed)
+    t_controls, throttle_vals = solution.get_symbolic_trajectory(throttle)
 
     # Check if speed limit was violated
     speed_limit_vals = 1.0 - np.sin(2.0 * np.pi * pos_vals) / 2.0

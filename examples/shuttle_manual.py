@@ -338,14 +338,14 @@ def plot_solution(solution, symbolic_vars, plot_title_suffix=""):
     v_scale = 1e4
     rad2deg = 180.0 / np.pi
 
-    time_h, h_scaled_vals = solution.get_trajectory(symbolic_vars["h_scaled"])
-    time_phi, phi_vals = solution.get_trajectory(symbolic_vars["phi"])
-    time_theta, theta_vals = solution.get_trajectory(symbolic_vars["theta"])
-    time_v, v_scaled_vals = solution.get_trajectory(symbolic_vars["v_scaled"])
-    time_gamma, gamma_vals = solution.get_trajectory(symbolic_vars["gamma"])
-    time_psi, psi_vals = solution.get_trajectory(symbolic_vars["psi"])
-    time_alpha, alpha_vals = solution.get_trajectory(symbolic_vars["alpha"])
-    time_beta, beta_vals = solution.get_trajectory(symbolic_vars["beta"])
+    time_h, h_scaled_vals = solution.get_symbolic_trajectory(symbolic_vars["h_scaled"])
+    time_phi, phi_vals = solution.get_symbolic_trajectory(symbolic_vars["phi"])
+    time_theta, theta_vals = solution.get_symbolic_trajectory(symbolic_vars["theta"])
+    time_v, v_scaled_vals = solution.get_symbolic_trajectory(symbolic_vars["v_scaled"])
+    time_gamma, gamma_vals = solution.get_symbolic_trajectory(symbolic_vars["gamma"])
+    time_psi, psi_vals = solution.get_symbolic_trajectory(symbolic_vars["psi"])
+    time_alpha, alpha_vals = solution.get_symbolic_trajectory(symbolic_vars["alpha"])
+    time_beta, beta_vals = solution.get_symbolic_trajectory(symbolic_vars["beta"])
 
     h_vals = h_scaled_vals * h_scale
     v_vals = v_scaled_vals * v_scale

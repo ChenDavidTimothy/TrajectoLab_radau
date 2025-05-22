@@ -385,7 +385,7 @@ class _Solution:
             return time_arr, empty_arr
         return time_arr, values_list[index]
 
-    def _get_state_trajectory(self, identifier: _VariableIdentifier) -> _TrajectoryTuple:
+    def get_state_trajectory(self, identifier: _VariableIdentifier) -> _TrajectoryTuple:
         """
         Get state trajectory data with automatic unscaling.
 
@@ -410,7 +410,7 @@ class _Solution:
 
         return time_arr, values
 
-    def _get_control_trajectory(self, identifier: _VariableIdentifier) -> _TrajectoryTuple:
+    def get_control_trajectory(self, identifier: _VariableIdentifier) -> _TrajectoryTuple:
         """
         Get control trajectory data with automatic unscaling.
 
@@ -791,7 +791,7 @@ class _Solution:
         else:
             self._plot_variables("control", None, figsize)
 
-    def _get_symbolic_trajectory(self, var: SymType) -> _TrajectoryTuple:
+    def get_symbolic_trajectory(self, var: SymType) -> _TrajectoryTuple:
         """
         Get the trajectory for a symbolic variable with automatic unscaling.
 
@@ -803,42 +803,22 @@ class _Solution:
         """
         # First check if the variable is in our maps (original implementation)
         if var in self._sym_state_map:
-            return self._get_state_trajectory(self._sym_state_map[var])
+            return self.get_state_trajectory(self._sym_state_map[var])
         elif var in self._sym_control_map:
-            return self._get_control_trajectory(self._sym_control_map[var])
+            return self.get_control_trajectory(self._sym_control_map[var])
 
         # Identify the variable by searching the problem (original implementation)
         var_name = self._resolve_symbolic_variable(var, self._sym_state_map, "_sym_states")
         if var_name is not None:
-            return self._get_state_trajectory(var_name)
+            return self.get_state_trajectory(var_name)
 
         var_name = self._resolve_symbolic_variable(var, self._sym_control_map, "_sym_controls")
         if var_name is not None:
-            return self._get_control_trajectory(var_name)
+            return self.get_control_trajectory(var_name)
 
         # Return empty arrays if variable not found
         empty_arr = np.array([], dtype=np.float64)
         return empty_arr, empty_arr
-
-    def get_trajectory(self, var: SymType | str) -> _TrajectoryTuple:
-        """
-        Get trajectory for any variable (state or control, symbolic or string).
-
-        Args:
-            var: Symbolic variable or string name
-
-        Returns:
-            Tuple of (time_array, value_array) in physical units
-        """
-        if isinstance(var, str):
-            # Try state first, then control
-            try:
-                return self._get_state_trajectory(var)
-            except (ValueError, IndexError):
-                return self._get_control_trajectory(var)
-        else:
-            # Symbolic variable
-            return self._get_symbolic_trajectory(var)
 
     # *** NEW: Methods for auto-scaling information access ***
     def get_scaling_info(self) -> dict[str, Any]:
