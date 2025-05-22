@@ -385,7 +385,7 @@ class _Solution:
             return time_arr, empty_arr
         return time_arr, values_list[index]
 
-    def get_state_trajectory(self, identifier: _VariableIdentifier) -> _TrajectoryTuple:
+    def _get_state_trajectory(self, identifier: _VariableIdentifier) -> _TrajectoryTuple:
         """
         Get state trajectory data with automatic unscaling.
 
@@ -410,7 +410,7 @@ class _Solution:
 
         return time_arr, values
 
-    def get_control_trajectory(self, identifier: _VariableIdentifier) -> _TrajectoryTuple:
+    def _get_control_trajectory(self, identifier: _VariableIdentifier) -> _TrajectoryTuple:
         """
         Get control trajectory data with automatic unscaling.
 
@@ -434,42 +434,6 @@ class _Solution:
             return time_arr, unscaled_values
 
         return time_arr, values
-
-    def interpolate_state(
-        self, identifier: _VariableIdentifier, time_point: float | FloatArray
-    ) -> _InterpolationResult:
-        """
-        Interpolate state value at specified time point(s) with automatic unscaling.
-
-        Args:
-            identifier: Variable name, index, or symbolic variable
-            time_point: Time point(s) to interpolate at
-
-        Returns:
-            Interpolated value(s) in physical space if auto-scaling enabled
-        """
-        time, values = self.get_state_trajectory(identifier)  # This handles unscaling
-        if time.size == 0 or values.size == 0:
-            return None
-        return cast(_InterpolationResult, np.interp(time_point, time, values))
-
-    def interpolate_control(
-        self, identifier: _VariableIdentifier, time_point: float | FloatArray
-    ) -> _InterpolationResult:
-        """
-        Interpolate control value at specified time point(s) with automatic unscaling.
-
-        Args:
-            identifier: Variable name, index, or symbolic variable
-            time_point: Time point(s) to interpolate at
-
-        Returns:
-            Interpolated value(s) in physical space if auto-scaling enabled
-        """
-        time, values = self.get_control_trajectory(identifier)  # This handles unscaling
-        if time.size == 0 or values.size == 0:
-            return None
-        return cast(_InterpolationResult, np.interp(time_point, time, values))
 
     def get_data_for_interval(self, interval_index: int) -> IntervalData | None:
         if not (0 <= interval_index < self.num_intervals):
@@ -827,7 +791,7 @@ class _Solution:
         else:
             self._plot_variables("control", None, figsize)
 
-    def get_symbolic_trajectory(self, var: SymType) -> _TrajectoryTuple:
+    def _get_symbolic_trajectory(self, var: SymType) -> _TrajectoryTuple:
         """
         Get the trajectory for a symbolic variable with automatic unscaling.
 
@@ -839,53 +803,42 @@ class _Solution:
         """
         # First check if the variable is in our maps (original implementation)
         if var in self._sym_state_map:
-            return self.get_state_trajectory(self._sym_state_map[var])
+            return self._get_state_trajectory(self._sym_state_map[var])
         elif var in self._sym_control_map:
-            return self.get_control_trajectory(self._sym_control_map[var])
+            return self._get_control_trajectory(self._sym_control_map[var])
 
         # Identify the variable by searching the problem (original implementation)
         var_name = self._resolve_symbolic_variable(var, self._sym_state_map, "_sym_states")
         if var_name is not None:
-            return self.get_state_trajectory(var_name)
+            return self._get_state_trajectory(var_name)
 
         var_name = self._resolve_symbolic_variable(var, self._sym_control_map, "_sym_controls")
         if var_name is not None:
-            return self.get_control_trajectory(var_name)
+            return self._get_control_trajectory(var_name)
 
         # Return empty arrays if variable not found
         empty_arr = np.array([], dtype=np.float64)
         return empty_arr, empty_arr
 
-    def interpolate_symbolic(
-        self, var: SymType, time_point: float | FloatArray
-    ) -> _InterpolationResult:
+    def get_trajectory(self, var: SymType | str) -> _TrajectoryTuple:
         """
-        Interpolate the value of a symbolic variable at given time points with automatic unscaling.
+        Get trajectory for any variable (state or control, symbolic or string).
 
         Args:
-            var: Symbolic variable
-            time_point: Time point(s) to interpolate at
+            var: Symbolic variable or string name
 
         Returns:
-            Interpolated value(s) in physical space if auto-scaling enabled
+            Tuple of (time_array, value_array) in physical units
         """
-        # First check if the variable is in our maps (original implementation)
-        if var in self._sym_state_map:
-            return self.interpolate_state(self._sym_state_map[var], time_point)
-        elif var in self._sym_control_map:
-            return self.interpolate_control(self._sym_control_map[var], time_point)
-
-        # Identify the variable by searching the problem (original implementation)
-        var_name = self._resolve_symbolic_variable(var, self._sym_state_map, "_sym_states")
-        if var_name is not None:
-            return self.interpolate_state(var_name, time_point)
-
-        var_name = self._resolve_symbolic_variable(var, self._sym_control_map, "_sym_controls")
-        if var_name is not None:
-            return self.interpolate_control(var_name, time_point)
-
-        # Return None if variable not found
-        return None
+        if isinstance(var, str):
+            # Try state first, then control
+            try:
+                return self._get_state_trajectory(var)
+            except (ValueError, IndexError):
+                return self._get_control_trajectory(var)
+        else:
+            # Symbolic variable
+            return self._get_symbolic_trajectory(var)
 
     # *** NEW: Methods for auto-scaling information access ***
     def get_scaling_info(self) -> dict[str, Any]:
