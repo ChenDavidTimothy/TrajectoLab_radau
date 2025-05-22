@@ -241,24 +241,42 @@ class InitialGuess:
         self.integrals = integrals
 
 
+"""
+Updated OptimalControlSolution class to support proper scaling.
+"""
+
+
 class OptimalControlSolution:
     """
-    Solution to an optimal control problem.
+    Solution to an optimal control problem with proper scaling support.
+
+    Enhanced to support the proper scaling methodology from scale.txt:
+    - Variable scaling factors (Rule 2)
+    - Objective scaling factors (Rule 5)
+    - Constraint scaling factors (Rules 3 & 4)
+    - Symbol mappings for proper unscaling
     """
 
     def __init__(self) -> None:
+        # Core solution data
         self.success: bool = False
         self.message: str = "Solver not run yet."
         self.initial_time_variable: float | None = None
         self.terminal_time_variable: float | None = None
         self.objective: float | None = None
         self.integrals: float | FloatArray | None = None
+
+        # Trajectory data
         self.time_states: FloatArray = np.array([], dtype=np.float64)
         self.states: list[FloatArray] = []
         self.time_controls: FloatArray = np.array([], dtype=np.float64)
         self.controls: list[FloatArray] = []
+
+        # Raw solver data
         self.raw_solution: CasadiOptiSol | None = None
         self.opti_object: CasadiOpti | None = None
+
+        # Mesh information
         self.num_collocation_nodes_per_interval: list[int] = []
         self.global_normalized_mesh_nodes: FloatArray | None = None
         self.num_collocation_nodes_list_at_solve_time: list[int] | None = None
@@ -266,12 +284,103 @@ class OptimalControlSolution:
         self.solved_state_trajectories_per_interval: list[FloatMatrix] | None = None
         self.solved_control_trajectories_per_interval: list[FloatMatrix] | None = None
 
-        # Auto-scaling related fields
+        # === PROPER SCALING FIELDS ===
+
+        # Auto-scaling status
         self.auto_scaling_enabled: bool = False
-        self.scaling_factors: dict[str, dict[str, float]] = {}
-        self.physical_to_scaled_map: dict[str, str] = {}
-        self.scaled_to_physical_map: dict[str, str] = {}
-        self.physical_symbols: dict[str, SymType] = {}  # Added missing field
+
+        # Variable scaling factors (Rule 2: ỹ = V_y * y + r_y)
+        self.variable_scaling_factors: dict[str, dict[str, float]] = {}
+        # Format: {"var_name": {"v": scale_factor, "r": shift_factor, "rule": "2.1.a"}}
+
+        # Objective scaling (Rule 5: w_0 * J)
+        self.objective_scaling_factor: float = 1.0
+        self.objective_computed_from_hessian: bool = False
+        self.gerschgorin_omega: float | None = None
+
+        # Constraint scaling (Rules 3 & 4)
+        self.ode_defect_scaling_factors: dict[str, float] = {}  # W_f factors (Rule 3)
+        self.path_constraint_scaling_factors: dict[str, float] = {}  # W_g factors (Rule 4)
+
+        # Symbol mappings for proper scaling
+        self.original_physical_symbols: dict[
+            str, SymType
+        ] = {}  # Original symbols (never corrupted)
+        self.scaled_nlp_symbols: dict[str, SymType] = {}  # Scaled symbols for NLP
+        self.physical_to_scaled_names: dict[str, str] = {}  # Name mappings
+
+    @property
+    def final_time(self) -> float | None:
+        """Get final time (alias for terminal_time_variable)."""
+        return self.terminal_time_variable
+
+    def get_variable_scaling_info(self, var_name: str) -> dict[str, float] | None:
+        """Get scaling information for a specific variable."""
+        return self.variable_scaling_factors.get(var_name)
+
+    def get_objective_scaling_info(self) -> dict[str, Any]:
+        """Get objective scaling information."""
+        return {
+            "w_0": self.objective_scaling_factor,
+            "computed_from_hessian": self.objective_computed_from_hessian,
+            "gerschgorin_omega": self.gerschgorin_omega,
+        }
+
+    def get_constraint_scaling_info(self) -> dict[str, dict[str, float]]:
+        """Get constraint scaling information."""
+        return {
+            "ode_defect_scaling": self.ode_defect_scaling_factors.copy(),
+            "path_constraint_scaling": self.path_constraint_scaling_factors.copy(),
+        }
+
+    def print_scaling_summary(self) -> None:
+        """Print summary of scaling information used in solution."""
+        if not self.auto_scaling_enabled:
+            print("❌ No auto-scaling was used for this solution")
+            return
+
+        print("\n" + "=" * 60)
+        print("📊 SOLUTION SCALING SUMMARY")
+        print("=" * 60)
+
+        print("✅ Proper auto-scaling was applied")
+
+        # Variable scaling
+        if self.variable_scaling_factors:
+            print(f"\n📐 VARIABLE SCALING (Rule 2): {len(self.variable_scaling_factors)} variables")
+            print(f"{'Variable':<12} | {'v (scale)':<12} | {'r (shift)':<12} | {'Rule'}")
+            print("-" * 60)
+            for var_name, factors in sorted(self.variable_scaling_factors.items()):
+                v = factors.get("v", 1.0)
+                r = factors.get("r", 0.0)
+                rule = factors.get("rule", "Unknown")
+                print(f"{var_name:<12} | {v:<12.3e} | {r:<12.3f} | {rule}")
+
+        # Objective scaling
+        print("\n📊 OBJECTIVE SCALING (Rule 5):")
+        print(f"  w_0 = {self.objective_scaling_factor:.3e}")
+        if self.objective_computed_from_hessian and self.gerschgorin_omega is not None:
+            print(f"  ϖ (Gerschgorin) = {self.gerschgorin_omega:.3e}")
+        else:
+            print("  Using default scaling")
+
+        # Constraint scaling
+        if self.ode_defect_scaling_factors:
+            print("\n🔧 ODE DEFECT SCALING (Rule 3: W_f = V_y):")
+            for var_name, w_f in self.ode_defect_scaling_factors.items():
+                print(f"  {var_name}: W_f = {w_f:.3e}")
+
+        if self.path_constraint_scaling_factors:
+            print("\n🔧 PATH CONSTRAINT SCALING (Rule 4):")
+            for constraint_name, w_g in self.path_constraint_scaling_factors.items():
+                print(f"  {constraint_name}: W_g = {w_g:.3e}")
+
+        print("\n📈 SOLUTION VALUES:")
+        print(f"  Raw NLP objective: {(self.objective * self.objective_scaling_factor):.6f}")
+        print(f"  Physical objective: {self.objective:.6f}")
+        print(f"  Unscaling factor: 1/{self.objective_scaling_factor:.3e}")
+
+        print("=" * 60)
 
 
 # User-facing function types using Protocol classes

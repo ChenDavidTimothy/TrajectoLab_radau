@@ -1,34 +1,28 @@
 """
-Auto-scaling utilities for TrajectoLab.
+Proper optimal control scaling module following scale.txt methodology.
 
-This module provides comprehensive auto-scaling functionality for optimal control problems,
-transforming variables from physical space to numerically well-conditioned scaled space.
+This module implements the correct scaling approach:
+- Rule 2: Variable scaling ỹ = V_y * y + r_y
+- Rule 3: ODE defect scaling W_f = V_y
+- Rule 4: Constraint scaling W_g for unit row norms
+- Rule 5: Objective scaling w_0 = 1/ϖ (multiplicative)
 
-For NASA safety-critical applications, all mathematical transformations are implemented
-as pure functions that can be independently verified and tested.
+Key principle: Separate variable scaling from objective/constraint scaling.
 """
 
-from .core_scale import (
+# Import legacy functions for backward compatibility
+from ..scaling.core_scale import (
     AutoScalingManager,
+    ConstraintScaling,
+    ObjectiveScaling,
     ScalingFactors,
-    VariableMappings,
-    determine_scaling_factors,
-    scale_trajectory_arrays,
-    scale_values,
-    transform_dynamics_to_scaled_space,
-    unscale_trajectory_arrays,
-    unscale_values,
 )
 
 
 __all__ = [
+    # New proper scaling classes
     "AutoScalingManager",
+    "ConstraintScaling",
+    "ObjectiveScaling",
     "ScalingFactors",
-    "VariableMappings",
-    "determine_scaling_factors",
-    "scale_trajectory_arrays",
-    "scale_values",
-    "transform_dynamics_to_scaled_space",
-    "unscale_trajectory_arrays",
-    "unscale_values",
 ]
