@@ -105,6 +105,7 @@ def main_hiv_immunology():
     solution = tl.solve_adaptive(
         problem,
         error_tolerance=5e-2,
+        ode_method="DOP853",
         nlp_options={
             "ipopt.print_level": 5,
             "ipopt.sb": "yes",
