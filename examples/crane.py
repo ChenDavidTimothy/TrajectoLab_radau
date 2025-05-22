@@ -15,7 +15,7 @@ def main_cst2_reactor_unscaled():
     c4 = 17.2656
     c5 = 27.0756
 
-    problem = tl.Problem("CST2_Reactor_Unscaled", auto_scaling=True)
+    problem = tl.Problem("CST2_Reactor_Unscaled", auto_scaling=False)
 
     # Time
     t_final_cst2 = 9.0
@@ -113,9 +113,8 @@ def main_cst2_reactor_unscaled():
     print("Solving CST2 Reactor (Unscaled) with fixed mesh...")
     nlp_max_iter = 2000
     print(f"NLP max iterations: {nlp_max_iter}")
-    fixed_solution = tl.solve_adaptive(
+    fixed_solution = tl.solve_fixed_mesh(
         problem,
-        error_tolerance=1e-6,
         nlp_options={
             "ipopt.print_level": 5,  # Increased print level
             "ipopt.sb": "yes",
