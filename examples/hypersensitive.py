@@ -4,7 +4,7 @@ import trajectolab as tl
 
 
 # Define the hypersensitive problem using the symbolic API
-problem = tl.Problem("Hypersensitive Problem", auto_scaling=False)
+problem = tl.Problem("Hypersensitive Problem")
 
 # Define time variable
 t = problem.time(initial=0, final=40)

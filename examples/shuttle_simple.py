@@ -1,8 +1,8 @@
 """
-Space Shuttle Reentry Example - Simple User Version
+Space Shuttle Reentry Example - Simplified Version
 
-This example shows how a normal user would solve the shuttle reentry problem
-using TrajectoLab's auto-scaling feature. Much simpler than research-level code!
+This example shows how to solve the shuttle reentry problem using TrajectoLab
+with explicit variable definitions and clear physical constraints.
 """
 
 import casadi as ca
@@ -34,15 +34,14 @@ B2_CD = 0.621408e-3
 
 
 def solve_shuttle_reentry():
-    """Solve the shuttle reentry problem - the simple way!"""
+    """Solve the shuttle reentry problem."""
 
     print("=" * 60)
     print("Space Shuttle Reentry - Maximum Crossrange")
     print("=" * 60)
-    print("Using TrajectoLab's auto-scaling for easy setup!")
 
-    # Create problem with auto-scaling enabled
-    problem = tl.Problem("Space Shuttle Reentry", auto_scaling=True)
+    # Create problem
+    problem = tl.Problem("Space Shuttle Reentry")
 
     # Define time variable (free final time - we want to find optimal duration)
     problem.time(initial=0.0, free_final=True)
@@ -110,11 +109,7 @@ def solve_shuttle_reentry():
     problem.set_mesh([6] * 8, np.linspace(-1.0, 1.0, 9))
 
     # Simple initial guess - just give a reasonable final time
-    # No need for complex trajectory guesses!
     problem.set_initial_guess(terminal_time=2000.0)  # Roughly 33 minutes
-
-    print("\nScaling information:")
-    problem.print_scaling_summary()
 
     return problem
 

@@ -266,13 +266,6 @@ class OptimalControlSolution:
         self.solved_state_trajectories_per_interval: list[FloatMatrix] | None = None
         self.solved_control_trajectories_per_interval: list[FloatMatrix] | None = None
 
-        # Auto-scaling related fields
-        self.auto_scaling_enabled: bool = False
-        self.scaling_factors: dict[str, dict[str, float]] = {}
-        self.physical_to_scaled_map: dict[str, str] = {}
-        self.scaled_to_physical_map: dict[str, str] = {}
-        self.physical_symbols: dict[str, SymType] = {}  # Added missing field
-
 
 # User-facing function types using Protocol classes
 DynamicsFuncType: TypeAlias = DynamicsFuncProtocol
@@ -358,9 +351,6 @@ class ProblemProtocol(Protocol):
 
     _mesh_configured: bool
 
-    # Auto-scaling related attributes (Added missing attributes)
-    _auto_scaling_enabled: bool
-
     # Symbolic attributes
     _sym_states: dict[str, SymType]
     _sym_controls: dict[str, SymType]
@@ -384,4 +374,3 @@ class ProblemProtocol(Protocol):
     def get_integrand_function(self) -> IntegralIntegrandCallable | None: ...
     def get_path_constraints_function(self) -> PathConstraintsCallable | None: ...
     def get_event_constraints_function(self) -> EventConstraintsCallable | None: ...
-    def get_scaling_info(self) -> dict[str, Any]: ...  # Added missing method

@@ -180,22 +180,6 @@ def extract_and_format_solution(
     solution.num_collocation_nodes_per_interval = list(num_collocation_nodes_per_interval)
     solution.global_normalized_mesh_nodes = global_normalized_mesh_nodes.copy()
 
-    # *** CRITICAL FIX: Extract scaling information from problem ***
-    try:
-        scaling_info = problem.get_scaling_info()
-        solution.auto_scaling_enabled = scaling_info.get("auto_scaling_enabled", False)
-        solution.scaling_factors = scaling_info.get("scaling_factors", {})
-        solution.physical_to_scaled_map = scaling_info.get("physical_to_scaled_map", {})
-        solution.scaled_to_physical_map = scaling_info.get("scaled_to_physical_map", {})
-        solution.physical_symbols = scaling_info.get("physical_symbols", {})
-    except Exception as e:
-        print(f"Warning: Could not extract scaling information from problem: {e}")
-        solution.auto_scaling_enabled = False
-        solution.scaling_factors = {}
-        solution.physical_to_scaled_map = {}
-        solution.scaled_to_physical_map = {}
-        solution.physical_symbols = {}
-
     if casadi_solution_object is None:
         solution.success = False
         solution.message = "Solver did not find a solution or was not run."

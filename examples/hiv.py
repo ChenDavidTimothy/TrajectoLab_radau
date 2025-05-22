@@ -18,7 +18,7 @@ def main_hiv_immunology():
     A1 = 2.5e5
     A2 = 75.0
 
-    problem = tl.Problem("HIV_Immunology_Model", auto_scaling=False)
+    problem = tl.Problem("HIV_Immunology_Model")
 
     # Time
     t_final_hiv = 50.0
@@ -49,7 +49,7 @@ def main_hiv_immunology():
     problem.minimize(-integral_var_hiv)  #
 
     # Mesh configuration
-    fixed_polynomial_degrees = [30, 30, 30]
+    fixed_polynomial_degrees = [10, 10, 10]
     fixed_mesh_points = [-1.0, -1 / 3, 1 / 3, 1.0]
     problem.set_mesh(fixed_polynomial_degrees, fixed_mesh_points)
 
@@ -102,15 +102,16 @@ def main_hiv_immunology():
     nlp_max_iter = 3000
     print(f"NLP max iterations: {nlp_max_iter}")
 
-    solution = tl.solve_fixed_mesh(
+    solution = tl.solve_adaptive(
         problem,
+        error_tolerance=5e-2,
         nlp_options={
             "ipopt.print_level": 5,
             "ipopt.sb": "yes",
             "print_time": 1,
             "ipopt.max_iter": nlp_max_iter,
-            "ipopt.tol": 1e-6,
-            "ipopt.constr_viol_tol": 1e-6,
+            "ipopt.tol": 1e-4,
+            "ipopt.constr_viol_tol": 1e-4,
         },
     )
 
