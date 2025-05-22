@@ -373,6 +373,7 @@ def solve_shuttle_reentry(use_adaptive_mesh=False):
     # --- Solve the problem ---
     if use_adaptive_mesh:
         print("\nSolving with adaptive mesh refinement...")
+        problem.print_scaling_summary()
         solution = tl.solve_adaptive(
             problem,
             error_tolerance=1e-6,
@@ -381,7 +382,7 @@ def solve_shuttle_reentry(use_adaptive_mesh=False):
             max_polynomial_degree=10,  # Max degree for refinement
             nlp_options={
                 "ipopt.max_iter": 2000,
-                "ipopt.print_level": 5,
+                "ipopt.print_level": 0,
                 "ipopt.tol": 1e-5,
                 "ipopt.constr_viol_tol": 1e-5,
                 "ipopt.nlp_scaling_method": "gradient-based",
@@ -390,6 +391,7 @@ def solve_shuttle_reentry(use_adaptive_mesh=False):
         )
     else:
         print("\nSolving with fixed mesh...")
+        problem.print_scaling_summary()
         solution = tl.solve_fixed_mesh(
             problem,
             nlp_options={
