@@ -6,7 +6,6 @@ using TrajectoLab's auto-scaling feature. Much simpler than research-level code!
 """
 
 import casadi as ca
-import matplotlib.pyplot as plt
 import numpy as np
 
 import trajectolab as tl
@@ -180,84 +179,7 @@ def plot_solution(solution, title_suffix=""):
         print("Cannot plot - solution failed")
         return
 
-    # Get trajectories (automatically in physical units thanks to auto-scaling!)
-    time_h, h_vals = solution.get_trajectory("h")
-    time_phi, phi_vals = solution.get_trajectory("phi")
-    time_theta, theta_vals = solution.get_trajectory("theta")
-    time_v, v_vals = solution.get_trajectory("v")
-    time_gamma, gamma_vals = solution.get_trajectory("gamma")
-    time_psi, psi_vals = solution.get_trajectory("psi")
-    time_alpha, alpha_vals = solution.get_trajectory("alpha")
-    time_beta, beta_vals = solution.get_trajectory("beta")
-
-    # Convert to convenient units
-    h_km = h_vals / 3280.84  # ft to km
-    v_mach = v_vals / 1125.0  # ft/s to roughly Mach number
-    phi_deg = phi_vals * RAD2DEG
-    theta_deg = theta_vals * RAD2DEG
-    gamma_deg = gamma_vals * RAD2DEG
-    psi_deg = psi_vals * RAD2DEG
-    alpha_deg = alpha_vals * RAD2DEG
-    beta_deg = beta_vals * RAD2DEG
-
-    # Create plots
-    fig, axes = plt.subplots(2, 3, figsize=(15, 10))
-    fig.suptitle(f"Space Shuttle Reentry {title_suffix}", fontsize=16, fontweight="bold")
-
-    # Altitude
-    axes[0, 0].plot(time_h, h_km, "b-", linewidth=2)
-    axes[0, 0].set_title("Altitude")
-    axes[0, 0].set_ylabel("Altitude (km)")
-    axes[0, 0].grid(True, alpha=0.3)
-
-    # Velocity
-    axes[0, 1].plot(time_v, v_mach, "r-", linewidth=2)
-    axes[0, 1].set_title("Velocity")
-    axes[0, 1].set_ylabel("Velocity (~Mach)")
-    axes[0, 1].grid(True, alpha=0.3)
-
-    # Flight path angle
-    axes[0, 2].plot(time_gamma, gamma_deg, "g-", linewidth=2)
-    axes[0, 2].set_title("Flight Path Angle")
-    axes[0, 2].set_ylabel("Gamma (deg)")
-    axes[0, 2].grid(True, alpha=0.3)
-
-    # Latitude (the important one!)
-    axes[1, 0].plot(time_theta, theta_deg, "m-", linewidth=3)
-    axes[1, 0].set_title("Latitude (Crossrange)", fontweight="bold")
-    axes[1, 0].set_ylabel("Latitude (deg)")
-    axes[1, 0].set_xlabel("Time (s)")
-    axes[1, 0].grid(True, alpha=0.3)
-
-    # Angle of attack
-    axes[1, 1].plot(time_alpha, alpha_deg, "c-", linewidth=2)
-    axes[1, 1].set_title("Angle of Attack")
-    axes[1, 1].set_ylabel("Alpha (deg)")
-    axes[1, 1].set_xlabel("Time (s)")
-    axes[1, 1].grid(True, alpha=0.3)
-
-    # Bank angle
-    axes[1, 2].plot(time_beta, beta_deg, "orange", linewidth=2)
-    axes[1, 2].set_title("Bank Angle")
-    axes[1, 2].set_ylabel("Beta (deg)")
-    axes[1, 2].set_xlabel("Time (s)")
-    axes[1, 2].grid(True, alpha=0.3)
-
-    plt.tight_layout()
-    plt.show()
-
-    # 3D trajectory plot
-    fig_3d = plt.figure(figsize=(10, 8))
-    ax_3d = fig_3d.add_subplot(111, projection="3d")
-    ax_3d.plot(phi_deg, theta_deg, h_km, "b-", linewidth=2)
-    ax_3d.scatter(phi_deg[0], theta_deg[0], h_km[0], color="green", s=100, label="Start")
-    ax_3d.scatter(phi_deg[-1], theta_deg[-1], h_km[-1], color="red", s=100, label="End")
-    ax_3d.set_xlabel("Longitude (deg)")
-    ax_3d.set_ylabel("Latitude (deg)")
-    ax_3d.set_zlabel("Altitude (km)")
-    ax_3d.set_title(f"3D Shuttle Trajectory {title_suffix}")
-    ax_3d.legend()
-    plt.show()
+    solution.plot()
 
 
 def main():

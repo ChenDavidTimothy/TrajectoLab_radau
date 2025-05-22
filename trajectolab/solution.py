@@ -91,7 +91,10 @@ class _Solution:
             for name, sym in problem._sym_controls.items():
                 self._sym_control_map[sym] = name
 
-        # *** NEW: Auto-scaling related fields ***
+        # *** AUTO-SCALING: Enhanced symbolic mapping for physical variables ***
+        self._physical_symbol_to_name_map: dict[str, str] = {}  # Maps str(symbol) to physical name
+
+        # *** Auto-scaling related fields ***
         self._auto_scaling_enabled = False
         self._scaling_factors: dict[str, dict[str, float]] = {}
         self._physical_to_scaled_map: dict[str, str] = {}
@@ -119,7 +122,7 @@ class _Solution:
 
         if raw_solution:
             self._extract_solution_data(raw_solution)
-            # *** NEW: Extract auto-scaling information ***
+            # *** Extract auto-scaling information ***
             self._extract_scaling_information(raw_solution)
 
     def _extract_scaling_information(self, raw_solution: OptimalControlSolution) -> None:
@@ -147,9 +150,10 @@ class _Solution:
         if hasattr(raw_solution, "physical_symbols"):
             self._physical_symbols = raw_solution.physical_symbols
 
-        # If auto-scaling is enabled, build physical variable name lists
+        # If auto-scaling is enabled, build physical variable name lists and symbol mappings
         if self._auto_scaling_enabled:
             self._build_physical_variable_lists()
+            self._build_physical_symbol_mappings()
 
     def _build_physical_variable_lists(self) -> None:
         """Build lists of physical variable names for auto-scaling."""
@@ -166,6 +170,21 @@ class _Solution:
             if scaled_name.endswith("_scaled") and scaled_name in self._scaled_to_physical_map:
                 physical_name = self._scaled_to_physical_map[scaled_name]
                 self._physical_control_names.append(physical_name)
+
+    def _build_physical_symbol_mappings(self) -> None:
+        """
+        Build mapping from physical symbol string representations to variable names.
+        This helps resolve auto-scaling symbolic variables.
+        """
+        for physical_name, physical_symbol in self._physical_symbols.items():
+            try:
+                # Use string representation as key for lookup
+                symbol_str = str(physical_symbol)
+                self._physical_symbol_to_name_map[symbol_str] = physical_name
+            except Exception as e:
+                print(
+                    f"Warning: Could not create string mapping for physical symbol '{physical_name}': {e}"
+                )
 
     def _extract_solution_data(self, raw_solution: OptimalControlSolution) -> None:
         """Extract solution data from raw solution (original implementation)."""
@@ -332,6 +351,26 @@ class _Solution:
                         return name
         return None
 
+    def _resolve_physical_symbolic_variable(self, sym_var: SymType) -> str | None:
+        """
+        Resolve a physical symbolic variable (auto-scaling expression) to its physical name.
+
+        Args:
+            sym_var: Physical symbolic variable (expression like (scaled_var - r) / v)
+
+        Returns:
+            Physical variable name if found, None otherwise
+        """
+        if not self._auto_scaling_enabled:
+            return None
+
+        try:
+            # Convert to string and look up in our mapping
+            symbol_str = str(sym_var)
+            return self._physical_symbol_to_name_map.get(symbol_str)
+        except Exception:
+            return None
+
     def _is_symbolic_variable(self, variable: _VariableIdentifier) -> bool:
         """Check if a variable identifier is a symbolic variable."""
         return hasattr(variable, "is_symbolic") or (
@@ -372,8 +411,16 @@ class _Solution:
         # Handle symbolic variable case
         if self._is_symbolic_variable(identifier):
             sym_var = cast(SymType, identifier)
+
+            # First try regular symbolic resolution
             var_name = self._resolve_symbolic_variable(sym_var, symbol_map, problem_attr)
+
+            # If that fails and auto-scaling is enabled, try physical symbol resolution
+            if var_name is None and self._auto_scaling_enabled:
+                var_name = self._resolve_physical_symbolic_variable(sym_var)
+
             if var_name is None:
+                print(f"Warning: Variable '{sym_var}' not found")
                 return time_arr, empty_arr
             identifier = var_name
 
@@ -515,10 +562,16 @@ class _Solution:
                     resolved_name = self._resolve_symbolic_variable(
                         sym_var, self._sym_state_map, "_sym_states"
                     )
+                    # Try physical symbol resolution if regular resolution fails
+                    if resolved_name is None and self._auto_scaling_enabled:
+                        resolved_name = self._resolve_physical_symbolic_variable(sym_var)
                 elif variable_type == "control":
                     resolved_name = self._resolve_symbolic_variable(
                         sym_var, self._sym_control_map, "_sym_controls"
                     )
+                    # Try physical symbol resolution if regular resolution fails
+                    if resolved_name is None and self._auto_scaling_enabled:
+                        resolved_name = self._resolve_physical_symbolic_variable(sym_var)
                 else:
                     resolved_name = None
 
@@ -812,18 +865,29 @@ class _Solution:
     def _get_unified_trajectory(self, identifier: _VariableIdentifier) -> _TrajectoryTuple:
         """
         Unified trajectory getter that handles both symbolic variables and strings.
-        Uses the same search logic for both types.
+        Enhanced for auto-scaling support.
         """
-        # Case 1: Symbolic variable - check existing maps first
+        # Case 1: Symbolic variable - enhanced resolution for auto-scaling
         if self._is_symbolic_variable(identifier):
             sym_var = cast(SymType, identifier)
 
+            # First try regular symbolic maps
             if sym_var in self._sym_state_map:
                 return self._get_state_trajectory(self._sym_state_map[sym_var])
             elif sym_var in self._sym_control_map:
                 return self._get_control_trajectory(self._sym_control_map[sym_var])
 
-            # Search in problem if not in maps
+            # Try physical symbol resolution for auto-scaling
+            if self._auto_scaling_enabled:
+                physical_name = self._resolve_physical_symbolic_variable(sym_var)
+                if physical_name is not None:
+                    # Check if it's a state or control
+                    if physical_name in self._physical_state_names:
+                        return self._get_state_trajectory(physical_name)
+                    elif physical_name in self._physical_control_names:
+                        return self._get_control_trajectory(physical_name)
+
+            # Search in problem if not in maps (fallback)
             var_name = self._resolve_symbolic_variable(sym_var, self._sym_state_map, "_sym_states")
             if var_name is not None:
                 return self._get_state_trajectory(var_name)
@@ -859,7 +923,7 @@ class _Solution:
         empty_arr = np.array([], dtype=np.float64)
         return empty_arr, empty_arr
 
-    # *** NEW: Methods for auto-scaling information access ***
+    # *** Methods for auto-scaling information access ***
     def get_scaling_info(self) -> dict[str, Any]:
         """
         Get scaling information for analysis and debugging.

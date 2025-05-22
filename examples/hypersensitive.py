@@ -4,7 +4,7 @@ import trajectolab as tl
 
 
 # Define the hypersensitive problem using the symbolic API
-problem = tl.Problem("Hypersensitive Problem")
+problem = tl.Problem("Hypersensitive Problem", auto_scaling=True)
 
 # Define time variable
 t = problem.time(initial=0, final=40)
@@ -45,32 +45,32 @@ problem.set_initial_guess(
 )
 
 # Solve with adaptive mesh - clean and simple!
-solution = tl.solve_adaptive(
-    problem,
-    error_tolerance=1e-3,
-    max_iterations=30,
-    min_polynomial_degree=4,
-    max_polynomial_degree=8,
-    nlp_options={"ipopt.print_level": 0, "ipopt.sb": "yes", "print_time": 0, "ipopt.max_iter": 200},
-)
+# solution = tl.solve_adaptive(
+#    problem,
+#    error_tolerance=1e-3,
+#    max_iterations=30,
+#    min_polynomial_degree=4,
+#    max_polynomial_degree=8,
+#    nlp_options={"ipopt.print_level": 0, "ipopt.sb": "yes", "print_time": 0, "ipopt.max_iter": 200},
+# )
 
 # Analyze solution
-if solution.success:
-    print(f"Successfully solved! Objective: {solution.objective:.6f}")
-    print(f"Final mesh intervals: {solution.polynomial_degrees}")
-    if solution.mesh_points is not None:
-        print(f"Mesh points: {np.array2string(solution.mesh_points, precision=3)}")
-    else:
-        print("Mesh points: None")
-
-    # Get state trajectory using the symbolic variable
-    t_vals, x_vals = solution.get_trajectory(x)
-
-    # Plot the solution
-    solution.plot()
-else:
-    print(f"Solution failed: {solution.message}")
-
+# if solution.success:
+#    print(f"Successfully solved! Objective: {solution.objective:.6f}")
+#    print(f"Final mesh intervals: {solution.polynomial_degrees}")
+#    if solution.mesh_points is not None:
+#        print(f"Mesh points: {np.array2string(solution.mesh_points, precision=3)}")
+#    else:
+#        print("Mesh points: None")
+#
+#    # Get state trajectory using the symbolic variable
+#    t_vals, x_vals = solution.get_trajectory(x)
+#    print(t_vals)
+#    # Plot the solution
+#    solution.plot()
+# else:
+#    print(f"Solution failed: {solution.message}")
+#
 # Use the fixed mesh solver
 print("\nSolving with fixed mesh...")
 
