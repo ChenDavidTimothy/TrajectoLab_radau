@@ -17,7 +17,14 @@ from numpy.typing import NDArray
 FloatArray: TypeAlias = NDArray[np.float64]
 FloatMatrix: TypeAlias = NDArray[np.float64]
 IntArray: TypeAlias = NDArray[np_int_]
-
+NumericArrayLike: TypeAlias = (
+    NDArray[np.floating[Any]]
+    | NDArray[np.integer[Any]]
+    | Sequence[float]
+    | Sequence[int]
+    | list[float]
+    | list[int]
+)
 # --- Core Symbolic Type Aliases (Public) ---
 SymType: TypeAlias = ca.MX
 SymExpr: TypeAlias = ca.MX | float | int

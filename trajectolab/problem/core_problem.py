@@ -5,7 +5,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from ..scaling import AutoScalingManager
-from ..tl_types import FloatArray, FloatMatrix, SymExpr, SymType
+from ..tl_types import FloatArray, FloatMatrix, NumericArrayLike, SymExpr, SymType
 from . import constraints_problem, initial_guess_problem, mesh, solver_interface, variables_problem
 from .state import ConstraintState, MeshState, VariableState
 
@@ -336,9 +336,7 @@ class Problem:
         constraints_problem.add_constraint(self._constraint_state, constraint_expr)
 
     # Mesh management methods
-    def set_mesh(
-        self, polynomial_degrees: list[int], mesh_points: FloatArray | list[float]
-    ) -> None:
+    def set_mesh(self, polynomial_degrees: list[int], mesh_points: NumericArrayLike) -> None:
         """Configure mesh structure for the problem.
 
         This method clears any existing initial guess, as mesh changes require

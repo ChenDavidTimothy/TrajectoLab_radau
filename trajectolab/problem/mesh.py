@@ -6,14 +6,14 @@ from __future__ import annotations
 
 import numpy as np
 
-from ..tl_types import FloatArray
+from ..tl_types import NumericArrayLike
 from .state import MeshState
 
 
 def configure_mesh(
     state: MeshState,
     polynomial_degrees: list[int],
-    mesh_points: FloatArray | list[float],
+    mesh_points: NumericArrayLike,
 ) -> None:
     """Configure the mesh structure."""
     # Convert to numpy array if needed
