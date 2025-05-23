@@ -6,7 +6,6 @@ import casadi as ca
 
 from ..radau import RadauBasisComponents
 from ..tl_types import (
-    CasadiMatrix,
     CasadiMX,
     CasadiOpti,
     FloatArray,
@@ -18,7 +17,7 @@ from ..tl_types import (
 def setup_integrals(
     opti: CasadiOpti,
     mesh_interval_index: int,
-    state_at_nodes: CasadiMatrix,
+    state_at_nodes: CasadiMX,
     control_variables: CasadiMX,
     basis_components: RadauBasisComponents,
     global_normalized_mesh_nodes: FloatArray,

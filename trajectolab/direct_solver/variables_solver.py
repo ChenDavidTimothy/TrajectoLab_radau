@@ -1,5 +1,6 @@
 """
-Variable setup functions for the direct solver.
+Variable setup functions for the direct solver - SIMPLIFIED.
+Updated to use unified storage system instead of legacy dual storage.
 """
 
 import casadi as ca
@@ -15,22 +16,10 @@ def setup_optimization_variables(
     problem: ProblemProtocol,
     num_mesh_intervals: int,
 ) -> VariableReferences:
-    """
-    Set up all optimization variables for the problem.
+    """Set up all optimization variables for the problem using unified storage."""
 
-    Args:
-        opti: CasADi optimization object
-        problem: Problem definition
-        num_mesh_intervals: Number of mesh intervals
-
-    Returns:
-        Container with all variable references
-
-    Raises:
-        ValueError: If problem dimensions are invalid
-    """
-    num_states = len(problem._states)
-    num_controls = len(problem._controls)
+    # Get variable counts from unified storage
+    num_states, num_controls = problem.get_variable_counts()
     num_integrals = problem._num_integrals
 
     # Validate problem dimensions
@@ -64,22 +53,7 @@ def setup_interval_state_variables(
     num_colloc_nodes: int,
     state_at_global_mesh_nodes: ListOfCasadiMX,
 ) -> _IntervalBundle:
-    """
-    Set up state variables for a single mesh interval.
-
-    Args:
-        opti: CasADi optimization object
-        mesh_interval_index: Index of mesh interval
-        num_states: Number of state variables
-        num_colloc_nodes: Number of collocation nodes
-        state_at_global_mesh_nodes: Global state variables
-
-    Returns:
-        Tuple of (state_matrix, interior_nodes_variable)
-
-    Raises:
-        ValueError: If interior nodes creation fails
-    """
+    """Set up state variables for a single mesh interval."""
     # Initialize state columns
     state_columns: list[CasadiMX] = [ca.MX(num_states, 1) for _ in range(num_colloc_nodes + 1)]
 
@@ -134,7 +108,7 @@ def _create_control_variables(
     opti: CasadiOpti, problem: ProblemProtocol, num_mesh_intervals: int
 ) -> ListOfCasadiMX:
     """Create control variables for each interval."""
-    num_controls = len(problem._controls)
+    _, num_controls = problem.get_variable_counts()
     return [
         opti.variable(num_controls, problem.collocation_points_per_interval[k])
         for k in range(num_mesh_intervals)

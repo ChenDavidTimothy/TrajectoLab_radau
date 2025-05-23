@@ -9,7 +9,6 @@ from .tl_types import (
     CasadiOpti,
     CasadiOptiSol,
     FloatArray,
-    FloatMatrix,
     ListOfCasadiMX,
     OptimalControlSolution,
     ProblemProtocol,
@@ -123,7 +122,7 @@ def process_trajectory_points(
     current_interval_variables = variables_list[mesh_interval_index]
     current_interval_local_tau_values = local_tau_nodes[mesh_interval_index]
 
-    solved_values: FloatMatrix = casadi_solution_object.value(current_interval_variables)
+    solved_values = casadi_solution_object.value(current_interval_variables)
     if num_variables == 1 and solved_values.ndim == 1:
         solved_values = solved_values.reshape(1, -1)
 
@@ -186,8 +185,7 @@ def extract_and_format_solution(
         return solution
 
     num_mesh_intervals: int = len(num_collocation_nodes_per_interval)
-    num_states: int = len(problem._states)
-    num_controls: int = len(problem._controls)
+    num_states, num_controls = problem.get_variable_counts()
     num_integrals: int = problem._num_integrals
 
     try:

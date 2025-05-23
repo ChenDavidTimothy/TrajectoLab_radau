@@ -1,11 +1,12 @@
 """
-Initial guess application functions for the direct solver.
+Initial guess application functions for the direct solver - SIMPLIFIED.
+Updated to use unified storage system instead of legacy dual storage.
 """
 
 from typing import cast
 
 from ..input_validation import set_integral_guess_values, validate_integral_values
-from ..tl_types import CasadiOpti, FloatMatrix, ProblemProtocol
+from ..tl_types import CasadiOpti, FloatArray, ProblemProtocol
 from .types_solver import VariableReferences
 
 
@@ -15,24 +16,14 @@ def apply_initial_guess(
     problem: ProblemProtocol,
     num_mesh_intervals: int,
 ) -> None:
-    """
-    Apply initial guess to optimization variables.
-
-    Args:
-        opti: CasADi optimization object
-        variables: Container with all variable references
-        problem: Problem definition
-        num_mesh_intervals: Number of mesh intervals
-
-    Note:
-        If no initial guess is provided, CasADi will use its default values.
-    """
+    """Apply initial guess to optimization variables using unified storage."""
     if problem.initial_guess is None:
         return
 
     ig = problem.initial_guess
-    num_states = len(problem._states)
-    num_controls = len(problem._controls)
+
+    # Get variable counts from unified storage
+    num_states, num_controls = problem.get_variable_counts()
     num_integrals = problem._num_integrals
 
     # Apply time variable guesses
@@ -75,7 +66,7 @@ def _apply_state_guesses(
 
     # Apply global mesh node states
     for k in range(num_mesh_intervals):
-        state_guess_k = cast(FloatMatrix, ig.states[k])
+        state_guess_k = cast(FloatArray, ig.states[k])
         expected_shape = (num_states, problem.collocation_points_per_interval[k] + 1)
         if state_guess_k.shape != expected_shape:
             raise ValueError(
@@ -93,7 +84,7 @@ def _apply_state_guesses(
     for k in range(num_mesh_intervals):
         interior_var = variables.interior_variables[k]
         if interior_var is not None:
-            state_guess_k = cast(FloatMatrix, ig.states[k])
+            state_guess_k = cast(FloatArray, ig.states[k])
             num_interior_nodes = interior_var.shape[1]
 
             if state_guess_k.shape[1] >= num_interior_nodes + 2:
@@ -124,7 +115,7 @@ def _apply_control_guesses(
         )
 
     for k in range(num_mesh_intervals):
-        control_guess_k = cast(FloatMatrix, ig.controls[k])
+        control_guess_k = cast(FloatArray, ig.controls[k])
         expected_shape = (num_controls, problem.collocation_points_per_interval[k])
 
         if control_guess_k.shape != expected_shape:

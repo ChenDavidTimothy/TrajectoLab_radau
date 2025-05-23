@@ -1,6 +1,6 @@
 """
-Variable management functions for optimal control problems.
-OPTIMIZED: Uses efficient variable ordering system.
+Variable management functions for optimal control problems - SIMPLIFIED.
+Removed ALL legacy code, uses only unified storage system.
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from typing import Any, cast
 import casadi as ca
 
 from ..tl_types import SymExpr, SymType
-from .state import VariableState
+from .state import VariableState, _BoundaryConstraint
 
 
 class TimeVariableImpl:
@@ -85,27 +85,6 @@ class TimeVariableImpl:
         return self._sym_var != other
 
 
-# Internal constraint class for boundaries
-class _BoundaryConstraint:
-    """Internal class for representing boundary constraints."""
-
-    def __init__(
-        self,
-        val: SymExpr | None = None,
-        lower: float | None = None,
-        upper: float | None = None,
-        equals: float | None = None,
-    ) -> None:
-        self.val = val
-        self.lower = lower
-        self.upper = upper
-        self.equals = equals
-
-        if equals is not None:
-            self.lower = equals
-            self.upper = equals
-
-
 def create_time_variable(
     state: VariableState,
     initial: float = 0.0,
@@ -146,15 +125,19 @@ def create_state_variable(
     lower: float | None = None,
     upper: float | None = None,
 ) -> SymType:
-    """Create a state variable using optimized ordering."""
+    """Create a state variable using unified storage."""
     sym_var = ca.MX.sym(name, 1)  # type: ignore[arg-type]
 
-    # Use optimized addition method
-    state.add_state_optimized(
+    # Create boundary constraints if specified
+    initial_constraint = None if initial is None else _BoundaryConstraint(equals=initial)
+    final_constraint = None if final is None else _BoundaryConstraint(equals=final)
+
+    # Add to unified storage
+    state.add_state(
         name=name,
         symbol=sym_var,
-        initial_constraint=None if initial is None else _BoundaryConstraint(equals=initial),
-        final_constraint=None if final is None else _BoundaryConstraint(equals=final),
+        initial_constraint=initial_constraint,
+        final_constraint=final_constraint,
         lower=lower,
         upper=upper,
     )
@@ -168,11 +151,11 @@ def create_control_variable(
     lower: float | None = None,
     upper: float | None = None,
 ) -> SymType:
-    """Create a control variable using optimized ordering."""
+    """Create a control variable using unified storage."""
     sym_var = ca.MX.sym(name, 1)  # type: ignore[arg-type]
 
-    # Use optimized addition method
-    state.add_control_optimized(
+    # Add to unified storage
+    state.add_control(
         name=name,
         symbol=sym_var,
         lower=lower,
@@ -190,17 +173,15 @@ def create_parameter_variable(
     """Create a parameter variable."""
     sym_var = ca.MX.sym(name, 1)  # type: ignore[arg-type]
 
-    # Store parameter value
+    # Store parameter value (parameters remain as simple dict)
     state.parameters[name] = value
 
-    # Store symbolic variable
-    state.sym_parameters[name] = sym_var
     return sym_var
 
 
 def set_dynamics(state: VariableState, dynamics_dict: dict[SymType, SymExpr]) -> None:
     """Set dynamics expressions."""
-    # Verify all keys correspond to defined state variables using optimized access
+    # Verify all keys correspond to defined state variables
     ordered_state_symbols = state.get_ordered_state_symbols()
 
     for state_sym in dynamics_dict.keys():

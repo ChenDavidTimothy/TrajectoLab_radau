@@ -1,6 +1,6 @@
 """
-Provides the PHS (P-refinement, H-refinement, S-refinement) adaptive algorithm.
-Now as a pure function interface.
+Provides the PHS (P-refinement, H-refinement, S-refinement) adaptive algorithm - SIMPLIFIED.
+Updated to work with unified storage system.
 """
 
 from trajectolab.adaptive.phs.algorithm import solve_phs_adaptive_internal

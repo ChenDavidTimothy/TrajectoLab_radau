@@ -1,5 +1,6 @@
 """
-Fixed collocation constraints application with proper scaling validation.
+Fixed collocation constraints application with proper scaling validation - SIMPLIFIED.
+Updated to use unified storage system.
 """
 
 import logging
@@ -11,7 +12,6 @@ from trajectolab.input_validation import validate_dynamics_output, validate_inte
 from trajectolab.radau import RadauBasisComponents
 from trajectolab.tl_types import (
     CasadiDM,
-    CasadiMatrix,
     CasadiMX,
     CasadiOpti,
     Constraint,
@@ -36,13 +36,7 @@ if not constraints_logger.handlers:
 
 
 def apply_constraint(opti: CasadiOpti, constraint: Constraint) -> None:
-    """
-    Apply a constraint to the optimization problem.
-
-    Args:
-        opti: CasADi optimization object
-        constraint: Constraint to apply
-    """
+    """Apply a constraint to the optimization problem."""
     if constraint.min_val is not None:
         opti.subject_to(constraint.val >= constraint.min_val)
     if constraint.max_val is not None:
@@ -54,7 +48,7 @@ def apply_constraint(opti: CasadiOpti, constraint: Constraint) -> None:
 def apply_collocation_constraints(
     opti: CasadiOpti,
     mesh_interval_index: int,
-    state_at_nodes: CasadiMatrix,
+    state_at_nodes: CasadiMX,
     control_variables: CasadiMX,
     basis_components: RadauBasisComponents,
     global_normalized_mesh_nodes: FloatArray,
@@ -64,9 +58,7 @@ def apply_collocation_constraints(
     problem_parameters: ProblemParameters,
     problem: ProblemProtocol | None = None,
 ) -> None:
-    """
-    Apply collocation constraints for a single mesh interval using differential form.
-    """
+    """Apply collocation constraints for a single mesh interval using differential form."""
     num_colloc_nodes = len(basis_components.collocation_nodes)
     colloc_nodes_tau = basis_components.collocation_nodes.flatten()
     diff_matrix: CasadiDM = ca.DM(basis_components.differentiation_matrix)
@@ -134,7 +126,7 @@ def apply_collocation_constraints(
 def apply_path_constraints(
     opti: CasadiOpti,
     mesh_interval_index: int,
-    state_at_nodes: CasadiMatrix,
+    state_at_nodes: CasadiMX,
     control_variables: CasadiMX,
     basis_components: RadauBasisComponents,
     global_normalized_mesh_nodes: FloatArray,
@@ -144,9 +136,7 @@ def apply_path_constraints(
     problem_parameters: ProblemParameters,
     problem: ProblemProtocol | None = None,
 ) -> None:
-    """
-    Apply path constraints for a single mesh interval.
-    """
+    """Apply path constraints for a single mesh interval."""
     num_colloc_nodes = len(basis_components.collocation_nodes)
     colloc_nodes_tau = basis_components.collocation_nodes.flatten()
     global_segment_length = (
@@ -202,18 +192,7 @@ def apply_event_constraints(
     integral_variables: CasadiMX | None,
     problem: ProblemProtocol,
 ) -> None:
-    """
-    Apply event constraints to the optimization problem.
-
-    Args:
-        opti: CasADi optimization object
-        initial_time_variable: Initial time variable
-        terminal_time_variable: Terminal time variable
-        initial_state: Initial state vector
-        terminal_state: Terminal state vector
-        integral_variables: Integral variables (if any)
-        problem: Problem definition
-    """
+    """Apply event constraints to the optimization problem."""
     event_constraints_function = problem.get_event_constraints_function()
     if event_constraints_function is None:
         return

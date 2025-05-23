@@ -1,5 +1,6 @@
 """
-Mesh refinement strategies for the PHS adaptive algorithm.
+Mesh refinement strategies for the PHS adaptive algorithm - SIMPLIFIED.
+Updated to use unified storage system and type system.
 """
 
 from typing import cast
@@ -128,7 +129,8 @@ def h_reduce_intervals(
     control_evaluator_second: ControlEvaluator | None,
 ) -> bool:
     """
-    Checks if two adjacent intervals can be merged.
+    Checks if two adjacent intervals can be merged - SIMPLIFIED.
+    Updated to use unified storage system.
     Returns True if merge is successful (error condition met).
     """
     print(f"    h-reduction check for intervals {first_idx} and {first_idx + 1}.")
@@ -138,7 +140,8 @@ def h_reduce_intervals(
     ode_atol = ode_rtol * DEFAULT_ODE_ATOL_FACTOR
     num_sim_points = adaptive_params.num_error_sim_points
 
-    num_states = len(problem._states)
+    # Get variable counts from unified storage
+    num_states, _ = problem.get_variable_counts()
     casadi_dynamics_function = cast(CasadiFunction, problem.get_dynamics_function())
     problem_parameters = problem._parameters
 

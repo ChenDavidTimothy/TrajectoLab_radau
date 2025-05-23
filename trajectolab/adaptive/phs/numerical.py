@@ -1,5 +1,6 @@
 """
-Numerical utilities for the PHS adaptive algorithm.
+Numerical utilities for the PHS adaptive algorithm - SIMPLIFIED.
+Updated to use unified type system.
 """
 
 import numpy as np
@@ -8,10 +9,7 @@ from trajectolab.radau import (
     compute_barycentric_weights,
     evaluate_lagrange_polynomial_at_point,
 )
-from trajectolab.tl_types import (
-    FloatArray,
-    FloatMatrix,
-)
+from trajectolab.tl_types import FloatArray
 
 
 __all__ = [
@@ -26,10 +24,10 @@ __all__ = [
 class PolynomialInterpolant:
     """
     Callable class that implements Lagrange polynomial interpolation
-    using the barycentric formula.
+    using the barycentric formula - SIMPLIFIED to use unified types.
     """
 
-    values_at_nodes: FloatMatrix
+    values_at_nodes: FloatArray
     nodes_array: FloatArray
     num_vars: int
     num_nodes_val: int
@@ -39,7 +37,7 @@ class PolynomialInterpolant:
     def __init__(
         self,
         nodes: FloatArray,
-        values: FloatMatrix,
+        values: FloatArray,
         barycentric_weights: FloatArray | None = None,
     ) -> None:
         """Creates a Lagrange polynomial interpolant using barycentric formula."""

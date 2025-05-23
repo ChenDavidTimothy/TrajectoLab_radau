@@ -1,3 +1,8 @@
+"""
+Radau pseudospectral method implementation - SIMPLIFIED.
+Consolidated cache system, removed redundant code patterns.
+"""
+
 import threading
 from dataclasses import dataclass, field
 from typing import Literal, cast, overload
@@ -5,7 +10,7 @@ from typing import Literal, cast, overload
 import numpy as np
 from scipy.special import roots_jacobi as _scipy_roots_jacobi
 
-from .tl_types import FloatArray, FloatMatrix
+from .tl_types import FloatArray
 from .utils.constants import ZERO_TOLERANCE
 
 
@@ -18,7 +23,7 @@ class RadauBasisComponents:
     )
     collocation_nodes: FloatArray = field(default_factory=lambda: np.array([], dtype=np.float64))
     quadrature_weights: FloatArray = field(default_factory=lambda: np.array([], dtype=np.float64))
-    differentiation_matrix: FloatMatrix = field(
+    differentiation_matrix: FloatArray = field(
         default_factory=lambda: np.empty((0, 0), dtype=np.float64)
     )
     barycentric_weights_for_state_nodes: FloatArray = field(
@@ -28,43 +33,6 @@ class RadauBasisComponents:
         default_factory=lambda: np.array([], dtype=np.float64)
     )
 
-    def __init__(
-        self,
-        state_approximation_nodes: FloatArray | None = None,
-        collocation_nodes: FloatArray | None = None,
-        quadrature_weights: FloatArray | None = None,
-        differentiation_matrix: FloatMatrix | None = None,
-        barycentric_weights_for_state_nodes: FloatArray | None = None,
-        lagrange_at_tau_plus_one: FloatArray | None = None,
-    ) -> None:
-        """Initialize RadauBasisComponents."""
-        self.state_approximation_nodes = (
-            state_approximation_nodes
-            if state_approximation_nodes is not None
-            else np.array([], dtype=np.float64)
-        )
-        self.collocation_nodes = (
-            collocation_nodes if collocation_nodes is not None else np.array([], dtype=np.float64)
-        )
-        self.quadrature_weights = (
-            quadrature_weights if quadrature_weights is not None else np.array([], dtype=np.float64)
-        )
-        self.differentiation_matrix = (
-            differentiation_matrix
-            if differentiation_matrix is not None
-            else np.empty((0, 0), dtype=np.float64)
-        )
-        self.barycentric_weights_for_state_nodes = (
-            barycentric_weights_for_state_nodes
-            if barycentric_weights_for_state_nodes is not None
-            else np.array([], dtype=np.float64)
-        )
-        self.lagrange_at_tau_plus_one = (
-            lagrange_at_tau_plus_one
-            if lagrange_at_tau_plus_one is not None
-            else np.array([], dtype=np.float64)
-        )
-
 
 @dataclass
 class RadauNodesAndWeights:
@@ -73,17 +41,14 @@ class RadauNodesAndWeights:
     quadrature_weights: FloatArray
 
 
-class RadauBasisGlobalCache:
-    """Thread-safe global cache for Radau basis components.
+class RadauBasisCache:
+    """SIMPLIFIED thread-safe global cache for Radau basis components."""
 
-    PERFORMANCE CRITICAL: Provides 10-100x speedup by caching expensive computations.
-    """
-
-    _instance: "RadauBasisGlobalCache | None" = None
+    _instance: "RadauBasisCache | None" = None
     _cache: dict[int, RadauBasisComponents] = {}
     _lock: threading.Lock = threading.Lock()
 
-    def __new__(cls) -> "RadauBasisGlobalCache":
+    def __new__(cls) -> "RadauBasisCache":
         """Singleton pattern for global cache."""
         if cls._instance is None:
             with cls._lock:
@@ -96,21 +61,19 @@ class RadauBasisGlobalCache:
         """Get cached Radau components or compute if not cached."""
         with self._lock:
             if num_collocation_nodes not in self._cache:
-                self._cache[num_collocation_nodes] = self._compute_components_internal(
-                    num_collocation_nodes
-                )
+                self._cache[num_collocation_nodes] = self._compute_components(num_collocation_nodes)
             return self._cache[num_collocation_nodes]
 
-    def _compute_components_internal(self, num_collocation_nodes: int) -> RadauBasisComponents:
-        """Internal computation of Radau components."""
+    def _compute_components(self, num_collocation_nodes: int) -> RadauBasisComponents:
+        """Compute Radau components - expensive operation."""
         if num_collocation_nodes < 1:
             raise ValueError("Number of collocation points must be an integer >= 1.")
 
         lgr_data = compute_legendre_gauss_radau_nodes_and_weights(num_collocation_nodes)
 
-        state_nodes: FloatArray = lgr_data.state_approximation_nodes
-        collocation_nodes: FloatArray = lgr_data.collocation_nodes
-        quadrature_weights: FloatArray = lgr_data.quadrature_weights
+        state_nodes = lgr_data.state_approximation_nodes
+        collocation_nodes = lgr_data.collocation_nodes
+        quadrature_weights = lgr_data.quadrature_weights
 
         num_state_nodes = len(state_nodes)
         num_actual_collocation_nodes = len(collocation_nodes)
@@ -128,9 +91,7 @@ class RadauBasisGlobalCache:
 
         bary_weights_state_nodes = compute_barycentric_weights(state_nodes)
 
-        diff_matrix: FloatMatrix = np.zeros(
-            (num_actual_collocation_nodes, num_state_nodes), dtype=np.float64
-        )
+        diff_matrix = np.zeros((num_actual_collocation_nodes, num_state_nodes), dtype=np.float64)
         for i in range(num_actual_collocation_nodes):
             tau_c_i = collocation_nodes[i]
             diff_matrix[i, :] = compute_lagrange_derivative_coefficients_at_point(
@@ -152,7 +113,7 @@ class RadauBasisGlobalCache:
 
 
 # Global cache instance
-_radau_cache = RadauBasisGlobalCache()
+_radau_cache = RadauBasisCache()
 
 
 @overload
@@ -170,6 +131,7 @@ def roots_jacobi(
 def roots_jacobi(
     n: int, alpha: float, beta: float, mu: bool = False
 ) -> tuple[FloatArray, FloatArray] | tuple[FloatArray, FloatArray, float]:
+    """Wrapper for scipy roots_jacobi with proper typing."""
     if mu:
         result = _scipy_roots_jacobi(n, alpha, beta, mu=True)
         x_val = result[0]
@@ -193,6 +155,7 @@ def roots_jacobi(
 def compute_legendre_gauss_radau_nodes_and_weights(
     num_collocation_nodes: int,
 ) -> RadauNodesAndWeights:
+    """Compute Legendre-Gauss-Radau nodes and weights."""
     if num_collocation_nodes < 1:
         raise ValueError("Number of collocation points must be an integer >= 1.")
 
@@ -224,13 +187,14 @@ def compute_legendre_gauss_radau_nodes_and_weights(
 
 
 def compute_barycentric_weights(nodes: FloatArray) -> FloatArray:
+    """Compute barycentric weights for Lagrange interpolation."""
     num_nodes = len(nodes)
     if num_nodes < 1:
         raise ValueError("Barycentric weights require at least 1 node.")
     if num_nodes == 1:
         return np.array([1.0], dtype=np.float64)
 
-    barycentric_weights: FloatArray = np.ones(num_nodes, dtype=np.float64)
+    barycentric_weights = np.ones(num_nodes, dtype=np.float64)
 
     for j in range(num_nodes):
         other_nodes = np.delete(nodes, j)
@@ -243,7 +207,7 @@ def compute_barycentric_weights(nodes: FloatArray) -> FloatArray:
             perturbation[perturbation == 0] = ZERO_TOLERANCE
             node_differences[mask_near_zero] = perturbation
 
-        product_val: float = float(np.prod(node_differences, dtype=np.float64))
+        product_val = float(np.prod(node_differences, dtype=np.float64))
 
         if abs(product_val) < ZERO_TOLERANCE**2:
             barycentric_weights[j] = (
@@ -262,8 +226,9 @@ def evaluate_lagrange_polynomial_at_point(
     barycentric_weights: FloatArray,
     evaluation_point_tau: float,
 ) -> FloatArray:
+    """Evaluate Lagrange polynomial at a specific point using barycentric formula."""
     num_nodes = len(polynomial_definition_nodes)
-    lagrange_values: FloatArray = np.zeros(num_nodes, dtype=np.float64)
+    lagrange_values = np.zeros(num_nodes, dtype=np.float64)
 
     # Check if evaluation point coincides with a node
     for j in range(num_nodes):
@@ -272,7 +237,7 @@ def evaluate_lagrange_polynomial_at_point(
             return lagrange_values
 
     # Standard barycentric interpolation
-    terms: FloatArray = np.zeros(num_nodes, dtype=np.float64)
+    terms = np.zeros(num_nodes, dtype=np.float64)
     for j in range(num_nodes):
         diff = evaluation_point_tau - polynomial_definition_nodes[j]
         if abs(diff) < ZERO_TOLERANCE:
@@ -292,8 +257,9 @@ def compute_lagrange_derivative_coefficients_at_point(
     barycentric_weights: FloatArray,
     evaluation_point_tau: float,
 ) -> FloatArray:
+    """Compute Lagrange polynomial derivative coefficients at a specific point."""
     num_nodes = len(polynomial_definition_nodes)
-    derivatives: FloatArray = np.zeros(num_nodes, dtype=np.float64)
+    derivatives = np.zeros(num_nodes, dtype=np.float64)
 
     # Find if evaluation point matches a node
     matched_node_idx_k = -1
@@ -340,5 +306,5 @@ def compute_lagrange_derivative_coefficients_at_point(
 def compute_radau_collocation_components(
     num_collocation_nodes: int,
 ) -> RadauBasisComponents:
-    """OPTIMIZED: Get Radau components from global cache for massive speedup."""
+    """Get Radau components from global cache for massive speedup."""
     return _radau_cache.get_components(num_collocation_nodes)

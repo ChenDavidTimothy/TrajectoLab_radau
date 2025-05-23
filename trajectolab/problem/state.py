@@ -1,6 +1,6 @@
 """
-State data classes for problem definition.
-OPTIMIZED: Pre-sorted variable access for O(1) performance.
+State data classes for problem definition - SIMPLIFIED.
+Removed ALL legacy dual storage systems. Uses only optimized single storage.
 """
 
 from __future__ import annotations
@@ -12,31 +12,56 @@ from typing import Any
 from ..tl_types import FloatArray, SymExpr, SymType
 
 
+# Internal constraint class for boundaries
+class _BoundaryConstraint:
+    """Internal class for representing boundary constraints."""
+
+    def __init__(
+        self,
+        equals: float | None = None,
+        lower: float | None = None,
+        upper: float | None = None,
+    ) -> None:
+        self.equals = equals
+        self.lower = lower
+        self.upper = upper
+
+        if equals is not None:
+            self.lower = equals
+            self.upper = equals
+
+
+@dataclass
+class _VariableInfo:
+    """Internal storage for variable metadata."""
+
+    symbol: SymType
+    lower: float | None = None
+    upper: float | None = None
+    initial_constraint: _BoundaryConstraint | None = None
+    final_constraint: _BoundaryConstraint | None = None
+
+
 @dataclass
 class VariableState:
-    """State for all variables and expressions with optimized ordering."""
+    """State for all variables and expressions - SIMPLIFIED SINGLE STORAGE."""
 
-    # Symbolic variables (maintained for compatibility)
-    sym_states: dict[str, SymType] = field(default_factory=dict)
-    sym_controls: dict[str, SymType] = field(default_factory=dict)
-    sym_parameters: dict[str, SymType] = field(default_factory=dict)
+    # SINGLE STORAGE SYSTEM - optimized ordering
+    _state_info: list[_VariableInfo] = field(default_factory=list)
+    _control_info: list[_VariableInfo] = field(default_factory=list)
+    _state_name_to_index: dict[str, int] = field(default_factory=dict)
+    _control_name_to_index: dict[str, int] = field(default_factory=dict)
+    _state_names: list[str] = field(default_factory=list)
+    _control_names: list[str] = field(default_factory=list)
+    _ordering_lock: threading.Lock = field(default_factory=threading.Lock)
+
+    # Parameters (simple dict is sufficient)
+    parameters: dict[str, Any] = field(default_factory=dict)
+
+    # Symbolic time variables
     sym_time: SymType | None = None
     sym_time_initial: SymType | None = None
     sym_time_final: SymType | None = None
-
-    # Variable metadata (maintained for compatibility)
-    states: dict[str, dict[str, Any]] = field(default_factory=dict)
-    controls: dict[str, dict[str, Any]] = field(default_factory=dict)
-    parameters: dict[str, Any] = field(default_factory=dict)
-
-    # OPTIMIZED: Pre-sorted access structures for O(1) performance
-    _ordered_state_names: list[str] = field(default_factory=list)
-    _ordered_control_names: list[str] = field(default_factory=list)
-    _ordered_state_symbols: list[SymType] = field(default_factory=list)
-    _ordered_control_symbols: list[SymType] = field(default_factory=list)
-    _state_name_to_index: dict[str, int] = field(default_factory=dict)
-    _control_name_to_index: dict[str, int] = field(default_factory=dict)
-    _ordering_lock: threading.Lock = field(default_factory=threading.Lock)
 
     # Expressions
     dynamics_expressions: dict[SymType, SymExpr] = field(default_factory=dict)
@@ -52,62 +77,98 @@ class VariableState:
     tf_bounds: tuple[float, float] = (1.0, 1.0)
 
     # ========================================================================
-    # OPTIMIZED ORDERING METHODS - O(1) performance instead of O(n log n)
+    # UNIFIED VARIABLE MANAGEMENT - Single source of truth
     # ========================================================================
 
-    def add_state_optimized(self, name: str, symbol: SymType, **metadata) -> None:
-        """Add state while maintaining optimized ordering."""
+    def add_state(
+        self,
+        name: str,
+        symbol: SymType,
+        initial_constraint: _BoundaryConstraint | None = None,
+        final_constraint: _BoundaryConstraint | None = None,
+        lower: float | None = None,
+        upper: float | None = None,
+    ) -> None:
+        """Add state variable to unified storage."""
         with self._ordering_lock:
             if name in self._state_name_to_index:
                 raise ValueError(f"State {name} already exists")
 
-            index = len(self._ordered_state_names)
+            index = len(self._state_names)
             self._state_name_to_index[name] = index
-            self._ordered_state_names.append(name)
-            self._ordered_state_symbols.append(symbol)
+            self._state_names.append(name)
 
-            # Update legacy structures for compatibility
-            self.states[name] = {"index": index, **metadata}
-            self.sym_states[name] = symbol
+            var_info = _VariableInfo(
+                symbol=symbol,
+                lower=lower,
+                upper=upper,
+                initial_constraint=initial_constraint,
+                final_constraint=final_constraint,
+            )
+            self._state_info.append(var_info)
 
-    def add_control_optimized(self, name: str, symbol: SymType, **metadata) -> None:
-        """Add control while maintaining optimized ordering."""
+    def add_control(
+        self,
+        name: str,
+        symbol: SymType,
+        lower: float | None = None,
+        upper: float | None = None,
+    ) -> None:
+        """Add control variable to unified storage."""
         with self._ordering_lock:
             if name in self._control_name_to_index:
                 raise ValueError(f"Control {name} already exists")
 
-            index = len(self._ordered_control_names)
+            index = len(self._control_names)
             self._control_name_to_index[name] = index
-            self._ordered_control_names.append(name)
-            self._ordered_control_symbols.append(symbol)
+            self._control_names.append(name)
 
-            # Update legacy structures for compatibility
-            self.controls[name] = {"index": index, **metadata}
-            self.sym_controls[name] = symbol
+            var_info = _VariableInfo(
+                symbol=symbol,
+                lower=lower,
+                upper=upper,
+            )
+            self._control_info.append(var_info)
 
-    def get_ordered_state_items(self) -> list[tuple[str, SymType]]:
-        """Get (name, symbol) pairs in O(1) time."""
-        return list(zip(self._ordered_state_names, self._ordered_state_symbols, strict=False))
-
-    def get_ordered_control_items(self) -> list[tuple[str, SymType]]:
-        """Get (name, symbol) pairs in O(1) time."""
-        return list(zip(self._ordered_control_names, self._ordered_control_symbols, strict=False))
+    # ========================================================================
+    # EFFICIENT ACCESS METHODS - Direct O(1) access
+    # ========================================================================
 
     def get_ordered_state_symbols(self) -> list[SymType]:
-        """Get state symbols in O(1) time."""
-        return self._ordered_state_symbols.copy()
+        """Get state symbols in order - O(1) access."""
+        return [info.symbol for info in self._state_info]
 
     def get_ordered_control_symbols(self) -> list[SymType]:
-        """Get control symbols in O(1) time."""
-        return self._ordered_control_symbols.copy()
+        """Get control symbols in order - O(1) access."""
+        return [info.symbol for info in self._control_info]
 
     def get_ordered_state_names(self) -> list[str]:
-        """Get state names in O(1) time."""
-        return self._ordered_state_names.copy()
+        """Get state names in order - O(1) access."""
+        return self._state_names.copy()
 
     def get_ordered_control_names(self) -> list[str]:
-        """Get control names in O(1) time."""
-        return self._ordered_control_names.copy()
+        """Get control names in order - O(1) access."""
+        return self._control_names.copy()
+
+    def get_state_bounds(self) -> list[tuple[float | None, float | None]]:
+        """Get state bounds in order."""
+        return [(info.lower, info.upper) for info in self._state_info]
+
+    def get_control_bounds(self) -> list[tuple[float | None, float | None]]:
+        """Get control bounds in order."""
+        return [(info.lower, info.upper) for info in self._control_info]
+
+    def get_state_initial_constraints(self) -> list[_BoundaryConstraint | None]:
+        """Get initial state constraints in order."""
+        return [info.initial_constraint for info in self._state_info]
+
+    def get_state_final_constraints(self) -> list[_BoundaryConstraint | None]:
+        """Get final state constraints in order."""
+        return [info.final_constraint for info in self._state_info]
+
+    def get_variable_counts(self) -> tuple[int, int]:
+        """Get (num_states, num_controls)."""
+        return len(self._state_info), len(self._control_info)
 
 
 @dataclass

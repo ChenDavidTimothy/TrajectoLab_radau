@@ -1,8 +1,6 @@
 """
-solution.py
-
-Simplified solution interface with direct data access and integrated plotting.
-No redundant data extraction - uses OptimalControlSolution directly.
+Solution interface - SIMPLIFIED.
+Removed ALL wrapper forwarding, uses direct field access with integrated plotting.
 """
 
 from typing import TypeAlias, cast
@@ -22,78 +20,68 @@ _TrajectoryTuple: TypeAlias = tuple[FloatArray, FloatArray]
 
 
 class Solution:
-    """
-    Simple, direct interface to optimal control solution with integrated plotting.
-    Uses OptimalControlSolution data directly - no redundant extraction.
-    """
+    """SIMPLIFIED solution interface with direct field access and integrated plotting."""
 
     def __init__(
         self, raw_solution: OptimalControlSolution | None, problem: ProblemProtocol | None
     ) -> None:
-        # Store references directly - no data copying
-        self._raw = raw_solution
-        self._problem = problem
+        # DIRECT FIELD ACCESS - No wrapper forwarding
+        if raw_solution is not None:
+            self.success = raw_solution.success
+            self.message = raw_solution.message
+            self.initial_time = raw_solution.initial_time_variable
+            self.final_time = raw_solution.terminal_time_variable
+            self.objective = raw_solution.objective
+            self.integrals = raw_solution.integrals
+            self.time_states = raw_solution.time_states
+            self.states = raw_solution.states
+            self.time_controls = raw_solution.time_controls
+            self.controls = raw_solution.controls
+            self.raw_solution = raw_solution.raw_solution
+            self.mesh_intervals = raw_solution.num_collocation_nodes_per_interval
+            self.mesh_nodes = raw_solution.global_normalized_mesh_nodes
+        else:
+            # Default empty solution
+            self.success = False
+            self.message = "No solution"
+            self.initial_time = None
+            self.final_time = None
+            self.objective = None
+            self.integrals = None
+            self.time_states = np.array([], dtype=np.float64)
+            self.states = []
+            self.time_controls = np.array([], dtype=np.float64)
+            self.controls = []
+            self.raw_solution = None
+            self.mesh_intervals = []
+            self.mesh_nodes = None
 
-        # Extract names for convenience
-        self._state_names = list(problem._states.keys()) if problem else []
-        self._control_names = list(problem._controls.keys()) if problem else []
+        # Extract variable names for trajectory access
+        if problem is not None:
+            self._state_names = problem.get_ordered_state_names()
+            self._control_names = problem.get_ordered_control_names()
 
-        # Create symbol→name maps for symbolic variable support
-        self._sym_to_name: dict[SymType, str] = {}
-        if problem and hasattr(problem, "_sym_states"):
-            self._sym_to_name.update({sym: name for name, sym in problem._sym_states.items()})
-        if problem and hasattr(problem, "_sym_controls"):
-            self._sym_to_name.update({sym: name for name, sym in problem._sym_controls.items()})
+            # Create symbol→name mapping for symbolic variable support
+            self._sym_to_name: dict[SymType, str] = {}
+            state_syms = problem.get_ordered_state_symbols()
+            control_syms = problem.get_ordered_control_symbols()
 
-    # =================================================================
-    # DIRECT PROPERTIES - No data re-extraction
-    # =================================================================
+            for name, sym in zip(self._state_names, state_syms, strict=False):
+                self._sym_to_name[sym] = name
+            for name, sym in zip(self._control_names, control_syms, strict=False):
+                self._sym_to_name[sym] = name
+        else:
+            self._state_names = []
+            self._control_names = []
+            self._sym_to_name = {}
 
-    @property
-    def success(self) -> bool:
-        """Whether solution was successful."""
-        return self._raw.success if self._raw else False
-
-    @property
-    def message(self) -> str:
-        """Solution status message."""
-        return self._raw.message if self._raw else "No solution"
-
-    @property
-    def initial_time(self) -> float | None:
-        """Initial time."""
-        return self._raw.initial_time_variable if self._raw else None
-
-    @property
-    def final_time(self) -> float | None:
-        """Final time."""
-        return self._raw.terminal_time_variable if self._raw else None
-
-    @property
-    def objective(self) -> float | None:
-        """Objective function value."""
-        return self._raw.objective if self._raw else None
-
-    @property
-    def integrals(self) -> float | FloatArray | None:
-        """Integral values."""
-        return self._raw.integrals if self._raw else None
-
-    # =================================================================
-    # TRAJECTORY ACCESS - Direct from OptimalControlSolution
-    # =================================================================
+    # ========================================================================
+    # TRAJECTORY ACCESS - Direct from stored data
+    # ========================================================================
 
     def get_trajectory(self, identifier: _VariableIdentifier) -> _TrajectoryTuple:
-        """
-        Get trajectory for any variable (state or control).
-
-        Args:
-            identifier: Variable name (str), index (int), or symbolic variable
-
-        Returns:
-            (time_array, values_array) tuple
-        """
-        if not self.success or not self._raw:
+        """Get trajectory for any variable (state or control)."""
+        if not self.success:
             print("Warning: Solution not successful")
             empty = np.array([], dtype=np.float64)
             return empty, empty
@@ -105,31 +93,25 @@ class Solution:
             empty = np.array([], dtype=np.float64)
             return empty, empty
 
-        # Get data directly from OptimalControlSolution
+        # Get data directly from stored fields
         if var_type == "state":
-            time_array = self._raw.time_states
+            time_array = self.time_states
             var_index = self._state_names.index(var_name)
-            values_array = self._raw.states[var_index]
+            values_array = self.states[var_index]
         else:  # control
-            time_array = self._raw.time_controls
+            time_array = self.time_controls
             var_index = self._control_names.index(var_name)
-            values_array = self._raw.controls[var_index]
+            values_array = self.controls[var_index]
 
         return time_array, values_array
 
     def _resolve_variable(self, identifier: _VariableIdentifier) -> tuple[str | None, str | None]:
-        """
-        Resolve variable identifier to (name, type).
-
-        Returns:
-            (variable_name, "state"|"control") or (None, None) if not found
-        """
+        """Resolve variable identifier to (name, type)."""
         # Handle symbolic variables
         if hasattr(identifier, "is_symbolic") or hasattr(identifier, "is_constant"):
-            # Cast to SymType for dictionary lookup since we know it's symbolic
             sym_identifier = cast(SymType, identifier)
             if sym_identifier in self._sym_to_name:
-                var_name = self._sym_to_name[sym_identifier]  # Fixed type handling
+                var_name = self._sym_to_name[sym_identifier]
             else:
                 return None, None
         else:
@@ -143,9 +125,9 @@ class Solution:
         else:
             return None, None
 
-    # =================================================================
-    # PLOTTING - Integrated, no separate module needed
-    # =================================================================
+    # ========================================================================
+    # INTEGRATED PLOTTING - No separate module needed
+    # ========================================================================
 
     def plot(self, figsize: tuple[float, float] = (10.0, 8.0)) -> None:
         """Plot all states and controls."""
@@ -259,51 +241,42 @@ class Solution:
 
     def _get_interval_colors(self) -> np.ndarray | None:
         """Get colors for mesh intervals."""
-        if not self._raw or not hasattr(self._raw, "global_normalized_mesh_nodes"):
+        if self.mesh_nodes is None or len(self.mesh_nodes) <= 1:
             return None
 
-        mesh_nodes = self._raw.global_normalized_mesh_nodes
-        if mesh_nodes is None or len(mesh_nodes) <= 1:
-            return None
-
-        num_intervals = len(mesh_nodes) - 1
+        num_intervals = len(self.mesh_nodes) - 1
         return plt.get_cmap("viridis")(np.linspace(0, 1, num_intervals))
 
     def _get_mesh_intervals(self) -> list[tuple[float, float]]:
         """Get mesh interval boundaries in physical time."""
-        if not self._raw or self.initial_time is None or self.final_time is None:
-            return []
-
-        mesh_norm = self._raw.global_normalized_mesh_nodes
-        if mesh_norm is None:
+        if self.mesh_nodes is None or self.initial_time is None or self.final_time is None:
             return []
 
         # Convert normalized mesh to physical time
         alpha = (self.final_time - self.initial_time) / 2.0
         alpha_0 = (self.final_time + self.initial_time) / 2.0
-        mesh_phys = alpha * mesh_norm + alpha_0
+        mesh_phys = alpha * self.mesh_nodes + alpha_0
 
         return [(mesh_phys[i], mesh_phys[i + 1]) for i in range(len(mesh_phys) - 1)]
 
-    def _add_mesh_legend(self, fig: MplFigure, colors: np.ndarray) -> None:  # Fixed parameter type
+    def _add_mesh_legend(self, fig: MplFigure, colors: np.ndarray) -> None:
         """Add mesh interval legend."""
-        if not self._raw or not hasattr(self._raw, "num_collocation_nodes_per_interval"):
-            return
-
-        poly_degrees = self._raw.num_collocation_nodes_per_interval
-        if poly_degrees is None:
+        if self.mesh_intervals is None:
             return
 
         handles = [
-            Line2D([0], [0], color=colors[k % len(colors)], lw=2) for k in range(len(poly_degrees))
+            Line2D([0], [0], color=colors[k % len(colors)], lw=2)
+            for k in range(len(self.mesh_intervals))
         ]
-        labels = [f"Interval {k} (N={poly_degrees[k]})" for k in range(len(poly_degrees))]
+        labels = [
+            f"Interval {k} (N={self.mesh_intervals[k]})" for k in range(len(self.mesh_intervals))
+        ]
 
         fig.legend(handles, labels, loc="upper right", title="Mesh Intervals")
 
-    # =================================================================
+    # ========================================================================
     # CONVENIENCE METHODS
-    # =================================================================
+    # ========================================================================
 
     def summary(self) -> None:
         """Print solution summary."""
@@ -313,9 +286,7 @@ class Solution:
             print(f"  Time: {self.initial_time} → {self.final_time}")
             print(f"  States: {len(self._state_names)}")
             print(f"  Controls: {len(self._control_names)}")
-            if self._raw and hasattr(self._raw, "global_normalized_mesh_nodes"):
-                mesh = self._raw.global_normalized_mesh_nodes
-                if mesh is not None:
-                    print(f"  Mesh intervals: {len(mesh) - 1}")
+            if self.mesh_nodes is not None:
+                print(f"  Mesh intervals: {len(self.mesh_nodes) - 1}")
         else:
             print(f"  Message: {self.message}")

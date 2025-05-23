@@ -1,5 +1,6 @@
 """
-Input validation utilities for the direct solver.
+Input validation utilities for the direct solver - SIMPLIFIED.
+Removed redundant validation patterns, consolidated validation logic.
 """
 
 import logging
@@ -10,12 +11,10 @@ import casadi as ca
 import numpy as np
 
 from .tl_types import (
-    CasadiMatrix,
     CasadiMX,
     CasadiOpti,
     FloatArray,
     InitialGuess,
-    InitialGuessIntegrals,
 )
 from .utils.constants import MESH_TOLERANCE, MINIMUM_TIME_INTERVAL, ZERO_TOLERANCE
 
@@ -26,7 +25,7 @@ T = TypeVar("T")
 
 
 def validate_dynamics_output(
-    output: list[CasadiMX] | CasadiMatrix | Sequence[CasadiMX], num_states: int
+    output: list[CasadiMX] | CasadiMX | Sequence[CasadiMX], num_states: int
 ) -> CasadiMX:
     """Validates and converts dynamics function output to the expected CasadiMX format."""
     if isinstance(output, list):
@@ -71,23 +70,12 @@ def _validate_array_values(array: FloatArray, name: str) -> None:
         raise ValueError(f"{name} has dtype {array.dtype}, expected float64")
 
 
-def validate_integral_values(integrals: InitialGuessIntegrals, num_integrals: int) -> None:
-    """
-    Validate integral values without setting them in CasADi.
-    Generic version that can be used by both direct solver and adaptive algorithm.
-
-    Args:
-        integrals: Integral values to validate
-        num_integrals: Expected number of integrals
-
-    Raises:
-        ValueError: If validation fails
-    """
+def validate_integral_values(integrals: float | FloatArray | None, num_integrals: int) -> None:
+    """Validate integral values - UNIFIED validation."""
     if integrals is None:
         return
 
     if num_integrals == 1:
-        # Type narrowing: ensure integrals is a scalar before validation
         if not isinstance(integrals, int | float):
             raise ValueError(f"For single integral, expected scalar, got {type(integrals)}")
         _validate_numeric_value(integrals, "Integral")
@@ -106,16 +94,7 @@ def validate_integral_values(integrals: InitialGuessIntegrals, num_integrals: in
 
 
 def validate_time_values(initial_time: float | None, terminal_time: float | None) -> None:
-    """
-    Validate actual time values (not bounds).
-
-    Args:
-        initial_time: Initial time value
-        terminal_time: Terminal time value
-
-    Raises:
-        ValueError: If validation fails
-    """
+    """Validate actual time values (not bounds)."""
     if initial_time is not None:
         _validate_numeric_value(initial_time, "Initial time")
 
@@ -135,17 +114,7 @@ def validate_trajectory_arrays(
     expected_shapes: list[tuple[int, int]],
     trajectory_type: str,
 ) -> None:
-    """
-    Validate trajectory arrays against expected shapes.
-
-    Args:
-        trajectories: List of trajectory arrays
-        expected_shapes: List of expected (num_vars, num_nodes) shapes
-        trajectory_type: "state" or "control" for error messages
-
-    Raises:
-        ValueError: If validation fails
-    """
+    """Validate trajectory arrays against expected shapes."""
     if len(trajectories) != len(expected_shapes):
         raise ValueError(
             f"{trajectory_type.capitalize()} trajectory count mismatch: "
@@ -171,20 +140,7 @@ def validate_initial_guess_structure(
     num_integrals: int,
     polynomial_degrees: list[int],
 ) -> None:
-    """
-    Validate the structure of an InitialGuess object.
-    Generic version that can be used by both direct solver and adaptive algorithm.
-
-    Args:
-        initial_guess: Initial guess to validate
-        num_states: Expected number of states
-        num_controls: Expected number of controls
-        num_integrals: Expected number of integrals
-        polynomial_degrees: Polynomial degrees per interval
-
-    Raises:
-        ValueError: If validation fails
-    """
+    """UNIFIED initial guess validation."""
     num_intervals = len(polynomial_degrees)
 
     # Validate time values
@@ -219,21 +175,10 @@ def validate_initial_guess_structure(
 def set_integral_guess_values(
     opti: CasadiOpti,
     integral_vars: CasadiMX,
-    guess: InitialGuessIntegrals,
+    guess: float | FloatArray | None,
     num_integrals: int,
 ) -> None:
-    """
-    Set initial guess values for integrals in CasADi optimization object.
-
-    Args:
-        opti: CasADi optimization object
-        integral_vars: CasADi integral variables
-        guess: Initial guess for integrals (must be pre-validated)
-        num_integrals: Number of integrals
-
-    Note:
-        This function assumes guess has already been validated.
-    """
+    """Set initial guess values for integrals in CasADi optimization object."""
     if guess is None:
         return
 
@@ -247,28 +192,12 @@ def set_integral_guess_values(
         opti.set_initial(integral_vars, guess_array.flatten())
 
 
-def _validate_bounds_ordering(bounds: tuple[float, float], name: str) -> None:
-    """Validate that bounds are properly ordered."""
-    if bounds[0] > bounds[1]:
-        raise ValueError(f"{name} bounds are invalid: {bounds}")
-
-
 def validate_mesh_configuration(
     polynomial_degrees: list[int],
     mesh_points: FloatArray,
     num_mesh_intervals: int,
 ) -> None:
-    """
-    Comprehensive mesh configuration validation.
-
-    Args:
-        polynomial_degrees: Polynomial degrees per interval
-        mesh_points: Normalized mesh points in [-1, 1]
-        num_mesh_intervals: Expected number of intervals
-
-    Raises:
-        ValueError: If any validation check fails
-    """
+    """UNIFIED mesh configuration validation."""
     # Check polynomial degrees count
     if len(polynomial_degrees) != num_mesh_intervals:
         raise ValueError(
@@ -307,56 +236,16 @@ def validate_mesh_configuration(
             )
 
 
-def validate_mesh_for_adaptive_algorithm(
-    polynomial_degrees: list[int],
-    mesh_points: FloatArray,
-    min_degree: int,
-    max_degree: int,
-) -> None:
-    """
-    Validate mesh configuration for adaptive algorithms with degree bounds.
-
-    Args:
-        polynomial_degrees: Polynomial degrees per interval
-        mesh_points: Normalized mesh points in [-1, 1]
-        min_degree: Minimum allowed polynomial degree
-        max_degree: Maximum allowed polynomial degree
-
-    Raises:
-        ValueError: If mesh configuration is invalid or degrees outside bounds
-    """
-    # First do basic mesh validation
-    validate_mesh_configuration(polynomial_degrees, mesh_points, len(polynomial_degrees))
-
-    # Additional degree bounds validation for adaptive algorithm
-    for i, degree in enumerate(polynomial_degrees):
-        if degree < min_degree:
-            raise ValueError(
-                f"Polynomial degree {degree} for interval {i} is below minimum {min_degree}"
-            )
-        if degree > max_degree:
-            raise ValueError(
-                f"Polynomial degree {degree} for interval {i} is above maximum {max_degree}"
-            )
-
-
 def validate_time_bounds(
     t0_bounds: tuple[float, float],
     tf_bounds: tuple[float, float],
 ) -> None:
-    """
-    Validate time bound constraints.
-
-    Args:
-        t0_bounds: (min_t0, max_t0) bounds for initial time
-        tf_bounds: (min_tf, max_tf) bounds for final time
-
-    Raises:
-        ValueError: If time bounds are invalid
-    """
+    """Validate time bound constraints."""
     # Check bound ordering
-    _validate_bounds_ordering(t0_bounds, "Initial time")
-    _validate_bounds_ordering(tf_bounds, "Final time")
+    if t0_bounds[0] > t0_bounds[1]:
+        raise ValueError(f"Initial time bounds are invalid: {t0_bounds}")
+    if tf_bounds[0] > tf_bounds[1]:
+        raise ValueError(f"Final time bounds are invalid: {tf_bounds}")
 
     # Check if valid time duration is possible
     max_possible_duration = tf_bounds[1] - t0_bounds[0]
@@ -386,17 +275,7 @@ def validate_interval_length(
     interval_end: float,
     interval_index: int,
 ) -> None:
-    """
-    Validate that an interval has sufficient length.
-
-    Args:
-        interval_start: Start of interval
-        interval_end: End of interval
-        interval_index: Index of interval for error reporting
-
-    Raises:
-        ValueError: If interval length is insufficient
-    """
+    """Validate that an interval has sufficient length."""
     interval_length = interval_end - interval_start
     if interval_length <= MESH_TOLERANCE:
         raise ValueError(
@@ -410,17 +289,7 @@ def validate_problem_dimensions(
     num_controls: int,
     num_integrals: int,
 ) -> None:
-    """
-    Validate problem dimension parameters.
-
-    Args:
-        num_states: Number of state variables
-        num_controls: Number of control variables
-        num_integrals: Number of integral variables
-
-    Raises:
-        ValueError: If dimensions are invalid
-    """
+    """Validate problem dimension parameters."""
     if num_states < 0:
         raise ValueError(f"Number of states must be non-negative, got {num_states}")
 

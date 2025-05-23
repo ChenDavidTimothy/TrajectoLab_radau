@@ -113,7 +113,7 @@ def _process_mesh_intervals(
     accumulated_integral_expressions: list[CasadiMX],
 ) -> None:
     """Process each mesh interval to set up constraints and integrals."""
-    num_states = len(problem._states)
+    num_states, _ = problem.get_variable_counts()
     num_integrals = problem._num_integrals
     dynamics_function = problem.get_dynamics_function()
     path_constraints_function = problem.get_path_constraints_function()

@@ -1,5 +1,6 @@
 """
-PHS adaptive algorithm implementation as a pure function.
+PHS adaptive algorithm implementation as a pure function - SIMPLIFIED.
+Updated to use unified storage system throughout.
 """
 
 import logging
@@ -86,32 +87,35 @@ def _validate_mesh_configuration(
 def _extract_solution_trajectories(
     solution: OptimalControlSolution, problem: ProblemProtocol, polynomial_degrees: list[int]
 ) -> None:
-    """Extract state and control trajectories from the solution."""
+    """Extract state and control trajectories from the solution using unified storage."""
     if solution.raw_solution is None or solution.opti_object is None:
         raise ValueError("Missing raw solution or opti object")
 
     opti = solution.opti_object
     raw_sol = solution.raw_solution
 
+    # Get variable counts from unified storage
+    num_states, num_controls = problem.get_variable_counts()
+
     # Extract state trajectories
     if hasattr(opti, "state_at_local_approximation_nodes_all_intervals_variables"):
         solution.solved_state_trajectories_per_interval = [
             extract_and_prepare_array(
                 raw_sol.value(var),
-                len(problem._states),
+                num_states,
                 polynomial_degrees[i] + 1,
             )
             for i, var in enumerate(opti.state_at_local_approximation_nodes_all_intervals_variables)
         ]
 
     # Extract control trajectories
-    if len(problem._controls) > 0 and hasattr(
+    if num_controls > 0 and hasattr(
         opti, "control_at_local_collocation_nodes_all_intervals_variables"
     ):
         solution.solved_control_trajectories_per_interval = [
             extract_and_prepare_array(
                 raw_sol.value(var),
-                len(problem._controls),
+                num_controls,
                 polynomial_degrees[i],
             )
             for i, var in enumerate(opti.control_at_local_collocation_nodes_all_intervals_variables)
@@ -128,7 +132,7 @@ def _create_interpolants(
     problem: ProblemProtocol,
     polynomial_degrees: list[int],
 ) -> tuple[list[StateEvaluator | None], list[ControlEvaluator | None]]:
-    """Create state and control interpolants for all intervals."""
+    """Create state and control interpolants for all intervals using unified storage."""
     num_intervals = len(polynomial_degrees)
     basis_cache: dict[int, RadauBasisComponents] = {}
     control_weights_cache: dict[int, FloatArray] = {}
@@ -141,8 +145,11 @@ def _create_interpolants(
     if states_list is None:
         raise ValueError("Missing state trajectories for interpolant creation")
 
-    if controls_list is None and len(problem._controls) > 0:
-        raise ValueError("Missing control trajectories for interpolant creation")
+    if controls_list is None:
+        # Get variable counts from unified storage
+        _, num_controls = problem.get_variable_counts()
+        if num_controls > 0:
+            raise ValueError("Missing control trajectories for interpolant creation")
 
     for k in range(num_intervals):
         try:
@@ -163,7 +170,9 @@ def _create_interpolants(
             )
 
             # Create control interpolant
-            if len(problem._controls) > 0 and controls_list is not None:
+            # Get variable counts from unified storage
+            _, num_controls = problem.get_variable_counts()
+            if num_controls > 0 and controls_list is not None:
                 control_data = controls_list[k]
 
                 if N_k not in control_weights_cache:
@@ -187,16 +196,20 @@ def _create_interpolants(
             logger.warning(f"Error creating interpolant for interval {k}: {e}")
             # Create fallback interpolants
             if state_evaluators[k] is None:
+                # Get variable counts from unified storage
+                num_states, _ = problem.get_variable_counts()
                 state_evaluators[k] = PolynomialInterpolant(
                     np.array([-1.0, 1.0], dtype=np.float64),
-                    np.full((len(problem._states), 2), np.nan, dtype=np.float64),
+                    np.full((num_states, 2), np.nan, dtype=np.float64),
                     None,
                 )
             if control_evaluators[k] is None:
+                # Get variable counts from unified storage
+                _, num_controls = problem.get_variable_counts()
                 control_evaluators[k] = PolynomialInterpolant(
                     np.array([-1.0, 1.0], dtype=np.float64),
                     np.full(
-                        (len(problem._controls) if len(problem._controls) > 0 else 0, 2),
+                        (num_controls if num_controls > 0 else 0, 2),
                         np.nan,
                         dtype=np.float64,
                     ),
@@ -313,11 +326,13 @@ def _refine_mesh(
             control_eval_second = control_evaluators[k + 1]
 
             # Check if merge is possible
+            # Get variable counts from unified storage
+            _, num_controls = problem.get_variable_counts()
             if (
                 state_eval_first is not None
                 and state_eval_second is not None
                 and (
-                    len(problem._controls) == 0
+                    num_controls == 0
                     or (control_eval_first is not None and control_eval_second is not None)
                 )
             ):
@@ -442,7 +457,8 @@ def solve_phs_adaptive_internal(
     ode_max_step: float | None = None,  # NEW
 ) -> OptimalControlSolution:
     """
-    Internal PHS-Adaptive mesh refinement algorithm implementation.
+    Internal PHS-Adaptive mesh refinement algorithm implementation - SIMPLIFIED.
+    Updated to use unified storage system throughout.
     """
     # Configure local logger
     logger = logging.getLogger("trajectolab.adaptive.phs")
@@ -537,7 +553,9 @@ def solve_phs_adaptive_internal(
 
         # Calculate gamma normalization factors
         gamma_factors = calculate_gamma_normalizers(solution, problem)
-        if gamma_factors is None and len(problem._states) > 0:
+        # Get variable counts from unified storage
+        num_states, _ = problem.get_variable_counts()
+        if gamma_factors is None and num_states > 0:
             error_msg = f"Failed to calculate gamma normalizers at iteration {iteration}"
             logger.error(error_msg)
             solution.message = error_msg
@@ -548,7 +566,7 @@ def solve_phs_adaptive_internal(
         safe_gamma = (
             gamma_factors
             if gamma_factors is not None
-            else np.ones((len(problem._states), 1), dtype=np.float64)
+            else np.ones((num_states, 1), dtype=np.float64)
         )
 
         # Create interpolants

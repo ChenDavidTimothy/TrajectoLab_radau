@@ -1,6 +1,6 @@
 """
-Initial guess handling for the PHS adaptive algorithm.
-OPTIMIZED: Aggressive interpolation with memory pooling for massive performance gains.
+Initial guess handling for the PHS adaptive algorithm - SIMPLIFIED.
+Updated to use unified storage system and simplified memory pooling.
 """
 
 import logging
@@ -36,9 +36,8 @@ def _interpolate_trajectory_to_new_mesh_optimized(
     is_state_trajectory: bool = True,
 ) -> list[FloatArray]:
     """
-    OPTIMIZED: Interpolate trajectory data using memory pooling for massive speedup.
-
-    PERFORMANCE IMPROVEMENT: 50-90% memory reduction, 2-5x speed improvement.
+    OPTIMIZED interpolation using memory pooling - SIMPLIFIED.
+    Updated to use unified storage system and type system.
     """
     trajectory_type = "state" if is_state_trajectory else "control"
     logger.info(f"    OPTIMIZED interpolation of {trajectory_type} trajectories:")
@@ -57,7 +56,7 @@ def _interpolate_trajectory_to_new_mesh_optimized(
                 f"polynomial degrees count ({len(prev_polynomial_degrees)})"
             )
 
-        # OPTIMIZED: Use memory pool context for automatic buffer management
+        # Use memory pool context for automatic buffer management
         with create_buffer_context() as buffer_pool:
             # Create polynomial interpolants for each interval in previous solution
             prev_interpolants = []
@@ -97,7 +96,7 @@ def _interpolate_trajectory_to_new_mesh_optimized(
                     logger.error(f"        Interval {k}: Failed to create interpolant: {e}")
                     raise ValueError(f"Failed to create interpolant for interval {k}: {e}") from e
 
-            # OPTIMIZED: Interpolate trajectory values for each target interval using pooled memory
+            # Interpolate trajectory values for each target interval using pooled memory
             target_trajectories = []
 
             for k, N_k_target in enumerate(target_polynomial_degrees):
@@ -113,14 +112,14 @@ def _interpolate_trajectory_to_new_mesh_optimized(
                     target_local_nodes = target_basis.collocation_nodes
                     num_target_nodes = N_k_target
 
-                # OPTIMIZED: Get pooled buffer instead of allocating new memory
+                # Get pooled buffer instead of allocating new memory
                 target_traj_k = buffer_pool.get_buffer((num_variables, num_target_nodes))
 
                 # Global interval boundaries for target interval k
                 target_tau_start = target_mesh_points[k]
                 target_tau_end = target_mesh_points[k + 1]
 
-                # OPTIMIZED: Vectorized evaluation where possible
+                # Vectorized evaluation where possible
                 global_tau_points = np.array(
                     [
                         map_local_interval_tau_to_global_normalized_tau(
@@ -187,7 +186,7 @@ def _interpolate_trajectory_to_new_mesh_optimized(
                         logger.error(f"        {error_msg}")
                         raise ValueError(error_msg) from e
 
-                # OPTIMIZED: Copy result from pooled buffer to permanent storage
+                # Copy result from pooled buffer to permanent storage
                 result_array = np.array(target_traj_k, dtype=np.float64, copy=True)
                 target_trajectories.append(result_array)
                 logger.debug(
@@ -212,7 +211,7 @@ def _find_containing_interval(global_tau: float, mesh_points: FloatArray) -> int
     if global_tau > mesh_points[-1] + tolerance:
         return None
 
-    # OPTIMIZED: Use binary search for large meshes
+    # Use binary search for large meshes
     if len(mesh_points) > 10:
         idx = int(np.searchsorted(mesh_points, global_tau)) - 1
         if 0 <= idx < len(mesh_points) - 1:
@@ -233,9 +232,8 @@ def propagate_solution_to_new_mesh(
     target_mesh_points: FloatArray,
 ) -> InitialGuess:
     """
-    OPTIMIZED: Aggressively propagate solution using memory pooling and caching.
-
-    PERFORMANCE IMPROVEMENT: Massive memory savings and speedup via optimized interpolation.
+    OPTIMIZED solution propagation using unified storage and memory pooling - SIMPLIFIED.
+    Updated to use unified storage system.
     """
     logger.info("  Starting OPTIMIZED aggressive interpolation-based propagation...")
 
@@ -273,16 +271,15 @@ def propagate_solution_to_new_mesh(
             else:
                 logger.info(f"    Propagated integrals: {len(integrals_guess)} values")
 
-        # Get problem dimensions
-        num_states = len(problem._states)
-        num_controls = len(problem._controls)
+        # Get problem dimensions using unified storage
+        num_states, num_controls = problem.get_variable_counts()
 
         logger.info(f"    Problem dimensions: {num_states} states, {num_controls} controls")
         logger.info(
             f"    Mesh transition: {len(prev_degrees)} → {len(target_polynomial_degrees)} intervals"
         )
 
-        # OPTIMIZED: Use memory-pooled interpolation for massive performance gains
+        # Use memory-pooled interpolation for massive performance gains
         states_guess = _interpolate_trajectory_to_new_mesh_optimized(
             prev_trajectory_per_interval=prev_states,
             prev_mesh_points=prev_mesh,
@@ -312,7 +309,7 @@ def propagate_solution_to_new_mesh(
             integrals=integrals_guess,
         )
 
-        # VALIDATE the interpolated initial guess using existing validation infrastructure
+        # Validate the interpolated initial guess using existing validation infrastructure
         logger.info("  Validating interpolated initial guess...")
         validate_initial_guess_structure(
             initial_guess=initial_guess,

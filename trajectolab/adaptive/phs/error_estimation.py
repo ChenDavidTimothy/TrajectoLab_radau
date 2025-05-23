@@ -1,5 +1,6 @@
 """
-Error estimation functions for the PHS adaptive algorithm.
+Error estimation functions for the PHS adaptive algorithm - SIMPLIFIED.
+Updated to use unified storage system and type system.
 """
 
 import logging
@@ -90,8 +91,8 @@ def simulate_dynamics_for_error_estimation(
     n_eval_points: int = 50,
 ) -> IntervalSimulationBundle:
     """
-    Simulates dynamics forward and backward for error estimation.
-    ODE solver is now user-configurable per specification Section 4.4.
+    Simulates dynamics forward and backward for error estimation - SIMPLIFIED.
+    Updated to use unified storage system.
     """
     result = IntervalSimulationBundle(are_forward_and_backward_simulations_successful=False)
 
@@ -99,7 +100,8 @@ def simulate_dynamics_for_error_estimation(
         logger.warning(f"NLP solution unsuccessful for interval {interval_idx}")
         return result
 
-    num_states = len(problem._states)
+    # Get variable counts from unified storage
+    num_states, num_controls = problem.get_variable_counts()
     casadi_dynamics_function = problem.get_dynamics_function()
     problem_parameters = problem._parameters
 
@@ -275,11 +277,12 @@ def calculate_relative_error_estimate(
 def calculate_gamma_normalizers(
     solution: "OptimalControlSolution", problem: ProblemProtocol
 ) -> GammaFactors | None:
-    """Calculates gamma_i normalization factors for error estimation."""
+    """Calculates gamma_i normalization factors for error estimation - SIMPLIFIED."""
     if not solution.success or solution.raw_solution is None:
         return None
 
-    num_states = len(problem._states)
+    # Get variable counts from unified storage
+    num_states, _ = problem.get_variable_counts()
     if num_states == 0:
         return np.array([], dtype=np.float64).reshape(0, 1)
 

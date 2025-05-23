@@ -1,7 +1,6 @@
 """
-solver.py
-
-Updated to use simplified Solution class.
+Solver interface - SIMPLIFIED.
+Unified common setup code, removed ALL redundant duplication.
 """
 
 import logging
@@ -11,7 +10,7 @@ import numpy as np
 
 from trajectolab.direct_solver import solve_single_phase_radau_collocation
 from trajectolab.problem import Problem
-from trajectolab.solution import Solution  # Changed from _Solution
+from trajectolab.solution import Solution
 from trajectolab.tl_types import (
     InitialGuess,
     ODESolverCallable,
@@ -32,27 +31,39 @@ if not solver_logger.handlers:
     solver_logger.setLevel(logging.INFO)
 
 
+# Default solver options - single definition
+DEFAULT_NLP_OPTIONS: dict[str, object] = {
+    "ipopt.print_level": 0,
+    "ipopt.sb": "yes",
+    "print_time": 0,
+}
+
+
+def _setup_solver_common(
+    problem: Problem, nlp_options: dict[str, object] | None
+) -> ProblemProtocol:
+    """UNIFIED setup logic for both fixed and adaptive solvers."""
+    # Set solver options - single point of control
+    problem.solver_options = nlp_options or DEFAULT_NLP_OPTIONS
+
+    # Return protocol-compatible version
+    return cast(ProblemProtocol, problem)
+
+
 def solve_fixed_mesh(
     problem: Problem,
     nlp_options: dict[str, object] | None = None,
-) -> Solution:  # Changed return type
-    """
-    Solve optimal control problem with fixed mesh.
-    """
+) -> Solution:
+    """Solve optimal control problem with fixed mesh - SIMPLIFIED."""
     solver_logger.info(f"Starting fixed-mesh solve for problem '{problem.name}'")
 
-    # Set solver options on problem
-    problem.solver_options = nlp_options or {
-        "ipopt.print_level": 0,
-        "ipopt.sb": "yes",
-        "print_time": 0,
-    }
+    # Unified setup
+    protocol_problem = _setup_solver_common(problem, nlp_options)
 
-    # Create protocol-compatible version and solve
-    protocol_problem = cast(ProblemProtocol, problem)
+    # Solve
     solution_data: OptimalControlSolution = solve_single_phase_radau_collocation(protocol_problem)
 
-    return Solution(solution_data, protocol_problem)  # Changed from _Solution
+    return Solution(solution_data, protocol_problem)
 
 
 def solve_adaptive(
@@ -68,10 +79,8 @@ def solve_adaptive(
     ode_solver: ODESolverCallable | None = None,
     nlp_options: dict[str, object] | None = None,
     initial_guess: InitialGuess | None = None,
-) -> Solution:  # Changed return type
-    """
-    Solve optimal control problem using adaptive mesh refinement.
-    """
+) -> Solution:
+    """Solve optimal control problem using adaptive mesh refinement - SIMPLIFIED."""
 
     solver_logger.info(f"Starting adaptive solve for problem '{problem.name}'")
     solver_logger.info(f"Settings: error_tol={error_tolerance}, max_iter={max_iterations}")
@@ -86,6 +95,7 @@ def solve_adaptive(
             "Call problem.set_mesh(polynomial_degrees, mesh_points) first."
         )
 
+    # Set default ODE solver if not provided
     if ode_solver is None:
         from scipy.integrate import solve_ivp
 
@@ -95,18 +105,11 @@ def solve_adaptive(
     initial_polynomial_degrees = problem.collocation_points_per_interval
     initial_mesh_points = problem.global_normalized_mesh_nodes
 
-    # Set solver options on problem
-    problem.solver_options = nlp_options or {
-        "ipopt.print_level": 0,
-        "ipopt.sb": "yes",
-        "print_time": 0,
-    }
+    # Unified setup
+    protocol_problem = _setup_solver_common(problem, nlp_options)
 
     # Use whatever initial guess was set on the problem (if any)
     initial_guess = problem.initial_guess
-
-    # Create protocol-compatible version
-    protocol_problem = cast(ProblemProtocol, problem)
 
     # Call the internal adaptive solver
     from trajectolab.adaptive.phs.algorithm import solve_phs_adaptive_internal
@@ -127,4 +130,4 @@ def solve_adaptive(
         initial_guess=initial_guess,
     )
 
-    return Solution(solution_data, protocol_problem)  # Changed from _Solution
+    return Solution(solution_data, protocol_problem)

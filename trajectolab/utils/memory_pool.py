@@ -1,11 +1,10 @@
 """
-Memory pool system for optimal trajectory interpolation.
-PERFORMANCE CRITICAL: Reduces memory allocations by 50-90%.
+Memory pool system for optimal trajectory interpolation - SIMPLIFIED.
+Reduced complexity while maintaining 50-90% memory allocation reduction.
 """
 
 import threading
 from dataclasses import dataclass
-from typing import Any
 
 import numpy as np
 
@@ -17,27 +16,21 @@ class BufferPoolConfig:
     """Configuration for buffer pool."""
 
     max_buffers_per_shape: int = 10
-    cleanup_threshold: int = 100
     enable_statistics: bool = False
 
 
 class InterpolationBufferPool:
-    """Thread-safe buffer pool for trajectory interpolation with massive memory savings."""
+    """SIMPLIFIED thread-safe buffer pool for trajectory interpolation."""
 
     def __init__(self, config: BufferPoolConfig | None = None):
         self._config = config or BufferPoolConfig()
         self._buffers: dict[tuple[int, int], list[FloatArray]] = {}
-        self._in_use: dict[int, tuple[int, int]] = {}  # buffer_id -> shape
-        self._next_id = 0
+        self._in_use: set[int] = set()  # Simplified tracking
         self._lock = threading.Lock()
         self._stats = {"allocations": 0, "reuses": 0, "total_requested": 0}
 
-    def get_buffer(self, shape: tuple[int, int]) -> tuple[FloatArray, int]:
-        """Get reusable buffer of specified shape.
-
-        Returns:
-            (buffer, buffer_id) tuple for tracking
-        """
+    def get_buffer(self, shape: tuple[int, int]) -> FloatArray:
+        """Get reusable buffer of specified shape - SIMPLIFIED interface."""
         with self._lock:
             self._stats["total_requested"] += 1
 
@@ -50,35 +43,32 @@ class InterpolationBufferPool:
             for buffer in buffers:
                 buffer_id = id(buffer)
                 if buffer_id not in self._in_use:
-                    self._in_use[buffer_id] = shape
+                    self._in_use.add(buffer_id)
                     buffer.fill(0.0)  # Clear for reuse
                     self._stats["reuses"] += 1
-                    return buffer, buffer_id
+                    return buffer
 
             # Create new buffer if none available and under limit
             if len(buffers) < self._config.max_buffers_per_shape:
                 new_buffer = np.zeros(shape, dtype=np.float64)
                 buffers.append(new_buffer)
                 buffer_id = id(new_buffer)
-                self._in_use[buffer_id] = shape
+                self._in_use.add(buffer_id)
                 self._stats["allocations"] += 1
-                return new_buffer, buffer_id
+                return new_buffer
 
             # Fallback: create temporary buffer (not pooled)
             temp_buffer = np.zeros(shape, dtype=np.float64)
             self._stats["allocations"] += 1
-            return temp_buffer, -1  # -1 indicates temporary buffer
+            return temp_buffer
 
-    def return_buffer(self, buffer_id: int) -> None:
-        """Return buffer to pool for reuse."""
-        if buffer_id == -1:  # Temporary buffer, ignore
-            return
-
+    def return_buffer(self, buffer: FloatArray) -> None:
+        """Return buffer to pool for reuse - SIMPLIFIED interface."""
+        buffer_id = id(buffer)
         with self._lock:
-            if buffer_id in self._in_use:
-                del self._in_use[buffer_id]
+            self._in_use.discard(buffer_id)  # Safe removal
 
-    def get_statistics(self) -> dict[str, Any]:
+    def get_statistics(self) -> dict[str, float]:
         """Get pool usage statistics."""
         with self._lock:
             total_buffers = sum(len(buffers) for buffers in self._buffers.values())
@@ -89,41 +79,27 @@ class InterpolationBufferPool:
                 "reuse_rate": (self._stats["reuses"] / max(1, self._stats["total_requested"])),
             }
 
-    def cleanup_unused_buffers(self) -> None:
-        """Clean up unused buffers to free memory."""
-        with self._lock:
-            for shape, buffers in list(self._buffers.items()):
-                # Keep only buffers that are in use or a few spare ones
-                in_use_buffers = [buf for buf in buffers if id(buf) in self._in_use]
-                spare_count = min(2, self._config.max_buffers_per_shape // 2)
-                available_buffers = [buf for buf in buffers if id(buf) not in self._in_use][
-                    :spare_count
-                ]
-
-                self._buffers[shape] = in_use_buffers + available_buffers
-
 
 class BufferPoolContext:
-    """Context manager for buffer pool usage."""
+    """SIMPLIFIED context manager for buffer pool usage."""
 
     def __init__(self, pool: InterpolationBufferPool):
         self._pool = pool
-        self._acquired_buffers: list[int] = []
+        self._acquired_buffers: list[FloatArray] = []
 
     def __enter__(self) -> "BufferPoolContext":
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         # Return all acquired buffers
-        for buffer_id in self._acquired_buffers:
-            self._pool.return_buffer(buffer_id)
+        for buffer in self._acquired_buffers:
+            self._pool.return_buffer(buffer)
         self._acquired_buffers.clear()
 
     def get_buffer(self, shape: tuple[int, int]) -> FloatArray:
         """Get buffer and track for automatic cleanup."""
-        buffer, buffer_id = self._pool.get_buffer(shape)
-        if buffer_id != -1:  # Only track pooled buffers
-            self._acquired_buffers.append(buffer_id)
+        buffer = self._pool.get_buffer(shape)
+        self._acquired_buffers.append(buffer)
         return buffer
 
 

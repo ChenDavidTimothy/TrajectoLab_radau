@@ -1,5 +1,6 @@
 """
-Core data structures for the PHS adaptive algorithm.
+Core data structures for the PHS adaptive algorithm - SIMPLIFIED.
+Updated to use unified type system and storage.
 """
 
 import logging
@@ -8,7 +9,7 @@ from typing import Any
 
 import numpy as np
 
-from trajectolab.tl_types import FloatArray, FloatMatrix, ODESolverCallable
+from trajectolab.tl_types import FloatArray, ODESolverCallable
 
 
 __all__ = [
@@ -31,28 +32,25 @@ class AdaptiveParameters:
     max_iterations: int
     min_polynomial_degree: int
     max_polynomial_degree: int
-    ode_solver_tolerance: float = 1e-7  # Already exists - reuse this
+    ode_solver_tolerance: float = 1e-7
     num_error_sim_points: int = 50
-    ode_method: str = "RK45"  # NEW: Simple method selection
-    ode_max_step: float | None = None  # NEW: Optional step size limit
-    ode_solver: ODESolverCallable | None = None  # Advanced users only
+    ode_method: str = "RK45"
+    ode_max_step: float | None = None
+    ode_solver: ODESolverCallable | None = None
 
     def get_ode_solver(self) -> ODESolverCallable:
         """Get the configured ODE solver function."""
         if self.ode_solver is not None:
-            # Advanced user provided custom solver - use it
             return self.ode_solver
 
         # Create solver with user's simple parameters
         from scipy.integrate import solve_ivp
 
         def configured_solver(fun, t_span, y0, t_eval=None, **kwargs):
-            # Use user's method and tolerance settings
             kwargs.setdefault("method", self.ode_method)
             kwargs.setdefault("rtol", self.ode_solver_tolerance)
             kwargs.setdefault("atol", self.ode_solver_tolerance * 1e-2)
 
-            # Optional step size limit
             if self.ode_max_step is not None:
                 kwargs.setdefault("max_step", self.ode_max_step)
 
@@ -66,11 +64,11 @@ class IntervalSimulationBundle:
     """Holds results from forward/backward simulations for error estimation."""
 
     forward_simulation_local_tau_evaluation_points: FloatArray | None = None
-    state_trajectory_from_forward_simulation: FloatMatrix | None = None
-    nlp_state_trajectory_evaluated_at_forward_simulation_points: FloatMatrix | None = None
+    state_trajectory_from_forward_simulation: FloatArray | None = None
+    nlp_state_trajectory_evaluated_at_forward_simulation_points: FloatArray | None = None
     backward_simulation_local_tau_evaluation_points: FloatArray | None = None
-    state_trajectory_from_backward_simulation: FloatMatrix | None = None
-    nlp_state_trajectory_evaluated_at_backward_simulation_points: FloatMatrix | None = None
+    state_trajectory_from_backward_simulation: FloatArray | None = None
+    nlp_state_trajectory_evaluated_at_backward_simulation_points: FloatArray | None = None
     are_forward_and_backward_simulations_successful: bool = True
 
     def __post_init__(self) -> None:
@@ -114,11 +112,10 @@ class PReduceResult:
 
 def extract_and_prepare_array(
     casadi_value: Any, expected_rows: int, expected_cols: int
-) -> FloatMatrix:
+) -> FloatArray:
     """
     Extracts numerical value from CasADi and ensures correct 2D shape.
-
-    This function consolidates array extraction logic used throughout the adaptive algorithm.
+    Updated to use unified FloatArray type.
     """
     # Convert to numpy array
     if hasattr(casadi_value, "to_DM"):

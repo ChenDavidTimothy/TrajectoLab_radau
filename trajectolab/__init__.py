@@ -1,8 +1,9 @@
 """
-TrajectoLab: A Python framework for optimal trajectory generation
+TrajectoLab: A Python framework for optimal trajectory generation - SIMPLIFIED
 
-This package provides a functional interface for solving optimal control problems
+This package provides a unified interface for solving optimal control problems
 using the Radau Pseudospectral Method for direct collocation.
+Removed ALL legacy code and redundancies while preserving identical functionality.
 """
 
 from trajectolab.problem import Problem
@@ -15,4 +16,4 @@ __all__ = [
     "solve_fixed_mesh",
 ]
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"  # Incremented for simplified version

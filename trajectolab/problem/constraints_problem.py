@@ -1,5 +1,6 @@
 """
-Constraint management functions for optimal control problems.
+Constraint management functions for optimal control problems - SIMPLIFIED.
+Removed ALL legacy code, uses only unified storage system.
 """
 
 from __future__ import annotations
@@ -77,32 +78,29 @@ def _symbolic_constraint_to_constraint(expr: SymExpr) -> Constraint:
 def get_path_constraints_function(
     constraint_state: ConstraintState, variable_state: VariableState
 ) -> PathConstraintsCallable | None:
-    """Get path constraints function for solver with efficient ordering."""
+    """Get path constraints function for solver using unified storage."""
 
     # Filter path constraints
     path_constraints = [
         expr for expr in constraint_state.constraints if _is_path_constraint(expr, variable_state)
     ]
 
-    # Check for variable bounds
-    has_bounds = any(
-        variable_state.states[s].get("lower") is not None
-        or variable_state.states[s].get("upper") is not None
-        for s in variable_state.states
-    ) or any(
-        variable_state.controls[c].get("lower") is not None
-        or variable_state.controls[c].get("upper") is not None
-        for c in variable_state.controls
+    # Check for variable bounds using unified storage
+    state_bounds = variable_state.get_state_bounds()
+    control_bounds = variable_state.get_control_bounds()
+
+    has_state_bounds = any(lower is not None or upper is not None for lower, upper in state_bounds)
+    has_control_bounds = any(
+        lower is not None or upper is not None for lower, upper in control_bounds
     )
+    has_bounds = has_state_bounds or has_control_bounds
 
     if not path_constraints and not has_bounds:
         return None
 
-    # EFFICIENT: Get ordered symbols directly
+    # Get ordered symbols and names
     state_syms = variable_state.get_ordered_state_symbols()
     control_syms = variable_state.get_ordered_control_symbols()
-
-    # EFFICIENT: Get ordered names directly
     state_names = variable_state.get_ordered_state_names()
     control_names = variable_state.get_ordered_control_names()
 
@@ -136,22 +134,19 @@ def get_path_constraints_function(
             )[0]
             result.append(_symbolic_constraint_to_constraint(substituted_expr))
 
-        # EFFICIENT: Use ordered names directly
-        # Add state bounds
-        for i, name in enumerate(state_names):
-            state_def = variable_state.states[name]
-            if state_def.get("lower") is not None:
-                result.append(Constraint(val=states_vec[i], min_val=state_def["lower"]))
-            if state_def.get("upper") is not None:
-                result.append(Constraint(val=states_vec[i], max_val=state_def["upper"]))
+        # Add state bounds using unified storage
+        for i, (lower, upper) in enumerate(state_bounds):
+            if lower is not None:
+                result.append(Constraint(val=states_vec[i], min_val=lower))
+            if upper is not None:
+                result.append(Constraint(val=states_vec[i], max_val=upper))
 
-        # Add control bounds
-        for i, name in enumerate(control_names):
-            control_def = variable_state.controls[name]
-            if control_def.get("lower") is not None:
-                result.append(Constraint(val=controls_vec[i], min_val=control_def["lower"]))
-            if control_def.get("upper") is not None:
-                result.append(Constraint(val=controls_vec[i], max_val=control_def["upper"]))
+        # Add control bounds using unified storage
+        for i, (lower, upper) in enumerate(control_bounds):
+            if lower is not None:
+                result.append(Constraint(val=controls_vec[i], min_val=lower))
+            if upper is not None:
+                result.append(Constraint(val=controls_vec[i], max_val=upper))
 
         return result
 
@@ -159,10 +154,12 @@ def get_path_constraints_function(
 
 
 def _has_initial_or_final_state_constraints(variable_state: VariableState) -> bool:
-    """Check if there are initial or final state constraints."""
-    return any(
-        s.get("initial_constraint") is not None or s.get("final_constraint") is not None
-        for s in variable_state.states.values()
+    """Check if there are initial or final state constraints using unified storage."""
+    initial_constraints = variable_state.get_state_initial_constraints()
+    final_constraints = variable_state.get_state_final_constraints()
+
+    return any(c is not None for c in initial_constraints) or any(
+        c is not None for c in final_constraints
     )
 
 
@@ -170,7 +167,7 @@ def get_event_constraints_function(
     constraint_state: ConstraintState,
     variable_state: VariableState,
 ) -> EventConstraintsCallable | None:
-    """Get event constraints function for solver with efficient ordering."""
+    """Get event constraints function for solver using unified storage."""
     # Filter event constraints
     event_constraints = [
         expr
@@ -181,7 +178,7 @@ def get_event_constraints_function(
     if not event_constraints and not _has_initial_or_final_state_constraints(variable_state):
         return None
 
-    # EFFICIENT: Get ordered symbols and names directly
+    # Get ordered symbols and names
     state_syms = variable_state.get_ordered_state_symbols()
     state_names = variable_state.get_ordered_state_names()
 
@@ -223,32 +220,29 @@ def get_event_constraints_function(
             )[0]
             result.append(_symbolic_constraint_to_constraint(substituted_expr))
 
-        # EFFICIENT: Use ordered names directly
-        # Add initial state constraints
-        for i, name in enumerate(state_names):
-            state_def = variable_state.states[name]
-            initial_constraint = state_def.get("initial_constraint")
-            if initial_constraint is not None:
-                if initial_constraint.equals is not None:
-                    result.append(Constraint(val=x0_vec[i], equals=initial_constraint.equals))
+        # Add initial state constraints using unified storage
+        initial_constraints = variable_state.get_state_initial_constraints()
+        for i, constraint in enumerate(initial_constraints):
+            if constraint is not None:
+                if constraint.equals is not None:
+                    result.append(Constraint(val=x0_vec[i], equals=constraint.equals))
                 else:
-                    if initial_constraint.lower is not None:
-                        result.append(Constraint(val=x0_vec[i], min_val=initial_constraint.lower))
-                    if initial_constraint.upper is not None:
-                        result.append(Constraint(val=x0_vec[i], max_val=initial_constraint.upper))
+                    if constraint.lower is not None:
+                        result.append(Constraint(val=x0_vec[i], min_val=constraint.lower))
+                    if constraint.upper is not None:
+                        result.append(Constraint(val=x0_vec[i], max_val=constraint.upper))
 
-        # Add final state constraints
-        for i, name in enumerate(state_names):
-            state_def = variable_state.states[name]
-            final_constraint = state_def.get("final_constraint")
-            if final_constraint is not None:
-                if final_constraint.equals is not None:
-                    result.append(Constraint(val=xf_vec[i], equals=final_constraint.equals))
+        # Add final state constraints using unified storage
+        final_constraints = variable_state.get_state_final_constraints()
+        for i, constraint in enumerate(final_constraints):
+            if constraint is not None:
+                if constraint.equals is not None:
+                    result.append(Constraint(val=xf_vec[i], equals=constraint.equals))
                 else:
-                    if final_constraint.lower is not None:
-                        result.append(Constraint(val=xf_vec[i], min_val=final_constraint.lower))
-                    if final_constraint.upper is not None:
-                        result.append(Constraint(val=xf_vec[i], max_val=final_constraint.upper))
+                    if constraint.lower is not None:
+                        result.append(Constraint(val=xf_vec[i], min_val=constraint.lower))
+                    if constraint.upper is not None:
+                        result.append(Constraint(val=xf_vec[i], max_val=constraint.upper))
 
         return result
 

@@ -1,6 +1,6 @@
 """
-CasADi expression caching system for massive performance improvements.
-PERFORMANCE CRITICAL: Provides 10-50x speedup by avoiding repeated expression building.
+CasADi expression caching system for massive performance improvements - SIMPLIFIED.
+Removed redundant cache implementations, unified into single cache manager.
 """
 
 import hashlib
@@ -9,9 +9,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from ..tl_types import (
-    CasadiFunction,
-)
+from ..tl_types import CasadiFunction
 
 
 @dataclass
@@ -39,13 +37,10 @@ class ExpressionCacheKey:
 
 
 class CasADiExpressionCache:
-    """Global cache for expensive CasADi expressions with thread safety."""
+    """Unified cache for ALL expensive CasADi expressions with thread safety."""
 
     _instance: "CasADiExpressionCache | None" = None
-    _dynamics_cache: dict[str, CasadiFunction] = {}
-    _objective_cache: dict[str, CasadiFunction] = {}
-    _integrand_cache: dict[str, list[CasadiFunction]] = {}
-    _constraints_cache: dict[str, CasadiFunction] = {}
+    _cache: dict[str, Any] = {}
     _lock: threading.Lock = threading.Lock()
 
     def __new__(cls) -> "CasADiExpressionCache":
@@ -54,38 +49,43 @@ class CasADiExpressionCache:
             with cls._lock:
                 if cls._instance is None:
                     cls._instance = super().__new__(cls)
-                    cls._instance._dynamics_cache = {}
-                    cls._instance._objective_cache = {}
-                    cls._instance._integrand_cache = {}
-                    cls._instance._constraints_cache = {}
+                    cls._instance._cache = {}
         return cls._instance
 
     def get_dynamics_function(
         self, cache_key: ExpressionCacheKey, builder_func: Callable[[], CasadiFunction]
     ) -> CasadiFunction:
         """Get cached dynamics function or build if not cached."""
-        with self._lock:
-            if cache_key.cache_key not in self._dynamics_cache:
-                self._dynamics_cache[cache_key.cache_key] = builder_func()
-            return self._dynamics_cache[cache_key.cache_key]
+        return self._get_cached_item(f"dynamics_{cache_key.cache_key}", builder_func)
 
     def get_objective_function(
         self, cache_key: ExpressionCacheKey, builder_func: Callable[[], CasadiFunction]
     ) -> CasadiFunction:
         """Get cached objective function or build if not cached."""
-        with self._lock:
-            if cache_key.cache_key not in self._objective_cache:
-                self._objective_cache[cache_key.cache_key] = builder_func()
-            return self._objective_cache[cache_key.cache_key]
+        return self._get_cached_item(f"objective_{cache_key.cache_key}", builder_func)
 
     def get_integrand_functions(
         self, cache_key: ExpressionCacheKey, builder_func: Callable[[], list[CasadiFunction]]
     ) -> list[CasadiFunction]:
         """Get cached integrand functions or build if not cached."""
+        return self._get_cached_item(f"integrand_{cache_key.cache_key}", builder_func)
+
+    def _get_cached_item(self, full_key: str, builder_func: Callable[[], Any]) -> Any:
+        """Unified cache retrieval method."""
         with self._lock:
-            if cache_key.cache_key not in self._integrand_cache:
-                self._integrand_cache[cache_key.cache_key] = builder_func()
-            return self._integrand_cache[cache_key.cache_key]
+            if full_key not in self._cache:
+                self._cache[full_key] = builder_func()
+            return self._cache[full_key]
+
+    def clear_cache(self) -> None:
+        """Clear all cached expressions."""
+        with self._lock:
+            self._cache.clear()
+
+    def get_cache_size(self) -> int:
+        """Get current cache size."""
+        with self._lock:
+            return len(self._cache)
 
 
 # Global cache instance
@@ -93,11 +93,11 @@ _expression_cache = CasADiExpressionCache()
 
 
 def create_cache_key_from_variable_state(
-    variable_state: Any,  # VariableState type
+    variable_state: Any,  # VariableState type from unified storage
     expression_type: str,
     expression_hash: str | None = None,
 ) -> ExpressionCacheKey:
-    """Create cache key from variable state."""
+    """Create cache key from variable state using unified storage."""
     state_names = tuple(variable_state.get_ordered_state_names())
     control_names = tuple(variable_state.get_ordered_control_names())
     parameter_names = tuple(sorted(variable_state.parameters.keys()))

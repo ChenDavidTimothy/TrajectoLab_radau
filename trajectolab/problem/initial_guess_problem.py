@@ -1,5 +1,6 @@
 """
-Initial guess management functions for optimal control problems.
+Initial guess management functions for optimal control problems - SIMPLIFIED.
+Updated to use unified storage system instead of legacy dual storage.
 """
 
 from __future__ import annotations
@@ -9,7 +10,7 @@ from typing import cast
 
 import numpy as np
 
-from ..tl_types import FloatArray, FloatMatrix, InitialGuess
+from ..tl_types import FloatArray, InitialGuess
 from .state import MeshState, VariableState
 
 
@@ -95,26 +96,25 @@ def set_initial_guess(
     current_guess_container: list,  # Mutable container to hold current guess
     mesh_state: MeshState,
     variable_state: VariableState,
-    states: Sequence[FloatMatrix] | None = None,
-    controls: Sequence[FloatMatrix] | None = None,
+    states: Sequence[FloatArray] | None = None,
+    controls: Sequence[FloatArray] | None = None,
     initial_time: float | None = None,
     terminal_time: float | None = None,
     integrals: float | FloatArray | None = None,
 ) -> None:
-    """Set initial guess for variables."""
+    """Set initial guess for variables using unified storage."""
     if not mesh_state.configured:
         raise ValueError(
             "Mesh must be configured before setting initial guess. "
             "Call set_mesh(polynomial_degrees, mesh_points) first."
         )
 
-    # Validate dimensions
+    # Get variable counts from unified storage
+    num_states, num_controls = variable_state.get_variable_counts()
     num_intervals = len(mesh_state.collocation_points_per_interval)
-    num_states = len(variable_state.states)
-    num_controls = len(variable_state.controls)
 
     # Validate states if provided
-    states_list: list[FloatMatrix] | None = None
+    states_list: list[FloatArray] | None = None
     if states is not None:
         if len(states) != num_intervals:
             raise ValueError(
@@ -132,7 +132,7 @@ def set_initial_guess(
         states_list = [np.array(s, dtype=np.float64) for s in states]
 
     # Validate controls if provided
-    controls_list: list[FloatMatrix] | None = None
+    controls_list: list[FloatArray] | None = None
     if controls is not None:
         if len(controls) != num_intervals:
             raise ValueError(
@@ -180,12 +180,12 @@ def set_initial_guess(
 def get_initial_guess_requirements(
     mesh_state: MeshState, variable_state: VariableState
 ) -> InitialGuessRequirements:
-    """Get requirements for initial guess."""
+    """Get requirements for initial guess using unified storage."""
     if not mesh_state.configured:
         raise ValueError("Mesh must be configured before getting initial guess requirements.")
 
-    num_states = len(variable_state.states)
-    num_controls = len(variable_state.controls)
+    # Get variable counts from unified storage
+    num_states, num_controls = variable_state.get_variable_counts()
 
     states_shapes = [(num_states, N + 1) for N in mesh_state.collocation_points_per_interval]
     controls_shapes = [(num_controls, N) for N in mesh_state.collocation_points_per_interval]
@@ -205,7 +205,7 @@ def get_initial_guess_requirements(
 def validate_initial_guess(
     current_guess, mesh_state: MeshState, variable_state: VariableState
 ) -> None:
-    """Validate the current initial guess."""
+    """Validate the current initial guess using unified storage."""
     if not mesh_state.configured:
         raise ValueError("Mesh must be configured before validating initial guess")
 
@@ -270,7 +270,7 @@ def validate_initial_guess(
 def get_solver_input_summary(
     current_guess, mesh_state: MeshState, variable_state: VariableState
 ) -> SolverInputSummary:
-    """Get summary of solver input configuration."""
+    """Get summary of solver input configuration using unified storage."""
     if not mesh_state.configured:
         raise ValueError("Mesh must be configured to get solver input summary")
 

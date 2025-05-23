@@ -1,10 +1,15 @@
+"""
+Core problem definition - SIMPLIFIED.
+Removed ALL legacy compatibility layers, uses only unified storage.
+"""
+
 from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
 from typing import Any
 
-from ..tl_types import FloatArray, FloatMatrix, NumericArrayLike, SymExpr, SymType
+from ..tl_types import FloatArray, NumericArrayLike, SymExpr, SymType
 from . import constraints_problem, initial_guess_problem, mesh, solver_interface, variables_problem
 from .state import ConstraintState, MeshState, VariableState
 
@@ -22,15 +27,10 @@ if not problem_logger.handlers:
 
 
 class Problem:
-    """Main class for defining optimal control problems."""
+    """Main class for defining optimal control problems - SIMPLIFIED."""
 
     def __init__(self, name: str = "Unnamed Problem") -> None:
-        """
-        Initialize a new problem instance.
-
-        Args:
-            name: Name of the problem
-        """
+        """Initialize a new problem instance."""
         self.name = name
         problem_logger.info(f"Creating problem '{name}'")
 
@@ -39,37 +39,19 @@ class Problem:
         self._constraint_state = ConstraintState()
         self._mesh_state = MeshState()
 
-        # Initial guess is stored as a mutable container to allow modification by functions
+        # Initial guess container
         self._initial_guess_container = [None]
 
         # Solver options
         self.solver_options: dict[str, Any] = {}
 
-    # Property access to state attributes for backward compatibility
-
-    @property
-    def _states(self) -> dict[str, dict[str, Any]]:
-        return self._variable_state.states
-
-    @property
-    def _controls(self) -> dict[str, dict[str, Any]]:
-        return self._variable_state.controls
+    # ========================================================================
+    # UNIFIED PROPERTIES - Direct access to optimized storage
+    # ========================================================================
 
     @property
     def _parameters(self) -> dict[str, Any]:
         return self._variable_state.parameters
-
-    @property
-    def _sym_states(self) -> dict[str, SymType]:
-        return self._variable_state.sym_states
-
-    @property
-    def _sym_controls(self) -> dict[str, SymType]:
-        return self._variable_state.sym_controls
-
-    @property
-    def _sym_parameters(self) -> dict[str, SymType]:
-        return self._variable_state.sym_parameters
 
     @property
     def _sym_time(self) -> SymType | None:
@@ -135,7 +117,42 @@ class Problem:
     def initial_guess(self, value) -> None:
         self._initial_guess_container[0] = value
 
-    # Variable creation methods
+    # ========================================================================
+    # PROTOCOL INTERFACE METHODS - Required by ProblemProtocol
+    # ========================================================================
+
+    def get_variable_counts(self) -> tuple[int, int]:
+        """Return (num_states, num_controls)."""
+        return self._variable_state.get_variable_counts()
+
+    def get_ordered_state_symbols(self) -> list[SymType]:
+        """Get state symbols in order."""
+        return self._variable_state.get_ordered_state_symbols()
+
+    def get_ordered_control_symbols(self) -> list[SymType]:
+        """Get control symbols in order."""
+        return self._variable_state.get_ordered_control_symbols()
+
+    def get_ordered_state_names(self) -> list[str]:
+        """Get state names in order."""
+        return self._variable_state.get_ordered_state_names()
+
+    def get_ordered_control_names(self) -> list[str]:
+        """Get control names in order."""
+        return self._variable_state.get_ordered_control_names()
+
+    def get_state_bounds(self) -> list[tuple[float | None, float | None]]:
+        """Get state bounds in order."""
+        return self._variable_state.get_state_bounds()
+
+    def get_control_bounds(self) -> list[tuple[float | None, float | None]]:
+        """Get control bounds in order."""
+        return self._variable_state.get_control_bounds()
+
+    # ========================================================================
+    # VARIABLE CREATION METHODS
+    # ========================================================================
+
     def time(self, initial: float = 0.0, final: float | None = None, free_final: bool = False):
         return variables_problem.create_time_variable(
             self._variable_state, initial, final, free_final
@@ -149,19 +166,7 @@ class Problem:
         lower: float | None = None,
         upper: float | None = None,
     ) -> SymType:
-        """
-        Define a state variable.
-
-        Args:
-            name: Variable name
-            initial: Initial value constraint
-            final: Final value constraint
-            lower: Lower bound
-            upper: Upper bound
-
-        Returns:
-            Symbolic variable
-        """
+        """Define a state variable."""
         return variables_problem.create_state_variable(
             self._variable_state, name, initial, final, lower, upper
         )
@@ -172,60 +177,33 @@ class Problem:
         lower: float | None = None,
         upper: float | None = None,
     ) -> SymType:
-        """
-        Define a control variable.
-
-        Args:
-            name: Variable name
-            lower: Lower bound
-            upper: Upper bound
-
-        Returns:
-            Symbolic variable
-        """
+        """Define a control variable."""
         return variables_problem.create_control_variable(self._variable_state, name, lower, upper)
 
     def parameter(self, name: str, value: Any) -> SymType:
         return variables_problem.create_parameter_variable(self._variable_state, name, value)
 
     def dynamics(self, dynamics_dict: dict[SymType, SymExpr]) -> None:
-        """
-        Define system dynamics.
-
-        Args:
-            dynamics_dict: Dictionary mapping state variables to their derivatives
-        """
+        """Define system dynamics."""
         variables_problem.set_dynamics(self._variable_state, dynamics_dict)
 
     def add_integral(self, integrand_expr: SymExpr) -> SymType:
         return variables_problem.add_integral(self._variable_state, integrand_expr)
 
     def minimize(self, objective_expr: SymExpr) -> None:
-        """
-        Define the objective function to minimize.
-
-        Args:
-            objective_expr: Expression to minimize
-        """
+        """Define the objective function to minimize."""
         variables_problem.set_objective(self._variable_state, objective_expr)
 
     def subject_to(self, constraint_expr: SymExpr) -> None:
-        """
-        Add a constraint to the problem.
-
-        Args:
-            constraint_expr: Constraint expression
-        """
+        """Add a constraint to the problem."""
         constraints_problem.add_constraint(self._constraint_state, constraint_expr)
 
-    # Mesh management methods
-    def set_mesh(self, polynomial_degrees: list[int], mesh_points: NumericArrayLike) -> None:
-        """Configure mesh structure for the problem.
+    # ========================================================================
+    # MESH MANAGEMENT METHODS
+    # ========================================================================
 
-        This method clears any existing initial guess, as mesh changes require
-        a new guess that matches the new mesh structure. After setting the mesh,
-        call set_initial_guess() to provide a starting point for the solver.
-        """
+    def set_mesh(self, polynomial_degrees: list[int], mesh_points: NumericArrayLike) -> None:
+        """Configure mesh structure for the problem."""
         print("\n=== SETTING MESH ===")
         print(f"Polynomial degrees: {polynomial_degrees}")
         print(f"Mesh points: {mesh_points}")
@@ -237,25 +215,19 @@ class Problem:
         initial_guess_problem.clear_initial_guess(self._initial_guess_container)
         print("Initial guess cleared")
 
-    # Initial guess methods
+    # ========================================================================
+    # INITIAL GUESS METHODS
+    # ========================================================================
+
     def set_initial_guess(
         self,
-        states: Sequence[FloatMatrix] | None = None,
-        controls: Sequence[FloatMatrix] | None = None,
+        states: Sequence[FloatArray] | None = None,
+        controls: Sequence[FloatArray] | None = None,
         initial_time: float | None = None,
         terminal_time: float | None = None,
         integrals: float | FloatArray | None = None,
     ) -> None:
-        """
-        Set initial guess for the problem.
-
-        Args:
-            states: State trajectories
-            controls: Control trajectories
-            initial_time: Initial time
-            terminal_time: Terminal time
-            integrals: Integral values
-        """
+        """Set initial guess for the problem."""
         initial_guess_problem.set_initial_guess(
             self._initial_guess_container,
             self._mesh_state,
@@ -282,7 +254,10 @@ class Problem:
             self._initial_guess_container[0], self._mesh_state, self._variable_state
         )
 
-    # Solver interface methods
+    # ========================================================================
+    # SOLVER INTERFACE METHODS
+    # ========================================================================
+
     def get_dynamics_function(self):
         return solver_interface.get_dynamics_function(self._variable_state)
 
