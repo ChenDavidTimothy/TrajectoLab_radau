@@ -242,23 +242,13 @@ class Problem:
     def control(
         self,
         name: str,
-        initial: ConstraintInput = None,
-        final: ConstraintInput = None,
-        boundary: ConstraintInput = None,
+        boundary: ConstraintInput = None,  # Keep only boundary (path constraints)
     ) -> SymType:
         """
-        Define a control variable with unified constraint specification.
+        Define a control variable with path constraints.
 
         Args:
             name: Variable name
-            initial: Initial condition constraint (event constraint at t0)
-                - float/int: Fixed value u(t0) = value
-                - tuple(lower, upper): Range constraint lower ≤ u(t0) ≤ upper
-                - None: No initial constraint
-            final: Final condition constraint (event constraint at tf)
-                - float/int: Fixed value u(tf) = value
-                - tuple(lower, upper): Range constraint lower ≤ u(tf) ≤ upper
-                - None: No final constraint
             boundary: Path constraint (applies throughout trajectory)
                 - float/int: Fixed value u(t) = value for all t ∈ [t0, tf]
                 - tuple(lower, upper): Range constraint lower ≤ u(t) ≤ upper for all t
@@ -268,13 +258,10 @@ class Problem:
             CasADi symbolic variable
 
         Examples:
-            throttle = problem.control("throttle", initial=0.0, boundary=(0.0, 1.0))
+            throttle = problem.control("throttle", boundary=(0.0, 1.0))
             steer = problem.control("steer", boundary=(-1.0, 1.0))
-            mode = problem.control("mode", initial=1, final=0, boundary=(0, 3))
         """
-        return variables_problem.create_control_variable(
-            self._variable_state, name, initial, final, boundary
-        )
+        return variables_problem.create_control_variable(self._variable_state, name, boundary)
 
     def parameter(self, name: str, value: Any) -> SymType:
         """Define a parameter variable."""

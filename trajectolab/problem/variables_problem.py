@@ -193,24 +193,14 @@ def create_state_variable(
 def create_control_variable(
     state: VariableState,
     name: str,
-    initial: ConstraintInput = None,
-    final: ConstraintInput = None,
-    boundary: ConstraintInput = None,
+    boundary: ConstraintInput = None,  # Remove initial and final parameters
 ) -> SymType:
     """
-    Create a control variable with unified constraint specification.
+    Create a control variable with path constraint specification.
 
     Args:
         state: Variable state container
         name: Variable name
-        initial: Initial condition constraint (event constraint at t0)
-            - float/int: Fixed value at t0
-            - tuple(lower, upper): Range constraint at t0
-            - None: No initial constraint
-        final: Final condition constraint (event constraint at tf)
-            - float/int: Fixed value at tf
-            - tuple(lower, upper): Range constraint at tf
-            - None: No final constraint
         boundary: Path constraint (applies throughout trajectory)
             - float/int: Fixed value for entire trajectory
             - tuple(lower, upper): Range constraint for entire trajectory
@@ -221,20 +211,16 @@ def create_control_variable(
     """
     sym_var = ca.MX.sym(name, 1)  # type: ignore[arg-type]
 
-    # Parse constraints
+    # Parse boundary constraint only
     try:
-        initial_constraint = _BoundaryConstraint(initial) if initial is not None else None
-        final_constraint = _BoundaryConstraint(final) if final is not None else None
         boundary_constraint = _BoundaryConstraint(boundary) if boundary is not None else None
     except (ValueError, TypeError) as e:
-        raise ValueError(f"Invalid constraint for control '{name}': {e}") from e
+        raise ValueError(f"Invalid boundary constraint for control '{name}': {e}") from e
 
-    # Add to unified storage
+    # Add to unified storage - no initial/final constraints
     state.add_control(
         name=name,
         symbol=sym_var,
-        initial_constraint=initial_constraint,
-        final_constraint=final_constraint,
         boundary_constraint=boundary_constraint,
     )
 

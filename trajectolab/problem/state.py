@@ -160,11 +160,9 @@ class VariableState:
         self,
         name: str,
         symbol: SymType,
-        initial_constraint: _BoundaryConstraint | None = None,
-        final_constraint: _BoundaryConstraint | None = None,
         boundary_constraint: _BoundaryConstraint | None = None,
     ) -> None:
-        """Add control variable to unified storage."""
+        """Add control variable to unified storage - simplified signature."""
         with self._ordering_lock:
             if name in self._control_name_to_index:
                 raise ValueError(f"Control '{name}' already exists")
@@ -175,8 +173,8 @@ class VariableState:
 
             var_info = _VariableInfo(
                 symbol=symbol,
-                initial_constraint=initial_constraint,
-                final_constraint=final_constraint,
+                initial_constraint=None,  # Controls don't have initial constraints
+                final_constraint=None,  # Controls don't have final constraints
                 boundary_constraint=boundary_constraint,
             )
             self._control_info.append(var_info)
@@ -220,14 +218,6 @@ class VariableState:
     def get_state_boundary_constraints(self) -> list[_BoundaryConstraint | None]:
         """Get boundary state constraints in order."""
         return [info.boundary_constraint for info in self._state_info]
-
-    def get_control_initial_constraints(self) -> list[_BoundaryConstraint | None]:
-        """Get initial control constraints in order."""
-        return [info.initial_constraint for info in self._control_info]
-
-    def get_control_final_constraints(self) -> list[_BoundaryConstraint | None]:
-        """Get final control constraints in order."""
-        return [info.final_constraint for info in self._control_info]
 
     def get_control_boundary_constraints(self) -> list[_BoundaryConstraint | None]:
         """Get boundary control constraints in order."""

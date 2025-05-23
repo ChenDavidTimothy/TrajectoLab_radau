@@ -101,14 +101,22 @@ def _boundary_constraint_to_constraints(
 def get_path_constraints_function(
     constraint_state: ConstraintState, variable_state: VariableState
 ) -> PathConstraintsCallable | None:
-    """Get path constraints function for solver using unified constraint API."""
+    """
+    Get path constraints function for solver using unified constraint API.
 
-    # Filter path constraints
+    Path constraints are applied at every collocation point throughout the trajectory.
+    This includes:
+    - Symbolic constraints that don't depend on initial/final time
+    - State boundary constraints (path bounds on states)
+    - Control boundary constraints (path bounds on controls)
+    """
+
+    # Filter path constraints (symbolic constraints that apply throughout trajectory)
     path_constraints = [
         expr for expr in constraint_state.constraints if _is_path_constraint(expr, variable_state)
     ]
 
-    # Check for boundary constraints using unified API
+    # Check for boundary constraints (these are path constraints)
     state_boundary_constraints = variable_state.get_state_boundary_constraints()
     control_boundary_constraints = variable_state.get_control_boundary_constraints()
 
@@ -120,12 +128,12 @@ def get_path_constraints_function(
         constraint is not None and constraint.has_constraint()
         for constraint in control_boundary_constraints
     )
-    has_boundary_constraints = has_state_boundary or has_control_boundary
 
-    if not path_constraints and not has_boundary_constraints:
+    # If no path constraints exist, return None
+    if not path_constraints and not has_state_boundary and not has_control_boundary:
         return None
 
-    # Get ordered symbols and names
+    # Get ordered symbols for substitution
     state_syms = variable_state.get_ordered_state_symbols()
     control_syms = variable_state.get_ordered_control_symbols()
 
@@ -135,38 +143,39 @@ def get_path_constraints_function(
         time: CasadiMX,
         params: ProblemParameters,
     ) -> list[Constraint]:
+        """Apply path constraints at a single collocation point."""
         result: list[Constraint] = []
 
-        # Create substitution map
+        # Create substitution map for symbolic constraints
         subs_map = {}
 
-        # Map state symbols
+        # Map state symbols to current state values
         for i, state_sym in enumerate(state_syms):
             subs_map[state_sym] = states_vec[i]
 
-        # Map control symbols
+        # Map control symbols to current control values
         for i, control_sym in enumerate(control_syms):
             subs_map[control_sym] = controls_vec[i]
 
-        # Map time symbol
+        # Map time symbol to current time
         if variable_state.sym_time is not None:
             subs_map[variable_state.sym_time] = time
 
-        # Process path constraints
+        # Process symbolic path constraints
         for expr in path_constraints:
             substituted_expr = ca.substitute(
                 [expr], list(subs_map.keys()), list(subs_map.values())
             )[0]
             result.append(_symbolic_constraint_to_constraint(substituted_expr))
 
-        # Add state boundary constraints
+        # Add state boundary constraints (applied at every point)
         for i, boundary_constraint in enumerate(state_boundary_constraints):
             if boundary_constraint is not None and boundary_constraint.has_constraint():
                 result.extend(
                     _boundary_constraint_to_constraints(boundary_constraint, states_vec[i])
                 )
 
-        # Add control boundary constraints
+        # Add control boundary constraints (applied at every point)
         for i, boundary_constraint in enumerate(control_boundary_constraints):
             if boundary_constraint is not None and boundary_constraint.has_constraint():
                 result.extend(
@@ -180,22 +189,14 @@ def get_path_constraints_function(
 
 def _has_event_constraints(variable_state: VariableState) -> bool:
     """Check if there are any event constraints using unified constraint API."""
-    # Check state initial/final constraints
+    # Check state initial/final constraints only
     state_initial_constraints = variable_state.get_state_initial_constraints()
     state_final_constraints = variable_state.get_state_final_constraints()
 
-    # Check control initial/final constraints (NEW CAPABILITY)
-    control_initial_constraints = variable_state.get_control_initial_constraints()
-    control_final_constraints = variable_state.get_control_final_constraints()
-
+    # Controls no longer have initial/final constraints
     return any(
         constraint is not None and constraint.has_constraint()
-        for constraint in (
-            state_initial_constraints
-            + state_final_constraints
-            + control_initial_constraints
-            + control_final_constraints
-        )
+        for constraint in (state_initial_constraints + state_final_constraints)
     )
 
 
@@ -273,24 +274,6 @@ def get_event_constraints_function(
         for i, constraint in enumerate(state_final_constraints):
             if constraint is not None and constraint.has_constraint():
                 result.extend(_boundary_constraint_to_constraints(constraint, xf_vec[i]))
-
-        # Add control initial constraints (NEW CAPABILITY)
-        control_initial_constraints = variable_state.get_control_initial_constraints()
-        for _i, constraint in enumerate(control_initial_constraints):
-            if constraint is not None and constraint.has_constraint():
-                # For controls, we need to extract the initial value from the control trajectory
-                # This requires solver modifications to provide u0_vec
-                # For now, we'll create a placeholder that needs solver support
-                # TODO: Implement u0_vec and uf_vec extraction in solver
-                pass
-
-        # Add control final constraints (NEW CAPABILITY)
-        control_final_constraints = variable_state.get_control_final_constraints()
-        for _i, constraint in enumerate(control_final_constraints):
-            if constraint is not None and constraint.has_constraint():
-                # Similar to initial control constraints - needs solver support
-                # TODO: Implement u0_vec and uf_vec extraction in solver
-                pass
 
         return result
 

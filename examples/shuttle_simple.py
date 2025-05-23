@@ -90,13 +90,13 @@ def solve_scaled_shuttle():
     problem.minimize(-theta)
 
     # Simple mesh
-    problem.set_mesh([20] * 15, np.linspace(-1.0, 1.0, 16))
+    problem.set_mesh([10] * 15, np.linspace(-1.0, 1.0, 16))
 
     # Simple initial guess: linear interpolation
     states_guess = []
     controls_guess = []
 
-    for N in [20] * 15:  # For each interval
+    for N in [10] * 15:  # For each interval
         # Linear interpolation between initial and final
         t = np.linspace(0, 1, N + 1)
         h_traj = 2.6 + (0.8 - 2.6) * t  # h_s: 2.6 → 0.8
