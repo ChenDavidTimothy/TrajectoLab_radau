@@ -1,5 +1,7 @@
 """
-Fixed solver functions with consistent scaling property access.
+solver.py
+
+Updated to use simplified Solution class.
 """
 
 import logging
@@ -9,7 +11,7 @@ import numpy as np
 
 from trajectolab.direct_solver import solve_single_phase_radau_collocation
 from trajectolab.problem import Problem
-from trajectolab.solution import _Solution
+from trajectolab.solution import Solution  # Changed from _Solution
 from trajectolab.tl_types import (
     InitialGuess,
     ODESolverCallable,
@@ -33,7 +35,7 @@ if not solver_logger.handlers:
 def solve_fixed_mesh(
     problem: Problem,
     nlp_options: dict[str, object] | None = None,
-) -> _Solution:
+) -> Solution:  # Changed return type
     """
     Solve optimal control problem with fixed mesh.
     """
@@ -50,7 +52,7 @@ def solve_fixed_mesh(
     protocol_problem = cast(ProblemProtocol, problem)
     solution_data: OptimalControlSolution = solve_single_phase_radau_collocation(protocol_problem)
 
-    return _Solution(solution_data, protocol_problem)
+    return Solution(solution_data, protocol_problem)  # Changed from _Solution
 
 
 def solve_adaptive(
@@ -59,20 +61,16 @@ def solve_adaptive(
     max_iterations: int = 10,
     min_polynomial_degree: int = 3,
     max_polynomial_degree: int = 10,
-    ode_solver_tolerance: float = 1e-7,  # Reuse existing parameter
-    ode_method: str = "RK45",  # NEW: Simple method selection
-    ode_max_step: float | None = None,  # NEW: Optional step size control
+    ode_solver_tolerance: float = 1e-7,
+    ode_method: str = "RK45",
+    ode_max_step: float | None = None,
     num_error_sim_points: int = 50,
-    ode_solver: ODESolverCallable | None = None,  # Advanced users only
+    ode_solver: ODESolverCallable | None = None,
     nlp_options: dict[str, object] | None = None,
     initial_guess: InitialGuess | None = None,
-) -> _Solution:
+) -> Solution:  # Changed return type
     """
     Solve optimal control problem using adaptive mesh refinement.
-
-    Args:
-        ode_solver: ODE solver function (default: scipy.integrate.solve_ivp)
-        ... other parameters
     """
 
     solver_logger.info(f"Starting adaptive solve for problem '{problem.name}'")
@@ -122,11 +120,11 @@ def solve_adaptive(
         min_polynomial_degree=min_polynomial_degree,
         max_polynomial_degree=max_polynomial_degree,
         ode_solver_tolerance=ode_solver_tolerance,
-        ode_method=ode_method,  # NEW
-        ode_max_step=ode_max_step,  # NEW
-        ode_solver=ode_solver,  # NEW
+        ode_method=ode_method,
+        ode_max_step=ode_max_step,
+        ode_solver=ode_solver,
         num_error_sim_points=num_error_sim_points,
         initial_guess=initial_guess,
     )
 
-    return _Solution(solution_data, protocol_problem)
+    return Solution(solution_data, protocol_problem)  # Changed from _Solution

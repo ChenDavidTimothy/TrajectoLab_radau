@@ -1,497 +1,148 @@
 """
 solution.py
 
-Defines classes to store and interact with the solution
-of an optimal control problem.
+Simplified solution interface with direct data access and integrated plotting.
+No redundant data extraction - uses OptimalControlSolution directly.
 """
 
-from collections.abc import Iterable, Sequence
-from typing import TypeAlias, cast
+from typing import TypeAlias
 
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.axes import Axes as MplAxes
 from matplotlib.lines import Line2D
 
-from .tl_types import FloatArray, IntArray, OptimalControlSolution, ProblemProtocol, SymType
+from .tl_types import FloatArray, OptimalControlSolution, ProblemProtocol, SymType
 
 
-# --- Type Aliases ---
+# Type aliases
 _VariableIdentifier: TypeAlias = str | int | SymType
 _TrajectoryTuple: TypeAlias = tuple[FloatArray, FloatArray]
-_SymbolMap: TypeAlias = dict[SymType, str]
-_InterpolationResult: TypeAlias = float | FloatArray | None
-_PlotVariableNames: TypeAlias = Iterable[str | SymType] | None
 
 
-class IntervalData:
-    """Holds data specific to a single interval of the solution."""
-
-    def __init__(
-        self,
-        t_start: float | None = None,
-        t_end: float | None = None,
-        Nk: int | None = None,
-        time_states_segment: FloatArray | None = None,
-        states_segment: Sequence[FloatArray] | None = None,
-        time_controls_segment: FloatArray | None = None,
-        controls_segment: Sequence[FloatArray] | None = None,
-    ) -> None:
-        self.t_start: float | None = t_start
-        self.t_end: float | None = t_end
-        self.Nk: int | None = Nk
-
-        self.time_states_segment: FloatArray = (
-            time_states_segment
-            if time_states_segment is not None
-            else np.array([], dtype=np.float64)
-        )
-        self.states_segment: list[FloatArray] = (
-            list(states_segment) if states_segment is not None else []
-        )
-        self.time_controls_segment: FloatArray = (
-            time_controls_segment
-            if time_controls_segment is not None
-            else np.array([], dtype=np.float64)
-        )
-        self.controls_segment: list[FloatArray] = (
-            list(controls_segment) if controls_segment is not None else []
-        )
-
-
-class _Solution:
-    """Processes and provides access to the solution of an optimal control problem."""
+class Solution:
+    """
+    Simple, direct interface to optimal control solution with integrated plotting.
+    Uses OptimalControlSolution data directly - no redundant extraction.
+    """
 
     def __init__(
         self, raw_solution: OptimalControlSolution | None, problem: ProblemProtocol | None
     ) -> None:
-        self._problem: ProblemProtocol | None = problem
-        self._raw_solution: OptimalControlSolution | None = raw_solution
+        # Store references directly - no data copying
+        self._raw = raw_solution
+        self._problem = problem
 
-        # State and control names from problem
-        self._state_names: list[str] = []
-        if problem and hasattr(problem, "_states") and hasattr(problem._states, "keys"):
-            self._state_names = list(problem._states.keys())
+        # Extract names for convenience
+        self._state_names = list(problem._states.keys()) if problem else []
+        self._control_names = list(problem._controls.keys()) if problem else []
 
-        self._control_names: list[str] = []
-        if problem and hasattr(problem, "_controls") and hasattr(problem._controls, "keys"):
-            self._control_names = list(problem._controls.keys())
-
-        # Map to store symbolic variables to their names
-        self._sym_state_map: _SymbolMap = {}
-        self._sym_control_map: _SymbolMap = {}
-
-        # If the problem has symbolic variables, create mappings
+        # Create symbol→name maps for symbolic variable support
+        self._sym_to_name: dict[SymType, str] = {}
         if problem and hasattr(problem, "_sym_states"):
-            for name, sym in problem._sym_states.items():
-                self._sym_state_map[sym] = name
-
+            self._sym_to_name.update({sym: name for name, sym in problem._sym_states.items()})
         if problem and hasattr(problem, "_sym_controls"):
-            for name, sym in problem._sym_controls.items():
-                self._sym_control_map[sym] = name
+            self._sym_to_name.update({sym: name for name, sym in problem._sym_controls.items()})
 
-        # Initialize core solution data
-        self.success: bool = False
-        self.message: str = "No solution data"
-        self.initial_time: float | None = None
-        self.final_time: float | None = None
-        self.objective: float | None = None
-        self.integrals: FloatArray | None = None
-
-        self._time_states: FloatArray | None = None
-        self._states: list[FloatArray] | None = None
-        self._time_controls: FloatArray | None = None
-        self._controls: list[FloatArray] | None = None
-
-        self._polynomial_degrees: IntArray | None = None
-        self._mesh_points_normalized: FloatArray | None = None
-        self._mesh_points_time: FloatArray | None = None
-
-        if raw_solution:
-            self._extract_solution_data(raw_solution)
-
-    def _extract_solution_data(self, raw_solution: OptimalControlSolution) -> None:
-        """Extract solution data from raw solution."""
-        self.success = bool(getattr(raw_solution, "success", False))
-        self.message = str(getattr(raw_solution, "message", "Unknown"))
-
-        initial_time_val = getattr(raw_solution, "initial_time_variable", None)
-        self.initial_time = float(initial_time_val) if initial_time_val is not None else None
-
-        final_time_val = getattr(raw_solution, "terminal_time_variable", None)
-        self.final_time = float(final_time_val) if final_time_val is not None else None
-
-        objective_val = getattr(raw_solution, "objective", None)
-        self.objective = float(objective_val) if objective_val is not None else None
-
-        integrals_val = getattr(raw_solution, "integrals", None)
-        self.integrals = (
-            np.asarray(integrals_val, dtype=np.float64) if integrals_val is not None else None
-        )
-
-        time_states_val = getattr(raw_solution, "time_states", None)
-        self._time_states = (
-            np.asarray(time_states_val, dtype=np.float64) if time_states_val is not None else None
-        )
-
-        states_val = getattr(raw_solution, "states", None)
-        if states_val is not None:
-            self._states = [np.asarray(s, dtype=np.float64) for s in states_val]
-
-        time_controls_val = getattr(raw_solution, "time_controls", None)
-        self._time_controls = (
-            np.asarray(time_controls_val, dtype=np.float64)
-            if time_controls_val is not None
-            else None
-        )
-
-        controls_val = getattr(raw_solution, "controls", None)
-        if controls_val is not None:
-            self._controls = [np.asarray(c, dtype=np.float64) for c in controls_val]
-
-        poly_degrees_val = getattr(raw_solution, "num_collocation_nodes_per_interval", None)
-        if poly_degrees_val is not None:
-            self._polynomial_degrees = np.asarray(poly_degrees_val, dtype=np.int_)
-
-        mesh_norm_val = getattr(raw_solution, "global_normalized_mesh_nodes", None)
-        if mesh_norm_val is not None:
-            self._mesh_points_normalized = np.asarray(mesh_norm_val, dtype=np.float64)
-
-        if (
-            self.initial_time is not None
-            and self.final_time is not None
-            and self._mesh_points_normalized is not None
-        ):
-            alpha = (self.final_time - self.initial_time) / 2.0
-            alpha_0 = (self.final_time + self.initial_time) / 2.0
-            self._mesh_points_time = alpha * self._mesh_points_normalized + alpha_0
+    # =================================================================
+    # DIRECT PROPERTIES - No data re-extraction
+    # =================================================================
 
     @property
-    def num_intervals(self) -> int:
-        if self._polynomial_degrees is not None:
-            return len(self._polynomial_degrees)
-        if self._mesh_points_normalized is not None:
-            return max(0, len(self._mesh_points_normalized) - 1)
-        return 0
+    def success(self) -> bool:
+        """Whether solution was successful."""
+        return self._raw.success if self._raw else False
 
     @property
-    def polynomial_degrees(self) -> IntArray | None:
-        return self._polynomial_degrees
+    def message(self) -> str:
+        """Solution status message."""
+        return self._raw.message if self._raw else "No solution"
 
     @property
-    def mesh_points(self) -> FloatArray | None:
-        return self._mesh_points_time
+    def initial_time(self) -> float | None:
+        """Initial time."""
+        return self._raw.initial_time_variable if self._raw else None
 
     @property
-    def mesh_points_normalized(self) -> FloatArray | None:
-        return self._mesh_points_normalized
+    def final_time(self) -> float | None:
+        """Final time."""
+        return self._raw.terminal_time_variable if self._raw else None
 
-    def _get_variable_index(self, identifier: str | int, names_list: list[str]) -> int | None:
-        """Get index for a variable by string name or integer index."""
-        if isinstance(identifier, int):
-            return identifier if 0 <= identifier < len(names_list) else None
-        try:
-            return names_list.index(identifier)
-        except ValueError:
-            return None
+    @property
+    def objective(self) -> float | None:
+        """Objective function value."""
+        return self._raw.objective if self._raw else None
 
-    def _resolve_symbolic_variable(
-        self, sym_var: SymType, symbol_map: _SymbolMap, problem_attr: str
-    ) -> str | None:
-        """Resolve a symbolic variable to its string name."""
-        if sym_var in symbol_map:
-            return symbol_map[sym_var]
+    @property
+    def integrals(self) -> FloatArray | None:
+        """Integral values."""
+        return self._raw.integrals if self._raw else None
 
-        # Search through the problem if the map is not populated
-        if self._problem and hasattr(self._problem, problem_attr):
-            attrs = getattr(self._problem, problem_attr)
-            # Cast to ensure proper typing since we know these are symbol dictionaries
-            if isinstance(attrs, dict):
-                for name_any, var_any in attrs.items():
-                    # Cast the items to ensure correct types
-                    name = cast(str, name_any)
-                    var = cast(SymType, var_any)
-                    if var is sym_var:
-                        symbol_map[sym_var] = name
-                        return name
-        return None
+    # =================================================================
+    # TRAJECTORY ACCESS - Direct from OptimalControlSolution
+    # =================================================================
 
-    def _is_symbolic_variable(self, variable: _VariableIdentifier) -> bool:
-        """Check if a variable identifier is a symbolic variable."""
-        return hasattr(variable, "is_symbolic") or (
-            hasattr(variable, "is_constant") and not isinstance(variable, int | str | float)
-        )
-
-    def _get_trajectory(
-        self, identifier: _VariableIdentifier, variable_type: str
-    ) -> _TrajectoryTuple:
+    def get_trajectory(self, identifier: _VariableIdentifier) -> _TrajectoryTuple:
         """
-        Unified trajectory extraction for states and controls.
+        Get trajectory for any variable (state or control).
 
         Args:
-            identifier: Variable name, index, or symbolic variable
-            variable_type: Either "state" or "control"
+            identifier: Variable name (str), index (int), or symbolic variable
 
         Returns:
-            Tuple of (time_array, value_array)
+            (time_array, values_array) tuple
         """
-        empty_arr = np.array([], dtype=np.float64)
+        if not self.success or not self._raw:
+            print("Warning: Solution not successful")
+            empty = np.array([], dtype=np.float64)
+            return empty, empty
 
-        # Select appropriate data based on variable type
-        if variable_type == "state":
-            time_arr = self._time_states if self._time_states is not None else empty_arr
-            values_list = self._states
-            names_list = self._state_names
-            symbol_map = self._sym_state_map
-            problem_attr = "_sym_states"
-        elif variable_type == "control":
-            time_arr = self._time_controls if self._time_controls is not None else empty_arr
-            values_list = self._controls
-            names_list = self._control_names
-            symbol_map = self._sym_control_map
-            problem_attr = "_sym_controls"
-        else:
-            raise ValueError(f"Invalid variable_type: {variable_type}")
+        # Resolve identifier to name and type
+        var_name, var_type = self._resolve_variable(identifier)
+        if var_name is None:
+            print(f"Warning: Variable '{identifier}' not found")
+            empty = np.array([], dtype=np.float64)
+            return empty, empty
 
-        # Handle symbolic variable case
-        if self._is_symbolic_variable(identifier):
-            sym_var = cast(SymType, identifier)
-            var_name = self._resolve_symbolic_variable(sym_var, symbol_map, problem_attr)
+        # Get data directly from OptimalControlSolution
+        if var_type == "state":
+            time_array = self._raw.time_states
+            var_index = self._state_names.index(var_name)
+            values_array = self._raw.states[var_index]
+        else:  # control
+            time_array = self._raw.time_controls
+            var_index = self._control_names.index(var_name)
+            values_array = self._raw.controls[var_index]
 
-            if var_name is None:
-                print(f"Warning: Variable '{sym_var}' not found")
-                return time_arr, empty_arr
-            identifier = var_name
+        return time_array, values_array
 
-        # Now identifier is guaranteed to be str | int
-        string_or_int_identifier = cast(str | int, identifier)
-        index = self._get_variable_index(string_or_int_identifier, names_list)
+    def _resolve_variable(self, identifier: _VariableIdentifier) -> tuple[str | None, str | None]:
+        """
+        Resolve variable identifier to (name, type).
 
-        if index is None or values_list is None or not (0 <= index < len(values_list)):
-            return time_arr, empty_arr
-        return time_arr, values_list[index]
-
-    def get_data_for_interval(self, interval_index: int) -> IntervalData | None:
-        if not (0 <= interval_index < self.num_intervals):
-            return None
-        if self._mesh_points_time is None or self._polynomial_degrees is None:
-            return None
-
-        interval_t_start = self._mesh_points_time[interval_index]
-        interval_t_end = self._mesh_points_time[interval_index + 1]
-        nk_interval = self._polynomial_degrees[interval_index]
-
-        time_states_segment, states_segment = self._extract_segment_data(
-            self._time_states, self._states, interval_t_start, interval_t_end
-        )
-        time_controls_segment, controls_segment = self._extract_segment_data(
-            self._time_controls, self._controls, interval_t_start, interval_t_end
-        )
-
-        return IntervalData(
-            t_start=interval_t_start,
-            t_end=interval_t_end,
-            Nk=nk_interval,
-            time_states_segment=time_states_segment,
-            states_segment=states_segment,
-            time_controls_segment=time_controls_segment,
-            controls_segment=controls_segment,
-        )
-
-    def get_all_interval_data(self) -> list[IntervalData | None]:
-        return [self.get_data_for_interval(i) for i in range(self.num_intervals)]
-
-    def _extract_segment_data(
-        self,
-        time_array: FloatArray | None,
-        data_arrays: list[FloatArray] | None,
-        interval_t_start: float,
-        interval_t_end: float,
-        epsilon: float = 1e-9,
-    ) -> tuple[FloatArray, Sequence[FloatArray]]:
-        empty_time_segment = np.array([], dtype=np.float64)
-        num_data_arrays = len(data_arrays) if data_arrays else 0
-        empty_data_segments = [np.array([], dtype=np.float64) for _ in range(num_data_arrays)]
-
-        if time_array is None or not data_arrays or time_array.size == 0:
-            return empty_time_segment, empty_data_segments
-
-        sort_indices = np.argsort(time_array)
-        sorted_time = time_array[sort_indices]
-
-        start_idx = np.searchsorted(sorted_time, interval_t_start - epsilon, side="left")
-        end_idx = np.searchsorted(sorted_time, interval_t_end + epsilon, side="right")
-
-        if start_idx >= end_idx:
-            return empty_time_segment, empty_data_segments
-
-        actual_indices_in_interval = sort_indices[start_idx:end_idx]
-        time_segment = time_array[actual_indices_in_interval]
-        extracted_data_segments: list[FloatArray] = []
-
-        for data_array_item in data_arrays:
-            if data_array_item.size == time_array.size:
-                extracted_data_segments.append(data_array_item[actual_indices_in_interval])
+        Returns:
+            (variable_name, "state"|"control") or (None, None) if not found
+        """
+        # Handle symbolic variables
+        if hasattr(identifier, "is_symbolic") or hasattr(identifier, "is_constant"):
+            if identifier in self._sym_to_name:
+                var_name = self._sym_to_name[identifier]
             else:
-                extracted_data_segments.append(np.array([], dtype=np.float64))
-        return time_segment, extracted_data_segments
-
-    def _resolve_variable_names(
-        self, variables: _PlotVariableNames, variable_type: str
-    ) -> list[str]:
-        """Resolve variable names from a mix of strings and symbolic variables."""
-        processed_names: list[str] = []
-        if variables is None:
-            return processed_names
-
-        for var in variables:
-            if self._is_symbolic_variable(var):
-                sym_var = cast(SymType, var)
-                if variable_type == "state":
-                    resolved_name = self._resolve_symbolic_variable(
-                        sym_var, self._sym_state_map, "_sym_states"
-                    )
-                elif variable_type == "control":
-                    resolved_name = self._resolve_symbolic_variable(
-                        sym_var, self._sym_control_map, "_sym_controls"
-                    )
-                else:
-                    resolved_name = None
-
-                if resolved_name is not None:
-                    processed_names.append(resolved_name)
-            elif isinstance(var, str):
-                processed_names.append(var)
-
-        return processed_names
-
-    def _plot_variables(
-        self,
-        variable_type: str,
-        variable_names_to_plot: Iterable[str] | None,
-        figsize: tuple[float, float],
-    ) -> None:
-        """
-        Unified plotting function for states and controls.
-
-        Args:
-            variable_type: Either "state" or "control"
-            variable_names_to_plot: Names to plot (None means all)
-            figsize: Figure size
-        """
-        if not self.success:
-            print(f"Cannot plot {variable_type}s: Solution not successful")
-            return
-
-        # Select appropriate data based on variable type
-        if variable_type == "state":
-            all_names = self._state_names
-
-            def get_index_func(name):
-                return self._get_variable_index(name, self._state_names)
-        elif variable_type == "control":
-            all_names = self._control_names
-
-            def get_index_func(name):
-                return self._get_variable_index(name, self._control_names)
+                return None, None
         else:
-            raise ValueError(f"Invalid variable_type: {variable_type}")
+            var_name = str(identifier)
 
-        # Determine which variables to plot
-        names_to_plot_list: list[str]
-        if variable_names_to_plot is None:
-            names_to_plot_list = all_names
+        # Determine type
+        if var_name in self._state_names:
+            return var_name, "state"
+        elif var_name in self._control_names:
+            return var_name, "control"
         else:
-            names_to_plot_list = [name for name in variable_names_to_plot if name in all_names]
+            return None, None
 
-        if not names_to_plot_list:
-            print(f"No valid {variable_type} names provided or available to plot.")
-            return
-
-        # Create subplots
-        num_vars_to_plot = len(names_to_plot_list)
-        fig, axes_obj = plt.subplots(num_vars_to_plot, 1, figsize=figsize, sharex=True)
-        axes_list: list[MplAxes]
-        if num_vars_to_plot == 1:
-            axes_list = [axes_obj]
-        else:
-            axes_list = list(axes_obj)
-
-        # Get interval data and colors
-        num_intervals = self.num_intervals
-        all_interval_data = self.get_all_interval_data()
-        colors = plt.get_cmap("viridis")(np.linspace(0, 1, max(1, num_intervals)))
-
-        # Plot each variable
-        for i, name in enumerate(names_to_plot_list):
-            ax = axes_list[i]
-            var_idx = get_index_func(name)
-            if var_idx is None:
-                continue
-
-            if num_intervals == 0:
-                # Simple case - no intervals
-                time_traj, value_traj = self._get_trajectory(name, variable_type)
-                if time_traj.size > 0 and value_traj.size > 0:
-                    ax.plot(time_traj, value_traj, marker=".", linestyle="-")
-            else:
-                # Plot by intervals with different colors
-                for k, interval_data_opt in enumerate(all_interval_data):
-                    if interval_data_opt is None:
-                        continue
-                    interval_data = interval_data_opt
-
-                    if variable_type == "state":
-                        time_segment = interval_data.time_states_segment
-                        value_segment = (
-                            interval_data.states_segment[var_idx]
-                            if var_idx < len(interval_data.states_segment)
-                            else None
-                        )
-                    else:  # control
-                        time_segment = interval_data.time_controls_segment
-                        value_segment = (
-                            interval_data.controls_segment[var_idx]
-                            if var_idx < len(interval_data.controls_segment)
-                            else None
-                        )
-
-                    if (
-                        time_segment is not None
-                        and value_segment is not None
-                        and time_segment.size > 0
-                    ):
-                        ax.plot(
-                            time_segment,
-                            value_segment,
-                            color=colors[k % len(colors)],
-                            marker=".",
-                            linestyle="-",
-                        )
-
-            ax.set_ylabel(name)
-            ax.grid(True)
-
-        # Add legend if we have intervals
-        if num_intervals > 0 and self.polynomial_degrees is not None:
-            handles = [
-                Line2D([0], [0], color=colors[k % len(colors)], lw=2) for k in range(num_intervals)
-            ]
-            labels = [
-                f"Interval {k} (Nk={self.polynomial_degrees[k]})" for k in range(num_intervals)
-            ]
-            fig.legend(handles, labels, loc="upper right", title="Mesh Intervals")
-
-        # Set x-axis label and layout
-        axes_list[-1].set_xlabel("Time")
-        rect_val: tuple[float, float, float, float] = (
-            0.0,
-            0.0,
-            0.85 if num_intervals > 0 else 1.0,
-            0.96,
-        )
-        plt.tight_layout(rect=rect_val)
-        plt.show()
+    # =================================================================
+    # PLOTTING - Integrated, no separate module needed
+    # =================================================================
 
     def plot(self, figsize: tuple[float, float] = (10.0, 8.0)) -> None:
         """Plot all states and controls."""
@@ -501,188 +152,167 @@ class _Solution:
 
         num_states = len(self._state_names)
         num_controls = len(self._control_names)
-        num_rows = num_states + num_controls
+        total_plots = num_states + num_controls
 
-        if num_rows == 0:
-            print("Cannot plot: No states or controls to plot.")
+        if total_plots == 0:
+            print("Nothing to plot")
             return
 
         # Create subplots
-        fig, axes_obj = plt.subplots(num_rows, 1, figsize=figsize, sharex=True)
-        axes_list: list[MplAxes]
-        if num_rows == 1:
-            axes_list = [axes_obj]
-        else:
-            axes_list = list(axes_obj)
+        fig, axes = plt.subplots(total_plots, 1, figsize=figsize, sharex=True)
+        if total_plots == 1:
+            axes = [axes]
 
-        # Get interval data and colors
-        num_intervals = self.num_intervals
-        all_interval_data = self.get_all_interval_data()
-        colors = plt.get_cmap("viridis")(np.linspace(0, 1, max(1, num_intervals)))
-
-        plot_row_idx = 0
+        # Get colors for mesh intervals
+        colors = self._get_interval_colors()
 
         # Plot states
-        for state_idx, name in enumerate(self._state_names):
-            ax = axes_list[plot_row_idx]
-            if num_intervals == 0:
-                # Simple case - no intervals
-                if self._time_states is not None and self._states is not None:
-                    ax.plot(self._time_states, self._states[state_idx], marker=".", linestyle="-")
-            else:
-                # Plot by intervals with different colors
-                for k, interval_data in enumerate(all_interval_data):
-                    if (
-                        interval_data
-                        and state_idx < len(interval_data.states_segment)
-                        and interval_data.states_segment[state_idx].size > 0
-                    ):
-                        ax.plot(
-                            interval_data.time_states_segment,
-                            interval_data.states_segment[state_idx],
-                            color=colors[k % len(colors)],
-                            marker=".",
-                            linestyle="-",
-                        )
-            ax.set_ylabel(name)
-            ax.grid(True)
-            plot_row_idx += 1
+        for i, name in enumerate(self._state_names):
+            self._plot_single_variable(axes[i], name, "state", colors)
 
         # Plot controls
-        for control_idx, name in enumerate(self._control_names):
-            ax = axes_list[plot_row_idx]
-            if num_intervals == 0:
-                # Simple case - no intervals
-                if self._time_controls is not None and self._controls is not None:
-                    ax.plot(
-                        self._time_controls, self._controls[control_idx], marker=".", linestyle="-"
-                    )
-            else:
-                # Plot by intervals with different colors
-                for k, interval_data in enumerate(all_interval_data):
-                    if (
-                        interval_data
-                        and control_idx < len(interval_data.controls_segment)
-                        and interval_data.controls_segment[control_idx].size > 0
-                    ):
-                        ax.plot(
-                            interval_data.time_controls_segment,
-                            interval_data.controls_segment[control_idx],
-                            color=colors[k % len(colors)],
-                            marker=".",
-                            linestyle="-",
-                        )
-            ax.set_ylabel(name)
-            ax.grid(True)
-            plot_row_idx += 1
+        for i, name in enumerate(self._control_names):
+            self._plot_single_variable(axes[num_states + i], name, "control", colors)
 
-        # Add legend if we have intervals
-        if self.polynomial_degrees is not None and num_intervals > 0:
-            handles = [
-                Line2D([0], [0], color=colors[k % len(colors)], lw=2) for k in range(num_intervals)
-            ]
-            labels = [
-                f"Interval {k} (Nk={self.polynomial_degrees[k]})" for k in range(num_intervals)
-            ]
-            fig.legend(handles, labels, loc="upper right", title="Mesh Intervals")
-
-        # Set x-axis label and layout
-        axes_list[-1].set_xlabel("Time")
-        rect_val: tuple[float, float, float, float] = (
-            0.0,
-            0.0,
-            0.85 if num_intervals > 0 else 1.0,
-            0.96,
-        )
-        plt.tight_layout(rect=rect_val)
+        # Finalize
+        axes[-1].set_xlabel("Time")
+        if colors is not None and len(colors) > 0:
+            self._add_mesh_legend(fig, colors)
+        plt.tight_layout()
         plt.show()
 
     def plot_states(
-        self,
-        state_names: _PlotVariableNames = None,
-        figsize: tuple[float, float] = (10.0, 8.0),
+        self, names: list[str] | None = None, figsize: tuple[float, float] = (10.0, 8.0)
     ) -> None:
-        """Plot specific state trajectories."""
-        processed_names = self._resolve_variable_names(state_names, "state")
-
-        if state_names is not None:
-            # Filter to only include valid names
-            processed_names = [name for name in processed_names if name in self._state_names]
-            self._plot_variables("state", processed_names, figsize)
-        else:
-            self._plot_variables("state", None, figsize)
+        """Plot specific states."""
+        names = names or self._state_names
+        self._plot_variables(names, "state", figsize)
 
     def plot_controls(
-        self,
-        control_names: _PlotVariableNames = None,
-        figsize: tuple[float, float] = (10.0, 8.0),
+        self, names: list[str] | None = None, figsize: tuple[float, float] = (10.0, 8.0)
     ) -> None:
-        """Plot specific control trajectories."""
-        processed_names = self._resolve_variable_names(control_names, "control")
+        """Plot specific controls."""
+        names = names or self._control_names
+        self._plot_variables(names, "control", figsize)
 
-        if control_names is not None:
-            # Filter to only include valid names
-            processed_names = [name for name in processed_names if name in self._control_names]
-            self._plot_variables("control", processed_names, figsize)
+    def _plot_variables(
+        self, names: list[str], var_type: str, figsize: tuple[float, float]
+    ) -> None:
+        """Plot list of variables of same type."""
+        if not self.success or not names:
+            print(f"Cannot plot {var_type}s")
+            return
+
+        fig, axes = plt.subplots(len(names), 1, figsize=figsize, sharex=True)
+        if len(names) == 1:
+            axes = [axes]
+
+        colors = self._get_interval_colors()
+
+        for i, name in enumerate(names):
+            self._plot_single_variable(axes[i], name, var_type, colors)
+
+        axes[-1].set_xlabel("Time")
+        if colors is not None and len(colors) > 0:
+            self._add_mesh_legend(fig, colors)
+        plt.tight_layout()
+        plt.show()
+
+    def _plot_single_variable(
+        self, ax: MplAxes, name: str, var_type: str, colors: list | np.ndarray | None
+    ) -> None:
+        """Plot single variable with mesh interval coloring."""
+        time_array, values_array = self.get_trajectory(name)
+
+        if time_array.size == 0:
+            return
+
+        # Simple plot if no mesh intervals
+        if colors is None or len(colors) == 0:
+            ax.plot(time_array, values_array, "b.-", linewidth=1.5, markersize=3)
         else:
-            self._plot_variables("control", None, figsize)
+            # Plot by intervals with colors
+            intervals = self._get_mesh_intervals()
+            if len(intervals) > 0:
+                for k, (t_start, t_end) in enumerate(intervals):
+                    # Find points in this interval
+                    mask = (time_array >= t_start - 1e-10) & (time_array <= t_end + 1e-10)
+                    if np.any(mask):
+                        ax.plot(
+                            time_array[mask],
+                            values_array[mask],
+                            color=colors[k % len(colors)],
+                            marker=".",
+                            linestyle="-",
+                            linewidth=1.5,
+                            markersize=3,
+                        )
+            else:
+                # Fallback to simple plot
+                ax.plot(time_array, values_array, "b.-", linewidth=1.5, markersize=3)
 
-    def get_trajectory(self, identifier: _VariableIdentifier) -> _TrajectoryTuple:
-        """
-        Get trajectory data for any variable (state or control).
+        ax.set_ylabel(name)
+        ax.grid(True, alpha=0.3)
 
-        Args:
-            identifier: Variable identifier - string name or symbolic variable
+    def _get_interval_colors(self) -> np.ndarray | None:
+        """Get colors for mesh intervals."""
+        if not self._raw or not hasattr(self._raw, "global_normalized_mesh_nodes"):
+            return None
 
-        Returns:
-            Tuple of (time_array, value_array)
-        """
-        if not self.success:
-            print("Warning: Solution was not successful, returning empty trajectory")
-            empty_arr = np.array([], dtype=np.float64)
-            return empty_arr, empty_arr
+        mesh_nodes = self._raw.global_normalized_mesh_nodes
+        if mesh_nodes is None or len(mesh_nodes) <= 1:
+            return None
 
-        # Handle both symbolic variables AND strings with the same logic
-        return self._get_unified_trajectory(identifier)
+        num_intervals = len(mesh_nodes) - 1
+        return plt.get_cmap("viridis")(np.linspace(0, 1, num_intervals))
 
-    def _get_unified_trajectory(self, identifier: _VariableIdentifier) -> _TrajectoryTuple:
-        """
-        Unified trajectory getter that handles both symbolic variables and strings.
-        """
-        # Case 1: Symbolic variable
-        if self._is_symbolic_variable(identifier):
-            sym_var = cast(SymType, identifier)
+    def _get_mesh_intervals(self) -> list[tuple[float, float]]:
+        """Get mesh interval boundaries in physical time."""
+        if not self._raw or self.initial_time is None or self.final_time is None:
+            return []
 
-            # Try symbolic maps
-            if sym_var in self._sym_state_map:
-                return self._get_trajectory(self._sym_state_map[sym_var], "state")
-            elif sym_var in self._sym_control_map:
-                return self._get_trajectory(self._sym_control_map[sym_var], "control")
+        mesh_norm = self._raw.global_normalized_mesh_nodes
+        if mesh_norm is None:
+            return []
 
-            # Search in problem if not in maps (fallback)
-            var_name = self._resolve_symbolic_variable(sym_var, self._sym_state_map, "_sym_states")
-            if var_name is not None:
-                return self._get_trajectory(var_name, "state")
+        # Convert normalized mesh to physical time
+        alpha = (self.final_time - self.initial_time) / 2.0
+        alpha_0 = (self.final_time + self.initial_time) / 2.0
+        mesh_phys = alpha * mesh_norm + alpha_0
 
-            var_name = self._resolve_symbolic_variable(
-                sym_var, self._sym_control_map, "_sym_controls"
-            )
-            if var_name is not None:
-                return self._get_trajectory(var_name, "control")
+        return [(mesh_phys[i], mesh_phys[i + 1]) for i in range(len(mesh_phys) - 1)]
 
-        # Case 2: String variable
-        elif isinstance(identifier, str):
-            var_name = identifier
+    def _add_mesh_legend(self, fig: plt.Figure, colors: np.ndarray) -> None:
+        """Add mesh interval legend."""
+        if not self._raw or not hasattr(self._raw, "num_collocation_nodes_per_interval"):
+            return
 
-            # Check states first
-            if var_name in self._state_names:
-                return self._get_trajectory(var_name, "state")
+        poly_degrees = self._raw.num_collocation_nodes_per_interval
+        if poly_degrees is None:
+            return
 
-            # Check controls second
-            if var_name in self._control_names:
-                return self._get_trajectory(var_name, "control")
+        handles = [
+            Line2D([0], [0], color=colors[k % len(colors)], lw=2) for k in range(len(poly_degrees))
+        ]
+        labels = [f"Interval {k} (N={poly_degrees[k]})" for k in range(len(poly_degrees))]
 
-        # Not found - return empty arrays
-        print(f"Warning: Variable '{identifier}' not found")
-        empty_arr = np.array([], dtype=np.float64)
-        return empty_arr, empty_arr
+        fig.legend(handles, labels, loc="upper right", title="Mesh Intervals")
+
+    # =================================================================
+    # CONVENIENCE METHODS
+    # =================================================================
+
+    def summary(self) -> None:
+        """Print solution summary."""
+        print(f"Solution Status: {'Success' if self.success else 'Failed'}")
+        if self.success:
+            print(f"  Objective: {self.objective}")
+            print(f"  Time: {self.initial_time} → {self.final_time}")
+            print(f"  States: {len(self._state_names)}")
+            print(f"  Controls: {len(self._control_names)}")
+            if self._raw and hasattr(self._raw, "global_normalized_mesh_nodes"):
+                mesh = self._raw.global_normalized_mesh_nodes
+                if mesh is not None:
+                    print(f"  Mesh intervals: {len(mesh) - 1}")
+        else:
+            print(f"  Message: {self.message}")
