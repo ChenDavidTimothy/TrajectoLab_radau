@@ -5,11 +5,12 @@ Simplified solution interface with direct data access and integrated plotting.
 No redundant data extraction - uses OptimalControlSolution directly.
 """
 
-from typing import TypeAlias
+from typing import TypeAlias, cast
 
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.axes import Axes as MplAxes
+from matplotlib.figure import Figure as MplFigure
 from matplotlib.lines import Line2D
 
 from .tl_types import FloatArray, OptimalControlSolution, ProblemProtocol, SymType
@@ -74,7 +75,7 @@ class Solution:
         return self._raw.objective if self._raw else None
 
     @property
-    def integrals(self) -> FloatArray | None:
+    def integrals(self) -> float | FloatArray | None:  # Fixed return type
         """Integral values."""
         return self._raw.integrals if self._raw else None
 
@@ -125,8 +126,10 @@ class Solution:
         """
         # Handle symbolic variables
         if hasattr(identifier, "is_symbolic") or hasattr(identifier, "is_constant"):
-            if identifier in self._sym_to_name:
-                var_name = self._sym_to_name[identifier]
+            # Cast to SymType for dictionary lookup since we know it's symbolic
+            sym_identifier = cast(SymType, identifier)
+            if sym_identifier in self._sym_to_name:
+                var_name = self._sym_to_name[sym_identifier]  # Fixed type handling
             else:
                 return None, None
         else:
@@ -282,7 +285,7 @@ class Solution:
 
         return [(mesh_phys[i], mesh_phys[i + 1]) for i in range(len(mesh_phys) - 1)]
 
-    def _add_mesh_legend(self, fig: plt.Figure, colors: np.ndarray) -> None:
+    def _add_mesh_legend(self, fig: MplFigure, colors: np.ndarray) -> None:  # Fixed parameter type
         """Add mesh interval legend."""
         if not self._raw or not hasattr(self._raw, "num_collocation_nodes_per_interval"):
             return
