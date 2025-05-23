@@ -1,10 +1,6 @@
 """
 Space Shuttle Reentry - Simple Scaling Demonstration
 
-A concise example showcasing variable scaling for better numerical conditioning.
-Follows the Julia JuMP tutorial approach with minimal complexity.
-
-Key scaling: altitude ÷ 1e5, velocity ÷ 1e4
 """
 
 import casadi as ca
@@ -29,7 +25,7 @@ MASS = 203000.0 / 32.174
 A0, A1 = -0.20704, 0.029244
 B0, B1, B2 = 0.07854, -0.61592e-2, 0.621408e-3
 
-# Scaling factors (like Julia example)
+# Scaling factors
 H_SCALE = 1e5  # Altitude scaling
 V_SCALE = 1e4  # Velocity scaling
 
