@@ -1,6 +1,6 @@
 """
-Core type definitions for the TrajectoLab project - SIMPLIFIED.
-Removed all redundant type aliases and kept only what's actually used.
+Core type definitions for the TrajectoLab project - UNIFIED CONSTRAINT API.
+Updated to include types for the new unified constraint specification.
 """
 
 from __future__ import annotations
@@ -40,6 +40,17 @@ ListOfCasadiMX: TypeAlias = list[CasadiMX]
 
 # --- Problem Structure ---
 ProblemParameters: TypeAlias = dict[str, float | int | str]
+
+# --- Unified Constraint API Types ---
+ConstraintInput: TypeAlias = float | int | tuple[float | int | None, float | int | None] | None
+"""
+Type alias for unified constraint specification.
+
+Supported input types:
+- float/int: Equality constraint (variable = value)
+- tuple(lower, upper): Range constraint with None for unbounded sides
+- None: No constraint specified
+"""
 
 
 # --- Unified Constraint System ---
@@ -183,7 +194,7 @@ ODESolverCallable: TypeAlias = Callable[..., ODESolverResult]
 T = TypeVar("T")
 
 
-# --- Problem Protocol (Simplified) ---
+# --- Problem Protocol (Updated for Unified API) ---
 class ProblemProtocol(Protocol):
     """Protocol defining the expected interface of a Problem object."""
 
@@ -195,7 +206,7 @@ class ProblemProtocol(Protocol):
     solver_options: dict[str, object]
     _mesh_configured: bool
 
-    # Time bounds
+    # Time bounds (compatibility)
     _t0_bounds: tuple[float, float]
     _tf_bounds: tuple[float, float]
 
@@ -232,11 +243,11 @@ class ProblemProtocol(Protocol):
         ...
 
     def get_state_bounds(self) -> list[tuple[float | None, float | None]]:
-        """Get state bounds in order"""
+        """Get state bounds in order (compatibility)"""
         ...
 
     def get_control_bounds(self) -> list[tuple[float | None, float | None]]:
-        """Get control bounds in order"""
+        """Get control bounds in order (compatibility)"""
         ...
 
     def set_mesh(

@@ -8,14 +8,14 @@ import trajectolab as tl
 problem = tl.Problem("Car Race")
 
 # Time is free (we want to minimize it)
-t = problem.time(initial=0.0, free_final=True)
+t = problem.time(initial=0.0)
 
 # States: position (0 to 1) and speed (start from rest)
 pos = problem.state("position", initial=0.0, final=1.0)
 speed = problem.state("speed", initial=0.0)
 
 # Control: throttle (0 to 1)
-throttle = problem.control("throttle", lower=0.0, upper=1.0)
+throttle = problem.control("throttle", boundary=(0.0, 1.0))
 
 # Dynamics: position changes with speed, speed changes with throttle minus drag
 problem.dynamics({pos: speed, speed: throttle - speed})

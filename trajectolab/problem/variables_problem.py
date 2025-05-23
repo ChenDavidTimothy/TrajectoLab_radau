@@ -1,6 +1,6 @@
 """
-Variable management functions for optimal control problems - SIMPLIFIED.
-Removed ALL legacy code, uses only unified storage system.
+Variable management functions for optimal control problems - UNIFIED CONSTRAINT API.
+Implements the new unified constraint specification with initial/final/boundary parameters.
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from typing import Any, cast
 import casadi as ca
 
 from ..tl_types import SymExpr, SymType
-from .state import VariableState, _BoundaryConstraint
+from .state import ConstraintInput, VariableState, _BoundaryConstraint
 
 
 class TimeVariableImpl:
@@ -87,27 +87,49 @@ class TimeVariableImpl:
 
 def create_time_variable(
     state: VariableState,
-    initial: float = 0.0,
-    final: float | None = None,
-    free_final: bool = False,
+    initial: ConstraintInput = 0.0,
+    final: ConstraintInput = None,
 ) -> TimeVariableImpl:
-    """Create time variable with bounds."""
+    """
+    Create time variable with unified constraint specification.
+
+    Args:
+        state: Variable state container
+        initial: Initial time constraint (default: fixed at 0.0)
+            - float/int: Fixed initial time
+            - tuple(lower, upper): Range constraint for t0
+            - None: Treated as fixed at 0.0
+        final: Final time constraint (default: free)
+            - float/int: Fixed final time
+            - tuple(lower, upper): Range constraint for tf
+            - None: Fully free (subject to tf > t0 + epsilon)
+
+    Returns:
+        TimeVariableImpl object with initial/final properties
+    """
     # Create symbolic variables
     sym_time = ca.MX.sym("t", 1)  # type: ignore[arg-type]
     sym_t0 = ca.MX.sym("t0", 1)  # type: ignore[arg-type]
     sym_tf = ca.MX.sym("tf", 1)  # type: ignore[arg-type]
 
-    # Set time bounds
-    t0_bounds = (initial, initial)  # Fixed initial time
+    # Handle initial time constraint
+    if initial is None:
+        initial = 0.0  # Default to fixed at 0.0
 
-    if free_final:
-        tf_bounds = (0.0, final if final is not None else 1e6)
-    else:
-        tf_val = final if final is not None else initial
-        tf_bounds = (tf_val, tf_val)
+    try:
+        t0_constraint = _BoundaryConstraint(initial)
+    except (ValueError, TypeError) as e:
+        raise ValueError(f"Invalid initial time constraint: {e}") from e
 
-    state.t0_bounds = t0_bounds
-    state.tf_bounds = tf_bounds
+    # Handle final time constraint
+    try:
+        tf_constraint = _BoundaryConstraint(final)
+    except (ValueError, TypeError) as e:
+        raise ValueError(f"Invalid final time constraint: {e}") from e
+
+    # Store constraints in state
+    state.t0_constraint = t0_constraint
+    state.tf_constraint = tf_constraint
 
     # Store symbolic variables
     state.sym_time = sym_time
@@ -120,17 +142,41 @@ def create_time_variable(
 def create_state_variable(
     state: VariableState,
     name: str,
-    initial: float | None = None,
-    final: float | None = None,
-    lower: float | None = None,
-    upper: float | None = None,
+    initial: ConstraintInput = None,
+    final: ConstraintInput = None,
+    boundary: ConstraintInput = None,
 ) -> SymType:
-    """Create a state variable using unified storage."""
+    """
+    Create a state variable with unified constraint specification.
+
+    Args:
+        state: Variable state container
+        name: Variable name
+        initial: Initial condition constraint (event constraint at t0)
+            - float/int: Fixed value at t0
+            - tuple(lower, upper): Range constraint at t0
+            - None: No initial constraint
+        final: Final condition constraint (event constraint at tf)
+            - float/int: Fixed value at tf
+            - tuple(lower, upper): Range constraint at tf
+            - None: No final constraint
+        boundary: Path constraint (applies throughout trajectory)
+            - float/int: Fixed value for entire trajectory
+            - tuple(lower, upper): Range constraint for entire trajectory
+            - None: No path constraint
+
+    Returns:
+        CasADi symbolic variable
+    """
     sym_var = ca.MX.sym(name, 1)  # type: ignore[arg-type]
 
-    # Create boundary constraints if specified
-    initial_constraint = None if initial is None else _BoundaryConstraint(equals=initial)
-    final_constraint = None if final is None else _BoundaryConstraint(equals=final)
+    # Parse constraints
+    try:
+        initial_constraint = _BoundaryConstraint(initial) if initial is not None else None
+        final_constraint = _BoundaryConstraint(final) if final is not None else None
+        boundary_constraint = _BoundaryConstraint(boundary) if boundary is not None else None
+    except (ValueError, TypeError) as e:
+        raise ValueError(f"Invalid constraint for state '{name}': {e}") from e
 
     # Add to unified storage
     state.add_state(
@@ -138,8 +184,7 @@ def create_state_variable(
         symbol=sym_var,
         initial_constraint=initial_constraint,
         final_constraint=final_constraint,
-        lower=lower,
-        upper=upper,
+        boundary_constraint=boundary_constraint,
     )
 
     return sym_var
@@ -148,18 +193,49 @@ def create_state_variable(
 def create_control_variable(
     state: VariableState,
     name: str,
-    lower: float | None = None,
-    upper: float | None = None,
+    initial: ConstraintInput = None,
+    final: ConstraintInput = None,
+    boundary: ConstraintInput = None,
 ) -> SymType:
-    """Create a control variable using unified storage."""
+    """
+    Create a control variable with unified constraint specification.
+
+    Args:
+        state: Variable state container
+        name: Variable name
+        initial: Initial condition constraint (event constraint at t0)
+            - float/int: Fixed value at t0
+            - tuple(lower, upper): Range constraint at t0
+            - None: No initial constraint
+        final: Final condition constraint (event constraint at tf)
+            - float/int: Fixed value at tf
+            - tuple(lower, upper): Range constraint at tf
+            - None: No final constraint
+        boundary: Path constraint (applies throughout trajectory)
+            - float/int: Fixed value for entire trajectory
+            - tuple(lower, upper): Range constraint for entire trajectory
+            - None: No path constraint (strongly recommended to set bounds)
+
+    Returns:
+        CasADi symbolic variable
+    """
     sym_var = ca.MX.sym(name, 1)  # type: ignore[arg-type]
+
+    # Parse constraints
+    try:
+        initial_constraint = _BoundaryConstraint(initial) if initial is not None else None
+        final_constraint = _BoundaryConstraint(final) if final is not None else None
+        boundary_constraint = _BoundaryConstraint(boundary) if boundary is not None else None
+    except (ValueError, TypeError) as e:
+        raise ValueError(f"Invalid constraint for control '{name}': {e}") from e
 
     # Add to unified storage
     state.add_control(
         name=name,
         symbol=sym_var,
-        lower=lower,
-        upper=upper,
+        initial_constraint=initial_constraint,
+        final_constraint=final_constraint,
+        boundary_constraint=boundary_constraint,
     )
 
     return sym_var

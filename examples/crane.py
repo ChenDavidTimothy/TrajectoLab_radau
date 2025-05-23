@@ -25,13 +25,13 @@ def main_cst2_reactor_unscaled():
     x1 = problem.state("x1", initial=0.0, final=10.0)
     x2 = problem.state("x2", initial=22.0, final=14.0)
     x3 = problem.state("x3", initial=0.0, final=0.0)
-    x4 = problem.state("x4", initial=0, final=2.5, lower=-2.5, upper=2.5)
-    x5 = problem.state("x5", initial=-1, final=0.0, lower=-1.0, upper=1.0)
+    x4 = problem.state("x4", initial=0, final=2.5, boundary=(-2.5, 2.5))
+    x5 = problem.state("x5", initial=-1, final=0.0, boundary=(-1.0, 1.0))
     x6 = problem.state("x6", initial=0.0, final=0.0)
 
     # Controls
-    u1 = problem.control("u1", lower=-c1, upper=c1)
-    u2 = problem.control("u2", lower=c2, upper=c3)
+    u1 = problem.control("u1", boundary=(-c1, c1))
+    u2 = problem.control("u2", boundary=(c2, c3))
 
     # Dynamics
     problem.dynamics(

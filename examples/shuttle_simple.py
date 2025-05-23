@@ -38,21 +38,21 @@ def solve_scaled_shuttle():
     problem = tl.Problem("Shuttle Reentry - Scaled")
 
     # Free final time
-    problem.time(initial=0.0, free_final=True)
+    problem.time(initial=0.0)
 
     # Scaled state variables
-    h_s = problem.state("h_s", initial=2.6, final=0.8, lower=0.0)  # ÷1e5
+    h_s = problem.state("h_s", initial=2.6, final=0.8, boundary=(0, None))  # ÷1e5
     phi = problem.state("phi", initial=0.0)
-    theta = problem.state("theta", initial=0.0, lower=-89 * DEG2RAD, upper=89 * DEG2RAD)
-    v_s = problem.state("v_s", initial=2.56, final=0.25, lower=0.0)  # ÷1e4
+    theta = problem.state("theta", initial=0.0, boundary=(-89 * DEG2RAD, 89 * DEG2RAD))
+    v_s = problem.state("v_s", initial=2.56, final=0.25, boundary=(1e-4, None))  # ÷1e4
     gamma = problem.state(
-        "gamma", initial=-1 * DEG2RAD, final=-5 * DEG2RAD, lower=-89 * DEG2RAD, upper=89 * DEG2RAD
+        "gamma", initial=-1 * DEG2RAD, final=-5 * DEG2RAD, boundary=(-89 * DEG2RAD, 89 * DEG2RAD)
     )
     psi = problem.state("psi", initial=90 * DEG2RAD)
 
     # Controls
-    alpha = problem.control("alpha", lower=-90 * DEG2RAD, upper=90 * DEG2RAD)
-    beta = problem.control("beta", lower=-90 * DEG2RAD, upper=1 * DEG2RAD)
+    alpha = problem.control("alpha", boundary=(-90 * DEG2RAD, 90 * DEG2RAD))  # Angle of attack
+    beta = problem.control("beta", boundary=(-90 * DEG2RAD, 1 * DEG2RAD))  # Bank angle
 
     # Convert scaled variables to physical units
     h = h_s * H_SCALE  # Back to feet

@@ -25,12 +25,12 @@ def main_hiv_immunology():
     t = problem.time(initial=0.0, final=t_final_hiv)
 
     # States (Differential Variables)
-    T = problem.state("T", initial=400.0, lower=0.0, upper=1200.0)  #
-    V = problem.state("V", initial=3.0, lower=0.05, upper=5.0)  #
+    T = problem.state("T", initial=400.0, boundary=(0, 1200))  #
+    V = problem.state("V", initial=3.0, boundary=(0.05, 5))  #
 
     # Controls (Algebraic Variables)
-    u1 = problem.control("u1", lower=0.0, upper=0.02)  #
-    u2 = problem.control("u2", lower=0.0, upper=0.9)  #
+    u1 = problem.control("u1", boundary=(0, 0.02))  #
+    u2 = problem.control("u2", boundary=(0, 0.9))  #
 
     # System Dynamics (Differential-algebraic equations)
     T_dot = s1 - (s2 * V) / (b1 + V) - mu * T - k_const * V * T + u1 * T  #
@@ -102,10 +102,8 @@ def main_hiv_immunology():
     nlp_max_iter = 3000
     print(f"NLP max iterations: {nlp_max_iter}")
 
-    solution = tl.solve_adaptive(
+    solution = tl.solve_fixed_mesh(
         problem,
-        error_tolerance=5e-2,
-        ode_method="DOP853",
         nlp_options={
             "ipopt.print_level": 5,
             "ipopt.sb": "yes",

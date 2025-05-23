@@ -1,6 +1,6 @@
 """
-Variable setup functions for the direct solver - SIMPLIFIED.
-Updated to use unified storage system instead of legacy dual storage.
+Variable setup functions for the direct solver - UNIFIED CONSTRAINT API.
+Updated to handle unified constraint specification and new time bounds system.
 """
 
 import casadi as ca
@@ -16,7 +16,7 @@ def setup_optimization_variables(
     problem: ProblemProtocol,
     num_mesh_intervals: int,
 ) -> VariableReferences:
-    """Set up all optimization variables for the problem using unified storage."""
+    """Set up all optimization variables for the problem using unified constraint API."""
 
     # Get variable counts from unified storage
     num_states, num_controls = problem.get_variable_counts()
@@ -82,16 +82,40 @@ def setup_interval_state_variables(
 
 
 def _create_time_variables(opti: CasadiOpti, problem: ProblemProtocol) -> tuple[CasadiMX, CasadiMX]:
-    """Create time variables with bounds."""
+    """Create time variables with bounds using unified constraint API."""
     initial_time_variable: CasadiMX = opti.variable()
     terminal_time_variable: CasadiMX = opti.variable()
 
+    # Get time bounds from unified constraint system
+    t0_bounds = problem._t0_bounds
+    tf_bounds = problem._tf_bounds
+
     # Validate and apply time bounds
-    validate_time_bounds(problem._t0_bounds, problem._tf_bounds)
-    opti.subject_to(initial_time_variable >= problem._t0_bounds[0])
-    opti.subject_to(initial_time_variable <= problem._t0_bounds[1])
-    opti.subject_to(terminal_time_variable >= problem._tf_bounds[0])
-    opti.subject_to(terminal_time_variable <= problem._tf_bounds[1])
+    validate_time_bounds(t0_bounds, tf_bounds)
+
+    # Apply initial time bounds
+    if t0_bounds[0] == t0_bounds[1]:
+        # Fixed initial time
+        opti.subject_to(initial_time_variable == t0_bounds[0])
+    else:
+        # Range constraint for initial time
+        if t0_bounds[0] > -1e5:  # Not unbounded below
+            opti.subject_to(initial_time_variable >= t0_bounds[0])
+        if t0_bounds[1] < 1e5:  # Not unbounded above
+            opti.subject_to(initial_time_variable <= t0_bounds[1])
+
+    # Apply final time bounds
+    if tf_bounds[0] == tf_bounds[1]:
+        # Fixed final time
+        opti.subject_to(terminal_time_variable == tf_bounds[0])
+    else:
+        # Range constraint for final time
+        if tf_bounds[0] > -1e5:  # Not unbounded below
+            opti.subject_to(terminal_time_variable >= tf_bounds[0])
+        if tf_bounds[1] < 1e5:  # Not unbounded above
+            opti.subject_to(terminal_time_variable <= tf_bounds[1])
+
+    # Always enforce minimum time interval
     opti.subject_to(terminal_time_variable > initial_time_variable + MINIMUM_TIME_INTERVAL)
 
     return initial_time_variable, terminal_time_variable

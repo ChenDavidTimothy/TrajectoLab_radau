@@ -41,38 +41,36 @@ def create_shuttle_reentry_problem(heating_constraint=None, bank_angle_min=-90.0
     h_scale = 1e5
     v_scale = 1e4
 
-    t = problem.time(initial=0.0, free_final=True)
+    t = problem.time(initial=0.0)
 
     h_scaled = problem.state(
         "h_scaled",
         initial=260000.0 / h_scale,
-        lower=0.0,
+        boundary=(0.0, None),
         final=80000.0 / h_scale,
     )
     phi = problem.state("phi", initial=0.0 * deg2rad)
     theta = problem.state(
         "theta",
         initial=0.0 * deg2rad,
-        lower=-89.0 * deg2rad,
-        upper=89.0 * deg2rad,
+        boundary=(-89.0 * deg2rad, 89.0 * deg2rad),
     )
     v_scaled = problem.state(
         "v_scaled",
         initial=25600.0 / v_scale,
-        lower=1.0 / v_scale,
+        boundary=(1.0 / v_scale, None),
         final=2500.0 / v_scale,
     )
     gamma = problem.state(
         "gamma",
         initial=-1.0 * deg2rad,
-        lower=-89.0 * deg2rad,
-        upper=89.0 * deg2rad,
+        boundary=(-89.0 * deg2rad, 89.0 * deg2rad),
         final=-5.0 * deg2rad,
     )
     psi = problem.state("psi", initial=90.0 * deg2rad)
 
-    alpha = problem.control("alpha", lower=-90.0 * deg2rad, upper=90.0 * deg2rad)
-    beta = problem.control("beta", lower=bank_angle_min * deg2rad, upper=1.0 * deg2rad)
+    alpha = problem.control("alpha", boundary=(-90.0 * deg2rad, 90.0 * deg2rad))
+    beta = problem.control("beta", boundary=(bank_angle_min * deg2rad, 1.0 * deg2rad))
 
     symbolic_vars = {
         "t": t,

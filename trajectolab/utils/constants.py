@@ -38,9 +38,6 @@ MAX_MESH_REFINEMENT_ITERATIONS: int = 100
 MAX_NLP_SOLVER_ITERATIONS: int = 3000
 """Default maximum iterations for NLP solver."""
 
-# --- Physical Constants (if needed)
-# GRAVITY_ACCELERATION: float = 9.80665  # m/s^2
-
 # --- Validation Ranges ---
 MIN_POLYNOMIAL_DEGREE: int = 1
 """Minimum allowed polynomial degree for discretization."""
