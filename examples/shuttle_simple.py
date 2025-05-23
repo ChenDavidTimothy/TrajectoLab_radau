@@ -1,6 +1,5 @@
 """
-Space Shuttle Reentry - Simple Scaling Demonstration
-
+TrajectoLab Example: Space Shuttle Reentry
 """
 
 import casadi as ca
@@ -11,9 +10,6 @@ import trajectolab as tl
 
 # Physical constants
 DEG2RAD = np.pi / 180.0
-RAD2DEG = 180.0 / np.pi
-
-# Shuttle parameters
 MU_EARTH = 0.14076539e17
 R_EARTH = 20902900.0
 S_REF = 2690.0
@@ -25,142 +21,116 @@ MASS = 203000.0 / 32.174
 A0, A1 = -0.20704, 0.029244
 B0, B1, B2 = 0.07854, -0.61592e-2, 0.621408e-3
 
-# Scaling factors
-H_SCALE = 1e5  # Altitude scaling
-V_SCALE = 1e4  # Velocity scaling
+# Scaling factors for numerical conditioning
+H_SCALE = 1e5  # altitude scaling
+V_SCALE = 1e4  # velocity scaling
 
-print(f"Scaling: altitude ÷ {H_SCALE:.0e}, velocity ÷ {V_SCALE:.0e}")
+# Create shuttle reentry problem
+problem = tl.Problem("Shuttle Reentry")
 
+# Free final time
+t = problem.time(initial=0.0)
 
-def solve_scaled_shuttle():
-    """Solve shuttle reentry with scaled variables."""
+# Scaled state variables
+h_s = problem.state("altitude_scaled", initial=2.6, final=0.8, boundary=(0, None))
+phi = problem.state("longitude", initial=0.0)
+theta = problem.state("latitude", initial=0.0, boundary=(-89 * DEG2RAD, 89 * DEG2RAD))
+v_s = problem.state("velocity_scaled", initial=2.56, final=0.25, boundary=(1e-4, None))
+gamma = problem.state(
+    "flight_path_angle",
+    initial=-1 * DEG2RAD,
+    final=-5 * DEG2RAD,
+    boundary=(-89 * DEG2RAD, 89 * DEG2RAD),
+)
+psi = problem.state("heading_angle", initial=90 * DEG2RAD)
 
-    problem = tl.Problem("Shuttle Reentry - Scaled")
+# Controls
+alpha = problem.control("angle_of_attack", boundary=(-90 * DEG2RAD, 90 * DEG2RAD))
+beta = problem.control("bank_angle", boundary=(-90 * DEG2RAD, 1 * DEG2RAD))
 
-    # Free final time
-    problem.time(initial=0.0)
+# Convert scaled variables to physical units
+h = h_s * H_SCALE  # altitude in feet
+v = v_s * V_SCALE  # velocity in ft/sec
 
-    # Scaled state variables
-    h_s = problem.state("h_s", initial=2.6, final=0.8, boundary=(0, None))  # ÷1e5
-    phi = problem.state("phi", initial=0.0)
-    theta = problem.state("theta", initial=0.0, boundary=(-89 * DEG2RAD, 89 * DEG2RAD))
-    v_s = problem.state("v_s", initial=2.56, final=0.25, boundary=(1e-4, None))  # ÷1e4
-    gamma = problem.state(
-        "gamma", initial=-1 * DEG2RAD, final=-5 * DEG2RAD, boundary=(-89 * DEG2RAD, 89 * DEG2RAD)
-    )
-    psi = problem.state("psi", initial=90 * DEG2RAD)
+# Physics calculations
+r = R_EARTH + h
+rho = RHO0 * ca.exp(-h / H_R)
+g = MU_EARTH / r**2
 
-    # Controls
-    alpha = problem.control("alpha", boundary=(-90 * DEG2RAD, 90 * DEG2RAD))  # Angle of attack
-    beta = problem.control("beta", boundary=(-90 * DEG2RAD, 1 * DEG2RAD))  # Bank angle
+# Aerodynamics
+alpha_deg = alpha * 180.0 / np.pi
+CL = A0 + A1 * alpha_deg
+CD = B0 + B1 * alpha_deg + B2 * alpha_deg**2
+q = 0.5 * rho * v**2
+L = q * CL * S_REF
+D = q * CD * S_REF
 
-    # Convert scaled variables to physical units
-    h = h_s * H_SCALE  # Back to feet
-    v = v_s * V_SCALE  # Back to ft/sec
+# Small epsilon to avoid division by zero
+eps = 1e-10
 
-    # Physics (using physical units)
-    r = R_EARTH + h
-    rho = RHO0 * ca.exp(-h / H_R)
-    g = MU_EARTH / r**2
+# Scaled dynamics (divide physical rates by scaling factors)
+problem.dynamics(
+    {
+        h_s: (v * ca.sin(gamma)) / H_SCALE,
+        phi: (v / r) * ca.cos(gamma) * ca.sin(psi) / (ca.cos(theta) + eps),
+        theta: (v / r) * ca.cos(gamma) * ca.cos(psi),
+        v_s: (-(D / MASS) - g * ca.sin(gamma)) / V_SCALE,
+        gamma: (L / (MASS * v + eps)) * ca.cos(beta) + ca.cos(gamma) * (v / r - g / (v + eps)),
+        psi: (L * ca.sin(beta) / (MASS * v * ca.cos(gamma) + eps))
+        + (v / (r * (ca.cos(theta) + eps))) * ca.cos(gamma) * ca.sin(psi) * ca.sin(theta),
+    }
+)
 
-    # Aerodynamics
-    alpha_deg = alpha * RAD2DEG
-    CL = A0 + A1 * alpha_deg
-    CD = B0 + B1 * alpha_deg + B2 * alpha_deg**2
-    q = 0.5 * rho * v**2
-    L = q * CL * S_REF
-    D = q * CD * S_REF
+# Objective: maximize crossrange (latitude)
+problem.minimize(-theta)
 
-    eps = 1e-10
+# Mesh and initial guess
+problem.set_mesh([10] * 15, np.linspace(-1.0, 1.0, 16))
 
-    # Scaled dynamics: d(scaled_var)/dt = physical_rate / SCALE
-    problem.dynamics(
-        {
-            h_s: (v * ca.sin(gamma)) / H_SCALE,  # Scaled altitude rate
-            phi: (v / r) * ca.cos(gamma) * ca.sin(psi) / (ca.cos(theta) + eps),
-            theta: (v / r) * ca.cos(gamma) * ca.cos(psi),
-            v_s: (-(D / MASS) - g * ca.sin(gamma)) / V_SCALE,  # Scaled velocity rate
-            gamma: (L / (MASS * v + eps)) * ca.cos(beta) + ca.cos(gamma) * (v / r - g / (v + eps)),
-            psi: (L * ca.sin(beta) / (MASS * v * ca.cos(gamma) + eps))
-            + (v / (r * (ca.cos(theta) + eps))) * ca.cos(gamma) * ca.sin(psi) * ca.sin(theta),
-        }
-    )
+# Simple initial guess: linear interpolation
+states_guess = []
+controls_guess = []
+for N in [10] * 15:
+    t_norm = np.linspace(0, 1, N + 1)
+    # Linear state trajectories
+    h_traj = 2.6 + (0.8 - 2.6) * t_norm
+    phi_traj = np.zeros(N + 1)
+    theta_traj = np.zeros(N + 1)  # Will be optimized
+    v_traj = 2.56 + (0.25 - 2.56) * t_norm
+    gamma_traj = -1 * DEG2RAD + (-5 * DEG2RAD - (-1 * DEG2RAD)) * t_norm
+    psi_traj = 90 * DEG2RAD * np.ones(N + 1)
 
-    # Objective: maximize crossrange
-    problem.minimize(-theta)
+    states_guess.append(np.vstack([h_traj, phi_traj, theta_traj, v_traj, gamma_traj, psi_traj]))
 
-    # Simple initial guess: linear interpolation
-    states_guess = []
-    controls_guess = []
-
-    for N in [10] * 15:  # For each interval
-        # Linear interpolation between initial and final
-        t = np.linspace(0, 1, N + 1)
-        h_traj = 2.6 + (0.8 - 2.6) * t  # h_s: 2.6 → 0.8
-        phi_traj = np.zeros(N + 1)  # phi: 0 → 0
-        theta_traj = np.zeros(N + 1)  # theta: 0 → free
-        v_traj = 2.56 + (0.25 - 2.56) * t  # v_s: 2.56 → 0.25
-        gamma_traj = -1 * DEG2RAD + (-5 * DEG2RAD - (-1 * DEG2RAD)) * t  # γ: -1° → -5°
-        psi_traj = 90 * DEG2RAD * np.ones(N + 1)  # ψ: 90° constant
-
-        states_guess.append(np.vstack([h_traj, phi_traj, theta_traj, v_traj, gamma_traj, psi_traj]))
-        controls_guess.append(np.vstack([np.zeros(N), -45 * DEG2RAD * np.ones(N)]))  # α=0°, β=-45°
-
-    problem.set_initial_guess(states=states_guess, controls=controls_guess, terminal_time=2000.0)
-
-    # Simple mesh
-    problem.set_mesh([10] * 15, np.linspace(-1.0, 1.0, 16))
-
-    return problem
-
-
-def main():
-    """Demonstrate scaled shuttle reentry solution."""
-
-    print("=" * 60)
-    print("SCALED SPACE SHUTTLE REENTRY DEMONSTRATION")
-    print("=" * 60)
-
-    # Solve
-    problem = solve_scaled_shuttle()
-
-    print(f"\nSolving with {len(problem.collocation_points_per_interval)} intervals...")
-
-    solution = tl.solve_fixed_mesh(
-        problem,
-        nlp_options={
-            "ipopt.print_level": 5,
-            "ipopt.max_iter": 2000,
-            "ipopt.tol": 1e-7,
-            "ipopt.linear_solver": "mumps",
-            "ipopt.nlp_scaling_method": "gradient-based",
-        },
+    # Control guess
+    controls_guess.append(
+        np.vstack(
+            [
+                np.zeros(N),  # alpha = 0
+                -45 * DEG2RAD * np.ones(N),  # beta = -45 deg
+            ]
+        )
     )
 
-    # Results
-    if solution.success:
-        crossrange_deg = -solution.objective * RAD2DEG
-        print("\n" + "=" * 60)
-        print("✅ SUCCESS! Scaled formulation solved the problem.")
-        print("=" * 60)
-        print(f"Final time: {solution.final_time:.1f} seconds")
-        print(f"Crossrange: {crossrange_deg:.2f} degrees")
-        print(f"Max latitude: {crossrange_deg:.4f}°")
+problem.set_initial_guess(states=states_guess, controls=controls_guess, terminal_time=2000.0)
 
-        # Verify scaling worked by checking final values
-        time_h, h_s_vals = solution.get_trajectory("h_s")
-        time_v, v_s_vals = solution.get_trajectory("v_s")
-        print("\nScaled final values:")
-        print(f"  h_s = {h_s_vals[-1]:.3f} (physical: {h_s_vals[-1] * H_SCALE:.0f} ft)")
-        print(f"  v_s = {v_s_vals[-1]:.3f} (physical: {v_s_vals[-1] * V_SCALE:.0f} ft/s)")
+# Solve
+solution = tl.solve_fixed_mesh(
+    problem,
+    nlp_options={
+        "ipopt.print_level": 3,
+        "ipopt.max_iter": 2000,
+        "ipopt.tol": 1e-7,
+        "ipopt.linear_solver": "mumps",
+    },
+)
 
-        # Simple plot
-        solution.plot()
-
-    else:
-        print(f"\n❌ Solution failed: {solution.message}")
-        print("Try adjusting mesh resolution or solver tolerances.")
-
-
-if __name__ == "__main__":
-    main()
+# Results
+if solution.success:
+    crossrange_deg = -solution.objective * 180.0 / np.pi
+    print("Shuttle reentry solved successfully!")
+    print(f"Final time: {solution.final_time:.1f} seconds")
+    print(f"Crossrange: {crossrange_deg:.2f} degrees")
+    solution.plot()
+else:
+    print(f"Failed: {solution.message}")

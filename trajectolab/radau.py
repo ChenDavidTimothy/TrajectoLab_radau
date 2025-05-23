@@ -5,7 +5,7 @@ Consolidated cache system, removed redundant code patterns.
 
 import threading
 from dataclasses import dataclass, field
-from typing import Literal, cast, overload
+from typing import ClassVar, Literal, cast, overload
 
 import numpy as np
 from scipy.special import roots_jacobi as _scipy_roots_jacobi
@@ -44,9 +44,9 @@ class RadauNodesAndWeights:
 class RadauBasisCache:
     """SIMPLIFIED thread-safe global cache for Radau basis components."""
 
-    _instance: "RadauBasisCache | None" = None
-    _cache: dict[int, RadauBasisComponents] = {}
-    _lock: threading.Lock = threading.Lock()
+    _instance: ClassVar["RadauBasisCache | None"] = None
+    _cache: ClassVar[dict[int, RadauBasisComponents]] = {}
+    _lock: ClassVar[threading.Lock] = threading.Lock()
 
     def __new__(cls) -> "RadauBasisCache":
         """Singleton pattern for global cache."""
@@ -54,7 +54,6 @@ class RadauBasisCache:
             with cls._lock:
                 if cls._instance is None:
                     cls._instance = super().__new__(cls)
-                    cls._instance._cache = {}
         return cls._instance
 
     def get_components(self, num_collocation_nodes: int) -> RadauBasisComponents:

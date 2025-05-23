@@ -7,7 +7,7 @@ import hashlib
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, ClassVar
 
 from ..tl_types import CasadiFunction
 
@@ -39,9 +39,9 @@ class ExpressionCacheKey:
 class CasADiExpressionCache:
     """Unified cache for ALL expensive CasADi expressions with thread safety."""
 
-    _instance: "CasADiExpressionCache | None" = None
-    _cache: dict[str, Any] = {}
-    _lock: threading.Lock = threading.Lock()
+    _instance: ClassVar["CasADiExpressionCache | None"] = None
+    _cache: ClassVar[dict[str, Any]] = {}
+    _lock: ClassVar[threading.Lock] = threading.Lock()
 
     def __new__(cls) -> "CasADiExpressionCache":
         """Singleton pattern for global cache."""
@@ -49,7 +49,6 @@ class CasADiExpressionCache:
             with cls._lock:
                 if cls._instance is None:
                     cls._instance = super().__new__(cls)
-                    cls._instance._cache = {}
         return cls._instance
 
     def get_dynamics_function(

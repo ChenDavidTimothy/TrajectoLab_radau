@@ -1,3 +1,7 @@
+"""
+TrajectoLab Example: Car Race
+"""
+
 import casadi as ca
 import numpy as np
 
@@ -27,10 +31,8 @@ problem.subject_to(speed <= speed_limit)
 # Minimize lap time
 problem.minimize(t.final)
 
-# Set up the mesh and provide initial guess
+# Set up mesh and initial guess
 problem.set_mesh([8, 8, 8], np.array([-1.0, -0.3, 0.3, 1.0]))
-
-# Provide initial guess - only one way to do this
 problem.set_initial_guess(terminal_time=2.0)
 
 # Solve with adaptive mesh
@@ -43,46 +45,18 @@ solution = tl.solve_adaptive(
     nlp_options={"ipopt.print_level": 0},
 )
 
+# Results
 if solution.success:
     print(f"Optimal lap time: {solution.final_time:.3f} seconds")
     print(f"Objective: {solution.objective:.6f}")
 
-    # Get results
+    # Check constraint satisfaction
     t_states, pos_vals = solution.get_trajectory(pos)
-    t_states, speed_vals = solution.get_trajectory(speed)
-    t_controls, throttle_vals = solution.get_trajectory(throttle)
-
-    # Check if speed limit was violated
+    _, speed_vals = solution.get_trajectory(speed)
     speed_limit_vals = 1.0 - np.sin(2.0 * np.pi * pos_vals) / 2.0
     max_violation = np.max(speed_vals - speed_limit_vals)
     print(f"Max speed limit violation: {max_violation:.6f}")
 
-    # Plot results
-    import matplotlib.pyplot as plt
-
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
-
-    # Top plot: position, speed, and speed limit
-    ax1.plot(t_states, pos_vals, "g-", label="Position", linewidth=2)
-    ax1.plot(t_states, speed_vals, "b-", label="Speed", linewidth=2)
-    ax1.plot(t_states, speed_limit_vals, "r--", label="Speed Limit", linewidth=2)
-    ax1.set_ylabel("Values")
-    ax1.set_title("Car Race - Optimal Trajectory")
-    ax1.legend()
-    ax1.grid(True, alpha=0.3)
-
-    # Bottom plot: throttle control
-    ax2.plot(t_controls, throttle_vals, "k-", label="Throttle", linewidth=2)
-    ax2.set_xlabel("Time (s)")
-    ax2.set_ylabel("Throttle")
-    ax2.set_title("Optimal Control")
-    ax2.set_ylim([0, 1.1])
-    ax2.grid(True, alpha=0.3)
-
-    plt.tight_layout()
-    plt.show()
-
-    # Also show the standard TrajectoLab plot
     solution.plot()
 else:
-    print(f"Failed to solve: {solution.message}")
+    print(f"Failed: {solution.message}")

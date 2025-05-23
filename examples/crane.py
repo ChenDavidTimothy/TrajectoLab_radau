@@ -1,373 +1,103 @@
-# --- Main script for CST2 Reactor Problem (Unscaled) ---
-import matplotlib.pyplot as plt
+"""
+TrajectoLab Example: Container Crane Problem
+"""
+
 import numpy as np
 
 import trajectolab as tl
 
 
-def main_cst2_reactor_unscaled():
-    print("\n--- Running CST2 Reactor Problem (Unscaled) ---")
-    # Constants from the problem description
-    p_rho = 0.01
-    c1 = 2.83374
-    c2 = -0.80865
-    c3 = 0.71265
-    c4 = 17.2656
-    c5 = 27.0756
+# Problem constants
+p_rho = 0.01
+c1 = 2.83374
+c2 = -0.80865
+c3 = 0.71265
+c4 = 17.2656
+c5 = 27.0756
+t_final = 9.0
 
-    problem = tl.Problem("CST2_Reactor_Unscaled")
+# Create chemical reactor problem
+problem = tl.Problem("Chemical Reactor")
 
-    # Time
-    t_final_cst2 = 9.0
-    t = problem.time(initial=0.0, final=t_final_cst2)
+# Fixed final time
+t = problem.time(initial=0.0, final=t_final)
 
-    # States
-    x1 = problem.state("x1", initial=0.0, final=10.0)
-    x2 = problem.state("x2", initial=22.0, final=14.0)
-    x3 = problem.state("x3", initial=0.0, final=0.0)
-    x4 = problem.state("x4", initial=0, final=2.5, boundary=(-2.5, 2.5))
-    x5 = problem.state("x5", initial=-1, final=0.0, boundary=(-1.0, 1.0))
-    x6 = problem.state("x6", initial=0.0, final=0.0)
+# States
+x1 = problem.state("x1", initial=0.0, final=10.0)
+x2 = problem.state("x2", initial=22.0, final=14.0)
+x3 = problem.state("x3", initial=0.0, final=0.0)
+x4 = problem.state("x4", initial=0, final=2.5, boundary=(-2.5, 2.5))
+x5 = problem.state("x5", initial=-1, final=0.0, boundary=(-1.0, 1.0))
+x6 = problem.state("x6", initial=0.0, final=0.0)
 
-    # Controls
-    u1 = problem.control("u1", boundary=(-c1, c1))
-    u2 = problem.control("u2", boundary=(c2, c3))
+# Controls
+u1 = problem.control("u1", boundary=(-c1, c1))
+u2 = problem.control("u2", boundary=(c2, c3))
 
-    # Dynamics
-    problem.dynamics(
-        {
-            x1: x4,
-            x2: x5,
-            x3: x6,
-            x4: u1 + c4 * x3,
-            x5: u2,
-            x6: -(u1 + c5 * x3 + 2.0 * x5 * x6) / x2,
-        }
-    )
-
-    # Objective function
-    integrand_cst2 = 0.5 * (x3**2 + x6**2 + p_rho * (u1**2 + u2**2))
-    integral_var_cst2 = problem.add_integral(integrand_cst2)
-    problem.minimize(integral_var_cst2)
-
-    # Mesh configuration (same as scaled version for comparison)
-    fixed_polynomial_degrees = [6, 6, 6]
-    fixed_mesh_points = [-1.0, -1 / 3, 1 / 3, 1.0]
-    problem.set_mesh(fixed_polynomial_degrees, fixed_mesh_points)
-
-    # Initial Guess Generation (physical values)
-    num_states = 6
-    num_controls = 2
-
-    initial_states_physical = {
-        "x1": (0.0, 10.0),
-        "x2": (22.0, 14.0),
-        "x3": (0.0, 0.0),
-        "x4": (-1.0, 2.3),
-        "x5": (0.0, 0.0),
-        "x6": (0.0, 0.0),
+# System dynamics
+problem.dynamics(
+    {
+        x1: x4,
+        x2: x5,
+        x3: x6,
+        x4: u1 + c4 * x3,
+        x5: u2,
+        x6: -(u1 + c5 * x3 + 2.0 * x5 * x6) / x2,
     }
+)
 
-    states_physical_guess_intervals = []
-    controls_physical_guess_intervals = []
+# Objective: quadratic cost
+integrand = 0.5 * (x3**2 + x6**2 + p_rho * (u1**2 + u2**2))
+integral_var = problem.add_integral(integrand)
+problem.minimize(integral_var)
 
-    # State initial guesses (physical)
-    s_names_ordered_for_guess = ["x1", "x2", "x3", "x4", "x5", "x6"]
-    c_names_ordered_for_guess = ["u1", "u2"]
+# Mesh and initial guess
+problem.set_mesh([6, 6, 6], [-1.0, -1 / 3, 1 / 3, 1.0])
 
-    initial_controls_physical_midpoints = {
-        "u1": (-c1 + c1) / 2.0,  # 0.0
-        "u2": (c2 + c3) / 2.0,
-    }
+# Simple initial guess: linear interpolation between boundary conditions
+states_guess = []
+controls_guess = []
+for N in [6, 6, 6]:
+    tau = np.linspace(-1, 1, N + 1)
+    t_norm = (tau + 1) / 2  # normalize to [0,1]
 
-    for N_poly_degree in fixed_polynomial_degrees:
-        tau_points_states = np.linspace(-1, 1, N_poly_degree + 1)
-        current_interval_states_guess = np.zeros((num_states, N_poly_degree + 1))
-        for i, s_name in enumerate(s_names_ordered_for_guess):
-            s_init, s_final = initial_states_physical[s_name]
-            current_interval_states_guess[i, :] = (
-                s_init + (s_final - s_init) * (tau_points_states + 1) / 2
-            )
-        states_physical_guess_intervals.append(current_interval_states_guess)
+    # Linear interpolation for each state
+    x1_vals = 0.0 + (10.0 - 0.0) * t_norm
+    x2_vals = 22.0 + (14.0 - 22.0) * t_norm
+    x3_vals = 0.0 + (0.0 - 0.0) * t_norm
+    x4_vals = 0.0 + (2.5 - 0.0) * t_norm
+    x5_vals = -1.0 + (0.0 - (-1.0)) * t_norm
+    x6_vals = 0.0 + (0.0 - 0.0) * t_norm
 
-        current_interval_controls_guess = np.zeros((num_controls, N_poly_degree))
-        for i, c_name in enumerate(c_names_ordered_for_guess):
-            current_interval_controls_guess[i, :] = initial_controls_physical_midpoints[c_name]
-        controls_physical_guess_intervals.append(current_interval_controls_guess)
+    states_guess.append(np.vstack([x1_vals, x2_vals, x3_vals, x4_vals, x5_vals, x6_vals]))
 
-    problem.set_initial_guess(
-        states=states_physical_guess_intervals,  # Physical guesses
-        controls=controls_physical_guess_intervals,  # Physical guesses
-        initial_time=0.0,
-        terminal_time=t_final_cst2,
-        integrals=0.1,  # Guess for the integral value
+    # Control guess: use midpoint of bounds
+    u1_mid = (-c1 + c1) / 2.0  # = 0
+    u2_mid = (c2 + c3) / 2.0
+    controls_guess.append(np.vstack([np.full(N, u1_mid), np.full(N, u2_mid)]))
+
+problem.set_initial_guess(states=states_guess, controls=controls_guess, integrals=0.1)
+
+# Solve with adaptive mesh (good for stiff chemical systems)
+solution = tl.solve_adaptive(
+    problem,
+    error_tolerance=5e-7,
+    ode_method="Radau",  # Good for stiff systems
+    ode_solver_tolerance=1e-9,
+    nlp_options={
+        "ipopt.print_level": 3,
+        "ipopt.max_iter": 2000,
+        "ipopt.tol": 1e-6,
+    },
+)
+
+# Results
+if solution.success:
+    print("Chemical reactor solved successfully!")
+    print(f"Objective: {solution.objective:.8f}")
+    print(
+        f"Reference: 0.0375195 (Error: {abs(solution.objective - 0.0375195) / 0.0375195 * 100:.2f}%)"
     )
-
-    # =================================================================
-    # TEST 1: Default RK45 Method (Original Behavior)
-    # =================================================================
-    print("\n=== TEST 1: Default RK45 Method ===")
-    print("Solving CST2 Reactor with default ODE solver (RK45)...")
-    nlp_max_iter = 2000
-
-    solution_rk45 = tl.solve_adaptive(
-        problem,
-        error_tolerance=5e-7,
-        ode_method="RK45",  # NEW: Default method (explicit)
-        ode_solver_tolerance=1e-8,  # NEW: Tight ODE tolerance
-        nlp_options={
-            "ipopt.print_level": 3,
-            "ipopt.sb": "yes",
-            "print_time": 1,
-            "ipopt.max_iter": nlp_max_iter,
-            "ipopt.tol": 1e-6,
-            "ipopt.constr_viol_tol": 1e-6,
-        },
-    )
-
-    if solution_rk45.success:
-        print("✅ RK45 Solution Successful!")
-        print(f"   Objective: {solution_rk45.objective:.8f}")
-        print(f"   Final message: {solution_rk45.message}")
-    else:
-        print(f"❌ RK45 Solution Failed: {solution_rk45.message}")
-
-    # =================================================================
-    # TEST 2: High-Precision DOP853 Method (NASA-Grade)
-    # =================================================================
-    print("\n=== TEST 2: High-Precision DOP853 Method ===")
-    print("Solving CST2 Reactor with high-precision DOP853 solver...")
-
-    solution_dop853 = tl.solve_adaptive(
-        problem,
-        error_tolerance=1e-8,  # Tighter error tolerance
-        ode_method="DOP853",  # NEW: 8th order method
-        ode_solver_tolerance=1e-10,  # NEW: Very tight ODE tolerance
-        ode_max_step=0.5,  # NEW: Limit step size for stability
-        max_iterations=15,  # Allow more adaptive iterations
-        nlp_options={
-            "ipopt.print_level": 3,
-            "ipopt.sb": "yes",
-            "print_time": 1,
-            "ipopt.max_iter": nlp_max_iter,
-            "ipopt.tol": 1e-8,  # Match error tolerance
-            "ipopt.constr_viol_tol": 1e-8,
-        },
-    )
-
-    if solution_dop853.success:
-        print("✅ DOP853 Solution Successful!")
-        print(f"   Objective: {solution_dop853.objective:.8f}")
-        print(f"   Final message: {solution_dop853.message}")
-    else:
-        print(f"❌ DOP853 Solution Failed: {solution_dop853.message}")
-
-    # =================================================================
-    # TEST 3: Stiff System Solver (Radau) - Best for Chemical Reactors
-    # =================================================================
-    print("\n=== TEST 3: Stiff System Solver (Radau) ===")
-    print("Solving CST2 Reactor with Radau solver (best for stiff systems)...")
-
-    solution_radau = tl.solve_adaptive(
-        problem,
-        error_tolerance=5e-7,
-        ode_method="Radau",  # NEW: Implicit method for stiff systems
-        ode_solver_tolerance=1e-9,  # NEW: Tight tolerance for chemical dynamics
-        ode_max_step=1.0,  # NEW: Conservative step size
-        max_iterations=20,  # More iterations for stiff problems
-        nlp_options={
-            "ipopt.print_level": 3,
-            "ipopt.sb": "yes",
-            "print_time": 1,
-            "ipopt.max_iter": nlp_max_iter,
-            "ipopt.tol": 1e-7,
-            "ipopt.constr_viol_tol": 1e-7,
-        },
-    )
-
-    if solution_radau.success:
-        print("✅ Radau Solution Successful!")
-        print(f"   Objective: {solution_radau.objective:.8f}")
-        print(f"   Final message: {solution_radau.message}")
-    else:
-        print(f"❌ Radau Solution Failed: {solution_radau.message}")
-
-    # =================================================================
-    # TEST 4: Fast Solver for Testing (RK23)
-    # =================================================================
-    print("\n=== TEST 4: Fast Solver (RK23) ===")
-    print("Solving CST2 Reactor with fast RK23 solver...")
-
-    solution_rk23 = tl.solve_adaptive(
-        problem,
-        error_tolerance=1e-5,  # Looser tolerance for speed
-        ode_method="RK23",  # NEW: 2nd/3rd order (faster)
-        ode_solver_tolerance=1e-6,  # NEW: Looser ODE tolerance
-        max_iterations=10,  # Fewer iterations
-        nlp_options={
-            "ipopt.print_level": 1,  # Less verbose
-            "ipopt.sb": "yes",
-            "print_time": 0,
-            "ipopt.max_iter": 1000,  # Fewer NLP iterations
-            "ipopt.tol": 1e-5,
-            "ipopt.constr_viol_tol": 1e-5,
-        },
-    )
-
-    if solution_rk23.success:
-        print("✅ RK23 Solution Successful!")
-        print(f"   Objective: {solution_rk23.objective:.8f}")
-        print(f"   Final message: {solution_rk23.message}")
-    else:
-        print(f"❌ RK23 Solution Failed: {solution_rk23.message}")
-
-    # =================================================================
-    # COMPARISON AND ANALYSIS
-    # =================================================================
-    print("\n" + "=" * 60)
-    print("COMPARISON OF ODE SOLVER METHODS")
-    print("=" * 60)
-
-    solutions = [
-        ("RK45 (Default)", solution_rk45),
-        ("DOP853 (High-Precision)", solution_dop853),
-        ("Radau (Stiff)", solution_radau),
-        ("RK23 (Fast)", solution_rk23),
-    ]
-
-    reference_objective = 0.0375194596
-
-    for name, sol in solutions:
-        if sol.success:
-            error_pct = abs(sol.objective - reference_objective) / reference_objective * 100
-            print(f"{name:20s}: Obj={sol.objective:.8f}, Error={error_pct:.4f}%")
-        else:
-            print(f"{name:20s}: FAILED - {sol.message}")
-
-    print(f"Reference Objective: {reference_objective:.8f}")
-
-    # =================================================================
-    # PLOT BEST SOLUTION
-    # =================================================================
-    # Choose the most successful solution for plotting
-    best_solution = None
-    best_name = ""
-
-    for name, sol in solutions:
-        if sol.success:
-            best_solution = sol
-            best_name = name
-            break
-
-    if best_solution is not None:
-        print(f"\nPlotting results from: {best_name}")
-
-        # Get trajectories
-        time_plot_x6, traj_x1 = best_solution.get_trajectory(x1)
-        _, traj_x2 = best_solution.get_trajectory(x2)
-        _, traj_x3 = best_solution.get_trajectory(x3)
-        _, traj_x4 = best_solution.get_trajectory(x4)
-        _, traj_x5 = best_solution.get_trajectory(x5)
-        _, traj_x6 = best_solution.get_trajectory(x6)
-
-        time_plot_u1, traj_u1 = best_solution.get_trajectory(u1)
-        _, traj_u2 = best_solution.get_trajectory(u2)
-
-        # Plot states
-        plt.figure(figsize=(12, 10))
-        plt.subplot(3, 2, 1)
-        plt.plot(time_plot_x6, traj_x1, label="x1", linewidth=2)
-        plt.title("x1")
-        plt.grid(True)
-        plt.legend()
-
-        plt.subplot(3, 2, 2)
-        plt.plot(time_plot_x6, traj_x2, label="x2", linewidth=2)
-        plt.title("x2")
-        plt.grid(True)
-        plt.legend()
-
-        plt.subplot(3, 2, 3)
-        plt.plot(time_plot_x6, traj_x3, label="x3", linewidth=2)
-        plt.title("x3")
-        plt.grid(True)
-        plt.legend()
-
-        plt.subplot(3, 2, 4)
-        plt.plot(time_plot_x6, traj_x4, label="x4", linewidth=2)
-        plt.hlines(
-            [-2.5, 2.5],
-            xmin=time_plot_x6[0],
-            xmax=time_plot_x6[-1],
-            colors="r",
-            linestyles="--",
-            alpha=0.7,
-        )
-        plt.title("x4")
-        plt.grid(True)
-        plt.legend()
-
-        plt.subplot(3, 2, 5)
-        plt.plot(time_plot_x6, traj_x5, label="x5", linewidth=2)
-        plt.hlines(
-            [-1.0, 1.0],
-            xmin=time_plot_x6[0],
-            xmax=time_plot_x6[-1],
-            colors="r",
-            linestyles="--",
-            alpha=0.7,
-        )
-        plt.title("x5")
-        plt.grid(True)
-        plt.legend()
-
-        plt.subplot(3, 2, 6)
-        plt.plot(time_plot_x6, traj_x6, label="x6", linewidth=2)
-        plt.title("x6")
-        plt.grid(True)
-        plt.legend()
-
-        plt.suptitle(f"CST2 Reactor States - {best_name}")
-        plt.tight_layout(rect=[0, 0, 1, 0.96])
-        plt.show()
-
-        # Plot controls
-        plt.figure(figsize=(12, 5))
-        plt.subplot(1, 2, 1)
-        plt.plot(time_plot_u1, traj_u1, label="u1", linewidth=2)
-        plt.hlines(
-            [-c1, c1],
-            xmin=time_plot_u1[0],
-            xmax=time_plot_u1[-1],
-            colors="r",
-            linestyles="--",
-            alpha=0.7,
-        )
-        plt.title("u1")
-        plt.grid(True)
-        plt.legend()
-
-        plt.subplot(1, 2, 2)
-        plt.plot(time_plot_u1, traj_u2, label="u2", linewidth=2)
-        plt.hlines(
-            [c2, c3],
-            xmin=time_plot_u1[0],
-            xmax=time_plot_u1[-1],
-            colors="r",
-            linestyles="--",
-            alpha=0.7,
-        )
-        plt.title("u2")
-        plt.grid(True)
-        plt.legend()
-
-        plt.suptitle(f"CST2 Reactor Controls - {best_name}")
-        plt.tight_layout(rect=[0, 0, 1, 0.96])
-        plt.show()
-
-    else:
-        print("❌ All solver methods failed!")
-
-
-if __name__ == "__main__":
-    main_cst2_reactor_unscaled()
+    solution.plot()
+else:
+    print(f"Failed: {solution.message}")
