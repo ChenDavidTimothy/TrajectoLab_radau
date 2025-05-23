@@ -1,5 +1,6 @@
 """
 Variable management functions for optimal control problems.
+OPTIMIZED: Uses efficient variable ordering system.
 """
 
 from __future__ import annotations
@@ -145,20 +146,19 @@ def create_state_variable(
     lower: float | None = None,
     upper: float | None = None,
 ) -> SymType:
-    """Create a state variable."""
+    """Create a state variable using optimized ordering."""
     sym_var = ca.MX.sym(name, 1)  # type: ignore[arg-type]
 
-    # Store metadata
-    state.states[name] = {
-        "index": len(state.states),
-        "initial_constraint": None if initial is None else _BoundaryConstraint(equals=initial),
-        "final_constraint": None if final is None else _BoundaryConstraint(equals=final),
-        "lower": lower,
-        "upper": upper,
-    }
+    # Use optimized addition method
+    state.add_state_optimized(
+        name=name,
+        symbol=sym_var,
+        initial_constraint=None if initial is None else _BoundaryConstraint(equals=initial),
+        final_constraint=None if final is None else _BoundaryConstraint(equals=final),
+        lower=lower,
+        upper=upper,
+    )
 
-    # Store symbolic variable
-    state.sym_states[name] = sym_var
     return sym_var
 
 
@@ -168,14 +168,17 @@ def create_control_variable(
     lower: float | None = None,
     upper: float | None = None,
 ) -> SymType:
-    """Create a control variable."""
+    """Create a control variable using optimized ordering."""
     sym_var = ca.MX.sym(name, 1)  # type: ignore[arg-type]
 
-    # Store metadata
-    state.controls[name] = {"index": len(state.controls), "lower": lower, "upper": upper}
+    # Use optimized addition method
+    state.add_control_optimized(
+        name=name,
+        symbol=sym_var,
+        lower=lower,
+        upper=upper,
+    )
 
-    # Store symbolic variable
-    state.sym_controls[name] = sym_var
     return sym_var
 
 
@@ -197,10 +200,12 @@ def create_parameter_variable(
 
 def set_dynamics(state: VariableState, dynamics_dict: dict[SymType, SymExpr]) -> None:
     """Set dynamics expressions."""
-    # Verify all keys correspond to defined state variables
+    # Verify all keys correspond to defined state variables using optimized access
+    ordered_state_symbols = state.get_ordered_state_symbols()
+
     for state_sym in dynamics_dict.keys():
         found = False
-        for sym in state.sym_states.values():
+        for sym in ordered_state_symbols:
             if state_sym is sym:
                 found = True
                 break

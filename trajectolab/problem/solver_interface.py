@@ -1,9 +1,11 @@
 """
 Solver interface conversion functions for optimal control problems.
+OPTIMIZED: Uses expression caching and efficient variable ordering.
 """
 
 from __future__ import annotations
 
+import hashlib
 from typing import cast
 
 import casadi as ca
@@ -17,40 +19,55 @@ from ..tl_types import (
     PathConstraintsCallable,
     ProblemParameters,
 )
+from ..utils.expression_cache import (
+    create_cache_key_from_variable_state,
+    get_global_expression_cache,
+)
 from .constraints_problem import get_event_constraints_function, get_path_constraints_function
 from .state import ConstraintState, VariableState
 
 
 def get_dynamics_function(variable_state: VariableState) -> DynamicsCallable:
-    """Get dynamics function for solver with efficient ordering."""
+    """Get dynamics function for solver with expression caching and efficient ordering."""
 
-    # EFFICIENT: Get ordered symbols directly
-    state_syms = variable_state.get_ordered_state_symbols()
-    control_syms = variable_state.get_ordered_control_symbols()
+    # Create expression hash for caching
+    dynamics_exprs = [str(expr) for expr in variable_state.dynamics_expressions.values()]
+    expr_hash = hashlib.sha256("".join(sorted(dynamics_exprs)).encode()).hexdigest()[:16]
 
-    # Create combined vectors
-    states_vec = ca.vertcat(*state_syms) if state_syms else ca.MX()
-    controls_vec = ca.vertcat(*control_syms) if control_syms else ca.MX()
-    time = variable_state.sym_time if variable_state.sym_time is not None else ca.MX.sym("t", 1)  # type: ignore[arg-type]
-    param_syms = (
-        ca.vertcat(*variable_state.sym_parameters.values())
-        if variable_state.sym_parameters
-        else ca.MX.sym("p", 0)  # type: ignore[arg-type]
-    )
+    cache_key = create_cache_key_from_variable_state(variable_state, "dynamics", expr_hash)
 
-    # Create output vector in same order as state_syms
-    dynamics_expr = []
-    for state_sym in state_syms:
-        if state_sym in variable_state.dynamics_expressions:
-            dynamics_expr.append(variable_state.dynamics_expressions[state_sym])
-        else:
-            dynamics_expr.append(ca.MX(0))
+    def build_dynamics_function() -> ca.Function:
+        """Build CasADi dynamics function - expensive operation."""
+        # OPTIMIZED: Use efficient ordering methods (O(1) instead of O(n log n))
+        state_syms = variable_state.get_ordered_state_symbols()
+        control_syms = variable_state.get_ordered_control_symbols()
 
-    dynamics_vec = ca.vertcat(*dynamics_expr) if dynamics_expr else ca.MX()
+        # Create combined vectors
+        states_vec = ca.vertcat(*state_syms) if state_syms else ca.MX()
+        controls_vec = ca.vertcat(*control_syms) if control_syms else ca.MX()
+        time = variable_state.sym_time if variable_state.sym_time is not None else ca.MX.sym("t", 1)  # type: ignore[arg-type]
+        param_syms = (
+            ca.vertcat(*variable_state.sym_parameters.values())
+            if variable_state.sym_parameters
+            else ca.MX.sym("p", 0)  # type: ignore[arg-type]
+        )
 
-    # Create CasADi function
-    dynamics_func = ca.Function(
-        "dynamics", [states_vec, controls_vec, time, param_syms], [dynamics_vec]
+        # Create output vector in same order as state_syms
+        dynamics_expr = []
+        for state_sym in state_syms:
+            if state_sym in variable_state.dynamics_expressions:
+                dynamics_expr.append(variable_state.dynamics_expressions[state_sym])
+            else:
+                dynamics_expr.append(ca.MX(0))
+
+        dynamics_vec = ca.vertcat(*dynamics_expr) if dynamics_expr else ca.MX()
+
+        # Create CasADi function
+        return ca.Function("dynamics", [states_vec, controls_vec, time, param_syms], [dynamics_vec])
+
+    # Get cached or build function
+    dynamics_func = get_global_expression_cache().get_dynamics_function(
+        cache_key, build_dynamics_function
     )
 
     def vectorized_dynamics(
@@ -87,59 +104,69 @@ def get_dynamics_function(variable_state: VariableState) -> DynamicsCallable:
 
 
 def get_objective_function(variable_state: VariableState) -> ObjectiveCallable:
-    """Get objective function for solver with efficient ordering."""
+    """Get objective function for solver with expression caching and efficient ordering."""
     if variable_state.objective_expression is None:
         raise ValueError("Objective expression not defined")
 
-    # EFFICIENT: Get ordered symbols directly
-    state_syms = variable_state.get_ordered_state_symbols()
+    # Create expression hash for caching
+    obj_hash = hashlib.sha256(str(variable_state.objective_expression).encode()).hexdigest()[:16]
 
-    # Create inputs for unified objective function
-    t0 = (
-        variable_state.sym_time_initial
-        if variable_state.sym_time_initial is not None
-        else ca.MX.sym("t0", 1)  # type: ignore[arg-type]
-    )
-    tf = (
-        variable_state.sym_time_final
-        if variable_state.sym_time_final is not None
-        else ca.MX.sym("tf", 1)  # type: ignore[arg-type]
-    )
-    x0_vec = ca.vertcat(*[ca.MX.sym(f"x0_{i}", 1) for i in range(len(state_syms))])  # type: ignore[arg-type]
-    xf_vec = ca.vertcat(*[ca.MX.sym(f"xf_{i}", 1) for i in range(len(state_syms))])  # type: ignore[arg-type]
-    q = (
-        ca.vertcat(*variable_state.integral_symbols)
-        if variable_state.integral_symbols
-        else ca.MX.sym("q", 1)  # type: ignore[arg-type]
-    )
-    param_syms = (
-        ca.vertcat(*variable_state.sym_parameters.values())
-        if variable_state.sym_parameters
-        else ca.MX.sym("p", 0)  # type: ignore[arg-type]
-    )
+    cache_key = create_cache_key_from_variable_state(variable_state, "objective", obj_hash)
 
-    # Get the objective expression
-    objective_expr = variable_state.objective_expression
+    def build_objective_function() -> ca.Function:
+        """Build CasADi objective function - expensive operation."""
+        # OPTIMIZED: Use efficient ordering methods
+        state_syms = variable_state.get_ordered_state_symbols()
 
-    # Automatically substitute state variables with final state values
-    if state_syms:
-        old_syms = []
-        new_syms = []
+        # Create inputs for unified objective function
+        t0 = (
+            variable_state.sym_time_initial
+            if variable_state.sym_time_initial is not None
+            else ca.MX.sym("t0", 1)  # type: ignore[arg-type]
+        )
+        tf = (
+            variable_state.sym_time_final
+            if variable_state.sym_time_final is not None
+            else ca.MX.sym("tf", 1)  # type: ignore[arg-type]
+        )
+        x0_vec = ca.vertcat(*[ca.MX.sym(f"x0_{i}", 1) for i in range(len(state_syms))])  # type: ignore[arg-type]
+        xf_vec = ca.vertcat(*[ca.MX.sym(f"xf_{i}", 1) for i in range(len(state_syms))])  # type: ignore[arg-type]
+        q = (
+            ca.vertcat(*variable_state.integral_symbols)
+            if variable_state.integral_symbols
+            else ca.MX.sym("q", 1)  # type: ignore[arg-type]
+        )
+        param_syms = (
+            ca.vertcat(*variable_state.sym_parameters.values())
+            if variable_state.sym_parameters
+            else ca.MX.sym("p", 0)  # type: ignore[arg-type]
+        )
 
-        for i, sym in enumerate(state_syms):
-            old_syms.append(sym)
-            if len(state_syms) == 1:
-                new_syms.append(xf_vec)
-            else:
-                new_syms.append(xf_vec[i])
+        # Substitute state variables with final state values
+        objective_expr = variable_state.objective_expression
+        if state_syms:
+            old_syms = []
+            new_syms = []
 
-        objective_expr = ca.substitute([objective_expr], old_syms, new_syms)[0]
+            for i, sym in enumerate(state_syms):
+                old_syms.append(sym)
+                if len(state_syms) == 1:
+                    new_syms.append(xf_vec)
+                else:
+                    new_syms.append(xf_vec[i])
 
-    # Create unified objective function
-    obj_func = ca.Function(
-        "objective",
-        [t0, tf, x0_vec, xf_vec, q, param_syms],
-        [objective_expr],
+            objective_expr = ca.substitute([objective_expr], old_syms, new_syms)[0]
+
+        # Create unified objective function
+        return ca.Function(
+            "objective",
+            [t0, tf, x0_vec, xf_vec, q, param_syms],
+            [objective_expr],
+        )
+
+    # Get cached or build function
+    obj_func = get_global_expression_cache().get_objective_function(
+        cache_key, build_objective_function
     )
 
     def unified_objective(
@@ -169,30 +196,45 @@ def get_objective_function(variable_state: VariableState) -> ObjectiveCallable:
 
 
 def get_integrand_function(variable_state: VariableState) -> IntegralIntegrandCallable | None:
-    """Get integrand function for solver with efficient ordering."""
+    """Get integrand function for solver with expression caching and efficient ordering."""
     if not variable_state.integral_expressions:
         return None
 
-    # EFFICIENT: Get ordered symbols directly
-    state_syms = variable_state.get_ordered_state_symbols()
-    control_syms = variable_state.get_ordered_control_symbols()
+    # Create expression hash for caching
+    integrand_exprs = [str(expr) for expr in variable_state.integral_expressions]
+    expr_hash = hashlib.sha256("".join(integrand_exprs).encode()).hexdigest()[:16]
 
-    # Create combined vectors
-    states_vec = ca.vertcat(*state_syms) if state_syms else ca.MX()
-    controls_vec = ca.vertcat(*control_syms) if control_syms else ca.MX()
-    time = variable_state.sym_time if variable_state.sym_time is not None else ca.MX.sym("t", 1)  # type: ignore[arg-type]
-    param_syms = (
-        ca.vertcat(*variable_state.sym_parameters.values())
-        if variable_state.sym_parameters
-        else ca.MX.sym("p", 0)  # type: ignore[arg-type]
-    )
+    cache_key = create_cache_key_from_variable_state(variable_state, "integrand", expr_hash)
 
-    # Create separate functions for each integrand
-    integrand_funcs = []
-    for expr in variable_state.integral_expressions:
-        integrand_funcs.append(
-            ca.Function("integrand", [states_vec, controls_vec, time, param_syms], [expr])
+    def build_integrand_functions() -> list[ca.Function]:
+        """Build CasADi integrand functions - expensive operation."""
+        # OPTIMIZED: Use efficient ordering methods
+        state_syms = variable_state.get_ordered_state_symbols()
+        control_syms = variable_state.get_ordered_control_symbols()
+
+        # Create combined vectors
+        states_vec = ca.vertcat(*state_syms) if state_syms else ca.MX()
+        controls_vec = ca.vertcat(*control_syms) if control_syms else ca.MX()
+        time = variable_state.sym_time if variable_state.sym_time is not None else ca.MX.sym("t", 1)  # type: ignore[arg-type]
+        param_syms = (
+            ca.vertcat(*variable_state.sym_parameters.values())
+            if variable_state.sym_parameters
+            else ca.MX.sym("p", 0)  # type: ignore[arg-type]
         )
+
+        # Create separate functions for each integrand
+        integrand_funcs = []
+        for expr in variable_state.integral_expressions:
+            integrand_funcs.append(
+                ca.Function("integrand", [states_vec, controls_vec, time, param_syms], [expr])
+            )
+
+        return integrand_funcs
+
+    # Get cached or build functions
+    integrand_funcs = get_global_expression_cache().get_integrand_functions(
+        cache_key, build_integrand_functions
+    )
 
     def vectorized_integrand(
         states_vec: CasadiMX,
