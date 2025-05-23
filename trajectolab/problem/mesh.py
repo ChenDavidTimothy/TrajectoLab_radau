@@ -1,5 +1,6 @@
 """
 Mesh configuration and management functions for optimal control problems.
+FIXED: Mesh configuration no longer clears initial guess, allowing order independence.
 """
 
 from __future__ import annotations
@@ -15,7 +16,12 @@ def configure_mesh(
     polynomial_degrees: list[int],
     mesh_points: NumericArrayLike,
 ) -> None:
-    """Configure the mesh structure."""
+    """
+    Configure the mesh structure.
+
+    FIXED: No longer clears initial guess - allows set_mesh() and set_initial_guess()
+    to be called in any order.
+    """
     # Convert to numpy array if needed
     if isinstance(mesh_points, list):
         mesh_array = np.array(mesh_points, dtype=np.float64)
@@ -50,6 +56,10 @@ def configure_mesh(
     state.collocation_points_per_interval = polynomial_degrees
     state.global_normalized_mesh_nodes = mesh_array
     state.configured = True
+
+    print(f"Mesh configured: {len(polynomial_degrees)} intervals")
+    print(f"Polynomial degrees: {polynomial_degrees}")
+    print("Note: Initial guess (if set) is preserved and will be validated when solver runs")
 
 
 def clear_mesh(state: MeshState) -> None:

@@ -69,9 +69,6 @@ print("\nSolving with fixed mesh...")
 fixed_polynomial_degrees = [20, 12, 20]
 fixed_mesh_points = [-1.0, -1 / 3, 1 / 3, 1.0]
 
-# Set mesh first
-problem.set_mesh(fixed_polynomial_degrees, fixed_mesh_points)
-
 # Create complete initial guess for fixed mesh
 states_guess = []
 controls_guess = []
@@ -93,6 +90,10 @@ problem.set_initial_guess(
     terminal_time=40.0,
     integrals=0.1,
 )
+
+# Set mesh first
+problem.set_mesh(fixed_polynomial_degrees, fixed_mesh_points)
+
 
 # Solve with fixed mesh - clean function call without mesh parameters
 fixed_solution = tl.solve_fixed_mesh(

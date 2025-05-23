@@ -89,9 +89,6 @@ def solve_scaled_shuttle():
     # Objective: maximize crossrange
     problem.minimize(-theta)
 
-    # Simple mesh
-    problem.set_mesh([10] * 15, np.linspace(-1.0, 1.0, 16))
-
     # Simple initial guess: linear interpolation
     states_guess = []
     controls_guess = []
@@ -110,6 +107,9 @@ def solve_scaled_shuttle():
         controls_guess.append(np.vstack([np.zeros(N), -45 * DEG2RAD * np.ones(N)]))  # α=0°, β=-45°
 
     problem.set_initial_guess(states=states_guess, controls=controls_guess, terminal_time=2000.0)
+
+    # Simple mesh
+    problem.set_mesh([10] * 15, np.linspace(-1.0, 1.0, 16))
 
     return problem
 

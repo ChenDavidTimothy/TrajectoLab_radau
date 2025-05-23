@@ -1,6 +1,7 @@
 """
-Initial guess management functions for optimal control problems - SIMPLIFIED.
-Updated to use unified storage system instead of legacy dual storage.
+Initial guess management functions for optimal control problems - FIXED ORDERING DEPENDENCY.
+Updated to allow set_initial_guess() and set_mesh() to be called in any order.
+Validation is deferred until both pieces of information are available.
 """
 
 from __future__ import annotations
@@ -102,55 +103,33 @@ def set_initial_guess(
     terminal_time: float | None = None,
     integrals: float | FloatArray | None = None,
 ) -> None:
-    """Set initial guess for variables using unified storage."""
-    if not mesh_state.configured:
-        raise ValueError(
-            "Mesh must be configured before setting initial guess. "
-            "Call set_mesh(polynomial_degrees, mesh_points) first."
-        )
+    """
+    Set initial guess for variables - FIXED: No longer requires mesh to be configured first.
 
-    # Get variable counts from unified storage
-    num_states, num_controls = variable_state.get_variable_counts()
-    num_intervals = len(mesh_state.collocation_points_per_interval)
+    Validation is deferred until both mesh and initial guess are available.
+    This allows users to call set_initial_guess() and set_mesh() in any order.
+    """
 
-    # Validate states if provided
-    states_list: list[FloatArray] | None = None
+    # Basic validation that doesn't require mesh information
     if states is not None:
-        if len(states) != num_intervals:
-            raise ValueError(
-                f"If providing states, must provide exactly {num_intervals} arrays, got {len(states)}"
-            )
-
         for k, state_array in enumerate(states):
-            expected_shape = (num_states, mesh_state.collocation_points_per_interval[k] + 1)
-            if state_array.shape != expected_shape:
-                raise ValueError(
-                    f"State array for interval {k} has shape {state_array.shape}, "
-                    f"expected {expected_shape}"
-                )
+            if not isinstance(state_array, np.ndarray):
+                raise TypeError(f"State array for interval {k} must be numpy array")
+            if state_array.dtype != np.float64:
+                raise ValueError(f"State array for interval {k} must have dtype float64")
+            if state_array.ndim != 2:
+                raise ValueError(f"State array for interval {k} must be 2D")
 
-        states_list = [np.array(s, dtype=np.float64) for s in states]
-
-    # Validate controls if provided
-    controls_list: list[FloatArray] | None = None
     if controls is not None:
-        if len(controls) != num_intervals:
-            raise ValueError(
-                f"If providing controls, must provide exactly {num_intervals} arrays, got {len(controls)}"
-            )
-
         for k, control_array in enumerate(controls):
-            expected_shape = (num_controls, mesh_state.collocation_points_per_interval[k])
-            if control_array.shape != expected_shape:
-                raise ValueError(
-                    f"Control array for interval {k} has shape {control_array.shape}, "
-                    f"expected {expected_shape}"
-                )
+            if not isinstance(control_array, np.ndarray):
+                raise TypeError(f"Control array for interval {k} must be numpy array")
+            if control_array.dtype != np.float64:
+                raise ValueError(f"Control array for interval {k} must have dtype float64")
+            if control_array.ndim != 2:
+                raise ValueError(f"Control array for interval {k} must be 2D")
 
-        controls_list = [np.array(c, dtype=np.float64) for c in controls]
-
-    # Validate integrals if provided
-    validated_integrals: float | FloatArray | None = None
+    # Basic validation for integrals
     if integrals is not None:
         if variable_state.num_integrals == 0:
             raise ValueError("Problem has no integrals, but integral guess was provided")
@@ -158,7 +137,6 @@ def set_initial_guess(
         if variable_state.num_integrals == 1:
             if not isinstance(integrals, int | float):
                 raise ValueError(f"For single integral, provide scalar, got {type(integrals)}")
-            validated_integrals = integrals
         else:
             integrals_array = np.array(integrals)
             if integrals_array.size != variable_state.num_integrals:
@@ -166,7 +144,22 @@ def set_initial_guess(
                     f"Integral guess must have {variable_state.num_integrals} elements, "
                     f"got {integrals_array.size}"
                 )
-            validated_integrals = integrals_array
+
+    # Store the initial guess - no mesh-dependent validation yet
+    states_list: list[FloatArray] | None = None
+    if states is not None:
+        states_list = [np.array(s, dtype=np.float64) for s in states]
+
+    controls_list: list[FloatArray] | None = None
+    if controls is not None:
+        controls_list = [np.array(c, dtype=np.float64) for c in controls]
+
+    validated_integrals: float | FloatArray | None = None
+    if integrals is not None:
+        if variable_state.num_integrals == 1:
+            validated_integrals = integrals
+        else:
+            validated_integrals = np.array(integrals)
 
     current_guess_container[0] = InitialGuess(
         initial_time_variable=initial_time,
@@ -177,12 +170,24 @@ def set_initial_guess(
     )
 
 
+def can_validate_initial_guess(mesh_state: MeshState, variable_state: VariableState) -> bool:
+    """Check if we have enough information to validate initial guess."""
+    return mesh_state.configured
+
+
 def get_initial_guess_requirements(
     mesh_state: MeshState, variable_state: VariableState
 ) -> InitialGuessRequirements:
-    """Get requirements for initial guess using unified storage."""
+    """Get requirements for initial guess - handles case where mesh isn't configured yet."""
     if not mesh_state.configured:
-        raise ValueError("Mesh must be configured before getting initial guess requirements.")
+        # Return requirements that indicate mesh is needed
+        return InitialGuessRequirements(
+            states_shapes=[],
+            controls_shapes=[],
+            needs_initial_time=True,
+            needs_terminal_time=True,
+            integrals_length=variable_state.num_integrals,
+        )
 
     # Get variable counts from unified storage
     num_states, num_controls = variable_state.get_variable_counts()
@@ -205,28 +210,37 @@ def get_initial_guess_requirements(
 def validate_initial_guess(
     current_guess, mesh_state: MeshState, variable_state: VariableState
 ) -> None:
-    """Validate the current initial guess using unified storage."""
-    if not mesh_state.configured:
-        raise ValueError("Mesh must be configured before validating initial guess")
+    """
+    Validate the current initial guess - FIXED: Provides clear error if mesh not configured.
 
+    This function is called when the solver runs, ensuring validation happens when needed.
+    """
     if current_guess is None:
         return
 
+    # Check if we can perform validation
+    if not can_validate_initial_guess(mesh_state, variable_state):
+        raise ValueError(
+            "Cannot validate initial guess: mesh must be configured first. "
+            "Call problem.set_mesh(polynomial_degrees, mesh_points) before solving."
+        )
+
     ig = current_guess
+
+    # Get variable counts from unified storage
+    num_states, num_controls = variable_state.get_variable_counts()
+    num_intervals = len(mesh_state.collocation_points_per_interval)
 
     # Validate states if provided
     if ig.states is not None:
-        requirements = get_initial_guess_requirements(mesh_state, variable_state)
-
-        if len(ig.states) != len(requirements.states_shapes):
+        if len(ig.states) != num_intervals:
             raise ValueError(
                 f"States guess has {len(ig.states)} arrays, "
-                f"but problem needs {len(requirements.states_shapes)}"
+                f"but problem needs {num_intervals} intervals"
             )
 
-        for k, (state_array, expected_shape) in enumerate(
-            zip(ig.states, requirements.states_shapes, strict=False)
-        ):
+        for k, state_array in enumerate(ig.states):
+            expected_shape = (num_states, mesh_state.collocation_points_per_interval[k] + 1)
             if state_array.shape != expected_shape:
                 raise ValueError(
                     f"State array {k} has shape {state_array.shape}, expected {expected_shape}"
@@ -234,23 +248,20 @@ def validate_initial_guess(
 
     # Validate controls if provided
     if ig.controls is not None:
-        requirements = get_initial_guess_requirements(mesh_state, variable_state)
-
-        if len(ig.controls) != len(requirements.controls_shapes):
+        if len(ig.controls) != num_intervals:
             raise ValueError(
                 f"Controls guess has {len(ig.controls)} arrays, "
-                f"but problem needs {len(requirements.controls_shapes)}"
+                f"but problem needs {num_intervals} intervals"
             )
 
-        for k, (control_array, expected_shape) in enumerate(
-            zip(ig.controls, requirements.controls_shapes, strict=False)
-        ):
+        for k, control_array in enumerate(ig.controls):
+            expected_shape = (num_controls, mesh_state.collocation_points_per_interval[k])
             if control_array.shape != expected_shape:
                 raise ValueError(
                     f"Control array {k} has shape {control_array.shape}, expected {expected_shape}"
                 )
 
-    # Validate integrals if provided
+    # Validate integrals if provided (already validated in set_initial_guess)
     if ig.integrals is not None:
         if variable_state.num_integrals == 0:
             raise ValueError("Integral guess provided but problem has no integrals")
@@ -270,9 +281,21 @@ def validate_initial_guess(
 def get_solver_input_summary(
     current_guess, mesh_state: MeshState, variable_state: VariableState
 ) -> SolverInputSummary:
-    """Get summary of solver input configuration using unified storage."""
+    """Get summary of solver input configuration - handles case where mesh isn't configured yet."""
+
+    # If mesh isn't configured, return partial summary
     if not mesh_state.configured:
-        raise ValueError("Mesh must be configured to get solver input summary")
+        return SolverInputSummary(
+            mesh_intervals=0,
+            polynomial_degrees=[],
+            mesh_points=np.array([]),
+            initial_guess_source="mesh_not_configured",
+            states_guess_shapes=None,
+            controls_guess_shapes=None,
+            initial_time_guess=None,
+            terminal_time_guess=None,
+            integrals_guess_length=None,
+        )
 
     states_shapes = None
     controls_shapes = None

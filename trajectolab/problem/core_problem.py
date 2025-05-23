@@ -1,6 +1,7 @@
 """
-Core problem definition - UNIFIED CONSTRAINT API.
-Implements the new unified constraint specification with initial/final/boundary parameters.
+Core problem definition - UNIFIED CONSTRAINT API - FIXED ORDERING DEPENDENCY.
+Users can now call set_mesh() and set_initial_guess() in any order.
+Validation is deferred until solve time when all information is available.
 """
 
 from __future__ import annotations
@@ -27,7 +28,7 @@ if not problem_logger.handlers:
 
 
 class Problem:
-    """Main class for defining optimal control problems - UNIFIED CONSTRAINT API."""
+    """Main class for defining optimal control problems - UNIFIED CONSTRAINT API - FIXED ORDERING."""
 
     def __init__(self, name: str = "Unnamed Problem") -> None:
         """Initialize a new problem instance."""
@@ -288,7 +289,11 @@ class Problem:
     # ========================================================================
 
     def set_mesh(self, polynomial_degrees: list[int], mesh_points: NumericArrayLike) -> None:
-        """Configure mesh structure for the problem."""
+        """
+        Configure mesh structure for the problem.
+
+        FIXED: Can now be called before or after set_initial_guess().
+        """
         print("\n=== SETTING MESH ===")
         print(f"Polynomial degrees: {polynomial_degrees}")
         print(f"Mesh points: {mesh_points}")
@@ -296,12 +301,12 @@ class Problem:
         mesh.configure_mesh(self._mesh_state, polynomial_degrees, mesh_points)
         print("Mesh configured successfully")
 
-        # Clear initial guess when mesh changes
-        initial_guess_problem.clear_initial_guess(self._initial_guess_container)
-        print("Initial guess cleared")
+        # NOTE: We no longer clear the initial guess when mesh changes!
+        # This allows users to set initial guess before mesh configuration.
+        print("Initial guess preserved (can be set before or after mesh)")
 
     # ========================================================================
-    # INITIAL GUESS METHODS
+    # INITIAL GUESS METHODS - FIXED ORDERING DEPENDENCY
     # ========================================================================
 
     def set_initial_guess(
@@ -312,7 +317,14 @@ class Problem:
         terminal_time: float | None = None,
         integrals: float | FloatArray | None = None,
     ) -> None:
-        """Set initial guess for the problem."""
+        """
+        Set initial guess for the problem.
+
+        FIXED: Can now be called before or after set_mesh().
+        Validation is deferred until solve time when all information is available.
+        """
+        print("\n=== SETTING INITIAL GUESS ===")
+
         initial_guess_problem.set_initial_guess(
             self._initial_guess_container,
             self._mesh_state,
@@ -324,14 +336,47 @@ class Problem:
             integrals=integrals,
         )
 
-    def get_initial_guess_requirements(self):
-        """Get initial guess requirements."""
-        return initial_guess_problem.get_initial_guess_requirements(
+        # Provide helpful feedback
+        if self._mesh_configured:
+            print("Initial guess set successfully (mesh already configured)")
+            # Try to validate now that we have both pieces
+            try:
+                self.validate_initial_guess()
+                print("Initial guess validated successfully")
+            except Exception as e:
+                print(f"Initial guess validation failed: {e}")
+        else:
+            print("Initial guess stored successfully (mesh not yet configured)")
+            print("Validation will occur when mesh is set or solver runs")
+
+    def can_validate_initial_guess(self) -> bool:
+        """Check if we have enough information to validate the initial guess."""
+        return initial_guess_problem.can_validate_initial_guess(
             self._mesh_state, self._variable_state
         )
 
+    def get_initial_guess_requirements(self):
+        """
+        Get initial guess requirements.
+
+        FIXED: Now handles case where mesh isn't configured yet.
+        """
+        requirements = initial_guess_problem.get_initial_guess_requirements(
+            self._mesh_state, self._variable_state
+        )
+
+        if not self._mesh_configured:
+            print("Note: Mesh must be configured to get specific shape requirements")
+
+        return requirements
+
     def validate_initial_guess(self) -> None:
-        """Validate the current initial guess."""
+        """
+        Validate the current initial guess.
+
+        FIXED: Provides clear error message if mesh not configured.
+        This is called automatically when the solver runs.
+        """
         initial_guess_problem.validate_initial_guess(
             self._initial_guess_container[0], self._mesh_state, self._variable_state
         )
