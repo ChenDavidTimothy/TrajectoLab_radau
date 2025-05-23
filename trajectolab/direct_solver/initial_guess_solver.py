@@ -4,7 +4,7 @@ Initial guess application functions for the direct solver.
 
 from typing import cast
 
-from ..input_validation import validate_and_set_integral_guess
+from ..input_validation import set_integral_guess_values, validate_integral_values
 from ..tl_types import CasadiOpti, FloatMatrix, ProblemProtocol
 from .types_solver import VariableReferences
 
@@ -141,6 +141,5 @@ def _apply_integral_guesses(
 ) -> None:
     """Apply initial guess for integral variables."""
     if ig.integrals is not None and num_integrals > 0 and variables.integral_variables is not None:
-        validate_and_set_integral_guess(
-            opti, variables.integral_variables, ig.integrals, num_integrals
-        )
+        validate_integral_values(ig.integrals, num_integrals)
+        set_integral_guess_values(opti, variables.integral_variables, ig.integrals, num_integrals)

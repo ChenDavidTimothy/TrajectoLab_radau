@@ -216,28 +216,24 @@ def validate_initial_guess_structure(
             )
 
 
-def validate_and_set_integral_guess(
+def set_integral_guess_values(
     opti: CasadiOpti,
     integral_vars: CasadiMX,
     guess: InitialGuessIntegrals,
     num_integrals: int,
 ) -> None:
     """
-    Validate and set initial guess for integrals with strict dimension checking.
+    Set initial guess values for integrals in CasADi optimization object.
 
     Args:
         opti: CasADi optimization object
         integral_vars: CasADi integral variables
-        guess: Initial guess for integrals (should not be None here)
-        num_integrals: Expected number of integrals
+        guess: Initial guess for integrals (must be pre-validated)
+        num_integrals: Number of integrals
 
-    Raises:
-        ValueError: If guess dimensions don't match requirements exactly
+    Note:
+        This function assumes guess has already been validated.
     """
-    # First validate using the generic function
-    validate_integral_values(guess, num_integrals)
-
-    # Then set the values in CasADi
     if guess is None:
         return
 
@@ -245,9 +241,7 @@ def validate_and_set_integral_guess(
         if isinstance(guess, int | float):
             opti.set_initial(integral_vars, float(guess))
         else:
-            raise ValueError(
-                f"Expected scalar for single integral after validation, got {type(guess)}"
-            )
+            raise ValueError(f"Expected scalar for single integral, got {type(guess)}")
     elif num_integrals > 1:
         guess_array = np.array(guess, dtype=np.float64)
         opti.set_initial(integral_vars, guess_array.flatten())
