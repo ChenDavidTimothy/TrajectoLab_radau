@@ -7,7 +7,7 @@ import hashlib
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, ClassVar
+from typing import Any, ClassVar, cast
 
 from ..tl_types import CasadiFunction
 
@@ -67,7 +67,9 @@ class CasADiExpressionCache:
         self, cache_key: ExpressionCacheKey, builder_func: Callable[[], list[CasadiFunction]]
     ) -> list[CasadiFunction]:
         """Get cached integrand functions or build if not cached."""
-        return self._get_cached_item(f"integrand_{cache_key.cache_key}", builder_func)
+        # Fix: Cast the result to the correct type
+        result = self._get_cached_item(f"integrand_{cache_key.cache_key}", builder_func)
+        return cast(list[CasadiFunction], result)
 
     def _get_cached_item(self, full_key: str, builder_func: Callable[[], Any]) -> Any:
         """Unified cache retrieval method."""

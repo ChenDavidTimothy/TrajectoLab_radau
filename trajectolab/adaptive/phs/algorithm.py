@@ -294,7 +294,8 @@ def _refine_mesh(
             intervals_for_reduction.add(k)
 
     # Step 2: Process refinement intervals (p-refine or h-refine)
-    refinement_actions = {}  # k -> ('p', new_N) or ('h', [N1, N2, ...])
+    # Fix: Use Union type to handle both action types properly
+    refinement_actions: dict[int, tuple[str, int] | tuple[str, list[int]]] = {}
 
     for k in intervals_needing_refinement:
         error_k = errors[k]
@@ -410,9 +411,17 @@ def _refine_mesh(
             # Apply refinement
             action_type, action_data = refinement_actions[k]
             if action_type == "p":
+                # Fix: Handle p-refinement (single integer)
+                assert isinstance(action_data, int), (
+                    f"Expected int for p-refinement, got {type(action_data)}"
+                )
                 next_polynomial_degrees.append(action_data)
                 next_mesh_points.append(mesh_points[k + 1])
             else:  # h-refinement
+                # Fix: Handle h-refinement (list of integers)
+                assert isinstance(action_data, list), (
+                    f"Expected list for h-refinement, got {type(action_data)}"
+                )
                 next_polynomial_degrees.extend(action_data)
                 # Create new mesh nodes for subintervals
                 tau_start = mesh_points[k]

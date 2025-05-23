@@ -241,13 +241,17 @@ class Solution:
         ax.set_ylabel(name)
         ax.grid(True, alpha=0.3)
 
-    def _get_interval_colors(self) -> np.ndarray | None:
+    def _get_interval_colors(self) -> FloatArray | None:
         """Get colors for mesh intervals."""
         if self.mesh_nodes is None or len(self.mesh_nodes) <= 1:
             return None
 
         num_intervals = len(self.mesh_nodes) - 1
-        return plt.get_cmap("viridis")(np.linspace(0, 1, num_intervals))
+        # Fix: Cast matplotlib colormap result to proper array type
+        colormap = plt.get_cmap("viridis")
+        color_values = np.linspace(0, 1, num_intervals, dtype=np.float64)
+        colors = colormap(color_values)
+        return cast(FloatArray, colors)
 
     def _get_mesh_intervals(self) -> list[tuple[float, float]]:
         """Get mesh interval boundaries in physical time."""

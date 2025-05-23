@@ -193,7 +193,8 @@ def compute_barycentric_weights(nodes: FloatArray) -> FloatArray:
     if num_nodes == 1:
         return np.array([1.0], dtype=np.float64)
 
-    barycentric_weights = np.ones(num_nodes, dtype=np.float64)
+    # Fix: Use cast to ensure correct type annotation
+    barycentric_weights = cast(FloatArray, np.ones(num_nodes, dtype=np.float64))
 
     for j in range(num_nodes):
         other_nodes = np.delete(nodes, j)

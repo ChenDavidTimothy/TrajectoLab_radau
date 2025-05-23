@@ -146,7 +146,8 @@ class Problem:
         """Get state bounds in order (compatibility method)."""
         # Convert boundary constraints to bounds for compatibility
         boundary_constraints = self._variable_state.get_state_boundary_constraints()
-        bounds = []
+        # Fix: Explicitly type the bounds list
+        bounds: list[tuple[float | None, float | None]] = []
         for constraint in boundary_constraints:
             if constraint is None or not constraint.has_constraint():
                 bounds.append((None, None))
@@ -160,7 +161,8 @@ class Problem:
         """Get control bounds in order (compatibility method)."""
         # Convert boundary constraints to bounds for compatibility
         boundary_constraints = self._variable_state.get_control_boundary_constraints()
-        bounds = []
+        # Fix: Explicitly type the bounds list
+        bounds: list[tuple[float | None, float | None]] = []
         for constraint in boundary_constraints:
             if constraint is None or not constraint.has_constraint():
                 bounds.append((None, None))
