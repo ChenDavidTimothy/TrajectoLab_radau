@@ -31,11 +31,11 @@ def get_dynamics_function(variable_state: VariableState) -> DynamicsCallable:
     # Create combined vectors
     states_vec = ca.vertcat(*state_syms) if state_syms else ca.MX()
     controls_vec = ca.vertcat(*control_syms) if control_syms else ca.MX()
-    time = variable_state.sym_time if variable_state.sym_time is not None else ca.MX.sym("t", 1)
+    time = variable_state.sym_time if variable_state.sym_time is not None else ca.MX.sym("t", 1)  # type: ignore[arg-type]
     param_syms = (
         ca.vertcat(*variable_state.sym_parameters.values())
         if variable_state.sym_parameters
-        else ca.MX.sym("p", 0)
+        else ca.MX.sym("p", 0)  # type: ignore[arg-type]
     )
 
     # Create output vector in same order as state_syms
@@ -98,24 +98,24 @@ def get_objective_function(variable_state: VariableState) -> ObjectiveCallable:
     t0 = (
         variable_state.sym_time_initial
         if variable_state.sym_time_initial is not None
-        else ca.MX.sym("t0", 1)
+        else ca.MX.sym("t0", 1)  # type: ignore[arg-type]
     )
     tf = (
         variable_state.sym_time_final
         if variable_state.sym_time_final is not None
-        else ca.MX.sym("tf", 1)
+        else ca.MX.sym("tf", 1)  # type: ignore[arg-type]
     )
-    x0_vec = ca.vertcat(*[ca.MX.sym(f"x0_{i}", 1) for i in range(len(state_syms))])
-    xf_vec = ca.vertcat(*[ca.MX.sym(f"xf_{i}", 1) for i in range(len(state_syms))])
+    x0_vec = ca.vertcat(*[ca.MX.sym(f"x0_{i}", 1) for i in range(len(state_syms))])  # type: ignore[arg-type]
+    xf_vec = ca.vertcat(*[ca.MX.sym(f"xf_{i}", 1) for i in range(len(state_syms))])  # type: ignore[arg-type]
     q = (
         ca.vertcat(*variable_state.integral_symbols)
         if variable_state.integral_symbols
-        else ca.MX.sym("q", 1)
+        else ca.MX.sym("q", 1)  # type: ignore[arg-type]
     )
     param_syms = (
         ca.vertcat(*variable_state.sym_parameters.values())
         if variable_state.sym_parameters
-        else ca.MX.sym("p", 0)
+        else ca.MX.sym("p", 0)  # type: ignore[arg-type]
     )
 
     # Get the objective expression
@@ -159,7 +159,7 @@ def get_objective_function(variable_state: VariableState) -> ObjectiveCallable:
                 param_values.append(0.0)
 
         param_vec = ca.DM(param_values) if param_values else ca.DM()
-        q_val = q if q is not None else ca.DM.zeros(len(variable_state.integral_symbols), 1)
+        q_val = q if q is not None else ca.DM.zeros(len(variable_state.integral_symbols), 1)  # type: ignore[arg-type]
 
         result = obj_func(t0, tf, x0_vec, xf_vec, q_val, param_vec)
         obj_output = result[0] if isinstance(result, list | tuple) else result
@@ -180,11 +180,11 @@ def get_integrand_function(variable_state: VariableState) -> IntegralIntegrandCa
     # Create combined vectors
     states_vec = ca.vertcat(*state_syms) if state_syms else ca.MX()
     controls_vec = ca.vertcat(*control_syms) if control_syms else ca.MX()
-    time = variable_state.sym_time if variable_state.sym_time is not None else ca.MX.sym("t", 1)
+    time = variable_state.sym_time if variable_state.sym_time is not None else ca.MX.sym("t", 1)  # type: ignore[arg-type]
     param_syms = (
         ca.vertcat(*variable_state.sym_parameters.values())
         if variable_state.sym_parameters
-        else ca.MX.sym("p", 0)
+        else ca.MX.sym("p", 0)  # type: ignore[arg-type]
     )
 
     # Create separate functions for each integrand
