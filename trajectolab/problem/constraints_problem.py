@@ -101,8 +101,6 @@ def get_path_constraints_function(
     # Get ordered symbols and names
     state_syms = variable_state.get_ordered_state_symbols()
     control_syms = variable_state.get_ordered_control_symbols()
-    state_names = variable_state.get_ordered_state_names()
-    control_names = variable_state.get_ordered_control_names()
 
     def vectorized_path_constraints(
         states_vec: CasadiMX,
@@ -180,7 +178,6 @@ def get_event_constraints_function(
 
     # Get ordered symbols and names
     state_syms = variable_state.get_ordered_state_symbols()
-    state_names = variable_state.get_ordered_state_names()
 
     def vectorized_event_constraints(
         t0: CasadiMX,
