@@ -75,7 +75,7 @@ class Solution:
         return self._raw.objective if self._raw else None
 
     @property
-    def integrals(self) -> float | FloatArray | None:  # Fixed return type
+    def integrals(self) -> float | FloatArray | None:
         """Integral values."""
         return self._raw.integrals if self._raw else None
 
@@ -248,7 +248,7 @@ class Solution:
                             marker=".",
                             linestyle="-",
                             linewidth=1.5,
-                            markersize=3,
+                            markersize=7,
                         )
             else:
                 # Fallback to simple plot

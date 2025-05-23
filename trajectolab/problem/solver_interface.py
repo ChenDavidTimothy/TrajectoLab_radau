@@ -22,35 +22,20 @@ from .state import ConstraintState, VariableState
 
 
 def get_dynamics_function(variable_state: VariableState) -> DynamicsCallable:
-    """Get dynamics function for solver with automatic scaling handling."""
-    # Gather all state and control symbols in order
-    state_syms = [
-        variable_state.sym_states[name]
-        for name in sorted(
-            variable_state.sym_states.keys(),
-            key=lambda n: variable_state.states[n]["index"],
-        )
-    ]
-    control_syms = [
-        variable_state.sym_controls[name]
-        for name in sorted(
-            variable_state.sym_controls.keys(),
-            key=lambda n: variable_state.controls[n]["index"],
-        )
-    ]
+    """Get dynamics function for solver with efficient ordering."""
 
-    # State and control names in order (for scaling reference)
-    sorted(variable_state.sym_states.keys(), key=lambda n: variable_state.states[n]["index"])
-    sorted(variable_state.sym_controls.keys(), key=lambda n: variable_state.controls[n]["index"])
+    # EFFICIENT: Get ordered symbols directly
+    state_syms = variable_state.get_ordered_state_symbols()
+    control_syms = variable_state.get_ordered_control_symbols()
 
-    # Create combined vector for CasADi function input
+    # Create combined vectors
     states_vec = ca.vertcat(*state_syms) if state_syms else ca.MX()
     controls_vec = ca.vertcat(*control_syms) if control_syms else ca.MX()
-    time = variable_state.sym_time if variable_state.sym_time is not None else ca.MX.sym("t", 1)  # type: ignore[arg-type]
+    time = variable_state.sym_time if variable_state.sym_time is not None else ca.MX.sym("t", 1)
     param_syms = (
         ca.vertcat(*variable_state.sym_parameters.values())
         if variable_state.sym_parameters
-        else ca.MX.sym("p", 0)  # type: ignore[arg-type]
+        else ca.MX.sym("p", 0)
     )
 
     # Create output vector in same order as state_syms
@@ -59,7 +44,6 @@ def get_dynamics_function(variable_state: VariableState) -> DynamicsCallable:
         if state_sym in variable_state.dynamics_expressions:
             dynamics_expr.append(variable_state.dynamics_expressions[state_sym])
         else:
-            # Default to zero if no dynamics provided
             dynamics_expr.append(ca.MX(0))
 
     dynamics_vec = ca.vertcat(*dynamics_expr) if dynamics_expr else ca.MX()
@@ -85,18 +69,14 @@ def get_dynamics_function(variable_state: VariableState) -> DynamicsCallable:
                 param_values.append(0.0)
 
         param_vec = ca.DM(param_values) if param_values else ca.DM()
-
-        # Standard call
         result = dynamics_func(states_vec, controls_vec, time, param_vec)
-
         dynamics_output = result[0] if isinstance(result, list | tuple) else result
 
-        # Validate that we have a result
         if dynamics_output is None:
             raise ValueError("Dynamics function returned None")
 
         # Convert to list of MX elements
-        num_states = int(dynamics_output.size1())  # type: ignore[attr-defined]
+        num_states = int(dynamics_output.size1())
         result_list: list[CasadiMX] = []
         for i in range(num_states):
             result_list.append(cast(CasadiMX, dynamics_output[i]))
@@ -107,41 +87,35 @@ def get_dynamics_function(variable_state: VariableState) -> DynamicsCallable:
 
 
 def get_objective_function(variable_state: VariableState) -> ObjectiveCallable:
-    """Get objective function for solver with automatic state substitution."""
+    """Get objective function for solver with efficient ordering."""
     if variable_state.objective_expression is None:
         raise ValueError("Objective expression not defined")
 
-    # Gather symbols in order
-    state_syms = [
-        variable_state.sym_states[name]
-        for name in sorted(
-            variable_state.sym_states.keys(),
-            key=lambda n: variable_state.states[n]["index"],
-        )
-    ]
+    # EFFICIENT: Get ordered symbols directly
+    state_syms = variable_state.get_ordered_state_symbols()
 
     # Create inputs for unified objective function
     t0 = (
         variable_state.sym_time_initial
         if variable_state.sym_time_initial is not None
-        else ca.MX.sym("t0", 1)  # type: ignore[arg-type]
+        else ca.MX.sym("t0", 1)
     )
     tf = (
         variable_state.sym_time_final
         if variable_state.sym_time_final is not None
-        else ca.MX.sym("tf", 1)  # type: ignore[arg-type]
+        else ca.MX.sym("tf", 1)
     )
-    x0_vec = ca.vertcat(*[ca.MX.sym(f"x0_{i}", 1) for i in range(len(state_syms))])  # type: ignore[arg-type]
-    xf_vec = ca.vertcat(*[ca.MX.sym(f"xf_{i}", 1) for i in range(len(state_syms))])  # type: ignore[arg-type]
+    x0_vec = ca.vertcat(*[ca.MX.sym(f"x0_{i}", 1) for i in range(len(state_syms))])
+    xf_vec = ca.vertcat(*[ca.MX.sym(f"xf_{i}", 1) for i in range(len(state_syms))])
     q = (
         ca.vertcat(*variable_state.integral_symbols)
         if variable_state.integral_symbols
-        else ca.MX.sym("q", 1)  # type: ignore[arg-type]
+        else ca.MX.sym("q", 1)
     )
     param_syms = (
         ca.vertcat(*variable_state.sym_parameters.values())
         if variable_state.sym_parameters
-        else ca.MX.sym("p", 0)  # type: ignore[arg-type]
+        else ca.MX.sym("p", 0)
     )
 
     # Get the objective expression
@@ -149,19 +123,16 @@ def get_objective_function(variable_state: VariableState) -> ObjectiveCallable:
 
     # Automatically substitute state variables with final state values
     if state_syms:
-        # Create substitution mapping
         old_syms = []
         new_syms = []
 
         for i, sym in enumerate(state_syms):
             old_syms.append(sym)
-            # Handle dimension mismatch for single state
             if len(state_syms) == 1:
                 new_syms.append(xf_vec)
             else:
                 new_syms.append(xf_vec[i])
 
-        # Apply substitution
         objective_expr = ca.substitute([objective_expr], old_syms, new_syms)[0]
 
     # Create unified objective function
@@ -171,7 +142,6 @@ def get_objective_function(variable_state: VariableState) -> ObjectiveCallable:
         [objective_expr],
     )
 
-    # Create wrapper function
     def unified_objective(
         t0: CasadiMX,
         tf: CasadiMX,
@@ -180,7 +150,6 @@ def get_objective_function(variable_state: VariableState) -> ObjectiveCallable:
         q: CasadiMX | None,
         params: ProblemParameters,
     ) -> CasadiMX:
-        # Extract parameter values
         param_values = []
         for name in variable_state.sym_parameters:
             param_val = params.get(name, 0.0)
@@ -190,11 +159,8 @@ def get_objective_function(variable_state: VariableState) -> ObjectiveCallable:
                 param_values.append(0.0)
 
         param_vec = ca.DM(param_values) if param_values else ca.DM()
+        q_val = q if q is not None else ca.DM.zeros(len(variable_state.integral_symbols), 1)
 
-        # Handle q
-        q_val = q if q is not None else ca.DM.zeros(len(variable_state.integral_symbols), 1)  # type: ignore[arg-type]
-
-        # Call function
         result = obj_func(t0, tf, x0_vec, xf_vec, q_val, param_vec)
         obj_output = result[0] if isinstance(result, list | tuple) else result
         return cast(CasadiMX, obj_output)
@@ -203,34 +169,22 @@ def get_objective_function(variable_state: VariableState) -> ObjectiveCallable:
 
 
 def get_integrand_function(variable_state: VariableState) -> IntegralIntegrandCallable | None:
-    """Get integrand function for solver."""
+    """Get integrand function for solver with efficient ordering."""
     if not variable_state.integral_expressions:
         return None
 
-    # Gather symbols in order
-    state_syms = [
-        variable_state.sym_states[name]
-        for name in sorted(
-            variable_state.sym_states.keys(),
-            key=lambda n: variable_state.states[n]["index"],
-        )
-    ]
-    control_syms = [
-        variable_state.sym_controls[name]
-        for name in sorted(
-            variable_state.sym_controls.keys(),
-            key=lambda n: variable_state.controls[n]["index"],
-        )
-    ]
+    # EFFICIENT: Get ordered symbols directly
+    state_syms = variable_state.get_ordered_state_symbols()
+    control_syms = variable_state.get_ordered_control_symbols()
 
     # Create combined vectors
     states_vec = ca.vertcat(*state_syms) if state_syms else ca.MX()
     controls_vec = ca.vertcat(*control_syms) if control_syms else ca.MX()
-    time = variable_state.sym_time if variable_state.sym_time is not None else ca.MX.sym("t", 1)  # type: ignore[arg-type]
+    time = variable_state.sym_time if variable_state.sym_time is not None else ca.MX.sym("t", 1)
     param_syms = (
         ca.vertcat(*variable_state.sym_parameters.values())
         if variable_state.sym_parameters
-        else ca.MX.sym("p", 0)  # type: ignore[arg-type]
+        else ca.MX.sym("p", 0)
     )
 
     # Create separate functions for each integrand
@@ -240,7 +194,6 @@ def get_integrand_function(variable_state: VariableState) -> IntegralIntegrandCa
             ca.Function("integrand", [states_vec, controls_vec, time, param_syms], [expr])
         )
 
-    # Create wrapper function
     def vectorized_integrand(
         states_vec: CasadiMX,
         controls_vec: CasadiMX,
@@ -251,14 +204,11 @@ def get_integrand_function(variable_state: VariableState) -> IntegralIntegrandCa
         if integral_idx >= len(integrand_funcs):
             return ca.MX(0.0)
 
-        # Extract parameter values
         param_values = []
         for name in variable_state.sym_parameters:
             param_values.append(params.get(name, 0.0))
 
         param_vec = ca.DM(param_values) if param_values else ca.DM()
-
-        # Call function
         result = integrand_funcs[integral_idx](states_vec, controls_vec, time, param_vec)
         integrand_output = result[0] if isinstance(result, list | tuple) else result
         return cast(CasadiMX, integrand_output)

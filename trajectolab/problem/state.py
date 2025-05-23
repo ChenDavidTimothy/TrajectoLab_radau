@@ -40,6 +40,40 @@ class VariableState:
     t0_bounds: tuple[float, float] = (0.0, 0.0)
     tf_bounds: tuple[float, float] = (1.0, 1.0)
 
+    # ========================================================================
+    # EFFICIENT ORDERING METHODS - Added to fix performance issues
+    # ========================================================================
+
+    def get_ordered_state_items(self) -> list[tuple[str, SymType]]:
+        """Get (name, symbol) pairs ordered by index."""
+        sorted_items = sorted(self.states.items(), key=lambda item: item[1]["index"])
+        return [(name, self.sym_states[name]) for name, _ in sorted_items]
+
+    def get_ordered_control_items(self) -> list[tuple[str, SymType]]:
+        """Get (name, symbol) pairs ordered by index."""
+        sorted_items = sorted(self.controls.items(), key=lambda item: item[1]["index"])
+        return [(name, self.sym_controls[name]) for name, _ in sorted_items]
+
+    def get_ordered_state_symbols(self) -> list[SymType]:
+        """Get state symbols ordered by index."""
+        sorted_items = sorted(self.states.items(), key=lambda item: item[1]["index"])
+        return [self.sym_states[name] for name, _ in sorted_items]
+
+    def get_ordered_control_symbols(self) -> list[SymType]:
+        """Get control symbols ordered by index."""
+        sorted_items = sorted(self.controls.items(), key=lambda item: item[1]["index"])
+        return [self.sym_controls[name] for name, _ in sorted_items]
+
+    def get_ordered_state_names(self) -> list[str]:
+        """Get state names ordered by index."""
+        sorted_items = sorted(self.states.items(), key=lambda item: item[1]["index"])
+        return [name for name, _ in sorted_items]
+
+    def get_ordered_control_names(self) -> list[str]:
+        """Get control names ordered by index."""
+        sorted_items = sorted(self.controls.items(), key=lambda item: item[1]["index"])
+        return [name for name, _ in sorted_items]
+
 
 @dataclass
 class ConstraintState:

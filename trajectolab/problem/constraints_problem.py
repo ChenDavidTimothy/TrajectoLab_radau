@@ -14,7 +14,10 @@ from ..tl_types import (
     ProblemParameters,
     SymExpr,
 )
-from .state import ConstraintState, VariableState
+from .state import (
+    ConstraintState,
+    VariableState,
+)
 
 
 def add_constraint(state: ConstraintState, constraint_expr: SymExpr) -> None:
@@ -74,7 +77,7 @@ def _symbolic_constraint_to_constraint(expr: SymExpr) -> Constraint:
 def get_path_constraints_function(
     constraint_state: ConstraintState, variable_state: VariableState
 ) -> PathConstraintsCallable | None:
-    """Get path constraints function for solver with automatic scaling handling."""
+    """Get path constraints function for solver with efficient ordering."""
 
     # Filter path constraints
     path_constraints = [
@@ -95,25 +98,13 @@ def get_path_constraints_function(
     if not path_constraints and not has_bounds:
         return None
 
-    # Gather symbols in order
-    state_syms = [
-        variable_state.sym_states[name]
-        for name in sorted(
-            variable_state.sym_states.keys(),
-            key=lambda n: variable_state.states[n]["index"],
-        )
-    ]
-    control_syms = [
-        variable_state.sym_controls[name]
-        for name in sorted(
-            variable_state.sym_controls.keys(),
-            key=lambda n: variable_state.controls[n]["index"],
-        )
-    ]
+    # EFFICIENT: Get ordered symbols directly
+    state_syms = variable_state.get_ordered_state_symbols()
+    control_syms = variable_state.get_ordered_control_symbols()
 
-    # State and control names in order (for scaling reference)
-    sorted(variable_state.sym_states.keys(), key=lambda n: variable_state.states[n]["index"])
-    sorted(variable_state.sym_controls.keys(), key=lambda n: variable_state.controls[n]["index"])
+    # EFFICIENT: Get ordered names directly
+    state_names = variable_state.get_ordered_state_names()
+    control_names = variable_state.get_ordered_control_names()
 
     def vectorized_path_constraints(
         states_vec: CasadiMX,
@@ -121,18 +112,6 @@ def get_path_constraints_function(
         time: CasadiMX,
         params: ProblemParameters,
     ) -> list[Constraint]:
-        """
-        Convert path constraints to unified Constraint format.
-
-        Args:
-            states_vec: State vector at collocation point
-            controls_vec: Control vector at collocation point
-            time: Time at collocation point
-            params: Problem parameters
-
-        Returns:
-            List of unified Constraint objects
-        """
         result: list[Constraint] = []
 
         # Create substitution map
@@ -157,13 +136,9 @@ def get_path_constraints_function(
             )[0]
             result.append(_symbolic_constraint_to_constraint(substituted_expr))
 
+        # EFFICIENT: Use ordered names directly
         # Add state bounds
-        for i, name in enumerate(
-            sorted(
-                variable_state.states.keys(),
-                key=lambda n: variable_state.states[n]["index"],
-            )
-        ):
+        for i, name in enumerate(state_names):
             state_def = variable_state.states[name]
             if state_def.get("lower") is not None:
                 result.append(Constraint(val=states_vec[i], min_val=state_def["lower"]))
@@ -171,12 +146,7 @@ def get_path_constraints_function(
                 result.append(Constraint(val=states_vec[i], max_val=state_def["upper"]))
 
         # Add control bounds
-        for i, name in enumerate(
-            sorted(
-                variable_state.controls.keys(),
-                key=lambda n: variable_state.controls[n]["index"],
-            )
-        ):
+        for i, name in enumerate(control_names):
             control_def = variable_state.controls[name]
             if control_def.get("lower") is not None:
                 result.append(Constraint(val=controls_vec[i], min_val=control_def["lower"]))
@@ -200,7 +170,7 @@ def get_event_constraints_function(
     constraint_state: ConstraintState,
     variable_state: VariableState,
 ) -> EventConstraintsCallable | None:
-    """Get event constraints function for solver."""
+    """Get event constraints function for solver with efficient ordering."""
     # Filter event constraints
     event_constraints = [
         expr
@@ -211,14 +181,9 @@ def get_event_constraints_function(
     if not event_constraints and not _has_initial_or_final_state_constraints(variable_state):
         return None
 
-    # Gather symbols in order
-    state_syms = [
-        variable_state.sym_states[name]
-        for name in sorted(
-            variable_state.sym_states.keys(),
-            key=lambda n: variable_state.states[n]["index"],
-        )
-    ]
+    # EFFICIENT: Get ordered symbols and names directly
+    state_syms = variable_state.get_ordered_state_symbols()
+    state_names = variable_state.get_ordered_state_names()
 
     def vectorized_event_constraints(
         t0: CasadiMX,
@@ -258,13 +223,9 @@ def get_event_constraints_function(
             )[0]
             result.append(_symbolic_constraint_to_constraint(substituted_expr))
 
+        # EFFICIENT: Use ordered names directly
         # Add initial state constraints
-        for i, name in enumerate(
-            sorted(
-                variable_state.states.keys(),
-                key=lambda n: variable_state.states[n]["index"],
-            )
-        ):
+        for i, name in enumerate(state_names):
             state_def = variable_state.states[name]
             initial_constraint = state_def.get("initial_constraint")
             if initial_constraint is not None:
@@ -277,12 +238,7 @@ def get_event_constraints_function(
                         result.append(Constraint(val=x0_vec[i], max_val=initial_constraint.upper))
 
         # Add final state constraints
-        for i, name in enumerate(
-            sorted(
-                variable_state.states.keys(),
-                key=lambda n: variable_state.states[n]["index"],
-            )
-        ):
+        for i, name in enumerate(state_names):
             state_def = variable_state.states[name]
             final_constraint = state_def.get("final_constraint")
             if final_constraint is not None:
