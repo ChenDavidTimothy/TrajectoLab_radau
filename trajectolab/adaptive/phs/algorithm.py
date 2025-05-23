@@ -20,7 +20,7 @@ from trajectolab.adaptive.phs.initial_guess import (
     propagate_solution_to_new_mesh,
 )
 from trajectolab.adaptive.phs.numerical import (
-    get_polynomial_interpolant,
+    PolynomialInterpolant,
 )
 from trajectolab.adaptive.phs.refinement import (
     h_reduce_intervals,
@@ -156,7 +156,7 @@ def _create_interpolants(
 
             # Create state interpolant
             state_data = states_list[k]
-            state_evaluators[k] = get_polynomial_interpolant(
+            state_evaluators[k] = PolynomialInterpolant(
                 basis.state_approximation_nodes,
                 state_data,
                 basis.barycentric_weights_for_state_nodes,
@@ -172,12 +172,12 @@ def _create_interpolants(
                     )
 
                 control_weights = control_weights_cache[N_k]
-                control_evaluators[k] = get_polynomial_interpolant(
+                control_evaluators[k] = PolynomialInterpolant(
                     basis.collocation_nodes, control_data, control_weights
                 )
             else:
                 # Empty control interpolant
-                control_evaluators[k] = get_polynomial_interpolant(
+                control_evaluators[k] = PolynomialInterpolant(
                     np.array([-1.0, 1.0], dtype=np.float64),
                     np.empty((0, 2), dtype=np.float64),
                     None,
@@ -187,13 +187,13 @@ def _create_interpolants(
             logger.warning(f"Error creating interpolant for interval {k}: {e}")
             # Create fallback interpolants
             if state_evaluators[k] is None:
-                state_evaluators[k] = get_polynomial_interpolant(
+                state_evaluators[k] = PolynomialInterpolant(
                     np.array([-1.0, 1.0], dtype=np.float64),
                     np.full((len(problem._states), 2), np.nan, dtype=np.float64),
                     None,
                 )
             if control_evaluators[k] is None:
-                control_evaluators[k] = get_polynomial_interpolant(
+                control_evaluators[k] = PolynomialInterpolant(
                     np.array([-1.0, 1.0], dtype=np.float64),
                     np.full(
                         (len(problem._controls) if len(problem._controls) > 0 else 0, 2),

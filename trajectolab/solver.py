@@ -130,35 +130,3 @@ def solve_adaptive(
     )
 
     return _Solution(solution_data, protocol_problem)
-
-
-def solve(
-    problem: Problem,
-    mesh_method: str = "fixed",
-    **kwargs: object,
-) -> _Solution:
-    """
-    General solve function that dispatches to specific solvers.
-
-    Args:
-        problem: The optimal control problem to solve
-        mesh_method: Either "fixed" or "adaptive"
-        **kwargs: Additional arguments passed to specific solver
-
-    Returns:
-        Solution object containing the results
-
-    Note:
-        To provide an initial guess, use problem.set_initial_guess() before calling this function.
-
-    Raises:
-        ValueError: If mesh_method is not recognized
-    """
-    solver_logger.info(f"Solving problem '{problem.name}' with {mesh_method} mesh")
-
-    if mesh_method == "fixed":
-        return solve_fixed_mesh(problem, **kwargs)  # type: ignore[arg-type]
-    elif mesh_method == "adaptive":
-        return solve_adaptive(problem, **kwargs)  # type: ignore[arg-type]
-    else:
-        raise ValueError(f"Unknown mesh_method: {mesh_method}. Use 'fixed' or 'adaptive'")

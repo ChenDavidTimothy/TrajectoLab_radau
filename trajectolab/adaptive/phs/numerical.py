@@ -16,7 +16,6 @@ from trajectolab.tl_types import (
 
 __all__ = [
     "PolynomialInterpolant",
-    "get_polynomial_interpolant",
     "map_global_normalized_tau_to_local_interval_tau",
     "map_local_interval_tau_to_global_normalized_tau",
     "map_local_tau_from_interval_k_plus_1_to_equivalent_in_interval_k",
@@ -77,13 +76,6 @@ class PolynomialInterpolant:
 
         # Return appropriate shape based on input
         return result[:, 0] if is_scalar else result
-
-
-def get_polynomial_interpolant(
-    nodes: FloatArray, values: FloatMatrix, barycentric_weights: FloatArray | None = None
-) -> PolynomialInterpolant:
-    """Creates a Lagrange polynomial interpolant using barycentric formula."""
-    return PolynomialInterpolant(nodes, values, barycentric_weights)
 
 
 def map_global_normalized_tau_to_local_interval_tau(

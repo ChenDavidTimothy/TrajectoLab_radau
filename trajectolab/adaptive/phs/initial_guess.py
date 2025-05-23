@@ -9,7 +9,7 @@ from typing import cast
 import numpy as np
 
 from trajectolab.adaptive.phs.numerical import (
-    get_polynomial_interpolant,
+    PolynomialInterpolant,
     map_global_normalized_tau_to_local_interval_tau,
     map_local_interval_tau_to_global_normalized_tau,
 )
@@ -112,7 +112,7 @@ def _interpolate_trajectory_to_new_mesh(
 
             # Create interpolant for this interval
             try:
-                interpolant = get_polynomial_interpolant(local_nodes, traj_k, barycentric_weights)
+                interpolant = PolynomialInterpolant(local_nodes, traj_k, barycentric_weights)
                 prev_interpolants.append(interpolant)
                 logger.debug(
                     f"        Interval {k}: Created interpolant for {traj_k.shape} trajectory"

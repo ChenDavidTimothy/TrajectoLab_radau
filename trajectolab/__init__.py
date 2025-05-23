@@ -6,12 +6,11 @@ using the Radau Pseudospectral Method for direct collocation.
 """
 
 from trajectolab.problem import Problem
-from trajectolab.solver import solve, solve_adaptive, solve_fixed_mesh
+from trajectolab.solver import solve_adaptive, solve_fixed_mesh
 
 
 __all__ = [
     "Problem",
-    "solve",
     "solve_adaptive",
     "solve_fixed_mesh",
 ]
