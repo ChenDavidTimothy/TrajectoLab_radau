@@ -247,7 +247,6 @@ class Solution:
             return None
 
         num_intervals = len(self.mesh_nodes) - 1
-        # Fix: Cast matplotlib colormap result to proper array type
         colormap = plt.get_cmap("viridis")
         color_values = np.linspace(0, 1, num_intervals, dtype=np.float64)
         colors = colormap(color_values)
