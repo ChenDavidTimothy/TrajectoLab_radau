@@ -103,6 +103,14 @@ fixed_solution = tl.solve_fixed_mesh(
 
 if fixed_solution.success:
     print(f"Fixed mesh solution successful! Objective: {fixed_solution.objective:.6f}")
+    # Access solver statistics
+    iter_count = fixed_solution.raw_solution.stats()["iter_count"]
+    print(f"Solver iterations: {iter_count}")
+
+    # Access Lagrange multipliers
+    lam_g = fixed_solution.raw_solution.value(fixed_solution.opti.lam_g)
+    print(f"Constraint multipliers: {lam_g}")
+
     fixed_solution.plot()
 else:
     print(f"Fixed mesh solution failed: {fixed_solution.message}")

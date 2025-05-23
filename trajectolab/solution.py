@@ -38,6 +38,7 @@ class Solution:
             self.time_controls = raw_solution.time_controls
             self.controls = raw_solution.controls
             self.raw_solution = raw_solution.raw_solution
+            self.opti = raw_solution.opti_object
             self.mesh_intervals = raw_solution.num_collocation_nodes_per_interval
             self.mesh_nodes = raw_solution.global_normalized_mesh_nodes
         else:
@@ -53,6 +54,7 @@ class Solution:
             self.time_controls = np.array([], dtype=np.float64)
             self.controls = []
             self.raw_solution = None
+            self.opti = None
             self.mesh_intervals = []
             self.mesh_nodes = None
 
