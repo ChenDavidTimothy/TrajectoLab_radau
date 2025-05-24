@@ -3,6 +3,7 @@ Mesh refinement strategies for the PHS adaptive algorithm - SIMPLIFIED.
 Updated to use unified storage system and type system.
 """
 
+import logging
 from typing import cast
 
 import numpy as np
@@ -32,6 +33,9 @@ from trajectolab.utils.constants import DEFAULT_ODE_ATOL_FACTOR
 
 
 __all__ = ["h_reduce_intervals", "h_refine_params", "p_reduce_interval", "p_refine_interval"]
+
+
+logger = logging.getLogger(__name__)
 
 
 def p_refine_interval(
@@ -128,12 +132,10 @@ def h_reduce_intervals(
     state_evaluator_second: StateEvaluator,
     control_evaluator_second: ControlEvaluator | None,
 ) -> bool:
-    """
-    Checks if two adjacent intervals can be merged - SIMPLIFIED.
-    Updated to use unified storage system.
-    Returns True if merge is successful (error condition met).
-    """
-    print(f"    h-reduction check for intervals {first_idx} and {first_idx + 1}.")
+    """Check if two adjacent intervals can be merged."""
+
+    # Log h-reduction attempt (DEBUG - developer info)
+    logger.debug("Checking h-reduction for intervals %d and %d", first_idx, first_idx + 1)
 
     error_tol = adaptive_params.error_tolerance
     ode_rtol = adaptive_params.ode_solver_tolerance
@@ -146,13 +148,13 @@ def h_reduce_intervals(
     problem_parameters = problem._parameters
 
     if solution.raw_solution is None:
-        print("      h-reduction failed: Raw solution missing.")
+        logger.debug("h-reduction failed: Raw solution missing")
         return False
 
     # Extract mesh and time information
     global_mesh = solution.global_normalized_mesh_nodes
     if global_mesh is None:
-        print("      h-reduction failed: Global mesh is None.")
+        logger.debug("h-reduction failed: Global mesh is None")
         return False
 
     tau_start_k = global_mesh[first_idx]
@@ -163,7 +165,7 @@ def h_reduce_intervals(
     beta_kp1 = (tau_end_kp1 - tau_shared) / 2.0
 
     if abs(beta_k) < 1e-12 or abs(beta_kp1) < 1e-12:
-        print("      h-reduction check: One of the intervals has zero length. Merge not possible.")
+        logger.debug("h-reduction check: One interval has zero length. Merge not possible")
         return False
 
     # Time transformation parameters
@@ -352,7 +354,7 @@ def h_reduce_intervals(
     # For problems with no states, just check if simulations were successful
     if num_states == 0:
         can_merge = fwd_sim_success and bwd_sim_success
-        print(f"      h-reduction check (no states): can_intervals_be_merged = {can_merge}")
+        logger.debug("h-reduction check (no states): can_intervals_be_merged=%s", can_merge)
         return can_merge
 
     # Calculate errors for merged domain
@@ -411,16 +413,13 @@ def h_reduce_intervals(
         print("      h-reduction check: max_error calculation resulted in NaN. Merge not approved.")
         max_error = np.inf
 
-    print(f"      h-reduction check result: max_error = {max_error:.4e}")
     can_merge = max_error <= error_tol
 
+    logger.debug("h-reduction result: max_error=%.4e, can_merge=%s", max_error, can_merge)
+
     if can_merge:
-        print(
-            f"      h-reduction condition met. Merge approved for intervals {first_idx}, {first_idx + 1}."
-        )
+        logger.debug("h-reduction approved for intervals %d, %d", first_idx, first_idx + 1)
     else:
-        print(
-            f"      h-reduction condition NOT met (error {max_error:.2e} > tol {error_tol:.2e}). Merge failed."
-        )
+        logger.debug("h-reduction rejected: error %.2e > tolerance %.2e", max_error, error_tol)
 
     return can_merge

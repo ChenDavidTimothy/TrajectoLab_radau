@@ -85,12 +85,12 @@ problem.dynamics(
 problem.minimize(-theta)
 
 # Mesh and initial guess
-problem.set_mesh([10] * 15, np.linspace(-1.0, 1.0, 16))
+problem.set_mesh([8] * 3, np.linspace(-1.0, 1.0, 4))
 
 # Simple initial guess: linear interpolation
 states_guess = []
 controls_guess = []
-for N in [10] * 15:
+for N in [8] * 3:
     t_norm = np.linspace(0, 1, N + 1)
     # Linear state trajectories
     h_traj = 2.6 + (0.8 - 2.6) * t_norm
@@ -115,8 +115,9 @@ for N in [10] * 15:
 problem.set_initial_guess(states=states_guess, controls=controls_guess, terminal_time=2000.0)
 
 # Solve
-solution = tl.solve_fixed_mesh(
+solution = tl.solve_adaptive(
     problem,
+    error_tolerance=1e-7,
     nlp_options={
         "ipopt.print_level": 3,
         "ipopt.max_iter": 2000,

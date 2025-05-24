@@ -460,17 +460,28 @@ def solve_phs_adaptive_internal(
     max_polynomial_degree: int,
     ode_solver_tolerance: float,
     num_error_sim_points: int,
-    ode_solver,  # Added parameter for ODE solver
+    ode_solver,
     initial_guess: InitialGuess | None = None,
-    ode_method: str = "RK45",  # NEW
-    ode_max_step: float | None = None,  # NEW
+    ode_method: str = "RK45",
+    ode_max_step: float | None = None,
 ) -> OptimalControlSolution:
-    """
-    Internal PHS-Adaptive mesh refinement algorithm implementation - SIMPLIFIED.
-    Updated to use unified storage system throughout.
-    """
-    # Configure local logger
-    logger = logging.getLogger("trajectolab.adaptive.phs")
+    """Internal PHS-Adaptive mesh refinement algorithm implementation."""
+
+    # Log algorithm start (INFO - user cares about adaptive progress)
+    logger.info(
+        "Starting adaptive mesh refinement: tolerance=%.1e, max_iter=%d",
+        error_tolerance,
+        max_iterations,
+    )
+
+    # Log algorithm parameters (DEBUG)
+    logger.debug(
+        "Adaptive parameters: poly_range=[%d,%d], ode_tol=%.1e, sim_points=%d",
+        min_polynomial_degree,
+        max_polynomial_degree,
+        ode_solver_tolerance,
+        num_error_sim_points,
+    )
 
     # Validate parameters
     _validate_mesh_configuration(
@@ -488,36 +499,41 @@ def solve_phs_adaptive_internal(
         max_polynomial_degree=max_polynomial_degree,
         ode_solver_tolerance=ode_solver_tolerance,
         num_error_sim_points=num_error_sim_points,
-        ode_method=ode_method,  # NEW
-        ode_max_step=ode_max_step,  # NEW
-        ode_solver=ode_solver,  # Advanced option
+        ode_method=ode_method,
+        ode_max_step=ode_max_step,
+        ode_solver=ode_solver,
     )
 
     # Initialize mesh configuration
     current_polynomial_degrees = list(initial_polynomial_degrees)
     current_mesh_points = initial_mesh_points.copy()
-
-    # Track most recent successful solution
     most_recent_solution: OptimalControlSolution | None = None
+
+    # Log initial mesh (DEBUG)
+    logger.debug(
+        "Initial mesh: degrees=%s, intervals=%d",
+        current_polynomial_degrees,
+        len(current_polynomial_degrees),
+    )
 
     # Import solver function
     from trajectolab.direct_solver import solve_single_phase_radau_collocation
 
     # Main adaptive refinement loop
     for iteration in range(max_iterations):
-        logger.info(f"Adaptive Iteration {iteration}")
+        # Log iteration start (INFO - user cares about progress)
+        logger.info("Adaptive iteration %d/%d", iteration + 1, max_iterations)
 
         # Configure problem mesh
         problem.set_mesh(current_polynomial_degrees, current_mesh_points)
 
         if iteration == 0:
-            # FIRST ITERATION: Handle initial guess
             _handle_first_iteration_initial_guess(problem, initial_guess)
         else:
-            # SUBSEQUENT ITERATIONS: Always use aggressive interpolation propagation
             if most_recent_solution is None:
                 raise ValueError("No previous solution available for propagation")
 
+            logger.debug("Propagating solution to new mesh")
             propagated_guess = propagate_solution_to_new_mesh(
                 most_recent_solution,
                 problem,
@@ -527,29 +543,31 @@ def solve_phs_adaptive_internal(
             problem.initial_guess = propagated_guess
 
         # Solve optimal control problem
+        logger.debug("Solving NLP for iteration %d", iteration + 1)
         solution = solve_single_phase_radau_collocation(problem)
 
         if not solution.success:
-            error_msg = f"Solver failed in iteration {iteration}: {solution.message}"
-            logger.error(error_msg)
+            logger.warning("NLP solve failed in iteration %d: %s", iteration + 1, solution.message)
 
             if most_recent_solution is not None:
-                most_recent_solution.message = (
-                    f"Adaptive stopped due to solver failure: {error_msg}"
-                )
+                most_recent_solution.message = f"Adaptive stopped due to solver failure in iteration {iteration + 1}: {solution.message}"
                 most_recent_solution.success = False
+                logger.info("Returning last successful solution")
                 return most_recent_solution
             else:
-                solution.message = error_msg
+                solution.message = f"Adaptive failed in first iteration: {solution.message}"
+                logger.error("No successful solution obtained")
                 return solution
 
         # Extract trajectories
         try:
             _extract_solution_trajectories(solution, problem, current_polynomial_degrees)
+            logger.debug("Solution trajectories extracted successfully")
         except Exception as e:
-            error_msg = f"Failed to extract trajectories: {e}"
-            logger.error(error_msg)
-            solution.message = error_msg
+            logger.error(
+                "Failed to extract trajectories in iteration %d: %s", iteration + 1, str(e)
+            )
+            solution.message = f"Failed to extract trajectories: {e}"
             solution.success = False
             return solution
 
@@ -562,28 +580,25 @@ def solve_phs_adaptive_internal(
 
         # Calculate gamma normalization factors
         gamma_factors = calculate_gamma_normalizers(solution, problem)
-        # Get variable counts from unified storage
         num_states, _ = problem.get_variable_counts()
         if gamma_factors is None and num_states > 0:
-            error_msg = f"Failed to calculate gamma normalizers at iteration {iteration}"
-            logger.error(error_msg)
-            solution.message = error_msg
+            logger.error("Failed to calculate gamma normalizers in iteration %d", iteration + 1)
+            solution.message = f"Failed to calculate gamma normalizers at iteration {iteration + 1}"
             solution.success = False
             return solution
 
-        # Use default gamma factors if none calculated
         safe_gamma = (
             gamma_factors
             if gamma_factors is not None
             else np.ones((num_states, 1), dtype=np.float64)
         )
 
-        # Create interpolants
+        # Create interpolants and calculate errors
+        logger.debug("Creating interpolants and estimating errors")
         state_evaluators, control_evaluators = _create_interpolants(
             solution, problem, current_polynomial_degrees
         )
 
-        # Calculate error estimates
         errors = _estimate_errors(
             solution,
             problem,
@@ -594,6 +609,16 @@ def solve_phs_adaptive_internal(
             safe_gamma,
         )
 
+        # Log error analysis (INFO - user cares about convergence)
+        max_error = max(errors) if errors else 0.0
+        avg_error = np.mean(errors) if errors else 0.0
+        logger.info(
+            "Error analysis: max=%.2e, avg=%.2e, tolerance=%.2e",
+            max_error,
+            avg_error,
+            error_tolerance,
+        )
+
         # Check convergence
         all_errors_within_tolerance = all(
             not (np.isnan(error) or np.isinf(error)) and error <= adaptive_params.error_tolerance
@@ -601,7 +626,9 @@ def solve_phs_adaptive_internal(
         )
 
         if all_errors_within_tolerance:
-            logger.info(f"Converged after {iteration + 1} iterations!")
+            # Log convergence success (INFO - user cares about final result)
+            logger.info("Adaptive refinement converged in %d iterations", iteration + 1)
+
             solution.num_collocation_nodes_per_interval = current_polynomial_degrees.copy()
             solution.global_normalized_mesh_nodes = current_mesh_points.copy()
             solution.message = (
@@ -612,6 +639,7 @@ def solve_phs_adaptive_internal(
 
         # Refine mesh for next iteration
         try:
+            logger.debug("Refining mesh for next iteration")
             current_polynomial_degrees, current_mesh_points = _refine_mesh(
                 current_polynomial_degrees,
                 current_mesh_points,
@@ -623,22 +651,31 @@ def solve_phs_adaptive_internal(
                 control_evaluators,
                 safe_gamma,
             )
+
+            # Log mesh refinement result (DEBUG)
+            logger.debug(
+                "Mesh refined: new_degrees=%s, new_intervals=%d",
+                current_polynomial_degrees,
+                len(current_polynomial_degrees),
+            )
+
         except Exception as e:
-            error_msg = f"Mesh refinement failed: {e}"
-            logger.error(error_msg)
+            logger.error("Mesh refinement failed in iteration %d: %s", iteration + 1, str(e))
             if most_recent_solution is not None:
-                most_recent_solution.message = error_msg
+                most_recent_solution.message = f"Mesh refinement failed: {e}"
                 most_recent_solution.success = False
                 return most_recent_solution
 
     # Maximum iterations reached
-    max_iter_msg = (
-        f"Reached maximum iterations ({max_iterations}) without full convergence "
-        f"to tolerance {adaptive_params.error_tolerance:.1e}"
+    logger.warning(
+        "Adaptive refinement reached maximum iterations (%d) without convergence", max_iterations
     )
-    logger.warning(max_iter_msg)
 
     if most_recent_solution is not None:
+        max_iter_msg = (
+            f"Reached maximum iterations ({max_iterations}) without full convergence "
+            f"to tolerance {adaptive_params.error_tolerance:.1e}"
+        )
         most_recent_solution.message = max_iter_msg
         most_recent_solution.num_collocation_nodes_per_interval = current_polynomial_degrees.copy()
         most_recent_solution.global_normalized_mesh_nodes = current_mesh_points.copy()
@@ -647,9 +684,10 @@ def solve_phs_adaptive_internal(
         # Create failure solution
         failed_solution = OptimalControlSolution()
         failed_solution.success = False
-        failed_solution.message = max_iter_msg + " No successful solution obtained."
+        failed_solution.message = f"No successful solution obtained in {max_iterations} iterations"
         failed_solution.num_collocation_nodes_per_interval = current_polynomial_degrees
         failed_solution.global_normalized_mesh_nodes = current_mesh_points
+        logger.error("Adaptive refinement failed completely")
         return failed_solution
 
 

@@ -1,6 +1,6 @@
+# trajectolab/direct_solver/core_solver.py
 """
-Core orchestration for the direct solver - USES CENTRALIZED VALIDATION.
-All ConfigurationError validations moved to input_validation.py
+Core orchestration for the direct solver with production logging.
 """
 
 import logging
@@ -30,24 +30,27 @@ from .types_solver import MetadataBundle, VariableReferences
 from .variables_solver import setup_interval_state_variables, setup_optimization_variables
 
 
+# Library logger
 logger = logging.getLogger(__name__)
 
 
 def solve_single_phase_radau_collocation(problem: ProblemProtocol) -> OptimalControlSolution:
-    """
-    Solve a single-phase optimal control problem using Radau pseudospectral collocation.
+    """Solve a single-phase optimal control problem using Radau pseudospectral collocation."""
 
-    NOTE: Assumes comprehensive validation already done by validate_problem_ready_for_solving()
-    """
+    # Log solver start (DEBUG - developer cares about internal operations)
+    logger.debug("Starting Radau collocation solver")
+
     # Initialize optimization problem
     opti: CasadiOpti = ca.Opti()
-
-    # Extract problem metadata (already validated)
     num_mesh_intervals = len(problem.collocation_points_per_interval)
     num_integrals = problem._num_integrals
 
+    # Log problem structure (DEBUG)
+    logger.debug("Problem structure: intervals=%d, integrals=%d", num_mesh_intervals, num_integrals)
+
     try:
         # Set up optimization variables
+        logger.debug("Setting up optimization variables")
         variables = setup_optimization_variables(opti, problem, num_mesh_intervals)
 
         # Initialize containers for interval processing
@@ -57,35 +60,40 @@ def solve_single_phase_radau_collocation(problem: ProblemProtocol) -> OptimalCon
         )
 
         # Process each mesh interval
+        logger.debug("Processing %d mesh intervals", num_mesh_intervals)
         _process_mesh_intervals(
             opti, variables, metadata, problem, num_mesh_intervals, accumulated_integral_expressions
         )
 
         # Set up objective and event constraints
+        logger.debug("Setting up objective and constraints")
         _setup_objective_and_event_constraints(opti, variables, problem, num_mesh_intervals)
 
         # Apply integral constraints if needed
         if num_integrals > 0 and variables.integral_variables is not None:
+            logger.debug("Applying integral constraints: count=%d", num_integrals)
             apply_integral_constraints(
                 opti, variables.integral_variables, accumulated_integral_expressions, num_integrals
             )
 
         # Apply initial guess
+        logger.debug("Applying initial guess")
         apply_initial_guess(opti, variables, problem, num_mesh_intervals)
 
-        # Configure solver and store references
+        # Configure solver
+        logger.debug("Configuring NLP solver")
         _configure_solver_and_store_references(opti, variables, metadata, problem)
 
     except Exception as e:
-        # If this is already a TrajectoLab error, re-raise it
+        logger.error("Failed to set up optimization problem: %s", str(e))
         if isinstance(e, DataIntegrityError):
             raise
-        # Otherwise, wrap as DataIntegrityError for TrajectoLab setup failures
         raise DataIntegrityError(
             f"Failed to set up optimization problem: {e}", "TrajectoLab problem construction error"
         ) from e
 
     # Execute solve
+    logger.debug("Executing NLP solve")
     solution_obj = _execute_solve(opti, problem, num_mesh_intervals)
 
     return solution_obj
@@ -302,26 +310,32 @@ def _configure_solver_and_store_references(
 def _execute_solve(
     opti: CasadiOpti, problem: ProblemProtocol, num_mesh_intervals: int
 ) -> OptimalControlSolution:
-    """Execute the solve and handle results with enhanced error handling."""
+    """Execute the solve and handle results."""
     global_mesh_nodes = cast(FloatArray, problem.global_normalized_mesh_nodes)
     collocation_points = problem.collocation_points_per_interval
 
     try:
+        # Attempt solve
         solver_solution: CasadiOptiSol = opti.solve()
-        logger.info("NLP problem solved successfully")
 
-        # Enhanced solution extraction with error handling
+        # Log successful solve (DEBUG - internal operation success)
+        logger.debug("NLP solver completed successfully")
+
+        # Extract solution
         try:
             solution_obj = extract_and_format_solution(
                 solver_solution, opti, problem, collocation_points, global_mesh_nodes
             )
+            logger.debug("Solution extraction completed")
         except Exception as e:
+            logger.error("Solution extraction failed: %s", str(e))
             raise SolutionExtractionError(
                 f"Failed to extract solution: {e}", "TrajectoLab solution processing error"
             ) from e
 
     except RuntimeError as e:
-        logger.error(f"Solver failed: {e}")
+        # Log solver failure (WARNING - recoverable, solution object still created)
+        logger.warning("NLP solver failed: %s", str(e))
 
         # Create failed solution object
         try:
@@ -329,6 +343,9 @@ def _execute_solve(
                 None, opti, problem, collocation_points, global_mesh_nodes
             )
         except Exception as extract_error:
+            logger.error(
+                "Critical: Solution extraction failed after solver failure: %s", str(extract_error)
+            )
             raise SolutionExtractionError(
                 f"Failed to extract solution after solver failure: {extract_error}",
                 "Critical solution extraction error",
@@ -348,9 +365,9 @@ def _execute_solve(
                     solution_obj.terminal_time_variable = float(
                         opti.debug.value(opti.terminal_time_variable_reference)
                     )
-        except Exception as e:
-            # Debug value extraction is not critical, but log the exception
-            logger.warning("Failed to extract debug values: %s", e)
+                logger.debug("Retrieved debug values from failed solve")
+        except Exception:
+            logger.debug("Could not extract debug values from failed solve")
 
     # Store mesh information in solution
     solution_obj.num_collocation_nodes_list_at_solve_time = list(collocation_points)

@@ -1,10 +1,7 @@
+# trajectolab/problem/core_problem.py
 """
-Core problem definition - UNIFIED CONSTRAINT API - FIXED ORDERING DEPENDENCY.
-Users can now call set_mesh() and set_initial_guess() in any order.
-Validation is deferred until solve time when all information is available.
+Core problem definition with production logging.
 """
-
-from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
@@ -15,35 +12,25 @@ from . import constraints_problem, initial_guess_problem, mesh, solver_interface
 from .state import ConstraintInput, ConstraintState, MeshState, VariableState
 
 
-# Configure problem-specific logger
-problem_logger = logging.getLogger("trajectolab.problem")
-if not problem_logger.handlers:
-    handler = logging.StreamHandler()
-    formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s", datefmt="%H:%M:%S"
-    )
-    handler.setFormatter(formatter)
-    problem_logger.addHandler(handler)
-    problem_logger.setLevel(logging.INFO)
+# Library logger - no handler configuration
+logger = logging.getLogger(__name__)
 
 
 class Problem:
-    """Main class for defining optimal control problems - UNIFIED CONSTRAINT API - FIXED ORDERING."""
+    """Main class for defining optimal control problems."""
 
     def __init__(self, name: str = "Unnamed Problem") -> None:
         """Initialize a new problem instance."""
         self.name = name
-        problem_logger.info(f"Creating problem '{name}'")
+
+        # Log problem creation (DEBUG - developer info)
+        logger.debug("Created problem: '%s'", name)
 
         # State containers
         self._variable_state = VariableState()
         self._constraint_state = ConstraintState()
         self._mesh_state = MeshState()
-
-        # Initial guess container
         self._initial_guess_container = [None]
-
-        # Solver options
         self.solver_options: dict[str, Any] = {}
 
     # ========================================================================
@@ -181,29 +168,13 @@ class Problem:
         initial: ConstraintInput = 0.0,
         final: ConstraintInput = None,
     ) -> variables_problem.TimeVariableImpl:
-        """
-        Define time variable with unified constraint specification.
+        """Define time variable with unified constraint specification."""
+        time_var = variables_problem.create_time_variable(self._variable_state, initial, final)
 
-        Args:
-            initial: Initial time constraint (default: fixed at 0.0)
-                - float/int: Fixed initial time t0 = value
-                - tuple(lower, upper): Range constraint lower ≤ t0 ≤ upper
-                - None: Treated as fixed at 0.0
-            final: Final time constraint (default: free)
-                - float/int: Fixed final time tf = value
-                - tuple(lower, upper): Range constraint lower ≤ tf ≤ upper
-                - None: Fully free (subject to tf > t0 + ε)
+        # Log time variable creation (DEBUG - developer info)
+        logger.debug("Time variable created: initial=%s, final=%s", initial, final)
 
-        Returns:
-            TimeVariableImpl object with .initial and .final properties
-
-        Examples:
-            problem.time()  # t0=0 (fixed), tf free
-            problem.time(final=10.0)  # t0=0 (fixed), tf=10.0 (fixed)
-            problem.time(initial=1.0, final=(5.0, 10.0))  # t0=1.0, tf ∈ [5.0, 10.0]
-            problem.time(initial=(0.0, 1.0), final=(10.0, None))  # t0 ∈ [0.0, 1.0], tf ≥ 10.0
-        """
-        return variables_problem.create_time_variable(self._variable_state, initial, final)
+        return time_var
 
     def state(
         self,
@@ -212,104 +183,90 @@ class Problem:
         final: ConstraintInput = None,
         boundary: ConstraintInput = None,
     ) -> SymType:
-        """
-        Define a state variable with unified constraint specification.
-
-        Args:
-            name: Variable name
-            initial: Initial condition constraint (event constraint at t0)
-                - float/int: Fixed value s(t0) = value
-                - tuple(lower, upper): Range constraint lower ≤ s(t0) ≤ upper
-                - None: No initial constraint
-            final: Final condition constraint (event constraint at tf)
-                - float/int: Fixed value s(tf) = value
-                - tuple(lower, upper): Range constraint lower ≤ s(tf) ≤ upper
-                - None: No final constraint
-            boundary: Path constraint (applies throughout trajectory)
-                - float/int: Fixed value s(t) = value for all t ∈ [t0, tf]
-                - tuple(lower, upper): Range constraint lower ≤ s(t) ≤ upper for all t
-                - None: No path constraint
-
-        Returns:
-            CasADi symbolic variable
-
-        Examples:
-            x = problem.state("x", initial=0.0, boundary=(-10.0, 10.0))
-            y = problem.state("y", initial=(-1.0, 1.0), final=0.0)
-            z = problem.state("z", final=(None, 100.0), boundary=(0.0, None))
-        """
-        return variables_problem.create_state_variable(
+        """Define a state variable with unified constraint specification."""
+        state_var = variables_problem.create_state_variable(
             self._variable_state, name, initial, final, boundary
         )
+
+        # Log state variable creation (DEBUG - developer info)
+        logger.debug(
+            "State variable created: name='%s', initial=%s, final=%s, boundary=%s",
+            name,
+            initial,
+            final,
+            boundary,
+        )
+
+        return state_var
 
     def control(
         self,
         name: str,
-        boundary: ConstraintInput = None,  # Keep only boundary (path constraints)
+        boundary: ConstraintInput = None,
     ) -> SymType:
-        """
-        Define a control variable with path constraints.
+        """Define a control variable with path constraints."""
+        control_var = variables_problem.create_control_variable(
+            self._variable_state, name, boundary
+        )
 
-        Args:
-            name: Variable name
-            boundary: Path constraint (applies throughout trajectory)
-                - float/int: Fixed value u(t) = value for all t ∈ [t0, tf]
-                - tuple(lower, upper): Range constraint lower ≤ u(t) ≤ upper for all t
-                - None: No path constraint (strongly recommended to set bounds)
+        # Log control variable creation (DEBUG - developer info)
+        logger.debug("Control variable created: name='%s', boundary=%s", name, boundary)
 
-        Returns:
-            CasADi symbolic variable
-
-        Examples:
-            throttle = problem.control("throttle", boundary=(0.0, 1.0))
-            steer = problem.control("steer", boundary=(-1.0, 1.0))
-        """
-        return variables_problem.create_control_variable(self._variable_state, name, boundary)
+        return control_var
 
     def parameter(self, name: str, value: Any) -> SymType:
         """Define a parameter variable."""
-        return variables_problem.create_parameter_variable(self._variable_state, name, value)
+        param_var = variables_problem.create_parameter_variable(self._variable_state, name, value)
+
+        # Log parameter creation (DEBUG)
+        logger.debug("Parameter created: name='%s', value=%s", name, value)
+
+        return param_var
 
     def dynamics(self, dynamics_dict: dict[SymType, SymExpr]) -> None:
         """Define system dynamics."""
         variables_problem.set_dynamics(self._variable_state, dynamics_dict)
 
+        # Log dynamics definition (INFO - user cares about major setup)
+        logger.info("Dynamics defined for %d state variables", len(dynamics_dict))
+
     def add_integral(self, integrand_expr: SymExpr) -> SymType:
         """Add an integral expression."""
-        return variables_problem.add_integral(self._variable_state, integrand_expr)
+        integral_var = variables_problem.add_integral(self._variable_state, integrand_expr)
+
+        # Log integral addition (DEBUG)
+        logger.debug("Integral added: total_integrals=%d", self._variable_state.num_integrals)
+
+        return integral_var
 
     def minimize(self, objective_expr: SymExpr) -> None:
         """Define the objective function to minimize."""
         variables_problem.set_objective(self._variable_state, objective_expr)
 
+        # Log objective definition (INFO - user cares about major setup)
+        logger.info("Objective function defined")
+
     def subject_to(self, constraint_expr: SymExpr) -> None:
         """Add a constraint to the problem."""
         constraints_problem.add_constraint(self._constraint_state, constraint_expr)
 
-    # ========================================================================
-    # MESH MANAGEMENT METHODS
-    # ========================================================================
+        # Log constraint addition (DEBUG)
+        logger.debug(
+            "Constraint added: total_constraints=%d", len(self._constraint_state.constraints)
+        )
 
     def set_mesh(self, polynomial_degrees: list[int], mesh_points: NumericArrayLike) -> None:
-        """
-        Configure mesh structure for the problem.
+        """Configure mesh structure for the problem."""
 
-        FIXED: Can now be called before or after set_initial_guess().
-        """
-        print("\n=== SETTING MESH ===")
-        print(f"Polynomial degrees: {polynomial_degrees}")
-        print(f"Mesh points: {mesh_points}")
+        # Log mesh configuration start (INFO - user cares about major setup)
+        logger.info(
+            "Setting mesh: %d intervals, degrees=%s", len(polynomial_degrees), polynomial_degrees
+        )
 
         mesh.configure_mesh(self._mesh_state, polynomial_degrees, mesh_points)
-        print("Mesh configured successfully")
 
-        # NOTE: We no longer clear the initial guess when mesh changes!
-        # This allows users to set initial guess before mesh configuration.
-        print("Initial guess preserved (can be set before or after mesh)")
-
-    # ========================================================================
-    # INITIAL GUESS METHODS - FIXED ORDERING DEPENDENCY
-    # ========================================================================
+        # Log successful mesh configuration (INFO)
+        logger.info("Mesh configured successfully: %d intervals", len(polynomial_degrees))
 
     def set_initial_guess(
         self,
@@ -319,13 +276,22 @@ class Problem:
         terminal_time: float | None = None,
         integrals: float | FloatArray | None = None,
     ) -> None:
-        """
-        Set initial guess for the problem.
+        """Set initial guess for the problem."""
 
-        FIXED: Can now be called before or after set_mesh().
-        Validation is deferred until solve time when all information is available.
-        """
-        print("\n=== SETTING INITIAL GUESS ===")
+        # Log initial guess setup (INFO - user cares about major setup)
+        components = []
+        if states is not None:
+            components.append(f"states({len(states)} intervals)")
+        if controls is not None:
+            components.append(f"controls({len(controls)} intervals)")
+        if initial_time is not None:
+            components.append("initial_time")
+        if terminal_time is not None:
+            components.append("terminal_time")
+        if integrals is not None:
+            components.append("integrals")
+
+        logger.info("Setting initial guess: %s", ", ".join(components))
 
         initial_guess_problem.set_initial_guess(
             self._initial_guess_container,
@@ -338,18 +304,15 @@ class Problem:
             integrals=integrals,
         )
 
-        # Provide helpful feedback
-        if self._mesh_configured:
-            print("Initial guess set successfully (mesh already configured)")
-            # Try to validate now that we have both pieces
+        # Log validation status (DEBUG)
+        if self.can_validate_initial_guess():
             try:
                 self.validate_initial_guess()
-                print("Initial guess validated successfully")
+                logger.debug("Initial guess validated successfully")
             except Exception as e:
-                print(f"Initial guess validation failed: {e}")
+                logger.debug("Initial guess validation deferred: %s", str(e))
         else:
-            print("Initial guess stored successfully (mesh not yet configured)")
-            print("Validation will occur when mesh is set or solver runs")
+            logger.debug("Initial guess validation deferred until mesh is configured")
 
     def can_validate_initial_guess(self) -> bool:
         """Check if we have enough information to validate the initial guess."""

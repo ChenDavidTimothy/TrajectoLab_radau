@@ -1,9 +1,9 @@
+# trajectolab/problem/mesh.py
 """
-Mesh configuration and management functions for optimal control problems.
-FIXED: Mesh configuration no longer clears initial guess, allowing order independence.
+Mesh configuration with production logging.
 """
 
-from __future__ import annotations
+import logging
 
 import numpy as np
 
@@ -11,22 +11,25 @@ from ..tl_types import NumericArrayLike
 from .state import MeshState
 
 
+# Library logger
+logger = logging.getLogger(__name__)
+
+
 def configure_mesh(
     state: MeshState,
     polynomial_degrees: list[int],
     mesh_points: NumericArrayLike,
 ) -> None:
-    """
-    Configure the mesh structure.
+    """Configure the mesh structure."""
 
-    FIXED: No longer clears initial guess - allows set_mesh() and set_initial_guess()
-    to be called in any order.
-    """
     # Convert to numpy array if needed
     if isinstance(mesh_points, list):
         mesh_array = np.array(mesh_points, dtype=np.float64)
     else:
         mesh_array = np.asarray(mesh_points, dtype=np.float64)
+
+    # Log mesh validation start (DEBUG)
+    logger.debug("Validating mesh: %d degrees, %d points", len(polynomial_degrees), len(mesh_array))
 
     # Validate mesh structure
     if len(polynomial_degrees) != len(mesh_array) - 1:
@@ -57,13 +60,18 @@ def configure_mesh(
     state.global_normalized_mesh_nodes = mesh_array
     state.configured = True
 
-    print(f"Mesh configured: {len(polynomial_degrees)} intervals")
-    print(f"Polynomial degrees: {polynomial_degrees}")
-    print("Note: Initial guess (if set) is preserved and will be validated when solver runs")
+    # Log successful configuration (DEBUG - details)
+    logger.debug(
+        "Mesh configuration complete: intervals=%d, total_nodes=%d",
+        len(polynomial_degrees),
+        len(mesh_array),
+    )
 
 
 def clear_mesh(state: MeshState) -> None:
     """Clear mesh configuration."""
+    logger.debug("Clearing mesh configuration")
+
     state.collocation_points_per_interval = []
     state.global_normalized_mesh_nodes = None
     state.configured = False
