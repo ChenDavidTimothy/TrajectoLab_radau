@@ -29,15 +29,15 @@ problem.minimize(integral_var)
 
 # Mesh and initial guess for adaptive solving
 problem.set_mesh([8, 8, 8], [-1.0, -1 / 3, 1 / 3, 1.0])
-problem.set_initial_guess(integrals=0.1)
+# problem.set_initial_guess(integrals=0.1)
 
 # Solve with adaptive mesh
 solution = tl.solve_adaptive(
     problem,
-    error_tolerance=1e-6,
+    error_tolerance=1e-3,
     max_iterations=30,
-    min_polynomial_degree=4,
-    max_polynomial_degree=12,
+    min_polynomial_degree=5,
+    max_polynomial_degree=15,
     nlp_options={
         "ipopt.print_level": 0,
         "ipopt.max_iter": 200,
