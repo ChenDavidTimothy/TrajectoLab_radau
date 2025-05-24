@@ -59,7 +59,7 @@ class BenchmarkProblemBuilder:
         problem = tl.Problem("RPM Benchmark - Literature Problem")
 
         # Time: fixed initial, fixed final
-        t = problem.time(initial=0.0, final=5.0)
+        problem.time(initial=0.0, final=5.0)
 
         # States: y with initial condition y(0) = 1
         y = problem.state("y", initial=1.0)
@@ -357,11 +357,13 @@ class TestRPMBenchmark:
 
         assert solution.success, f"Regression test solve failed: {solution.message}"
 
-        # Reference values (these should be updated if algorithm changes intentionally)
-        REFERENCE_OBJECTIVE = -0.8  # Approximately -y(5) for analytical solution
-        REFERENCE_FINAL_STATE = 0.8  # Approximately y(5) for analytical solution
+        # CORRECTED reference values based on analytical solution
+        # At t=5: y*(5) = 4/(1 + 3*exp(5)) ≈ 0.00896380
+        # Objective: J* = -y*(5) ≈ -0.00896380
+        REFERENCE_OBJECTIVE = -0.00896380  # Corrected from -0.8
+        REFERENCE_FINAL_STATE = 0.00896380  # Corrected from 0.8
 
-        # Test objective value
+        # Test objective value - use appropriate tolerance for regression testing
         obj_error = abs(solution.objective - REFERENCE_OBJECTIVE)
         assert obj_error < 1e-6, (
             f"Objective regression detected. "
@@ -369,13 +371,22 @@ class TestRPMBenchmark:
             f"Error: {obj_error:.2e}"
         )
 
-        # FIXED: Use correct time points for state trajectory
+        # Test final state value
         t_states, y_num = solution.get_trajectory("y")
         final_state_error = abs(y_num[-1] - REFERENCE_FINAL_STATE)
         assert final_state_error < 1e-6, (
             f"Final state regression detected. "
             f"Current: {y_num[-1]:.8f}, Reference: {REFERENCE_FINAL_STATE:.8f}, "
             f"Error: {final_state_error:.2e}"
+        )
+
+        # Additional verification against analytical solution
+        analytical_obj = analytical_solution.objective_value()
+        analytical_error = abs(solution.objective - analytical_obj)
+        assert analytical_error < 1e-7, (
+            f"Solution deviates from analytical value. "
+            f"Solver: {solution.objective:.8f}, Analytical: {analytical_obj:.8f}, "
+            f"Error: {analytical_error:.2e}"
         )
 
 

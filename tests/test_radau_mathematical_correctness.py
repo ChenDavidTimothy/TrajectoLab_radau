@@ -459,7 +459,7 @@ class TestRadauMathematicalCorrectnessFixed:
             assert np.isfinite(error), f"Non-finite error at N={N_values[i]}"
 
         print("Convergence test results:")
-        for i, (N, error) in enumerate(zip(N_values, errors, strict=False)):
+        for _i, (N, error) in enumerate(zip(N_values, errors, strict=False)):
             print(f"  N={N:2d}: error={error:.4f}")
         print(f"  Improvement ratio (N=4 to N=12): {improvement_ratio:.2f}")
 

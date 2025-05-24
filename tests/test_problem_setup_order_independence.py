@@ -24,7 +24,7 @@ class TestProblemSetupOrderIndependence:
         """Create a standard test problem for order testing."""
         problem = Problem("Order Test Problem")
 
-        t = problem.time(initial=0.0, final=1.0)
+        problem.time(initial=0.0, final=1.0)
         x = problem.state("x", initial=0.0, final=1.0)
         u = problem.control("u", boundary=(-2.0, 2.0))
 
@@ -196,7 +196,7 @@ class TestProblemSetupOrderIndependence:
         problem2.set_initial_guess(states=states, controls=controls)
         # No mesh set
 
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(ValueError, match="mesh") as exc_info:
             solve_fixed_mesh(problem2)
 
         error_msg = str(exc_info.value).lower()
@@ -259,7 +259,7 @@ class TestProblemSetupOrderIndependence:
 
         def create_multi_interval_problem():
             problem = Problem("Multi-Interval Test")
-            t = problem.time(initial=0.0, final=2.0)
+            problem.time(initial=0.0, final=2.0)
             x = problem.state("x", initial=0.0, final=2.0)
             u = problem.control("u", boundary=(-1.0, 1.0))
             problem.dynamics({x: u})
