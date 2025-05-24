@@ -2,6 +2,12 @@
 """
 Safety-critical tests for problem setup order independence and state management.
 Tests various scenarios of mesh/initial guess setting order.
+
+FIXED: Removed return values from test methods to eliminate pytest warnings.
+Aligned with Grug's Pragmatic Testing Philosophy:
+- Integration tests that verify critical system behavior
+- Simple, focused tests that catch real problems
+- No excessive mocking or over-engineering
 """
 
 import numpy as np
@@ -36,8 +42,8 @@ class TestProblemSetupOrderIndependence:
         controls = [np.array([[1.0, 1.0, 1.0]])]  # Constant control
         return states, controls
 
-    def test_mesh_first_then_guess_then_solve(self):
-        """Test: set_mesh() → set_initial_guess() → solve()"""
+    def _solve_with_mesh_first_order(self) -> tuple[float, float]:
+        """Helper method: set_mesh() → set_initial_guess() → solve()"""
         problem = self.create_standard_problem()
         states, controls = self.create_initial_guess()
 
@@ -48,14 +54,10 @@ class TestProblemSetupOrderIndependence:
         solution = solve_fixed_mesh(problem)
         assert solution.success, f"Mesh→Guess→Solve failed: {solution.message}"
 
-        # Store reference solution
-        ref_objective = solution.objective
-        ref_final_state = solution.states[0][-1]
+        return solution.objective, solution.states[0][-1]
 
-        return ref_objective, ref_final_state
-
-    def test_guess_first_then_mesh_then_solve(self):
-        """Test: set_initial_guess() → set_mesh() → solve()"""
+    def _solve_with_guess_first_order(self) -> tuple[float, float]:
+        """Helper method: set_initial_guess() → set_mesh() → solve()"""
         problem = self.create_standard_problem()
         states, controls = self.create_initial_guess()
 
@@ -68,22 +70,50 @@ class TestProblemSetupOrderIndependence:
 
         return solution.objective, solution.states[0][-1]
 
-    def test_order_independence_gives_same_results(self):
-        """Test that different orders give identical results."""
-        ref_obj, ref_state = self.test_mesh_first_then_guess_then_solve()
-        alt_obj, alt_state = self.test_guess_first_then_mesh_then_solve()
+    def test_mesh_first_then_guess_then_solve(self):
+        """Test: set_mesh() → set_initial_guess() → solve() - Integration Test"""
+        # This is a focused integration test that verifies the mesh-first workflow
+        objective, final_state = self._solve_with_mesh_first_order()
 
-        # Results should be identical regardless of order
+        # Verify solution makes sense (basic sanity checks)
+        assert objective > 0, "Objective should be positive for this control problem"
+        assert abs(final_state - 1.0) < 1e-6, "Final state should match boundary condition"
+
+    def test_guess_first_then_mesh_then_solve(self):
+        """Test: set_initial_guess() → set_mesh() → solve() - Integration Test"""
+        # This is a focused integration test that verifies the guess-first workflow
+        objective, final_state = self._solve_with_guess_first_order()
+
+        # Verify solution makes sense (basic sanity checks)
+        assert objective > 0, "Objective should be positive for this control problem"
+        assert abs(final_state - 1.0) < 1e-6, "Final state should match boundary condition"
+
+    def test_order_independence_gives_same_results(self):
+        """
+        CRITICAL INTEGRATION TEST: Different orders must give identical results.
+
+        This is the most important test - it verifies that the core system behavior
+        (order independence) works correctly. This is exactly the kind of integration
+        test that Grug's philosophy emphasizes as most valuable.
+        """
+        # Get results from both orders
+        ref_obj, ref_state = self._solve_with_mesh_first_order()
+        alt_obj, alt_state = self._solve_with_guess_first_order()
+
+        # Results must be identical regardless of order - this is CRITICAL
         assert abs(ref_obj - alt_obj) < 1e-10, (
-            f"Different orders give different objectives: {ref_obj} vs {alt_obj}"
+            f"CRITICAL: Different orders give different objectives: {ref_obj} vs {alt_obj}"
         )
         assert abs(ref_state - alt_state) < 1e-10, (
-            f"Different orders give different final states: {ref_state} vs {alt_state}"
+            f"CRITICAL: Different orders give different final states: {ref_state} vs {alt_state}"
         )
 
     def test_modify_existing_problem_scenarios(self):
-        """Test modifying existing problems in various ways (critical for NASA operations)."""
+        """
+        Integration test for problem modification workflows (critical for NASA operations).
 
+        This tests real-world usage patterns where engineers iteratively refine problems.
+        """
         # Scenario 1: set_mesh → solve → set_mesh → solve (mesh refinement)
         problem1 = self.create_standard_problem()
         states1, controls1 = self.create_initial_guess()
@@ -102,6 +132,11 @@ class TestProblemSetupOrderIndependence:
         problem1.set_initial_guess(states=states1_refined, controls=controls1_refined)
         solution1b = solve_fixed_mesh(problem1)
         assert solution1b.success, "Refined solve failed"
+
+        # Refined solution should be at least as good (lower objective)
+        assert solution1b.objective <= solution1a.objective + 1e-6, (
+            "Mesh refinement should not worsen the solution significantly"
+        )
 
     def test_partial_modification_scenarios(self):
         """Test partial modifications without complete re-specification."""
@@ -140,7 +175,12 @@ class TestProblemSetupOrderIndependence:
         )
 
     def test_incomplete_problem_specifications(self):
-        """Test handling of incomplete problem specifications."""
+        """
+        Test handling of incomplete problem specifications.
+
+        This is a critical safety test - the system must handle incomplete
+        configurations gracefully and provide clear error messages.
+        """
 
         # Test 1: Mesh set but no initial guess
         problem1 = self.create_standard_problem()
@@ -163,7 +203,12 @@ class TestProblemSetupOrderIndependence:
         assert "mesh" in error_msg, f"Should mention mesh requirement, got: {exc_info.value}"
 
     def test_requirements_and_summary_consistency(self):
-        """Test that requirements and summary reporting is consistent with actual setup."""
+        """
+        Test that requirements and summary reporting is consistent with actual setup.
+
+        This is important for user experience - the system should provide accurate
+        feedback about what's needed.
+        """
 
         problem = self.create_standard_problem()
 
@@ -205,7 +250,12 @@ class TestProblemSetupOrderIndependence:
         assert summary3.controls_guess_shapes == [(1, 3)]
 
     def test_multi_interval_order_independence(self):
-        """Test order independence with multi-interval meshes."""
+        """
+        Test order independence with multi-interval meshes.
+
+        This is a more complex integration test that verifies the system works
+        correctly with realistic multi-interval problems.
+        """
 
         def create_multi_interval_problem():
             problem = Problem("Multi-Interval Test")
@@ -252,7 +302,12 @@ class TestProblemSetupOrderIndependence:
         )
 
     def test_error_propagation_and_recovery(self):
-        """Test that errors are properly caught and system can recover."""
+        """
+        Test that errors are properly caught and system can recover.
+
+        This is a critical safety test - the system must handle errors gracefully
+        and allow recovery without requiring complete restart.
+        """
 
         problem = self.create_standard_problem()
 
