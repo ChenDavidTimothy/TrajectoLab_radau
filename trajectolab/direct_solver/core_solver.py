@@ -1,6 +1,6 @@
 """
-Core orchestration for the direct solver - ENHANCED WITH FAIL-FAST.
-Added targeted error handling for critical TrajectoLab operations.
+Core orchestration for the direct solver - USES CENTRALIZED VALIDATION.
+All ConfigurationError validations moved to input_validation.py
 """
 
 import logging
@@ -8,7 +8,7 @@ from typing import cast
 
 import casadi as ca
 
-from ..exceptions import ConfigurationError, DataIntegrityError, SolutionExtractionError
+from ..exceptions import DataIntegrityError, SolutionExtractionError
 from ..radau import RadauBasisComponents, compute_radau_collocation_components
 from ..solution_extraction import extract_and_format_solution
 from ..tl_types import (
@@ -37,24 +37,14 @@ def solve_single_phase_radau_collocation(problem: ProblemProtocol) -> OptimalCon
     """
     Solve a single-phase optimal control problem using Radau pseudospectral collocation.
 
-    Enhanced with fail-fast error handling for critical TrajectoLab operations.
+    NOTE: Assumes comprehensive validation already done by validate_problem_ready_for_solving()
     """
-    # Critical validation with fail-fast
-    _validate_problem_configuration(problem)
-
     # Initialize optimization problem
     opti: CasadiOpti = ca.Opti()
 
-    # Extract problem metadata with validation
+    # Extract problem metadata (already validated)
     num_mesh_intervals = len(problem.collocation_points_per_interval)
     num_integrals = problem._num_integrals
-
-    # Guard clause: Check for valid mesh intervals
-    if num_mesh_intervals == 0:
-        raise ConfigurationError(
-            "Problem has no mesh intervals configured",
-            "Call problem.set_mesh() with valid polynomial degrees and mesh points",
-        )
 
     try:
         # Set up optimization variables
@@ -88,7 +78,7 @@ def solve_single_phase_radau_collocation(problem: ProblemProtocol) -> OptimalCon
 
     except Exception as e:
         # If this is already a TrajectoLab error, re-raise it
-        if isinstance(e, ConfigurationError | DataIntegrityError):
+        if isinstance(e, DataIntegrityError):
             raise
         # Otherwise, wrap as DataIntegrityError for TrajectoLab setup failures
         raise DataIntegrityError(
@@ -101,38 +91,6 @@ def solve_single_phase_radau_collocation(problem: ProblemProtocol) -> OptimalCon
     return solution_obj
 
 
-def _validate_problem_configuration(problem: ProblemProtocol) -> None:
-    """
-    Validate that the problem is properly configured with fail-fast.
-    """
-    # Guard clause: Mesh configuration is essential
-    if not hasattr(problem, "_mesh_configured") or not problem._mesh_configured:
-        raise ConfigurationError(
-            "Problem mesh must be explicitly configured before solving",
-            "Call problem.set_mesh(polynomial_degrees, mesh_points)",
-        )
-
-    # Guard clause: Initial guess validation if present
-    if problem.initial_guess is not None:
-        try:
-            problem.validate_initial_guess()
-        except Exception as e:
-            raise ConfigurationError(
-                f"Initial guess validation failed: {e}", "Fix initial guess or mesh configuration"
-            ) from e
-
-    # Guard clause: Essential configuration
-    if not problem.collocation_points_per_interval:
-        raise ConfigurationError(
-            "Problem must include 'collocation_points_per_interval'", "Internal configuration error"
-        )
-
-    if problem.global_normalized_mesh_nodes is None:
-        raise ConfigurationError(
-            "Global normalized mesh nodes must be set", "Internal mesh configuration error"
-        )
-
-
 def _process_mesh_intervals(
     opti: CasadiOpti,
     variables: VariableReferences,
@@ -143,23 +101,19 @@ def _process_mesh_intervals(
 ) -> None:
     """
     Process each mesh interval to set up constraints and integrals.
-    Enhanced with data integrity validation.
+
+    NOTE: Parameter validation assumed already done
     """
     num_states, _ = problem.get_variable_counts()
     num_integrals = problem._num_integrals
 
-    # Guard clause: Get essential functions
+    # Get essential functions (already validated that they exist)
     dynamics_function = problem.get_dynamics_function()
-    if dynamics_function is None:
-        raise ConfigurationError(
-            "Dynamics function is not defined", "Define problem dynamics before solving"
-        )
-
     path_constraints_function = problem.get_path_constraints_function()
     integral_integrand_function = problem.get_integrand_function()
     global_mesh_nodes = cast(FloatArray, problem.global_normalized_mesh_nodes)
 
-    # Critical validation of mesh nodes
+    # Data integrity validation (internal consistency)
     if len(global_mesh_nodes) != num_mesh_intervals + 1:
         raise DataIntegrityError(
             f"Mesh nodes count ({len(global_mesh_nodes)}) doesn't match expected ({num_mesh_intervals + 1})",
@@ -168,13 +122,6 @@ def _process_mesh_intervals(
 
     for mesh_interval_index in range(num_mesh_intervals):
         num_colloc_nodes = problem.collocation_points_per_interval[mesh_interval_index]
-
-        # Guard clause: Valid collocation nodes
-        if num_colloc_nodes <= 0:
-            raise ConfigurationError(
-                f"Invalid number of collocation nodes ({num_colloc_nodes}) for interval {mesh_interval_index}",
-                "Polynomial degree must be positive",
-            )
 
         try:
             # Set up state variables for this interval
@@ -190,7 +137,7 @@ def _process_mesh_intervals(
             variables.state_matrices.append(state_at_nodes)
             variables.interior_variables.append(interior_nodes_var)
 
-            # Get Radau collocation components
+            # Get Radau collocation components (validation done in compute_radau_collocation_components)
             basis_components: RadauBasisComponents = compute_radau_collocation_components(
                 num_colloc_nodes
             )
@@ -248,7 +195,7 @@ def _process_mesh_intervals(
 
         except Exception as e:
             # Wrap interval processing errors with context
-            if isinstance(e, ConfigurationError | DataIntegrityError):
+            if isinstance(e, DataIntegrityError):
                 raise
             raise DataIntegrityError(
                 f"Failed to process mesh interval {mesh_interval_index}: {e}",
@@ -267,15 +214,13 @@ def _setup_objective_and_event_constraints(
 ) -> None:
     """
     Set up the objective function and apply event constraints.
+
+    NOTE: Assumes objective function exists (validated at entry point)
     """
     logger.info("Setting up objective and constraints")
 
-    # Guard clause: Objective function is required
+    # Get objective function (already validated that it exists)
     objective_function = problem.get_objective_function()
-    if objective_function is None:
-        raise ConfigurationError(
-            "Objective function is not defined", "Define problem objective before solving"
-        )
 
     # Set up objective
     initial_state: CasadiMX = variables.state_at_mesh_nodes[0]
@@ -316,16 +261,14 @@ def _configure_solver_and_store_references(
     metadata: MetadataBundle,
     problem: ProblemProtocol,
 ) -> None:
-    """
-    Configure solver options and store references for solution extraction.
-    """
-    # Set solver options
+    """Configure solver options and store references for solution extraction."""
+    # Set solver options (already validated)
     solver_options_to_use: dict[str, object] = problem.solver_options or {}
 
     try:
         opti.solver("ipopt", solver_options_to_use)
     except Exception as e:
-        raise ConfigurationError(
+        raise DataIntegrityError(
             f"Failed to configure solver: {e}", "Invalid solver options"
         ) from e
 
@@ -359,9 +302,7 @@ def _configure_solver_and_store_references(
 def _execute_solve(
     opti: CasadiOpti, problem: ProblemProtocol, num_mesh_intervals: int
 ) -> OptimalControlSolution:
-    """
-    Execute the solve and handle results with enhanced error handling.
-    """
+    """Execute the solve and handle results with enhanced error handling."""
     global_mesh_nodes = cast(FloatArray, problem.global_normalized_mesh_nodes)
     collocation_points = problem.collocation_points_per_interval
 

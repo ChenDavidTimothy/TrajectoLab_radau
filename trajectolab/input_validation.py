@@ -1,17 +1,18 @@
 """
-Input validation utilities for the direct solver - ENHANCED WITH FAIL-FAST.
-Added targeted TrajectoLab-specific error handling for critical validation failures.
+COMPREHENSIVE input validation utilities - ALL ConfigurationError logic centralized here.
+This module is the single source of truth for validating user configuration.
 """
 
 import logging
+import math
 from collections.abc import Sequence
-from typing import TypeVar
+from typing import Any, TypeVar
 
 import casadi as ca
 import numpy as np
 
 from .exceptions import ConfigurationError, DataIntegrityError
-from .tl_types import CasadiMX, CasadiOpti, FloatArray, InitialGuess
+from .tl_types import CasadiMX, CasadiOpti, FloatArray, InitialGuess, ProblemProtocol
 from .utils.constants import MESH_TOLERANCE, MINIMUM_TIME_INTERVAL, ZERO_TOLERANCE
 
 
@@ -19,13 +20,247 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T")
 
 
+# ============================================================================
+# CONSOLIDATED CONFIGURATION VALIDATION FUNCTIONS
+# ============================================================================
+
+
+def validate_problem_ready_for_solving(problem: ProblemProtocol) -> None:
+    """
+    COMPREHENSIVE validation that problem is properly configured for solving.
+    This should be called at ALL solver entry points.
+    """
+    # Validate basic problem structure
+    validate_problem_basic_structure(problem)
+
+    # Validate mesh configuration
+    if not hasattr(problem, "_mesh_configured") or not problem._mesh_configured:
+        raise ConfigurationError(
+            "Problem mesh must be configured before solving",
+            "Call problem.set_mesh(polynomial_degrees, mesh_points) first",
+        )
+
+    # Validate mesh details
+    validate_mesh_configuration(
+        problem.collocation_points_per_interval,
+        problem.global_normalized_mesh_nodes,
+        len(problem.collocation_points_per_interval),
+    )
+
+    # Validate problem completeness
+    validate_problem_completeness(problem)
+
+    # Validate initial guess if present
+    if problem.initial_guess is not None:
+        num_states, num_controls = problem.get_variable_counts()
+        validate_initial_guess_structure(
+            problem.initial_guess,
+            num_states,
+            num_controls,
+            problem._num_integrals,
+            problem.collocation_points_per_interval,
+        )
+
+
+def validate_problem_basic_structure(problem: ProblemProtocol) -> None:
+    """Validate basic problem structure and dimensions."""
+    if not hasattr(problem, "get_variable_counts"):
+        raise ConfigurationError(
+            "Problem object missing required methods", "Internal problem structure error"
+        )
+
+    num_states, num_controls = problem.get_variable_counts()
+    num_integrals = getattr(problem, "_num_integrals", 0)
+
+    validate_problem_dimensions(num_states, num_controls, num_integrals)
+
+
+def validate_problem_completeness(problem: ProblemProtocol) -> None:
+    """Validate that problem has all required components defined."""
+    # Must have dynamics
+    if not hasattr(problem, "_dynamics_expressions") or not problem._dynamics_expressions:
+        raise ConfigurationError(
+            "Problem dynamics must be defined before solving",
+            "Call problem.dynamics({state: expression, ...}) first",
+        )
+
+    # Must have objective
+    if not hasattr(problem, "_objective_expression") or problem._objective_expression is None:
+        raise ConfigurationError(
+            "Problem objective must be defined before solving",
+            "Call problem.minimize(expression) first",
+        )
+
+    # Must have at least one variable
+    num_states, num_controls = problem.get_variable_counts()
+    if num_states == 0 and num_controls == 0:
+        raise ConfigurationError(
+            "Problem must have at least one state or control variable",
+            "Define variables using problem.state() or problem.control()",
+        )
+
+
+def validate_polynomial_degree(degree: int, context: str = "polynomial degree") -> None:
+    """Validate polynomial degree specification - CENTRALIZED."""
+    if not isinstance(degree, int):
+        raise ConfigurationError(
+            f"{context.capitalize()} must be integer, got {type(degree)}",
+            "Polynomial degree specification error",
+        )
+
+    if degree < 1:
+        raise ConfigurationError(
+            f"{context.capitalize()} must be >= 1, got {degree}",
+            "Invalid polynomial degree for collocation",
+        )
+
+
+def validate_polynomial_degrees_list(
+    degrees: list[int], context: str = "polynomial degrees"
+) -> None:
+    """Validate list of polynomial degrees - CENTRALIZED."""
+    if not isinstance(degrees, list):
+        raise ConfigurationError(
+            f"{context.capitalize()} must be list, got {type(degrees)}",
+            "Polynomial degrees specification error",
+        )
+
+    if not degrees:
+        raise ConfigurationError(
+            f"{context.capitalize()} list cannot be empty", "Polynomial degrees specification error"
+        )
+
+    for i, degree in enumerate(degrees):
+        validate_polynomial_degree(degree, f"{context} for interval {i}")
+
+
+def validate_constraint_input_format(constraint_input: Any, context: str) -> None:
+    """Validate constraint input format - CENTRALIZED."""
+    if constraint_input is None:
+        return  # None is valid (no constraint)
+
+    if isinstance(constraint_input, (int, float)):
+        # Validate numeric constraint
+        if math.isnan(constraint_input) or math.isinf(constraint_input):
+            raise ConfigurationError(
+                f"Constraint value cannot be NaN or infinite, got {constraint_input}",
+                f"Constraint value error in {context}",
+            )
+    elif isinstance(constraint_input, tuple):
+        # Validate tuple constraint
+        if len(constraint_input) != 2:
+            raise ConfigurationError(
+                f"Constraint tuple must have exactly 2 elements, got {len(constraint_input)}",
+                f"Constraint specification error in {context}",
+            )
+
+        for i, val in enumerate(constraint_input):
+            if val is not None:
+                if not isinstance(val, (int, float)):
+                    raise ConfigurationError(
+                        f"Constraint bound {i} must be numeric or None, got {type(val)}",
+                        f"Constraint specification error in {context}",
+                    )
+
+                if math.isnan(val) or math.isinf(val):
+                    raise ConfigurationError(
+                        f"Constraint bound {i} cannot be NaN or infinite, got {val}",
+                        f"Constraint value error in {context}",
+                    )
+
+        # Check bounds ordering
+        lower_val, upper_val = constraint_input
+        if lower_val is not None and upper_val is not None and lower_val > upper_val:
+            raise ConfigurationError(
+                f"Lower bound ({lower_val}) cannot be greater than upper bound ({upper_val})",
+                f"Constraint bounds ordering error in {context}",
+            )
+    else:
+        raise ConfigurationError(
+            f"Invalid constraint input type: {type(constraint_input)}. Expected float, int, tuple, or None",
+            f"Constraint specification error in {context}",
+        )
+
+
+def validate_variable_name(name: str, var_type: str) -> None:
+    """Validate variable name - CENTRALIZED."""
+    if not isinstance(name, str):
+        raise ConfigurationError(
+            f"{var_type.capitalize()} name must be string, got {type(name)}",
+            "Variable naming error",
+        )
+
+    if not name.strip():
+        raise ConfigurationError(
+            f"{var_type.capitalize()} name cannot be empty", "Variable naming error"
+        )
+
+
+def validate_mesh_interval_count(num_intervals: int, context: str = "mesh intervals") -> None:
+    """Validate mesh interval count - CENTRALIZED."""
+    if not isinstance(num_intervals, int):
+        raise ConfigurationError(
+            f"Number of {context} must be integer, got {type(num_intervals)}",
+            "Mesh configuration error",
+        )
+
+    if num_intervals <= 0:
+        raise ConfigurationError(
+            f"Number of {context} must be positive, got {num_intervals}", "Mesh configuration error"
+        )
+
+
+def validate_casadi_optimization_object(opti: CasadiOpti, context: str = "solver setup") -> None:
+    """Validate CasADi optimization object - CENTRALIZED."""
+    if opti is None:
+        raise ConfigurationError(
+            "CasADi optimization object cannot be None", f"TrajectoLab {context} error"
+        )
+
+
+def validate_adaptive_solver_parameters(
+    error_tolerance: float,
+    max_iterations: int,
+    min_polynomial_degree: int,
+    max_polynomial_degree: int,
+) -> None:
+    """Validate adaptive solver parameters - CENTRALIZED."""
+    if error_tolerance <= 0:
+        raise ConfigurationError(
+            f"Error tolerance must be positive, got {error_tolerance}",
+            "Provide a positive error tolerance value",
+        )
+
+    if max_iterations <= 0:
+        raise ConfigurationError(
+            f"Max iterations must be positive, got {max_iterations}",
+            "Provide a positive max iterations value",
+        )
+
+    if min_polynomial_degree < 1:
+        raise ConfigurationError(
+            f"Min polynomial degree must be >= 1, got {min_polynomial_degree}",
+            "Invalid polynomial degree range",
+        )
+
+    if max_polynomial_degree < min_polynomial_degree:
+        raise ConfigurationError(
+            f"Max polynomial degree ({max_polynomial_degree}) must be >= min degree ({min_polynomial_degree})",
+            "Invalid polynomial degree range",
+        )
+
+
+# ============================================================================
+# EXISTING VALIDATION FUNCTIONS (keep these)
+# ============================================================================
+
+
 def validate_dynamics_output(
     output: list[CasadiMX] | CasadiMX | Sequence[CasadiMX], num_states: int
 ) -> CasadiMX:
     """
     Validates and converts dynamics function output to the expected CasadiMX format.
-
-    Raises DataIntegrityError for TrajectoLab-specific shape mismatches.
+    NOTE: This stays here as it's about data integrity, not user configuration.
     """
     # Guard clause: Check for None output (TrajectoLab logic error)
     if output is None:
@@ -76,9 +311,7 @@ def validate_initial_guess_structure(
     num_integrals: int,
     polynomial_degrees: list[int],
 ) -> None:
-    """
-    UNIFIED initial guess validation with fail-fast for critical errors.
-    """
+    """COMPREHENSIVE initial guess validation - CENTRALIZED."""
     # Guard clause: Essential configuration must be present
     if not polynomial_degrees:
         raise ConfigurationError(
@@ -122,9 +355,7 @@ def validate_trajectory_arrays(
     expected_shapes: list[tuple[int, int]],
     trajectory_type: str,
 ) -> None:
-    """
-    Validate trajectory arrays against expected shapes with fail-fast.
-    """
+    """Validate trajectory arrays against expected shapes with fail-fast."""
     if len(trajectories) != len(expected_shapes):
         raise DataIntegrityError(
             f"{trajectory_type.capitalize()} trajectory count mismatch: got {len(trajectories)}, expected {len(expected_shapes)}",
@@ -152,14 +383,12 @@ def validate_mesh_configuration(
     mesh_points: FloatArray,
     num_mesh_intervals: int,
 ) -> None:
-    """
-    UNIFIED mesh configuration validation with fail-fast.
-    """
-    # Guard clause: Basic requirements
-    if not polynomial_degrees:
-        raise ConfigurationError(
-            "Polynomial degrees list is empty", "Mesh configuration incomplete"
-        )
+    """COMPREHENSIVE mesh configuration validation - CENTRALIZED."""
+    # Validate polynomial degrees
+    validate_polynomial_degrees_list(polynomial_degrees, "polynomial degrees")
+
+    # Validate mesh intervals
+    validate_mesh_interval_count(num_mesh_intervals, "mesh intervals")
 
     if len(polynomial_degrees) != num_mesh_intervals:
         raise ConfigurationError(
@@ -193,22 +422,12 @@ def validate_mesh_configuration(
             "Invalid mesh spacing",
         )
 
-    # Validate polynomial degrees
-    for i, degree in enumerate(polynomial_degrees):
-        if not isinstance(degree, int) or degree <= 0:
-            raise ConfigurationError(
-                f"Polynomial degree for interval {i} must be positive integer, got {degree}",
-                "Invalid polynomial degree specification",
-            )
-
 
 def validate_time_bounds(
     t0_bounds: tuple[float, float],
     tf_bounds: tuple[float, float],
 ) -> None:
-    """
-    Validate time bound constraints with fail-fast.
-    """
+    """Validate time bound constraints with fail-fast."""
     # Guard clause: Check bound ordering
     if t0_bounds[0] > t0_bounds[1]:
         raise ConfigurationError(
@@ -228,7 +447,40 @@ def validate_time_bounds(
         )
 
 
-# Helper validation functions (keeping existing implementation but with targeted error handling)
+def validate_problem_dimensions(num_states: int, num_controls: int, num_integrals: int) -> None:
+    """Validate problem dimension parameters."""
+    if num_states < 0:
+        raise ConfigurationError(
+            f"Number of states must be non-negative, got {num_states}", "Invalid problem dimensions"
+        )
+
+    if num_controls < 0:
+        raise ConfigurationError(
+            f"Number of controls must be non-negative, got {num_controls}",
+            "Invalid problem dimensions",
+        )
+
+    if num_integrals < 0:
+        raise ConfigurationError(
+            f"Number of integrals must be non-negative, got {num_integrals}",
+            "Invalid problem dimensions",
+        )
+
+    # Warning for edge case
+    if num_states == 0:
+        import warnings
+
+        warnings.warn(
+            "Problem has no state variables. This may not be a meaningful optimal control problem.",
+            stacklevel=2,
+        )
+
+
+# ============================================================================
+# HELPER FUNCTIONS (these handle data integrity, not user configuration)
+# ============================================================================
+
+
 def _validate_numeric_value(value: float | int, name: str) -> None:
     """Validate a single numeric value."""
     if not isinstance(value, int | float):
@@ -295,35 +547,6 @@ def validate_interval_length(
         raise ConfigurationError(
             f"Mesh interval {interval_index} has insufficient length: {interval_length}",
             f"Minimum length required: {MESH_TOLERANCE}",
-        )
-
-
-def validate_problem_dimensions(num_states: int, num_controls: int, num_integrals: int) -> None:
-    """Validate problem dimension parameters."""
-    if num_states < 0:
-        raise ConfigurationError(
-            f"Number of states must be non-negative, got {num_states}", "Invalid problem dimensions"
-        )
-
-    if num_controls < 0:
-        raise ConfigurationError(
-            f"Number of controls must be non-negative, got {num_controls}",
-            "Invalid problem dimensions",
-        )
-
-    if num_integrals < 0:
-        raise ConfigurationError(
-            f"Number of integrals must be non-negative, got {num_integrals}",
-            "Invalid problem dimensions",
-        )
-
-    # Warning for edge case
-    if num_states == 0:
-        import warnings
-
-        warnings.warn(
-            "Problem has no state variables. This may not be a meaningful optimal control problem.",
-            stacklevel=2,
         )
 
 

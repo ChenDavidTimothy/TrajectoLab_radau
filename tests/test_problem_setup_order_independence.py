@@ -13,7 +13,7 @@ Aligned with Grug's Pragmatic Testing Philosophy:
 import numpy as np
 import pytest
 
-from trajectolab import Problem, solve_fixed_mesh
+from trajectolab import ConfigurationError, DataIntegrityError, Problem, solve_fixed_mesh
 from trajectolab.tl_types import FloatArray
 
 
@@ -166,7 +166,7 @@ class TestProblemSetupOrderIndependence:
         problem3.set_initial_guess(states=states, controls=controls)  # Wrong size for N=2
 
         # This should fail gracefully with informative error
-        with pytest.raises((ValueError, AssertionError)) as exc_info:
+        with pytest.raises(DataIntegrityError) as exc_info:
             solve_fixed_mesh(problem3)
 
         error_msg = str(exc_info.value).lower()
@@ -196,7 +196,7 @@ class TestProblemSetupOrderIndependence:
         problem2.set_initial_guess(states=states, controls=controls)
         # No mesh set
 
-        with pytest.raises(ValueError, match="mesh") as exc_info:
+        with pytest.raises(ConfigurationError, match="mesh") as exc_info:
             solve_fixed_mesh(problem2)
 
         error_msg = str(exc_info.value).lower()
@@ -322,7 +322,7 @@ class TestProblemSetupOrderIndependence:
         problem.set_initial_guess(states=wrong_states, controls=wrong_controls)
 
         # Solve should fail with clear error message
-        with pytest.raises((ValueError, AssertionError)) as exc_info:
+        with pytest.raises(DataIntegrityError) as exc_info:
             solve_fixed_mesh(problem)
 
         error_msg = str(exc_info.value).lower()

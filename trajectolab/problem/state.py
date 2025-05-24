@@ -1,7 +1,6 @@
 """
-State data classes for problem definition - UNIFIED CONSTRAINT API with ENHANCED ERROR HANDLING.
-Updated to support unified constraint specification with initial/final/boundary parameters.
-Added targeted constraint validation and storage operation guard clauses.
+State data classes for problem definition - USES CENTRALIZED VALIDATION.
+All ConfigurationError validations moved to input_validation.py
 """
 
 from __future__ import annotations
@@ -10,7 +9,8 @@ import threading
 from dataclasses import dataclass, field
 from typing import Any
 
-from ..exceptions import ConfigurationError, DataIntegrityError
+from ..exceptions import DataIntegrityError
+from ..input_validation import validate_constraint_input_format, validate_variable_name
 from ..tl_types import FloatArray, SymExpr, SymType
 
 
@@ -19,18 +19,17 @@ ConstraintInput = float | int | tuple[float | int | None, float | int | None] | 
 
 
 class _BoundaryConstraint:
-    """Internal class for representing boundary constraints with unified API and enhanced validation."""
+    """Internal class for representing boundary constraints - USES CENTRALIZED VALIDATION."""
 
     def __init__(self, constraint_input: ConstraintInput = None) -> None:
         """
-        Create boundary constraint from unified constraint input with enhanced validation.
+        Create boundary constraint from unified constraint input.
 
-        Args:
-            constraint_input:
-                - float/int: Equality constraint (variable = value)
-                - tuple(lower, upper): Range constraint with None for unbounded
-                - None: No constraint
+        Uses centralized validation from input_validation.py
         """
+        # CENTRALIZED VALIDATION - single call replaces all scattered validation logic
+        validate_constraint_input_format(constraint_input, "boundary constraint")
+
         self.equals: float | None = None
         self.lower: float | None = None
         self.upper: float | None = None
@@ -39,68 +38,15 @@ class _BoundaryConstraint:
             # No constraint
             pass
         elif isinstance(constraint_input, int | float):
-            # Guard clause: Validate numeric values
-            if not isinstance(constraint_input, int | float):
-                raise ConfigurationError(
-                    f"Numeric constraint must be int or float, got {type(constraint_input)}",
-                    "TrajectoLab constraint specification error",
-                )
-
-            # Guard clause: Check for invalid numeric values
-            import math
-
-            if math.isnan(constraint_input) or math.isinf(constraint_input):
-                raise ConfigurationError(
-                    f"Constraint value cannot be NaN or infinite, got {constraint_input}",
-                    "TrajectoLab constraint value error",
-                )
-
-            # Equality constraint
+            # Equality constraint (validation already done)
             self.equals = float(constraint_input)
             self.lower = float(constraint_input)
             self.upper = float(constraint_input)
         elif isinstance(constraint_input, tuple):
-            # Guard clause: Validate tuple structure
-            if len(constraint_input) != 2:
-                raise ConfigurationError(
-                    f"Constraint tuple must have exactly 2 elements, got {len(constraint_input)}",
-                    "TrajectoLab constraint specification error",
-                )
-
+            # Range constraint (validation already done)
             lower_val, upper_val = constraint_input
-
-            # Guard clause: Validate tuple elements
-            for i, val in enumerate([lower_val, upper_val]):
-                if val is not None:
-                    if not isinstance(val, int | float):
-                        raise ConfigurationError(
-                            f"Constraint bound {i} must be numeric or None, got {type(val)}",
-                            "TrajectoLab constraint specification error",
-                        )
-
-                    import math
-
-                    if math.isnan(val) or math.isinf(val):
-                        raise ConfigurationError(
-                            f"Constraint bound {i} cannot be NaN or infinite, got {val}",
-                            "TrajectoLab constraint value error",
-                        )
-
-            # Convert to float, handling None
             self.lower = None if lower_val is None else float(lower_val)
             self.upper = None if upper_val is None else float(upper_val)
-
-            # Guard clause: Validate bounds relationship
-            if self.lower is not None and self.upper is not None and self.lower > self.upper:
-                raise ConfigurationError(
-                    f"Lower bound ({self.lower}) cannot be greater than upper bound ({self.upper})",
-                    "TrajectoLab constraint bounds ordering error",
-                )
-        else:
-            raise ConfigurationError(
-                f"Invalid constraint input type: {type(constraint_input)}. Expected float, int, tuple, or None",
-                "TrajectoLab constraint specification error",
-            )
 
     def has_constraint(self) -> bool:
         """Check if this boundary constraint is actually constraining anything."""
@@ -122,7 +68,7 @@ class _BoundaryConstraint:
 
 @dataclass
 class _VariableInfo:
-    """Internal storage for variable metadata with unified constraint API and validation."""
+    """Internal storage for variable metadata."""
 
     symbol: SymType
     initial_constraint: _BoundaryConstraint | None = None
@@ -131,18 +77,18 @@ class _VariableInfo:
 
     def __post_init__(self) -> None:
         """Validate variable info after initialization."""
-        # Guard clause: Validate symbol
+        # Guard clause: Validate symbol (this is internal data integrity)
         if self.symbol is None:
-            raise ConfigurationError(
+            raise DataIntegrityError(
                 "Variable symbol cannot be None", "TrajectoLab variable definition error"
             )
 
 
 @dataclass
 class VariableState:
-    """State for all variables and expressions - UNIFIED CONSTRAINT API with ENHANCED ERROR HANDLING."""
+    """State for all variables and expressions - USES CENTRALIZED VALIDATION."""
 
-    # UNIFIED STORAGE SYSTEM - optimized ordering
+    # UNIFIED STORAGE SYSTEM
     _state_info: list[_VariableInfo] = field(default_factory=list)
     _control_info: list[_VariableInfo] = field(default_factory=list)
     _state_name_to_index: dict[str, int] = field(default_factory=dict)
@@ -173,7 +119,7 @@ class VariableState:
     tf_constraint: _BoundaryConstraint = field(default_factory=lambda: _BoundaryConstraint())
 
     # ========================================================================
-    # UNIFIED VARIABLE MANAGEMENT - Single source of truth with enhanced validation
+    # UNIFIED VARIABLE MANAGEMENT - USES CENTRALIZED VALIDATION
     # ========================================================================
 
     def add_state(
@@ -184,23 +130,20 @@ class VariableState:
         final_constraint: _BoundaryConstraint | None = None,
         boundary_constraint: _BoundaryConstraint | None = None,
     ) -> None:
-        """Add state variable to unified storage with enhanced validation."""
-        # Guard clause: Validate inputs
-        if not isinstance(name, str) or not name.strip():
-            raise ConfigurationError(
-                f"State name must be non-empty string, got {name!r}",
-                "TrajectoLab variable naming error",
-            )
+        """Add state variable to unified storage - USES CENTRALIZED VALIDATION."""
+        # CENTRALIZED VALIDATION - single call replaces scattered validation
+        validate_variable_name(name, "state")
 
+        # Data integrity check (not user configuration)
         if symbol is None:
-            raise ConfigurationError(
+            raise DataIntegrityError(
                 f"State symbol for '{name}' cannot be None", "TrajectoLab variable definition error"
             )
 
         with self._ordering_lock:
-            # Guard clause: Check for duplicate names
+            # Data integrity check (internal consistency)
             if name in self._state_name_to_index:
-                raise ConfigurationError(
+                raise DataIntegrityError(
                     f"State '{name}' already exists", "TrajectoLab variable naming conflict"
                 )
 
@@ -231,24 +174,21 @@ class VariableState:
         symbol: SymType,
         boundary_constraint: _BoundaryConstraint | None = None,
     ) -> None:
-        """Add control variable to unified storage with enhanced validation."""
-        # Guard clause: Validate inputs
-        if not isinstance(name, str) or not name.strip():
-            raise ConfigurationError(
-                f"Control name must be non-empty string, got {name!r}",
-                "TrajectoLab variable naming error",
-            )
+        """Add control variable to unified storage - USES CENTRALIZED VALIDATION."""
+        # CENTRALIZED VALIDATION - single call replaces scattered validation
+        validate_variable_name(name, "control")
 
+        # Data integrity check (not user configuration)
         if symbol is None:
-            raise ConfigurationError(
+            raise DataIntegrityError(
                 f"Control symbol for '{name}' cannot be None",
                 "TrajectoLab variable definition error",
             )
 
         with self._ordering_lock:
-            # Guard clause: Check for duplicate names
+            # Data integrity check (internal consistency)
             if name in self._control_name_to_index:
-                raise ConfigurationError(
+                raise DataIntegrityError(
                     f"Control '{name}' already exists", "TrajectoLab variable naming conflict"
                 )
 
@@ -274,12 +214,12 @@ class VariableState:
                 ) from e
 
     # ========================================================================
-    # EFFICIENT ACCESS METHODS - Direct O(1) access with validation
+    # EFFICIENT ACCESS METHODS - Data integrity validation only
     # ========================================================================
 
     def get_ordered_state_symbols(self) -> list[SymType]:
-        """Get state symbols in order - O(1) access with validation."""
-        # Guard clause: Check for consistency
+        """Get state symbols in order - with data integrity validation."""
+        # Data integrity check (internal consistency)
         if len(self._state_info) != len(self._state_names):
             raise DataIntegrityError(
                 f"State info count ({len(self._state_info)}) doesn't match names count ({len(self._state_names)})",
@@ -289,8 +229,8 @@ class VariableState:
         return [info.symbol for info in self._state_info]
 
     def get_ordered_control_symbols(self) -> list[SymType]:
-        """Get control symbols in order - O(1) access with validation."""
-        # Guard clause: Check for consistency
+        """Get control symbols in order - with data integrity validation."""
+        # Data integrity check (internal consistency)
         if len(self._control_info) != len(self._control_names):
             raise DataIntegrityError(
                 f"Control info count ({len(self._control_info)}) doesn't match names count ({len(self._control_names)})",
@@ -300,11 +240,11 @@ class VariableState:
         return [info.symbol for info in self._control_info]
 
     def get_ordered_state_names(self) -> list[str]:
-        """Get state names in order - O(1) access."""
+        """Get state names in order."""
         return self._state_names.copy()
 
     def get_ordered_control_names(self) -> list[str]:
-        """Get control names in order - O(1) access."""
+        """Get control names in order."""
         return self._control_names.copy()
 
     def get_variable_counts(self) -> tuple[int, int]:
@@ -312,7 +252,7 @@ class VariableState:
         num_states = len(self._state_info)
         num_controls = len(self._control_info)
 
-        # Guard clause: Validate consistency
+        # Data integrity checks (internal consistency)
         if num_states != len(self._state_names):
             raise DataIntegrityError(
                 f"State count inconsistency: info={num_states}, names={len(self._state_names)}",
@@ -328,12 +268,12 @@ class VariableState:
         return num_states, num_controls
 
     # ========================================================================
-    # UNIFIED CONSTRAINT ACCESS METHODS with validation
+    # UNIFIED CONSTRAINT ACCESS METHODS - Data integrity validation only
     # ========================================================================
 
     def get_state_initial_constraints(self) -> list[_BoundaryConstraint | None]:
         """Get initial state constraints in order with validation."""
-        # Guard clause: Check consistency
+        # Data integrity check (internal consistency)
         if len(self._state_info) != len(self._state_names):
             raise DataIntegrityError(
                 "State constraint access failed due to storage inconsistency",
@@ -344,7 +284,7 @@ class VariableState:
 
     def get_state_final_constraints(self) -> list[_BoundaryConstraint | None]:
         """Get final state constraints in order with validation."""
-        # Guard clause: Check consistency
+        # Data integrity check (internal consistency)
         if len(self._state_info) != len(self._state_names):
             raise DataIntegrityError(
                 "State constraint access failed due to storage inconsistency",
@@ -355,7 +295,7 @@ class VariableState:
 
     def get_state_boundary_constraints(self) -> list[_BoundaryConstraint | None]:
         """Get boundary state constraints in order with validation."""
-        # Guard clause: Check consistency
+        # Data integrity check (internal consistency)
         if len(self._state_info) != len(self._state_names):
             raise DataIntegrityError(
                 "State constraint access failed due to storage inconsistency",
@@ -366,7 +306,7 @@ class VariableState:
 
     def get_control_boundary_constraints(self) -> list[_BoundaryConstraint | None]:
         """Get boundary control constraints in order with validation."""
-        # Guard clause: Check consistency
+        # Data integrity check (internal consistency)
         if len(self._control_info) != len(self._control_names):
             raise DataIntegrityError(
                 "Control constraint access failed due to storage inconsistency",
@@ -376,13 +316,13 @@ class VariableState:
         return [info.boundary_constraint for info in self._control_info]
 
     # ========================================================================
-    # TIME BOUNDS ACCESS (converted from constraint objects) with validation
+    # TIME BOUNDS ACCESS - Data integrity validation only
     # ========================================================================
 
     @property
     def t0_bounds(self) -> tuple[float, float]:
-        """Get time initial bounds as tuple for compatibility with validation."""
-        # Guard clause: Validate time constraint
+        """Get time initial bounds as tuple for compatibility."""
+        # Data integrity check (internal consistency)
         if self.t0_constraint is None:
             raise DataIntegrityError(
                 "Initial time constraint is None", "TrajectoLab time bounds corruption"
@@ -397,8 +337,8 @@ class VariableState:
 
     @property
     def tf_bounds(self) -> tuple[float, float]:
-        """Get time final bounds as tuple for compatibility with validation."""
-        # Guard clause: Validate time constraint
+        """Get time final bounds as tuple for compatibility."""
+        # Data integrity check (internal consistency)
         if self.tf_constraint is None:
             raise DataIntegrityError(
                 "Final time constraint is None", "TrajectoLab time bounds corruption"
@@ -414,48 +354,38 @@ class VariableState:
 
 @dataclass
 class ConstraintState:
-    """State for constraints with enhanced validation."""
+    """State for constraints."""
 
     constraints: list[SymExpr] = field(default_factory=list)
-
-    def __post_init__(self) -> None:
-        """Validate constraint state after initialization."""
-        # Guard clause: Validate constraints list
-        if not isinstance(self.constraints, list):
-            raise ConfigurationError(
-                f"Constraints must be a list, got {type(self.constraints)}",
-                "TrajectoLab constraint storage error",
-            )
 
 
 @dataclass
 class MeshState:
-    """State for mesh configuration with enhanced validation."""
+    """State for mesh configuration."""
 
     collocation_points_per_interval: list[int] = field(default_factory=list)
     global_normalized_mesh_nodes: FloatArray | None = None
     configured: bool = False
 
     def __post_init__(self) -> None:
-        """Validate mesh state after initialization."""
-        # Guard clause: Validate collocation points
+        """Validate mesh state after initialization - data integrity only."""
+        # Data integrity checks (internal consistency)
         if not isinstance(self.collocation_points_per_interval, list):
-            raise ConfigurationError(
+            raise DataIntegrityError(
                 f"Collocation points must be a list, got {type(self.collocation_points_per_interval)}",
                 "TrajectoLab mesh storage error",
             )
 
-        # Guard clause: Validate mesh nodes if present
         if self.global_normalized_mesh_nodes is not None:
             import numpy as np
 
             if not isinstance(self.global_normalized_mesh_nodes, np.ndarray):
-                raise ConfigurationError(
+                raise DataIntegrityError(
                     f"Mesh nodes must be numpy array, got {type(self.global_normalized_mesh_nodes)}",
                     "TrajectoLab mesh storage error",
                 )
 
-            # Guard clause: Check for NaN/Inf in mesh nodes
+            # Check for NaN/Inf in mesh nodes (data integrity)
             if np.any(np.isnan(self.global_normalized_mesh_nodes)) or np.any(
                 np.isinf(self.global_normalized_mesh_nodes)
             ):
