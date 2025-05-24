@@ -36,7 +36,7 @@ class TrajectoLabBaseError(Exception):
 
 class ConfigurationError(TrajectoLabBaseError):
     """
-    Raised when TrajectoLab configuration is invalid or incomplete.
+    Raised when TrajectoLab configuration is invalid or incomplete purely based on user input.
 
     This indicates TrajectoLab's internal configuration state is wrong,
     such as attempting to solve without proper mesh setup, or accessing
