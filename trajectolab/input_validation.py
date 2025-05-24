@@ -139,7 +139,7 @@ def validate_constraint_input_format(constraint_input: Any, context: str) -> Non
     if constraint_input is None:
         return  # None is valid (no constraint)
 
-    if isinstance(constraint_input, (int, float)):
+    if isinstance(constraint_input, int | float):
         # Validate numeric constraint
         if math.isnan(constraint_input) or math.isinf(constraint_input):
             raise ConfigurationError(
@@ -156,7 +156,7 @@ def validate_constraint_input_format(constraint_input: Any, context: str) -> Non
 
         for i, val in enumerate(constraint_input):
             if val is not None:
-                if not isinstance(val, (int, float)):
+                if not isinstance(val, int | float):
                     raise ConfigurationError(
                         f"Constraint bound {i} must be numeric or None, got {type(val)}",
                         f"Constraint specification error in {context}",
