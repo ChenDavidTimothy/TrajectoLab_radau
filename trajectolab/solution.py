@@ -1,6 +1,7 @@
 """
 Solution interface - SIMPLIFIED.
 Removed ALL wrapper forwarding, uses direct field access with integrated plotting.
+FIXED: Unreachable code issue in mesh legend creation.
 """
 
 from typing import TypeAlias, cast
@@ -266,7 +267,8 @@ class Solution:
 
     def _add_mesh_legend(self, fig: MplFigure, colors: np.ndarray) -> None:
         """Add mesh interval legend."""
-        if self.mesh_intervals is None:
+        # FIXED: Check for empty list instead of None since mesh_intervals is always a list
+        if not self.mesh_intervals:
             return
 
         handles = [

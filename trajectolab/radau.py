@@ -248,8 +248,9 @@ def evaluate_lagrange_polynomial_at_point(
     if abs(sum_of_terms) < ZERO_TOLERANCE:
         return lagrange_values
 
-    lagrange_values = cast(FloatArray, terms / sum_of_terms)
-    return lagrange_values
+    lagrange_values = terms / sum_of_terms
+
+    return np.asarray(lagrange_values, dtype=np.float64)
 
 
 def compute_lagrange_derivative_coefficients_at_point(
