@@ -1,6 +1,6 @@
 """
-Initial guess handling for the PHS adaptive algorithm - SIMPLIFIED.
-Updated to use unified storage system and simplified memory pooling.
+Initial guess handling for the PHS adaptive algorithm - ENHANCED WITH FAIL-FAST.
+Added targeted error handling for critical TrajectoLab interpolation operations.
 """
 
 import logging
@@ -13,6 +13,7 @@ from trajectolab.adaptive.phs.numerical import (
     map_global_normalized_tau_to_local_interval_tau,
     map_local_interval_tau_to_global_normalized_tau,
 )
+from trajectolab.exceptions import ConfigurationError, DataIntegrityError, InterpolationError
 from trajectolab.input_validation import validate_initial_guess_structure
 from trajectolab.radau import compute_radau_collocation_components
 from trajectolab.tl_types import FloatArray, InitialGuess, OptimalControlSolution, ProblemProtocol
@@ -36,8 +37,7 @@ def _interpolate_trajectory_to_new_mesh_optimized(
     is_state_trajectory: bool = True,
 ) -> list[FloatArray]:
     """
-    OPTIMIZED interpolation using memory pooling - SIMPLIFIED.
-    Updated to use unified storage system and type system.
+    OPTIMIZED interpolation using memory pooling - ENHANCED WITH FAIL-FAST.
     """
     trajectory_type = "state" if is_state_trajectory else "control"
     logger.info(f"    OPTIMIZED interpolation of {trajectory_type} trajectories:")
@@ -48,14 +48,21 @@ def _interpolate_trajectory_to_new_mesh_optimized(
         f"      Target mesh: {len(target_mesh_points) - 1} intervals, degrees {target_polynomial_degrees}"
     )
 
-    try:
-        # Validate input trajectory data
-        if len(prev_trajectory_per_interval) != len(prev_polynomial_degrees):
-            raise ValueError(
-                f"Previous trajectory count ({len(prev_trajectory_per_interval)}) doesn't match "
-                f"polynomial degrees count ({len(prev_polynomial_degrees)})"
-            )
+    # Guard clause: Validate input consistency
+    if len(prev_trajectory_per_interval) != len(prev_polynomial_degrees):
+        raise InterpolationError(
+            f"Previous trajectory count ({len(prev_trajectory_per_interval)}) doesn't match polynomial degrees count ({len(prev_polynomial_degrees)})",
+            "Input data inconsistency in interpolation",
+        )
 
+    # Guard clause: Check for empty inputs
+    if not prev_trajectory_per_interval or not target_polynomial_degrees:
+        raise InterpolationError(
+            "Cannot interpolate with empty trajectory or polynomial degree data",
+            "Missing interpolation input data",
+        )
+
+    try:
         # Use memory pool context for automatic buffer management
         with create_buffer_context() as buffer_pool:
             # Create polynomial interpolants for each interval in previous solution
@@ -64,26 +71,39 @@ def _interpolate_trajectory_to_new_mesh_optimized(
             for k, (N_k, traj_k) in enumerate(
                 zip(prev_polynomial_degrees, prev_trajectory_per_interval, strict=False)
             ):
-                # Validate trajectory shape
+                # Critical: Validate trajectory shape
                 expected_nodes = N_k + 1 if is_state_trajectory else N_k
 
                 if traj_k.shape != (num_variables, expected_nodes):
-                    raise ValueError(
-                        f"Previous {trajectory_type} trajectory for interval {k} has shape {traj_k.shape}, "
-                        f"expected ({num_variables}, {expected_nodes})"
+                    raise InterpolationError(
+                        f"Previous {trajectory_type} trajectory for interval {k} has shape {traj_k.shape}, expected ({num_variables}, {expected_nodes})",
+                        "Shape mismatch in interpolation input",
+                    )
+
+                # Critical: Check for NaN/Inf in trajectory data
+                if np.any(np.isnan(traj_k)) or np.any(np.isinf(traj_k)):
+                    raise DataIntegrityError(
+                        f"Previous {trajectory_type} trajectory for interval {k} contains NaN or Inf values",
+                        "Numerical corruption in interpolation input",
                     )
 
                 # Get the appropriate nodes for this interval type (cached via Radau cache)
-                if is_state_trajectory:
-                    basis_components = compute_radau_collocation_components(N_k)
-                    local_nodes = basis_components.state_approximation_nodes
-                    barycentric_weights = basis_components.barycentric_weights_for_state_nodes
-                else:
-                    basis_components = compute_radau_collocation_components(N_k)
-                    local_nodes = basis_components.collocation_nodes
-                    from trajectolab.radau import compute_barycentric_weights
+                try:
+                    if is_state_trajectory:
+                        basis_components = compute_radau_collocation_components(N_k)
+                        local_nodes = basis_components.state_approximation_nodes
+                        barycentric_weights = basis_components.barycentric_weights_for_state_nodes
+                    else:
+                        basis_components = compute_radau_collocation_components(N_k)
+                        local_nodes = basis_components.collocation_nodes
+                        from trajectolab.radau import compute_barycentric_weights
 
-                    barycentric_weights = compute_barycentric_weights(local_nodes)
+                        barycentric_weights = compute_barycentric_weights(local_nodes)
+                except Exception as e:
+                    raise InterpolationError(
+                        f"Failed to compute basis components for interval {k} with degree {N_k}: {e}",
+                        "Radau basis computation error",
+                    ) from e
 
                 # Create interpolant for this interval
                 try:
@@ -93,8 +113,10 @@ def _interpolate_trajectory_to_new_mesh_optimized(
                         f"        Interval {k}: Created interpolant for {traj_k.shape} trajectory"
                     )
                 except Exception as e:
-                    logger.error(f"        Interval {k}: Failed to create interpolant: {e}")
-                    raise ValueError(f"Failed to create interpolant for interval {k}: {e}") from e
+                    raise InterpolationError(
+                        f"Failed to create interpolant for interval {k}: {e}",
+                        "Polynomial interpolant construction error",
+                    ) from e
 
             # Interpolate trajectory values for each target interval using pooled memory
             target_trajectories = []
@@ -103,14 +125,20 @@ def _interpolate_trajectory_to_new_mesh_optimized(
                 logger.debug(f"      Processing target interval {k} (degree {N_k_target})...")
 
                 # Get target nodes for this interval type (cached via Radau cache)
-                if is_state_trajectory:
-                    target_basis = compute_radau_collocation_components(N_k_target)
-                    target_local_nodes = target_basis.state_approximation_nodes
-                    num_target_nodes = N_k_target + 1
-                else:
-                    target_basis = compute_radau_collocation_components(N_k_target)
-                    target_local_nodes = target_basis.collocation_nodes
-                    num_target_nodes = N_k_target
+                try:
+                    if is_state_trajectory:
+                        target_basis = compute_radau_collocation_components(N_k_target)
+                        target_local_nodes = target_basis.state_approximation_nodes
+                        num_target_nodes = N_k_target + 1
+                    else:
+                        target_basis = compute_radau_collocation_components(N_k_target)
+                        target_local_nodes = target_basis.collocation_nodes
+                        num_target_nodes = N_k_target
+                except Exception as e:
+                    raise InterpolationError(
+                        f"Failed to compute target basis for interval {k} with degree {N_k_target}: {e}",
+                        "Target basis computation error",
+                    ) from e
 
                 # Get pooled buffer instead of allocating new memory
                 target_traj_k = buffer_pool.get_buffer((num_variables, num_target_nodes))
@@ -146,8 +174,9 @@ def _interpolate_trajectory_to_new_mesh_optimized(
                             prev_interval_idx = len(prev_interpolants) - 1
                             prev_local_tau = 1.0
                         else:
-                            raise ValueError(
-                                f"Could not locate global_tau {global_tau} in mesh boundaries"
+                            raise InterpolationError(
+                                f"Could not locate global_tau {global_tau} in mesh boundaries",
+                                "Mesh boundary mapping error",
                             )
                     else:
                         # Convert global tau to local tau for the containing previous interval
@@ -163,11 +192,14 @@ def _interpolate_trajectory_to_new_mesh_optimized(
                         if interpolated_values.ndim > 1:
                             interpolated_values = interpolated_values.flatten()
 
-                        # Validate interpolated values
+                        # Critical: Validate interpolated values
                         if np.any(np.isnan(interpolated_values)) or np.any(
                             np.isinf(interpolated_values)
                         ):
-                            raise ValueError(f"Invalid interpolated values at tau={prev_local_tau}")
+                            raise DataIntegrityError(
+                                f"Invalid interpolated values at tau={prev_local_tau}: contains NaN or Inf",
+                                "Numerical corruption in interpolation result",
+                            )
 
                         # Store the interpolated values
                         if len(interpolated_values) == num_variables:
@@ -176,18 +208,28 @@ def _interpolate_trajectory_to_new_mesh_optimized(
                             # Handle empty variable case
                             pass
                         else:
-                            raise ValueError(
-                                f"Dimension mismatch: interpolated {len(interpolated_values)} values, "
-                                f"expected {num_variables}"
+                            raise InterpolationError(
+                                f"Dimension mismatch: interpolated {len(interpolated_values)} values, expected {num_variables}",
+                                "Interpolation output dimension error",
                             )
 
                     except Exception as e:
-                        error_msg = f"Failed to evaluate interpolant: {e}"
-                        logger.error(f"        {error_msg}")
-                        raise ValueError(error_msg) from e
+                        if isinstance(e, InterpolationError | DataIntegrityError):
+                            raise  # Re-raise TrajectoLab-specific errors
+                        raise InterpolationError(
+                            f"Failed to evaluate interpolant: {e}", "Interpolant evaluation error"
+                        ) from e
 
                 # Copy result from pooled buffer to permanent storage
                 result_array = np.array(target_traj_k, dtype=np.float64, copy=True)
+
+                # Final validation of result
+                if np.any(np.isnan(result_array)) or np.any(np.isinf(result_array)):
+                    raise DataIntegrityError(
+                        f"Final interpolated trajectory for interval {k} contains NaN or Inf",
+                        "Corruption in final interpolation result",
+                    )
+
                 target_trajectories.append(result_array)
                 logger.debug(
                     f"        Interval {k}: Created trajectory of shape {result_array.shape}"
@@ -197,9 +239,12 @@ def _interpolate_trajectory_to_new_mesh_optimized(
         return cast(list[FloatArray], target_trajectories)
 
     except Exception as e:
-        error_msg = f"Failed to interpolate {trajectory_type} trajectories: {e}"
-        logger.error(f"    ✗ {error_msg}")
-        raise ValueError(error_msg) from e
+        if isinstance(e, InterpolationError | DataIntegrityError):
+            raise  # Re-raise TrajectoLab-specific errors
+        raise InterpolationError(
+            f"Failed to interpolate {trajectory_type} trajectories: {e}",
+            "Critical interpolation failure",
+        ) from e
 
 
 def _find_containing_interval(global_tau: float, mesh_points: FloatArray) -> int | None:
@@ -232,37 +277,68 @@ def propagate_solution_to_new_mesh(
     target_mesh_points: FloatArray,
 ) -> InitialGuess:
     """
-    OPTIMIZED solution propagation using unified storage and memory pooling - SIMPLIFIED.
-    Updated to use unified storage system.
+    OPTIMIZED solution propagation using unified storage and memory pooling - ENHANCED WITH FAIL-FAST.
     """
     logger.info("  Starting OPTIMIZED aggressive interpolation-based propagation...")
 
+    # Guard clause: Validate previous solution
+    if not prev_solution.success:
+        raise InterpolationError(
+            "Cannot propagate from unsuccessful previous solution",
+            "Invalid source solution for propagation",
+        )
+
+    # Guard clause: Get previous mesh information and validate it exists
+    prev_states = prev_solution.solved_state_trajectories_per_interval
+    prev_controls = prev_solution.solved_control_trajectories_per_interval
+    prev_mesh = prev_solution.global_mesh_nodes_at_solve_time
+    prev_degrees = prev_solution.num_collocation_nodes_list_at_solve_time
+
+    if prev_states is None:
+        raise InterpolationError(
+            "Previous solution missing state trajectory data for interpolation",
+            "Missing source state data",
+        )
+    if prev_controls is None:
+        raise InterpolationError(
+            "Previous solution missing control trajectory data for interpolation",
+            "Missing source control data",
+        )
+    if prev_mesh is None:
+        raise InterpolationError(
+            "Previous solution missing mesh information for interpolation",
+            "Missing source mesh data",
+        )
+    if prev_degrees is None:
+        raise InterpolationError(
+            "Previous solution missing polynomial degree information for interpolation",
+            "Missing source degree data",
+        )
+
+    # Guard clause: Validate target mesh configuration
+    if len(target_polynomial_degrees) != len(target_mesh_points) - 1:
+        raise ConfigurationError(
+            f"Target polynomial degrees count ({len(target_polynomial_degrees)}) doesn't match target mesh intervals ({len(target_mesh_points) - 1})",
+            "Target mesh configuration error",
+        )
+
     try:
-        # Validate previous solution
-        if not prev_solution.success:
-            raise ValueError("Cannot propagate from unsuccessful previous solution")
-
-        # Get previous mesh information and validate it exists
-        prev_states = prev_solution.solved_state_trajectories_per_interval
-        prev_controls = prev_solution.solved_control_trajectories_per_interval
-        prev_mesh = prev_solution.global_mesh_nodes_at_solve_time
-        prev_degrees = prev_solution.num_collocation_nodes_list_at_solve_time
-
-        if prev_states is None:
-            raise ValueError("Previous solution missing state trajectory data for interpolation")
-        if prev_controls is None:
-            raise ValueError("Previous solution missing control trajectory data for interpolation")
-        if prev_mesh is None:
-            raise ValueError("Previous solution missing mesh information for interpolation")
-        if prev_degrees is None:
-            raise ValueError(
-                "Previous solution missing polynomial degree information for interpolation"
-            )
-
         # ALWAYS propagate time variables and integrals (mesh-independent)
         t0_guess = prev_solution.initial_time_variable
         tf_guess = prev_solution.terminal_time_variable
         integrals_guess = prev_solution.integrals
+
+        # Critical: Validate time variables
+        if t0_guess is None or tf_guess is None:
+            raise InterpolationError(
+                "Previous solution missing time variables", "Invalid time data for propagation"
+            )
+
+        if np.isnan(t0_guess) or np.isinf(t0_guess) or np.isnan(tf_guess) or np.isinf(tf_guess):
+            raise DataIntegrityError(
+                f"Invalid time variables: t0={t0_guess}, tf={tf_guess}",
+                "Numerical corruption in time data",
+            )
 
         logger.info(f"    Propagated time variables: t0={t0_guess}, tf={tf_guess}")
         if integrals_guess is not None:
@@ -326,6 +402,9 @@ def propagate_solution_to_new_mesh(
         return initial_guess
 
     except Exception as e:
-        error_msg = f"OPTIMIZED aggressive interpolation propagation failed: {e}"
-        logger.error(f"  ✗ {error_msg}")
-        raise ValueError(error_msg) from e
+        if isinstance(e, InterpolationError | DataIntegrityError | ConfigurationError):
+            raise  # Re-raise TrajectoLab-specific errors
+        raise InterpolationError(
+            f"OPTIMIZED aggressive interpolation propagation failed: {e}",
+            "Critical propagation failure",
+        ) from e

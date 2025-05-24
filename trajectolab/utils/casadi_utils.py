@@ -1,8 +1,6 @@
 """
-Utilities for CasADi integration and conversion.
-
-This module provides safe conversion functions between CasADi and NumPy types,
-with comprehensive error handling and type validation.
+Utilities for CasADi integration and conversion - ENHANCED WITH FAIL-FAST.
+Added targeted error handling for critical TrajectoLab data preparation operations.
 """
 
 import logging
@@ -11,6 +9,7 @@ from typing import Any, TypeAlias, cast
 import casadi as ca
 import numpy as np
 
+from trajectolab.exceptions import DataIntegrityError
 from trajectolab.tl_types import CasadiDM, CasadiFunction, CasadiMX, FloatArray, ProblemParameters
 
 
@@ -34,34 +33,51 @@ def convert_casadi_to_numpy(
     params: ProblemParameters,
 ) -> FloatArray:
     """
-    Convert CasADi dynamics function call to NumPy arrays.
-
-    Args:
-        casadi_dynamics_func: CasADi dynamics function to evaluate
-        state: State vector as NumPy array
-        control: Control vector as NumPy array
-        time: Time scalar
-        params: Problem parameters dictionary
-
-    Returns:
-        Dynamics output as NumPy array
-
-    Raises:
-        CasadiConversionError: If conversion fails
-        ValueError: If inputs have invalid shapes or types
+    Convert CasADi dynamics function call to NumPy arrays with enhanced validation.
     """
-    # Validate inputs
+    # Guard clause: Validate function
     if not callable(casadi_dynamics_func):
-        raise ValueError("casadi_dynamics_func must be callable")
+        raise DataIntegrityError(
+            "casadi_dynamics_func must be callable", "Invalid function passed to CasADi converter"
+        )
 
+    # Guard clause: Validate state input
     if not isinstance(state, np.ndarray) or state.dtype != np.float64:
-        raise ValueError("state must be float64 NumPy array")
+        raise DataIntegrityError(
+            f"state must be float64 NumPy array, got {type(state)} with dtype {getattr(state, 'dtype', 'N/A')}",
+            "Invalid state data for CasADi conversion",
+        )
 
+    # Critical: Check for NaN/Inf in state
+    if np.any(np.isnan(state)) or np.any(np.isinf(state)):
+        raise DataIntegrityError(
+            "state array contains NaN or Inf values", "Numerical corruption in state input"
+        )
+
+    # Guard clause: Validate control input
     if not isinstance(control, np.ndarray) or control.dtype != np.float64:
-        raise ValueError("control must be float64 NumPy array")
+        raise DataIntegrityError(
+            f"control must be float64 NumPy array, got {type(control)} with dtype {getattr(control, 'dtype', 'N/A')}",
+            "Invalid control data for CasADi conversion",
+        )
 
+    # Critical: Check for NaN/Inf in control
+    if np.any(np.isnan(control)) or np.any(np.isinf(control)):
+        raise DataIntegrityError(
+            "control array contains NaN or Inf values", "Numerical corruption in control input"
+        )
+
+    # Guard clause: Validate time
     if not isinstance(time, int | float):
-        raise ValueError("time must be numeric scalar")
+        raise DataIntegrityError(
+            f"time must be numeric scalar, got {type(time)}",
+            "Invalid time value for CasADi conversion",
+        )
+
+    if np.isnan(time) or np.isinf(time):
+        raise DataIntegrityError(
+            f"time value is invalid: {time}", "Numerical corruption in time input"
+        )
 
     try:
         # Convert to CasADi
@@ -97,10 +113,19 @@ def convert_casadi_to_numpy(
                     f"Unsupported result type {type(result_casadi)}: {e}"
                 ) from e
 
+        # Critical: Validate output for NaN/Inf
+        if np.any(np.isnan(result_np)) or np.any(np.isinf(result_np)):
+            raise DataIntegrityError(
+                "CasADi dynamics output contains NaN or Inf values",
+                "Numerical corruption in dynamics result",
+            )
+
         return cast(FloatArray, result_np)
 
     except CasadiConversionError:
         raise
+    except DataIntegrityError:
+        raise  # Re-raise TrajectoLab-specific errors
     except Exception as e:
         raise CasadiConversionError(f"CasADi dynamics evaluation failed: {e}") from e
 
@@ -108,12 +133,6 @@ def convert_casadi_to_numpy(
 def validate_casadi_expression(expr: _CasadiObject) -> bool:
     """
     Validate that an expression is a proper CasADi type.
-
-    Args:
-        expr: Expression to validate
-
-    Returns:
-        True if valid CasADi expression, False otherwise
     """
     return isinstance(expr, ca.MX | ca.DM | ca.SX)
 
@@ -122,21 +141,13 @@ def extract_casadi_value(
     casadi_obj: _CasadiObject, target_shape: tuple[int, int] | None = None
 ) -> FloatArray:
     """
-    Extract numerical value from CasADi object and ensure proper shape.
-
-    Args:
-        casadi_obj: CasADi object to extract value from
-        target_shape: Optional target shape to reshape to
-
-    Returns:
-        NumPy array with extracted values
-
-    Raises:
-        CasadiConversionError: If extraction fails
-        ValueError: If target_shape is invalid
+    Extract numerical value from CasADi object and ensure proper shape with enhanced validation.
     """
+    # Guard clause: Validate input
     if casadi_obj is None:
-        raise ValueError("casadi_obj cannot be None")
+        raise DataIntegrityError(
+            "casadi_obj cannot be None", "Invalid CasADi object for value extraction"
+        )
 
     try:
         # Convert to numpy array
@@ -147,12 +158,22 @@ def extract_casadi_value(
         else:
             np_array = np.array(casadi_obj, dtype=np.float64)
 
+        # Critical: Check for NaN/Inf in extracted values
+        if np.any(np.isnan(np_array)) or np.any(np.isinf(np_array)):
+            raise DataIntegrityError(
+                "Extracted CasADi values contain NaN or Inf",
+                "Numerical corruption in CasADi extraction",
+            )
+
         # Reshape if target shape provided
         if target_shape is not None:
             expected_rows, expected_cols = target_shape
 
+            # Guard clause: Validate target shape
             if expected_rows < 0 or expected_cols < 0:
-                raise ValueError(f"Invalid target shape: {target_shape}")
+                raise DataIntegrityError(
+                    f"Invalid target shape: {target_shape}", "Negative dimensions in reshape target"
+                )
 
             # Handle empty arrays
             if expected_rows == 0:
@@ -181,5 +202,7 @@ def extract_casadi_value(
 
         return cast(FloatArray, np_array)
 
+    except DataIntegrityError:
+        raise  # Re-raise TrajectoLab-specific errors
     except Exception as e:
         raise CasadiConversionError(f"Failed to extract CasADi value: {e}") from e
