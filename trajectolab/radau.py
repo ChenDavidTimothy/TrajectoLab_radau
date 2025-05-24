@@ -1,6 +1,7 @@
 """
-Radau pseudospectral method implementation - SIMPLIFIED.
+Radau pseudospectral method implementation - SIMPLIFIED with ENHANCED ERROR HANDLING.
 Consolidated cache system, removed redundant code patterns.
+Added targeted input validation for computational functions.
 """
 
 import threading
@@ -10,6 +11,7 @@ from typing import ClassVar, Literal, cast, overload
 import numpy as np
 from scipy.special import roots_jacobi as _scipy_roots_jacobi
 
+from .exceptions import ConfigurationError, DataIntegrityError
 from .tl_types import FloatArray
 from .utils.constants import ZERO_TOLERANCE
 
@@ -65,8 +67,18 @@ class RadauBasisCache:
 
     def _compute_components(self, num_collocation_nodes: int) -> RadauBasisComponents:
         """Compute Radau components - expensive operation."""
+        # Guard clause: Validate input
+        if not isinstance(num_collocation_nodes, int):
+            raise ConfigurationError(
+                f"Number of collocation nodes must be integer, got {type(num_collocation_nodes)}",
+                "TrajectoLab polynomial degree specification error",
+            )
+
         if num_collocation_nodes < 1:
-            raise ValueError("Number of collocation points must be an integer >= 1.")
+            raise ConfigurationError(
+                f"Number of collocation points must be >= 1, got {num_collocation_nodes}",
+                "Invalid polynomial degree for Radau collocation",
+            )
 
         lgr_data = compute_legendre_gauss_radau_nodes_and_weights(num_collocation_nodes)
 
@@ -77,15 +89,16 @@ class RadauBasisCache:
         num_state_nodes = len(state_nodes)
         num_actual_collocation_nodes = len(collocation_nodes)
 
+        # Guard clause: Validate computed dimensions
         if num_state_nodes != num_collocation_nodes + 1:
-            raise ValueError(
-                f"Mismatch in expected number of state approximation nodes. "
-                f"Expected {num_collocation_nodes + 1}, Got {num_state_nodes}."
+            raise DataIntegrityError(
+                f"State approximation nodes dimension mismatch: expected {num_collocation_nodes + 1}, got {num_state_nodes}",
+                "TrajectoLab Radau basis computation error",
             )
         if num_actual_collocation_nodes != num_collocation_nodes:
-            raise ValueError(
-                f"Mismatch in expected number of collocation nodes. "
-                f"Expected {num_collocation_nodes}, Got {num_actual_collocation_nodes}."
+            raise DataIntegrityError(
+                f"Collocation nodes dimension mismatch: expected {num_collocation_nodes}, got {num_actual_collocation_nodes}",
+                "TrajectoLab Radau basis computation error",
             )
 
         bary_weights_state_nodes = compute_barycentric_weights(state_nodes)
@@ -130,7 +143,13 @@ def roots_jacobi(
 def roots_jacobi(
     n: int, alpha: float, beta: float, mu: bool = False
 ) -> tuple[FloatArray, FloatArray] | tuple[FloatArray, FloatArray, float]:
-    """Wrapper for scipy roots_jacobi with proper typing."""
+    """Wrapper for scipy roots_jacobi with proper typing and validation."""
+    # Guard clause: Validate inputs
+    if not isinstance(n, int) or n < 0:
+        raise ConfigurationError(
+            f"n must be non-negative integer, got {n}", "Invalid Jacobi polynomial degree"
+        )
+
     if mu:
         result = _scipy_roots_jacobi(n, alpha, beta, mu=True)
         x_val = result[0]
@@ -154,9 +173,19 @@ def roots_jacobi(
 def compute_legendre_gauss_radau_nodes_and_weights(
     num_collocation_nodes: int,
 ) -> RadauNodesAndWeights:
-    """Compute Legendre-Gauss-Radau nodes and weights."""
+    """Compute Legendre-Gauss-Radau nodes and weights with enhanced validation."""
+    # Guard clause: Validate input
+    if not isinstance(num_collocation_nodes, int):
+        raise ConfigurationError(
+            f"Number of collocation nodes must be integer, got {type(num_collocation_nodes)}",
+            "TrajectoLab polynomial degree specification error",
+        )
+
     if num_collocation_nodes < 1:
-        raise ValueError("Number of collocation points must be an integer >= 1.")
+        raise ConfigurationError(
+            f"Number of collocation points must be >= 1, got {num_collocation_nodes}",
+            "Invalid polynomial degree for Radau collocation",
+        )
 
     collocation_nodes_list: list[float] = [-1.0]
 
@@ -186,10 +215,19 @@ def compute_legendre_gauss_radau_nodes_and_weights(
 
 
 def compute_barycentric_weights(nodes: FloatArray) -> FloatArray:
-    """Compute barycentric weights for Lagrange interpolation."""
+    """Compute barycentric weights for Lagrange interpolation with enhanced validation."""
+    # Guard clause: Validate input
+    if not isinstance(nodes, np.ndarray):
+        raise ConfigurationError(
+            f"Nodes must be numpy array, got {type(nodes)}", "TrajectoLab node specification error"
+        )
+
     num_nodes = len(nodes)
     if num_nodes < 1:
-        raise ValueError("Barycentric weights require at least 1 node.")
+        raise ConfigurationError(
+            f"Barycentric weights require at least 1 node, got {num_nodes}",
+            "Invalid node count for interpolation",
+        )
     if num_nodes == 1:
         return np.array([1.0], dtype=np.float64)
 
@@ -226,7 +264,32 @@ def evaluate_lagrange_polynomial_at_point(
     barycentric_weights: FloatArray,
     evaluation_point_tau: float,
 ) -> FloatArray:
-    """Evaluate Lagrange polynomial at a specific point using barycentric formula."""
+    """Evaluate Lagrange polynomial at a specific point using barycentric formula with enhanced validation."""
+    # Guard clause: Validate inputs
+    if not isinstance(polynomial_definition_nodes, np.ndarray):
+        raise ConfigurationError(
+            f"Polynomial definition nodes must be numpy array, got {type(polynomial_definition_nodes)}",
+            "TrajectoLab node specification error",
+        )
+
+    if not isinstance(barycentric_weights, np.ndarray):
+        raise ConfigurationError(
+            f"Barycentric weights must be numpy array, got {type(barycentric_weights)}",
+            "TrajectoLab weight specification error",
+        )
+
+    if len(polynomial_definition_nodes) != len(barycentric_weights):
+        raise ConfigurationError(
+            f"Node count ({len(polynomial_definition_nodes)}) must match weight count ({len(barycentric_weights)})",
+            "TrajectoLab interpolation setup error",
+        )
+
+    if not isinstance(evaluation_point_tau, int | float):
+        raise ConfigurationError(
+            f"Evaluation point must be numeric, got {type(evaluation_point_tau)}",
+            "TrajectoLab evaluation point specification error",
+        )
+
     num_nodes = len(polynomial_definition_nodes)
     lagrange_values = np.zeros(num_nodes, dtype=np.float64)
 
@@ -258,7 +321,26 @@ def compute_lagrange_derivative_coefficients_at_point(
     barycentric_weights: FloatArray,
     evaluation_point_tau: float,
 ) -> FloatArray:
-    """Compute Lagrange polynomial derivative coefficients at a specific point."""
+    """Compute Lagrange polynomial derivative coefficients at a specific point with enhanced validation."""
+    # Guard clause: Validate inputs
+    if not isinstance(polynomial_definition_nodes, np.ndarray):
+        raise ConfigurationError(
+            f"Polynomial definition nodes must be numpy array, got {type(polynomial_definition_nodes)}",
+            "TrajectoLab node specification error",
+        )
+
+    if not isinstance(barycentric_weights, np.ndarray):
+        raise ConfigurationError(
+            f"Barycentric weights must be numpy array, got {type(barycentric_weights)}",
+            "TrajectoLab weight specification error",
+        )
+
+    if len(polynomial_definition_nodes) != len(barycentric_weights):
+        raise ConfigurationError(
+            f"Node count ({len(polynomial_definition_nodes)}) must match weight count ({len(barycentric_weights)})",
+            "TrajectoLab interpolation setup error",
+        )
+
     num_nodes = len(polynomial_definition_nodes)
     derivatives = np.zeros(num_nodes, dtype=np.float64)
 
@@ -307,5 +389,12 @@ def compute_lagrange_derivative_coefficients_at_point(
 def compute_radau_collocation_components(
     num_collocation_nodes: int,
 ) -> RadauBasisComponents:
-    """Get Radau components from global cache for massive speedup."""
+    """Get Radau components from global cache for massive speedup with enhanced validation."""
+    # Guard clause: Final validation before cache access
+    if not isinstance(num_collocation_nodes, int) or num_collocation_nodes < 1:
+        raise ConfigurationError(
+            f"Number of collocation nodes must be positive integer, got {num_collocation_nodes}",
+            "Invalid polynomial degree for Radau collocation",
+        )
+
     return _radau_cache.get_components(num_collocation_nodes)

@@ -1,6 +1,7 @@
 """
-Solver interface - SIMPLIFIED.
+Solver interface - SIMPLIFIED with ENHANCED ERROR HANDLING.
 Unified common setup code, removed ALL redundant duplication.
+Added targeted guard clauses for configuration validation.
 """
 
 import logging
@@ -9,6 +10,7 @@ from typing import cast
 import numpy as np
 
 from trajectolab.direct_solver import solve_single_phase_radau_collocation
+from trajectolab.exceptions import ConfigurationError
 from trajectolab.problem import Problem
 from trajectolab.solution import Solution
 from trajectolab.tl_types import (
@@ -39,10 +41,45 @@ DEFAULT_NLP_OPTIONS: dict[str, object] = {
 }
 
 
+def _validate_problem_for_solving(problem: Problem) -> None:
+    """Validate that problem is ready for solving with fail-fast guard clauses."""
+    # Guard clause: Mesh must be configured
+    if not problem._mesh_configured:
+        raise ConfigurationError(
+            "Problem mesh must be configured before solving",
+            "Call problem.set_mesh(polynomial_degrees, mesh_points) first",
+        )
+
+    # Guard clause: Must have dynamics
+    if not problem._dynamics_expressions:
+        raise ConfigurationError(
+            "Problem dynamics must be defined before solving",
+            "Call problem.dynamics({state: expression, ...}) first",
+        )
+
+    # Guard clause: Must have objective
+    if problem._objective_expression is None:
+        raise ConfigurationError(
+            "Problem objective must be defined before solving",
+            "Call problem.minimize(expression) first",
+        )
+
+    # Guard clause: Variable counts must be consistent
+    num_states, num_controls = problem.get_variable_counts()
+    if num_states == 0 and num_controls == 0:
+        raise ConfigurationError(
+            "Problem must have at least one state or control variable",
+            "Define variables using problem.state() or problem.control()",
+        )
+
+
 def _setup_solver_common(
     problem: Problem, nlp_options: dict[str, object] | None
 ) -> ProblemProtocol:
     """UNIFIED setup logic for both fixed and adaptive solvers."""
+    # Validate problem configuration first
+    _validate_problem_for_solving(problem)
+
     # Set solver options - single point of control
     problem.solver_options = nlp_options or DEFAULT_NLP_OPTIONS
 
@@ -54,10 +91,10 @@ def solve_fixed_mesh(
     problem: Problem,
     nlp_options: dict[str, object] | None = None,
 ) -> Solution:
-    """Solve optimal control problem with fixed mesh - SIMPLIFIED."""
+    """Solve optimal control problem with fixed mesh - SIMPLIFIED with ENHANCED ERROR HANDLING."""
     solver_logger.info(f"Starting fixed-mesh solve for problem '{problem.name}'")
 
-    # Unified setup
+    # Unified setup with validation
     protocol_problem = _setup_solver_common(problem, nlp_options)
 
     # Solve
@@ -80,7 +117,7 @@ def solve_adaptive(
     nlp_options: dict[str, object] | None = None,
     initial_guess: InitialGuess | None = None,
 ) -> Solution:
-    """Solve optimal control problem using adaptive mesh refinement - SIMPLIFIED."""
+    """Solve optimal control problem using adaptive mesh refinement - SIMPLIFIED with ENHANCED ERROR HANDLING."""
 
     solver_logger.info(f"Starting adaptive solve for problem '{problem.name}'")
     solver_logger.info(f"Settings: error_tol={error_tolerance}, max_iter={max_iterations}")
@@ -88,11 +125,30 @@ def solve_adaptive(
         f"Polynomial degree range: [{min_polynomial_degree}, {max_polynomial_degree}]"
     )
 
+    # Guard clause: Validate adaptive parameters
+    if error_tolerance <= 0:
+        raise ConfigurationError(
+            f"Error tolerance must be positive, got {error_tolerance}",
+            "Provide a positive error tolerance value",
+        )
+
+    if max_iterations <= 0:
+        raise ConfigurationError(
+            f"Max iterations must be positive, got {max_iterations}",
+            "Provide a positive max iterations value",
+        )
+
+    if min_polynomial_degree < 1 or max_polynomial_degree < min_polynomial_degree:
+        raise ConfigurationError(
+            f"Invalid polynomial degree range: [{min_polynomial_degree}, {max_polynomial_degree}]",
+            "Min degree must be >= 1 and max degree must be >= min degree",
+        )
+
     # Verify mesh is configured
     if not problem._mesh_configured:
-        raise ValueError(
-            "Initial mesh must be configured before solving. "
-            "Call problem.set_mesh(polynomial_degrees, mesh_points) first."
+        raise ConfigurationError(
+            "Initial mesh must be configured before solving",
+            "Call problem.set_mesh(polynomial_degrees, mesh_points) first",
         )
 
     # Set default ODE solver if not provided
@@ -105,7 +161,7 @@ def solve_adaptive(
     initial_polynomial_degrees = problem.collocation_points_per_interval
     initial_mesh_points = problem.global_normalized_mesh_nodes
 
-    # Unified setup
+    # Unified setup with validation
     protocol_problem = _setup_solver_common(problem, nlp_options)
 
     # Use whatever initial guess was set on the problem (if any)
