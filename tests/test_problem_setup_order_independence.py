@@ -191,9 +191,18 @@ class TestProblemSetupOrderIndependence:
         problem.set_initial_guess(states=states, controls=controls)
 
         summary2 = problem.get_solver_input_summary()
-        assert "complete_user_provided" in summary2.initial_guess_source
+        assert "partial_user_provided" in summary2.initial_guess_source
         assert summary2.states_guess_shapes == [(1, 4)]
         assert summary2.controls_guess_shapes == [(1, 3)]
+
+        # After setting initial guess
+        states, controls = self.create_initial_guess()
+        problem.set_initial_guess(states=states, controls=controls, integrals=0.1)
+
+        summary3 = problem.get_solver_input_summary()
+        assert "complete_user_provided" in summary3.initial_guess_source
+        assert summary3.states_guess_shapes == [(1, 4)]
+        assert summary3.controls_guess_shapes == [(1, 3)]
 
     def test_multi_interval_order_independence(self):
         """Test order independence with multi-interval meshes."""
