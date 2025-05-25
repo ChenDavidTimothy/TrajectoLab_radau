@@ -300,21 +300,126 @@ class Solution:
     def _plot_single_variable(
         self, ax: MplAxes, name: str, var_type: str, colors: list | np.ndarray | None
     ) -> None:
-        """Plot single variable with mesh interval coloring."""
+        """
+        Plot single variable with correct mathematical representation.
+
+        States: Linear interpolation (smooth curves)
+        Controls: Step functions (piecewise constant)
+        """
         time_array, values_array = self.get_trajectory(name)
 
         if time_array.size == 0:
             return
 
-        # Simple plot if no mesh intervals
+        # Branch based on variable type for correct mathematical representation
+        if var_type == "control":
+            self._plot_control_step_function(ax, time_array, values_array, colors)
+        else:  # state
+            self._plot_state_linear(ax, time_array, values_array, colors)
+
+        ax.set_ylabel(name)
+        ax.grid(True, alpha=0.3)
+
+    # Add these two new methods to the Solution class:
+
+    def _plot_control_step_function(
+        self,
+        ax: MplAxes,
+        time_array: FloatArray,
+        values_array: FloatArray,
+        colors: list | np.ndarray | None,
+    ) -> None:
+        """
+        Plot control trajectory as step function (piecewise constant).
+
+        Each control value is held constant until the next time point,
+        following the mathematical interpretation of discrete control optimization.
+        """
+        if len(time_array) == 0:
+            return
+
+        # Prepare extended arrays for proper step function visualization
+        extended_times = np.copy(time_array)
+        extended_values = np.copy(values_array)
+
+        # Extend final control value to make it visible in step plot
+        if len(time_array) > 0:
+            if self.final_time is not None and self.final_time > time_array[-1]:
+                # Extend to problem final time
+                extended_times = np.append(extended_times, self.final_time)
+                extended_values = np.append(extended_values, values_array[-1])
+            elif len(time_array) > 1:
+                # Extend by small amount based on time spacing
+                dt = time_array[-1] - time_array[-2]
+                extended_times = np.append(extended_times, time_array[-1] + dt * 0.1)
+                extended_values = np.append(extended_values, values_array[-1])
+            else:
+                # Single point case
+                extended_times = np.append(extended_times, time_array[-1] + 1.0)
+                extended_values = np.append(extended_values, values_array[-1])
+
+        # Plot step function with appropriate coloring
         if colors is None or len(colors) == 0:
-            ax.plot(time_array, values_array, "b.-", linewidth=1.5, markersize=3)
+            # Simple step function without mesh interval coloring
+            ax.step(extended_times, extended_values, where="post", color="b", linewidth=1.5)
+            ax.plot(time_array, values_array, "bo", markersize=4)  # Mark actual control points
         else:
-            # Plot by intervals with colors
+            # Step function with mesh interval coloring
             intervals = self._get_mesh_intervals()
             if len(intervals) > 0:
                 for k, (t_start, t_end) in enumerate(intervals):
-                    # Find points in this interval
+                    # Find control points in this mesh interval
+                    mask = (time_array >= t_start - 1e-10) & (time_array <= t_end + 1e-10)
+                    if np.any(mask):
+                        interval_times = time_array[mask]
+                        interval_values = values_array[mask]
+
+                        # Extend last control in interval to interval boundary
+                        if len(interval_times) > 0 and interval_times[-1] < t_end - 1e-10:
+                            interval_times = np.append(interval_times, t_end)
+                            interval_values = np.append(interval_values, interval_values[-1])
+
+                        color = colors[k % len(colors)]
+                        ax.step(
+                            interval_times,
+                            interval_values,
+                            where="post",
+                            color=color,
+                            linewidth=1.5,
+                        )
+                        ax.plot(
+                            time_array[mask], values_array[mask], "o", color=color, markersize=4
+                        )
+            else:
+                # Fallback to simple step function
+                ax.step(extended_times, extended_values, where="post", color="b", linewidth=1.5)
+                ax.plot(time_array, values_array, "bo", markersize=4)
+
+    def _plot_state_linear(
+        self,
+        ax: MplAxes,
+        time_array: FloatArray,
+        values_array: FloatArray,
+        colors: list | np.ndarray | None,
+    ) -> None:
+        """
+        Plot state trajectory with linear interpolation (smooth curves).
+
+        Maintains existing behavior for states, which are continuous functions
+        in the mathematical formulation.
+        """
+        if len(time_array) == 0:
+            return
+
+        # Preserve existing state plotting implementation
+        if colors is None or len(colors) == 0:
+            ax.plot(time_array, values_array, "b.-", linewidth=1.5, markersize=3)
+        else:
+            # Plot by mesh intervals with colors
+            intervals = self._get_mesh_intervals()
+            if len(intervals) > 0:
+                for k, (t_start, t_end) in enumerate(intervals):
+                    # Find state points in this mesh interval
                     mask = (time_array >= t_start - 1e-10) & (time_array <= t_end + 1e-10)
                     if np.any(mask):
                         ax.plot(
@@ -327,11 +432,8 @@ class Solution:
                             markersize=7,
                         )
             else:
-                # Fallback to simple plot
+                # Fallback to simple linear plot
                 ax.plot(time_array, values_array, "b.-", linewidth=1.5, markersize=3)
-
-        ax.set_ylabel(name)
-        ax.grid(True, alpha=0.3)
 
     def _get_interval_colors(self) -> FloatArray | None:
         """Get colors for mesh intervals."""
