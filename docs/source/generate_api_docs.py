@@ -50,6 +50,7 @@ def generate_api_docs():
         return
 
     # Define the output directory for the generated .rst files
+
     # This should be relative to this script's location.
     # If this script is docs/source/generate_api_docs.py, then api_dir is docs/source/api/
     api_dir = Path(__file__).parent / "api"
