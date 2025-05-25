@@ -27,7 +27,6 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
     - name: Checkout
       uses: actions/checkout@v4
@@ -50,17 +49,26 @@ jobs:
         pip install -e .
         pip install -r docs/requirements.txt
 
+    - name: Clean old documentation
+      run: |
+        cd docs
+        make clean
+        echo "✓ Cleaned previous documentation builds"
+
     - name: Build documentation
       run: |
         cd docs
         make html
+        echo "✓ Documentation built successfully"
 
-    - name: Check for build warnings
+    - name: Check documentation build
       run: |
-        if [ -f docs/_build/html/.buildinfo ]; then
-          echo "✓ Documentation built successfully"
+        if [ -f docs/_build/html/index.html ]; then
+          echo "✓ Documentation HTML generated successfully"
+          echo "📊 Generated pages:"
+          find docs/_build/html -name "*.html" | head -10
         else
-          echo "❌ Documentation build failed"
+          echo "❌ Documentation build failed - no index.html found"
           exit 1
         fi
 
@@ -73,13 +81,10 @@ jobs:
   deploy:
     needs: build
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-
     runs-on: ubuntu-latest
-
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-
     steps:
     - name: Deploy to GitHub Pages
       id: deployment
