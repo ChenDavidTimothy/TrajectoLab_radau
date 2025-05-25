@@ -105,13 +105,15 @@ class Solution:
 
     def _resolve_variable(self, identifier: _VariableIdentifier) -> tuple[str | None, str | None]:
         """Resolve variable identifier to (name, type)."""
-        if hasattr(identifier, "_symbolic_var"):
+        if not isinstance(identifier, str | int) and hasattr(identifier, "_symbolic_var"):
             underlying_sym = identifier._symbolic_var
             if underlying_sym in self._sym_to_name:
                 var_name = self._sym_to_name[underlying_sym]
             else:
                 return None, None
-        elif hasattr(identifier, "is_symbolic") or hasattr(identifier, "is_constant"):
+        elif not isinstance(identifier, str | int) and (
+            hasattr(identifier, "is_symbolic") or hasattr(identifier, "is_constant")
+        ):
             sym_identifier = cast(SymType, identifier)
             if sym_identifier in self._sym_to_name:
                 var_name = self._sym_to_name[sym_identifier]
