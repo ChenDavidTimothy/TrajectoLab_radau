@@ -2,19 +2,17 @@
 API Reference
 =============
 
-Core Modules
+This section provides an overview of all modules within the TrajectoLab library.
+
+Core Package
 ------------
+
+The main ``trajectolab`` package.
 
 .. toctree::
    :maxdepth: 1
 
    trajectolab
-
-High-Level Interface
---------------------
-
-.. toctree::
-   :maxdepth: 1
 
 
 Solver Modules
@@ -33,8 +31,8 @@ Solver Modules
    trajectolab_problem_solver_interface
    trajectolab_solver
 
-Problem Definition
-------------------
+Problem Definition Modules
+--------------------------
 
 .. toctree::
    :maxdepth: 1
@@ -47,8 +45,8 @@ Problem Definition
    trajectolab_problem_state
    trajectolab_problem_variables_problem
 
-Other Modules
--------------
+Adaptive Mesh Refinement Modules
+--------------------------------
 
 .. toctree::
    :maxdepth: 1
@@ -61,14 +59,28 @@ Other Modules
    trajectolab_adaptive_phs_initial_guess
    trajectolab_adaptive_phs_numerical
    trajectolab_adaptive_phs_refinement
+
+Utility Modules
+---------------
+
+.. toctree::
+   :maxdepth: 1
+
+   trajectolab_utils
+   trajectolab_utils_casadi_utils
+   trajectolab_utils_constants
+   trajectolab_utils_expression_cache
+   trajectolab_utils_memory_pool
+
+Other Modules
+-------------
+
+.. toctree::
+   :maxdepth: 1
+
    trajectolab_exceptions
    trajectolab_input_validation
    trajectolab_radau
    trajectolab_solution
    trajectolab_solution_extraction
    trajectolab_tl_types
-   trajectolab_utils
-   trajectolab_utils_casadi_utils
-   trajectolab_utils_constants
-   trajectolab_utils_expression_cache
-   trajectolab_utils_memory_pool

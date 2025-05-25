@@ -1,7 +1,7 @@
-trajectolab.tl_types
-====================
+trajectolab
+===========
 
-.. automodule:: trajectolab.tl_types
+.. automodule:: trajectolab
    :members:
    :undoc-members:
    :show-inheritance:
