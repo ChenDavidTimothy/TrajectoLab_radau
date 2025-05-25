@@ -5,6 +5,7 @@ Mesh refinement strategies including p-refinement, h-refinement, and reduction.
 import logging
 from typing import cast
 
+import casadi as ca
 import numpy as np
 
 from trajectolab.adaptive.phs.data_structures import (
@@ -27,7 +28,7 @@ from trajectolab.tl_types import (
     ProblemProtocol,
     StateEvaluator,
 )
-from trajectolab.utils.casadi_utils import CasadiFunction, convert_casadi_to_numpy
+from trajectolab.utils.casadi_utils import convert_casadi_to_numpy
 from trajectolab.utils.constants import DEFAULT_ODE_ATOL_FACTOR
 
 
@@ -143,7 +144,7 @@ def h_reduce_intervals(
 
     # Get variable counts from unified storage
     num_states, _ = problem.get_variable_counts()
-    casadi_dynamics_function = cast(CasadiFunction, problem.get_dynamics_function())
+    casadi_dynamics_function = cast(ca.Function, problem.get_dynamics_function())
     problem_parameters = problem._parameters
 
     if solution.raw_solution is None:
@@ -204,7 +205,7 @@ def h_reduce_intervals(
 
         # Use consolidated conversion function
         f_rhs_np = convert_casadi_to_numpy(
-            cast(CasadiFunction, casadi_dynamics_function),
+            cast(ca.Function, casadi_dynamics_function),
             state_clipped,
             u_val,
             t_actual,

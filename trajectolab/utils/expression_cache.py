@@ -8,7 +8,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, ClassVar, cast
 
-from ..tl_types import CasadiFunction
+import casadi as ca
 
 
 @dataclass
@@ -51,24 +51,24 @@ class CasADiExpressionCache:
         return cls._instance
 
     def get_dynamics_function(
-        self, cache_key: ExpressionCacheKey, builder_func: Callable[[], CasadiFunction]
-    ) -> CasadiFunction:
+        self, cache_key: ExpressionCacheKey, builder_func: Callable[[], ca.Function]
+    ) -> ca.Function:
         """Get cached dynamics function or build if not cached."""
         return self._get_cached_item(f"dynamics_{cache_key.cache_key}", builder_func)
 
     def get_objective_function(
-        self, cache_key: ExpressionCacheKey, builder_func: Callable[[], CasadiFunction]
-    ) -> CasadiFunction:
+        self, cache_key: ExpressionCacheKey, builder_func: Callable[[], ca.Function]
+    ) -> ca.Function:
         """Get cached objective function or build if not cached."""
         return self._get_cached_item(f"objective_{cache_key.cache_key}", builder_func)
 
     def get_integrand_functions(
-        self, cache_key: ExpressionCacheKey, builder_func: Callable[[], list[CasadiFunction]]
-    ) -> list[CasadiFunction]:
+        self, cache_key: ExpressionCacheKey, builder_func: Callable[[], list[ca.Function]]
+    ) -> list[ca.Function]:
         """Get cached integrand functions or build if not cached."""
         # Fix: Cast the result to the correct type
         result = self._get_cached_item(f"integrand_{cache_key.cache_key}", builder_func)
-        return cast(list[CasadiFunction], result)
+        return cast(list[ca.Function], result)
 
     def _get_cached_item(self, full_key: str, builder_func: Callable[[], Any]) -> Any:
         """Unified cache retrieval method."""

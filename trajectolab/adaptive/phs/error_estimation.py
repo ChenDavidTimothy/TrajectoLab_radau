@@ -17,7 +17,7 @@ from trajectolab.tl_types import (
     ProblemProtocol,
     StateEvaluator,
 )
-from trajectolab.utils.casadi_utils import CasadiFunction, convert_casadi_to_numpy
+from trajectolab.utils.casadi_utils import convert_casadi_to_numpy
 from trajectolab.utils.constants import DEFAULT_ODE_RTOL
 
 
@@ -145,7 +145,7 @@ def simulate_dynamics_for_error_estimation(
 
         # Use the consolidated conversion function
         state_deriv_np = convert_casadi_to_numpy(
-            cast(CasadiFunction, casadi_dynamics_function),
+            casadi_dynamics_function,
             state,
             control,
             physical_time,

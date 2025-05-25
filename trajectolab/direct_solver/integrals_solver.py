@@ -6,8 +6,6 @@ import casadi as ca
 
 from ..radau import RadauBasisComponents
 from ..tl_types import (
-    CasadiMX,
-    CasadiOpti,
     FloatArray,
     IntegralIntegrandCallable,
     ProblemParameters,
@@ -15,18 +13,18 @@ from ..tl_types import (
 
 
 def setup_integrals(
-    opti: CasadiOpti,
+    opti: ca.Opti,
     mesh_interval_index: int,
-    state_at_nodes: CasadiMX,
-    control_variables: CasadiMX,
+    state_at_nodes: ca.MX,
+    control_variables: ca.MX,
     basis_components: RadauBasisComponents,
     global_normalized_mesh_nodes: FloatArray,
-    initial_time_variable: CasadiMX,
-    terminal_time_variable: CasadiMX,
+    initial_time_variable: ca.MX,
+    terminal_time_variable: ca.MX,
     integral_integrand_function: IntegralIntegrandCallable,
     problem_parameters: ProblemParameters,
     num_integrals: int,
-    accumulated_integral_expressions: list[CasadiMX],
+    accumulated_integral_expressions: list[ca.MX],
 ) -> None:
     """
     Set up integral calculations for a single mesh interval using quadrature.
@@ -57,20 +55,20 @@ def setup_integrals(
         - global_normalized_mesh_nodes[mesh_interval_index]
     )
 
-    tau_to_time_scaling: CasadiMX = (
+    tau_to_time_scaling: ca.MX = (
         (terminal_time_variable - initial_time_variable) * global_segment_length / 4.0
     )
 
     for integral_index in range(num_integrals):
-        quad_sum: CasadiMX = ca.MX(0)
+        quad_sum: ca.MX = ca.MX(0)
 
         for i_colloc in range(num_colloc_nodes):
-            state_at_colloc: CasadiMX = state_at_nodes[:, i_colloc]
-            control_at_colloc: CasadiMX = control_variables[:, i_colloc]
+            state_at_colloc: ca.MX = state_at_nodes[:, i_colloc]
+            control_at_colloc: ca.MX = control_variables[:, i_colloc]
 
             # Calculate physical time at this collocation point
             local_colloc_tau_val: float = colloc_nodes_tau[i_colloc]
-            global_colloc_tau_val: CasadiMX = (
+            global_colloc_tau_val: ca.MX = (
                 global_segment_length / 2 * local_colloc_tau_val
                 + (
                     global_normalized_mesh_nodes[mesh_interval_index + 1]
@@ -78,13 +76,13 @@ def setup_integrals(
                 )
                 / 2
             )
-            physical_time_at_colloc: CasadiMX = (
+            physical_time_at_colloc: ca.MX = (
                 terminal_time_variable - initial_time_variable
             ) / 2 * global_colloc_tau_val + (terminal_time_variable + initial_time_variable) / 2
 
             # Calculate integrand and add to quadrature sum
             weight: float = quad_weights[i_colloc]
-            integrand_value: CasadiMX = integral_integrand_function(
+            integrand_value: ca.MX = integral_integrand_function(
                 state_at_colloc,
                 control_at_colloc,
                 physical_time_at_colloc,
@@ -97,9 +95,9 @@ def setup_integrals(
 
 
 def apply_integral_constraints(
-    opti: CasadiOpti,
-    integral_variables: CasadiMX,
-    accumulated_integral_expressions: list[CasadiMX],
+    opti: ca.Opti,
+    integral_variables: ca.MX,
+    accumulated_integral_expressions: list[ca.MX],
     num_integrals: int,
 ) -> None:
     """

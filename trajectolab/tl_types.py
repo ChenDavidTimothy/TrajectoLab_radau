@@ -28,13 +28,6 @@ NumericArrayLike: TypeAlias = (
 # --- Core Symbolic Types ---
 SymExpr: TypeAlias = ca.MX | float | int
 
-# --- CasADi Types (Simplified) ---
-CasadiMX: TypeAlias = ca.MX
-CasadiDM: TypeAlias = ca.DM
-CasadiOpti: TypeAlias = ca.Opti
-CasadiOptiSol: TypeAlias = ca.OptiSol
-CasadiFunction: TypeAlias = ca.Function
-ListOfCasadiMX: TypeAlias = list[CasadiMX]
 
 # --- Problem Structure ---
 ProblemParameters: TypeAlias = dict[str, float | int | str]
@@ -57,7 +50,7 @@ class Constraint:
 
     def __init__(
         self,
-        val: CasadiMX | float,
+        val: ca.MX | float,
         min_val: float | None = None,
         max_val: float | None = None,
         equals: float | None = None,
@@ -92,12 +85,12 @@ class TimeVariable(Protocol):
     """Protocol for time variable with initial/final properties."""
 
     @property
-    def initial(self) -> CasadiMX: ...
+    def initial(self) -> ca.MX: ...
 
     @property
-    def final(self) -> CasadiMX: ...
+    def final(self) -> ca.MX: ...
 
-    def __call__(self) -> CasadiMX: ...
+    def __call__(self) -> ca.MX: ...
 
 
 # --- Initial Guess Classes ---
@@ -133,8 +126,8 @@ class OptimalControlSolution:
         self.states: list[FloatArray] = []
         self.time_controls: FloatArray = np.array([], dtype=np.float64)
         self.controls: list[FloatArray] = []
-        self.raw_solution: CasadiOptiSol | None = None
-        self.opti_object: CasadiOpti | None = None
+        self.raw_solution: ca.OptiSol | None = None
+        self.opti_object: ca.Opti | None = None
         self.num_collocation_nodes_per_interval: list[int] = []
         self.global_normalized_mesh_nodes: FloatArray | None = None
         self.num_collocation_nodes_list_at_solve_time: list[int] | None = None
@@ -145,27 +138,27 @@ class OptimalControlSolution:
 
 # --- Solver Callable Types ---
 DynamicsCallable: TypeAlias = Callable[
-    [CasadiMX, CasadiMX, CasadiMX, ProblemParameters],
-    list[CasadiMX] | CasadiMX | Sequence[CasadiMX],
+    [ca.MX, ca.MX, ca.MX, ProblemParameters],
+    list[ca.MX] | ca.MX | Sequence[ca.MX],
 ]
 
 ObjectiveCallable: TypeAlias = Callable[
-    [CasadiMX, CasadiMX, CasadiMX, CasadiMX, CasadiMX | None, ProblemParameters],
-    CasadiMX,
+    [ca.MX, ca.MX, ca.MX, ca.MX, ca.MX | None, ProblemParameters],
+    ca.MX,
 ]
 
 IntegralIntegrandCallable: TypeAlias = Callable[
-    [CasadiMX, CasadiMX, CasadiMX, int, ProblemParameters],
-    CasadiMX,
+    [ca.MX, ca.MX, ca.MX, int, ProblemParameters],
+    ca.MX,
 ]
 
 PathConstraintsCallable: TypeAlias = Callable[
-    [CasadiMX, CasadiMX, CasadiMX, ProblemParameters],
+    [ca.MX, ca.MX, ca.MX, ProblemParameters],
     list[Constraint] | Constraint,
 ]
 
 EventConstraintsCallable: TypeAlias = Callable[
-    [CasadiMX, CasadiMX, CasadiMX, CasadiMX, CasadiMX | None, ProblemParameters],
+    [ca.MX, ca.MX, ca.MX, ca.MX, ca.MX | None, ProblemParameters],
     list[Constraint] | Constraint,
 ]
 
@@ -209,14 +202,14 @@ class ProblemProtocol(Protocol):
     _tf_bounds: tuple[float, float]
 
     # Symbolic variables
-    _sym_time: CasadiMX | None
-    _sym_time_initial: CasadiMX | None
-    _sym_time_final: CasadiMX | None
-    _dynamics_expressions: dict[CasadiMX, SymExpr]
+    _sym_time: ca.MX | None
+    _sym_time_initial: ca.MX | None
+    _sym_time_final: ca.MX | None
+    _dynamics_expressions: dict[ca.MX, SymExpr]
     _objective_expression: SymExpr | None
     _constraints: list[SymExpr]
     _integral_expressions: list[SymExpr]
-    _integral_symbols: list[CasadiMX]
+    _integral_symbols: list[ca.MX]
     _parameters: ProblemParameters
 
     # Methods that return variable info
@@ -224,11 +217,11 @@ class ProblemProtocol(Protocol):
         """Return (num_states, num_controls)"""
         ...
 
-    def get_ordered_state_symbols(self) -> list[CasadiMX]:
+    def get_ordered_state_symbols(self) -> list[ca.MX]:
         """Get state symbols in order"""
         ...
 
-    def get_ordered_control_symbols(self) -> list[CasadiMX]:
+    def get_ordered_control_symbols(self) -> list[ca.MX]:
         """Get control symbols in order"""
         ...
 

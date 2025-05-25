@@ -6,13 +6,13 @@ import casadi as ca
 
 from ..exceptions import DataIntegrityError
 from ..input_validation import validate_casadi_optimization_object, validate_mesh_interval_count
-from ..tl_types import CasadiMX, CasadiOpti, ListOfCasadiMX, ProblemProtocol
+from ..tl_types import ProblemProtocol
 from ..utils.constants import MINIMUM_TIME_INTERVAL
 from .types_solver import VariableReferences, _IntervalBundle
 
 
 def setup_optimization_variables(
-    opti: CasadiOpti,
+    opti: ca.Opti,
     problem: ProblemProtocol,
     num_mesh_intervals: int,
 ) -> VariableReferences:
@@ -52,11 +52,11 @@ def setup_optimization_variables(
 
 
 def setup_interval_state_variables(
-    opti: CasadiOpti,
+    opti: ca.Opti,
     mesh_interval_index: int,
     num_states: int,
     num_colloc_nodes: int,
-    state_at_global_mesh_nodes: ListOfCasadiMX,
+    state_at_global_mesh_nodes: list[ca.MX],
 ) -> _IntervalBundle:
     """
     Set up state variables for a single mesh interval.
@@ -84,13 +84,13 @@ def setup_interval_state_variables(
         )
 
     # Initialize state columns
-    state_columns: list[CasadiMX] = [ca.MX(num_states, 1) for _ in range(num_colloc_nodes + 1)]
+    state_columns: list[ca.MX] = [ca.MX(num_states, 1) for _ in range(num_colloc_nodes + 1)]
 
     # First column is the state at the start of the interval
     state_columns[0] = state_at_global_mesh_nodes[mesh_interval_index]
 
     # Create interior state variables if needed
-    interior_nodes_var: CasadiMX | None = None
+    interior_nodes_var: ca.MX | None = None
     if num_colloc_nodes > 1:
         num_interior_nodes = num_colloc_nodes - 1
         if num_interior_nodes > 0:
@@ -112,7 +112,7 @@ def setup_interval_state_variables(
     return state_matrix, interior_nodes_var
 
 
-def _create_time_variables(opti: CasadiOpti, problem: ProblemProtocol) -> tuple[CasadiMX, CasadiMX]:
+def _create_time_variables(opti: ca.Opti, problem: ProblemProtocol) -> tuple[ca.MX, ca.MX]:
     """
     Create time variables with bounds.
 
@@ -123,8 +123,8 @@ def _create_time_variables(opti: CasadiOpti, problem: ProblemProtocol) -> tuple[
     tf_bounds = problem._tf_bounds
 
     # Create CasADi variables
-    initial_time_variable: CasadiMX = opti.variable()
-    terminal_time_variable: CasadiMX = opti.variable()
+    initial_time_variable: ca.MX = opti.variable()
+    terminal_time_variable: ca.MX = opti.variable()
 
     # Data integrity check (CasADi interface)
     if initial_time_variable is None or terminal_time_variable is None:
@@ -161,8 +161,8 @@ def _create_time_variables(opti: CasadiOpti, problem: ProblemProtocol) -> tuple[
 
 
 def _create_global_state_variables(
-    opti: CasadiOpti, num_states: int, num_mesh_intervals: int
-) -> ListOfCasadiMX:
+    opti: ca.Opti, num_states: int, num_mesh_intervals: int
+) -> list[ca.MX]:
     """
     Create state variables at global mesh nodes.
 
@@ -183,8 +183,8 @@ def _create_global_state_variables(
 
 
 def _create_control_variables(
-    opti: CasadiOpti, problem: ProblemProtocol, num_mesh_intervals: int
-) -> ListOfCasadiMX:
+    opti: ca.Opti, problem: ProblemProtocol, num_mesh_intervals: int
+) -> list[ca.MX]:
     """
     Create control variables for each interval.
 
@@ -214,7 +214,7 @@ def _create_control_variables(
     return control_variables
 
 
-def _create_integral_variables(opti: CasadiOpti, num_integrals: int) -> CasadiMX | None:
+def _create_integral_variables(opti: ca.Opti, num_integrals: int) -> ca.MX | None:
     """
     Create integral variables if needed.
 

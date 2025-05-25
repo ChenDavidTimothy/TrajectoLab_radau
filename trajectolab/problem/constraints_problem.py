@@ -7,7 +7,6 @@ from __future__ import annotations
 import casadi as ca
 
 from ..tl_types import (
-    CasadiMX,
     Constraint,
     EventConstraintsCallable,
     PathConstraintsCallable,
@@ -77,7 +76,7 @@ def _symbolic_constraint_to_constraint(expr: SymExpr) -> Constraint:
 
 def _boundary_constraint_to_constraints(
     boundary_constraint: _BoundaryConstraint,
-    variable_expression: CasadiMX,
+    variable_expression: ca.MX,
 ) -> list[Constraint]:
     """Convert boundary constraint to list of Constraint objects."""
     constraints: list[Constraint] = []
@@ -137,9 +136,9 @@ def get_path_constraints_function(
     control_syms = variable_state.get_ordered_control_symbols()
 
     def vectorized_path_constraints(
-        states_vec: CasadiMX,
-        controls_vec: CasadiMX,
-        time: CasadiMX,
+        states_vec: ca.MX,
+        controls_vec: ca.MX,
+        time: ca.MX,
         params: ProblemParameters,
     ) -> list[Constraint]:
         """Apply path constraints at a single collocation point."""
@@ -219,11 +218,11 @@ def get_event_constraints_function(
     control_syms = variable_state.get_ordered_control_symbols()
 
     def vectorized_event_constraints(
-        t0: CasadiMX,
-        tf: CasadiMX,
-        x0_vec: CasadiMX,
-        xf_vec: CasadiMX,
-        q: CasadiMX | None,
+        t0: ca.MX,
+        tf: ca.MX,
+        x0_vec: ca.MX,
+        xf_vec: ca.MX,
+        q: ca.MX | None,
         params: ProblemParameters,
     ) -> list[Constraint]:
         result: list[Constraint] = []

@@ -4,13 +4,15 @@ Initial guess application functions for optimization variables.
 
 from typing import cast
 
+import casadi as ca
+
 from ..input_validation import set_integral_guess_values, validate_integral_values
-from ..tl_types import CasadiOpti, FloatArray, ProblemProtocol
+from ..tl_types import FloatArray, ProblemProtocol
 from .types_solver import VariableReferences
 
 
 def apply_initial_guess(
-    opti: CasadiOpti,
+    opti: ca.Opti,
     variables: VariableReferences,
     problem: ProblemProtocol,
     num_mesh_intervals: int,
@@ -37,7 +39,7 @@ def apply_initial_guess(
     _apply_integral_guesses(opti, variables, ig, num_integrals)
 
 
-def _apply_time_guesses(opti: CasadiOpti, variables: VariableReferences, ig) -> None:
+def _apply_time_guesses(opti: ca.Opti, variables: VariableReferences, ig) -> None:
     """Apply initial guess for time variables."""
     if ig.initial_time_variable is not None:
         opti.set_initial(variables.initial_time, ig.initial_time_variable)
@@ -46,7 +48,7 @@ def _apply_time_guesses(opti: CasadiOpti, variables: VariableReferences, ig) -> 
 
 
 def _apply_state_guesses(
-    opti: CasadiOpti,
+    opti: ca.Opti,
     variables: VariableReferences,
     ig,
     num_states: int,
@@ -87,7 +89,7 @@ def _apply_state_guesses(
 
 
 def _apply_control_guesses(
-    opti: CasadiOpti,
+    opti: ca.Opti,
     variables: VariableReferences,
     ig,
     num_controls: int,
@@ -111,7 +113,7 @@ def _apply_control_guesses(
 
 
 def _apply_integral_guesses(
-    opti: CasadiOpti, variables: VariableReferences, ig, num_integrals: int
+    opti: ca.Opti, variables: VariableReferences, ig, num_integrals: int
 ) -> None:
     """
     Apply initial guess for integral variables.

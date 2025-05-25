@@ -10,7 +10,6 @@ from typing import cast
 import casadi as ca
 
 from ..tl_types import (
-    CasadiMX,
     DynamicsCallable,
     EventConstraintsCallable,
     IntegralIntegrandCallable,
@@ -63,11 +62,11 @@ def get_dynamics_function(variable_state: VariableState) -> DynamicsCallable:
     )
 
     def vectorized_dynamics(
-        states_vec: CasadiMX,
-        controls_vec: CasadiMX,
-        time: CasadiMX,
+        states_vec: ca.MX,
+        controls_vec: ca.MX,
+        time: ca.MX,
         params: ProblemParameters,
-    ) -> list[CasadiMX]:
+    ) -> list[ca.MX]:
         param_values: list[float] = []
         for name in variable_state.parameters:
             value = params.get(name, 0.0)
@@ -84,9 +83,9 @@ def get_dynamics_function(variable_state: VariableState) -> DynamicsCallable:
             raise ValueError("Dynamics function returned None")
 
         num_states = int(dynamics_output.size1())
-        result_list: list[CasadiMX] = []
+        result_list: list[ca.MX] = []
         for i in range(num_states):
-            result_list.append(cast(CasadiMX, dynamics_output[i]))
+            result_list.append(cast(ca.MX, dynamics_output[i]))
 
         return result_list
 
@@ -169,13 +168,13 @@ def get_objective_function(variable_state: VariableState) -> ObjectiveCallable:
     )
 
     def unified_objective(
-        t0: CasadiMX,
-        tf: CasadiMX,
-        x0_vec: CasadiMX,
-        xf_vec: CasadiMX,
-        q: CasadiMX | None,
+        t0: ca.MX,
+        tf: ca.MX,
+        x0_vec: ca.MX,
+        xf_vec: ca.MX,
+        q: ca.MX | None,
         params: ProblemParameters,
-    ) -> CasadiMX:
+    ) -> ca.MX:
         param_values = []
         for name in variable_state.parameters:
             param_val = params.get(name, 0.0)
@@ -189,7 +188,7 @@ def get_objective_function(variable_state: VariableState) -> ObjectiveCallable:
 
         result = obj_func(t0, tf, x0_vec, xf_vec, q_val, param_vec)
         obj_output = result[0] if isinstance(result, list | tuple) else result
-        return cast(CasadiMX, obj_output)
+        return cast(ca.MX, obj_output)
 
     return unified_objective
 
@@ -230,12 +229,12 @@ def get_integrand_function(variable_state: VariableState) -> IntegralIntegrandCa
     )
 
     def vectorized_integrand(
-        states_vec: CasadiMX,
-        controls_vec: CasadiMX,
-        time: CasadiMX,
+        states_vec: ca.MX,
+        controls_vec: ca.MX,
+        time: ca.MX,
         integral_idx: int,
         params: ProblemParameters,
-    ) -> CasadiMX:
+    ) -> ca.MX:
         if integral_idx >= len(integrand_funcs):
             return ca.MX(0.0)
 
@@ -246,7 +245,7 @@ def get_integrand_function(variable_state: VariableState) -> IntegralIntegrandCa
         param_vec = ca.DM(param_values) if param_values else ca.DM()
         result = integrand_funcs[integral_idx](states_vec, controls_vec, time, param_vec)
         integrand_output = result[0] if isinstance(result, list | tuple) else result
-        return cast(CasadiMX, integrand_output)
+        return cast(ca.MX, integrand_output)
 
     return vectorized_integrand
 

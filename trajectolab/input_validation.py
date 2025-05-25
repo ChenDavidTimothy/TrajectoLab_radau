@@ -11,7 +11,7 @@ import casadi as ca
 import numpy as np
 
 from .exceptions import ConfigurationError, DataIntegrityError
-from .tl_types import CasadiMX, CasadiOpti, FloatArray, InitialGuess, ProblemProtocol
+from .tl_types import FloatArray, InitialGuess, ProblemProtocol
 from .utils.constants import MESH_TOLERANCE, MINIMUM_TIME_INTERVAL, ZERO_TOLERANCE
 
 
@@ -209,7 +209,7 @@ def validate_mesh_interval_count(num_intervals: int, context: str = "mesh interv
         )
 
 
-def validate_casadi_optimization_object(opti: CasadiOpti, context: str = "solver setup") -> None:
+def validate_casadi_optimization_object(opti: ca.Opti, context: str = "solver setup") -> None:
     """Validate CasADi optimization object - CENTRALIZED."""
     if opti is None:
         raise ConfigurationError(
@@ -255,10 +255,10 @@ def validate_adaptive_solver_parameters(
 
 
 def validate_dynamics_output(
-    output: list[CasadiMX] | CasadiMX | Sequence[CasadiMX], num_states: int
-) -> CasadiMX:
+    output: list[ca.MX] | ca.MX | Sequence[ca.MX], num_states: int
+) -> ca.MX:
     """
-    Validates and converts dynamics function output to the expected CasadiMX format.
+    Validates and converts dynamics function output to the expected ca.MX format.
     NOTE: This stays here as it's about data integrity, not user configuration.
     """
     # Guard clause: Check for None output (TrajectoLab logic error)
@@ -549,8 +549,8 @@ def validate_interval_length(
 
 
 def set_integral_guess_values(
-    opti: CasadiOpti,
-    integral_vars: CasadiMX,
+    opti: ca.Opti,
+    integral_vars: ca.MX,
     guess: float | FloatArray | None,
     num_integrals: int,
 ) -> None:

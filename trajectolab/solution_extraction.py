@@ -9,10 +9,7 @@ import numpy as np
 
 from .exceptions import DataIntegrityError, SolutionExtractionError
 from .tl_types import (
-    CasadiOpti,
-    CasadiOptiSol,
     FloatArray,
-    ListOfCasadiMX,
     OptimalControlSolution,
     ProblemProtocol,
 )
@@ -104,9 +101,9 @@ def extract_integral_values(
 
 def process_trajectory_points(
     mesh_interval_index: int,
-    casadi_solution_object: CasadiOptiSol,
-    opti_object: CasadiOpti,
-    variables_list: ListOfCasadiMX,
+    casadi_solution_object: ca.OptiSol,
+    opti_object: ca.Opti,
+    variables_list: list[ca.MX],
     local_tau_nodes: list[FloatArray],
     global_normalized_mesh_nodes: FloatArray,
     initial_time: float,
@@ -197,8 +194,8 @@ def process_trajectory_points(
 
 
 def extract_and_format_solution(
-    casadi_solution_object: CasadiOptiSol | None,
-    casadi_optimization_problem_object: CasadiOpti,
+    casadi_solution_object: ca.OptiSol | None,
+    casadi_optimization_problem_object: ca.Opti,
     problem: ProblemProtocol,
     num_collocation_nodes_per_interval: list[int],
     global_normalized_mesh_nodes: FloatArray,

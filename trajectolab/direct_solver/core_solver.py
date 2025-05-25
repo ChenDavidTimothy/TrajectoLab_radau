@@ -11,9 +11,6 @@ from ..exceptions import DataIntegrityError, SolutionExtractionError
 from ..radau import RadauBasisComponents, compute_radau_collocation_components
 from ..solution_extraction import extract_and_format_solution
 from ..tl_types import (
-    CasadiMX,
-    CasadiOpti,
-    CasadiOptiSol,
     FloatArray,
     OptimalControlSolution,
     ProblemProtocol,
@@ -40,7 +37,7 @@ def solve_single_phase_radau_collocation(problem: ProblemProtocol) -> OptimalCon
     logger.debug("Starting Radau collocation solver")
 
     # Initialize optimization problem
-    opti: CasadiOpti = ca.Opti()
+    opti: ca.Opti = ca.Opti()
     num_mesh_intervals = len(problem.collocation_points_per_interval)
     num_integrals = problem._num_integrals
 
@@ -54,7 +51,7 @@ def solve_single_phase_radau_collocation(problem: ProblemProtocol) -> OptimalCon
 
         # Initialize containers for interval processing
         metadata = MetadataBundle()
-        accumulated_integral_expressions: list[CasadiMX] = (
+        accumulated_integral_expressions: list[ca.MX] = (
             [ca.MX(0) for _ in range(num_integrals)] if num_integrals > 0 else []
         )
 
@@ -99,12 +96,12 @@ def solve_single_phase_radau_collocation(problem: ProblemProtocol) -> OptimalCon
 
 
 def _process_mesh_intervals(
-    opti: CasadiOpti,
+    opti: ca.Opti,
     variables: VariableReferences,
     metadata: MetadataBundle,
     problem: ProblemProtocol,
     num_mesh_intervals: int,
-    accumulated_integral_expressions: list[CasadiMX],
+    accumulated_integral_expressions: list[ca.MX],
 ) -> None:
     """
     Process each mesh interval to set up constraints and integrals.
@@ -214,7 +211,7 @@ def _process_mesh_intervals(
 
 
 def _setup_objective_and_event_constraints(
-    opti: CasadiOpti,
+    opti: ca.Opti,
     variables: VariableReferences,
     problem: ProblemProtocol,
     num_mesh_intervals: int,
@@ -230,11 +227,11 @@ def _setup_objective_and_event_constraints(
     objective_function = problem.get_objective_function()
 
     # Set up objective
-    initial_state: CasadiMX = variables.state_at_mesh_nodes[0]
-    terminal_state: CasadiMX = variables.state_at_mesh_nodes[num_mesh_intervals]
+    initial_state: ca.MX = variables.state_at_mesh_nodes[0]
+    terminal_state: ca.MX = variables.state_at_mesh_nodes[num_mesh_intervals]
 
     try:
-        objective_value: CasadiMX = objective_function(
+        objective_value: ca.MX = objective_function(
             variables.initial_time,
             variables.terminal_time,
             initial_state,
@@ -263,7 +260,7 @@ def _setup_objective_and_event_constraints(
 
 
 def _configure_solver_and_store_references(
-    opti: CasadiOpti,
+    opti: ca.Opti,
     variables: VariableReferences,
     metadata: MetadataBundle,
     problem: ProblemProtocol,
@@ -307,7 +304,7 @@ def _configure_solver_and_store_references(
 
 
 def _execute_solve(
-    opti: CasadiOpti, problem: ProblemProtocol, num_mesh_intervals: int
+    opti: ca.Opti, problem: ProblemProtocol, num_mesh_intervals: int
 ) -> OptimalControlSolution:
     """Execute the solve and handle results."""
     global_mesh_nodes = cast(FloatArray, problem.global_normalized_mesh_nodes)
@@ -315,7 +312,7 @@ def _execute_solve(
 
     try:
         # Attempt solve
-        solver_solution: CasadiOptiSol = opti.solve()
+        solver_solution: ca.OptiSol = opti.solve()
 
         # Log successful solve (DEBUG - internal operation success)
         logger.debug("NLP solver completed successfully")

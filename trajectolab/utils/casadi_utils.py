@@ -9,15 +9,15 @@ import casadi as ca
 import numpy as np
 
 from trajectolab.exceptions import DataIntegrityError
-from trajectolab.tl_types import CasadiDM, CasadiFunction, CasadiMX, FloatArray, ProblemParameters
+from trajectolab.tl_types import FloatArray, ProblemParameters
 
 
 logger = logging.getLogger(__name__)
 
 # Type aliases for better type safety
-_CasadiExpression: TypeAlias = CasadiMX | CasadiDM | ca.SX
-_CasadiObject: TypeAlias = CasadiMX | CasadiDM | CasadiFunction | ca.SX | Any
-_CasadiResult: TypeAlias = CasadiMX | CasadiDM | list[CasadiMX] | tuple[CasadiMX, ...]
+_CasadiExpression: TypeAlias = ca.MX | ca.DM | ca.SX
+_CasadiObject: TypeAlias = ca.MX | ca.DM | ca.Function | ca.SX | Any
+_CasadiResult: TypeAlias = ca.MX | ca.DM | list[ca.MX] | tuple[ca.MX, ...]
 
 
 class CasadiConversionError(Exception):
@@ -25,7 +25,7 @@ class CasadiConversionError(Exception):
 
 
 def convert_casadi_to_numpy(
-    casadi_dynamics_func: CasadiFunction,
+    casadi_dynamics_func: ca.Function,
     state: FloatArray,
     control: FloatArray,
     time: float,
