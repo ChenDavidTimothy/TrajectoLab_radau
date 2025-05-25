@@ -87,7 +87,7 @@ solution = tl.solve_adaptive(
     nlp_options={
         "ipopt.print_level": 3,
         "ipopt.max_iter": 2000,
-        "ipopt.tol": 1e-6,
+        "ipopt.tol": 1e-7,
     },
 )
 
