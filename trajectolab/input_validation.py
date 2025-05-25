@@ -415,9 +415,8 @@ def validate_mesh_configuration(
     # Critical spacing validation
     mesh_diffs = np.diff(mesh_points)
     if not np.all(mesh_diffs > MESH_TOLERANCE):
-        min_diff = np.min(mesh_diffs)
         raise ConfigurationError(
-            f"Mesh points must be strictly increasing with minimum spacing of {MESH_TOLERANCE}, found minimum difference of {min_diff}",
+            f"Mesh points must be strictly increasing with minimum spacing of {MESH_TOLERANCE}, found minimum difference of {np.min(mesh_diffs)}",
             "Invalid mesh spacing",
         )
 

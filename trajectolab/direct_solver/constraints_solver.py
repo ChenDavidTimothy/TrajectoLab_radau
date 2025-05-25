@@ -2,7 +2,6 @@
 Constraint application functions for collocation, path, and event constraints.
 """
 
-import logging
 from collections.abc import Sequence
 
 import casadi as ca
@@ -20,18 +19,6 @@ from trajectolab.tl_types import (
     ProblemParameters,
     ProblemProtocol,
 )
-
-
-# Configure constraints-specific logger
-constraints_logger = logging.getLogger("trajectolab.constraints")
-if not constraints_logger.handlers:
-    handler = logging.StreamHandler()
-    formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s", datefmt="%H:%M:%S"
-    )
-    handler.setFormatter(formatter)
-    constraints_logger.addHandler(handler)
-    constraints_logger.setLevel(logging.INFO)
 
 
 def apply_constraint(opti: CasadiOpti, constraint: Constraint) -> None:
