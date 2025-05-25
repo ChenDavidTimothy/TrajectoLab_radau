@@ -53,7 +53,7 @@ if solution.success:
     # Check constraint satisfaction
     pos_vals = solution["position"]
     speed_vals = solution["speed"]
-    speed_limit_vals = 1.0 - np.sin(2.0 * np.pi * pos_vals) / 2.0
+    speed_limit_vals = 1 - np.sin(2.0 * np.pi * pos_vals) / 2
     max_violation = np.max(speed_vals - speed_limit_vals)
     print(f"Max speed limit violation: {max_violation:.6f}")
 
