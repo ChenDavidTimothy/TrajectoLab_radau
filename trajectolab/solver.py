@@ -60,7 +60,7 @@ def solve_fixed_mesh(
         Check solution.success to verify if optimization succeeded.
 
     Raises:
-        ConfigurationError: If problem is not properly configured
+        trajectolab.ConfigurationError: If problem is not properly configured
 
     Example:
         >>> import trajectolab as tl
@@ -161,7 +161,7 @@ def solve_adaptive(
         The solution contains the final mesh configuration used.
 
     Raises:
-        ConfigurationError: If problem is not properly configured or parameters are invalid
+        trajectolab.ConfigurationError: If problem is not properly configured or parameters are invalid
 
     Example:
         >>> import trajectolab as tl
