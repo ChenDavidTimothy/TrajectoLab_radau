@@ -19,7 +19,9 @@ def configure_mesh(
     polynomial_degrees: list[int],
     mesh_points: NumericArrayLike,
 ) -> None:
-    """Configure the mesh structure."""
+    """
+    Configure the mesh structure.
+    """
 
     # Convert to numpy array if needed
     if isinstance(mesh_points, list):
@@ -27,34 +29,12 @@ def configure_mesh(
     else:
         mesh_array = np.asarray(mesh_points, dtype=np.float64)
 
-    # Log mesh validation start (DEBUG)
-    logger.debug("Validating mesh: %d degrees, %d points", len(polynomial_degrees), len(mesh_array))
+    # Log mesh configuration (DEBUG)
+    logger.debug(
+        "Configuring mesh: %d degrees, %d points", len(polynomial_degrees), len(mesh_array)
+    )
 
-    # Validate mesh structure
-    if len(polynomial_degrees) != len(mesh_array) - 1:
-        raise ValueError(
-            f"Number of polynomial degrees ({len(polynomial_degrees)}) must be exactly "
-            f"one less than number of mesh points ({len(mesh_array)})"
-        )
-
-    # Validate polynomial degrees
-    for k, degree in enumerate(polynomial_degrees):
-        if not isinstance(degree, int) or degree <= 0:
-            raise ValueError(
-                f"Polynomial degree for interval {k} must be positive integer, got {degree}"
-            )
-
-    # Validate mesh points
-    if not np.isclose(mesh_array[0], -1.0):
-        raise ValueError(f"First mesh point must be -1.0, got {mesh_array[0]}")
-
-    if not np.isclose(mesh_array[-1], 1.0):
-        raise ValueError(f"Last mesh point must be 1.0, got {mesh_array[-1]}")
-
-    if not np.all(np.diff(mesh_array) > 1e-9):
-        raise ValueError("Mesh points must be strictly increasing with minimum spacing of 1e-9")
-
-    # Set mesh configuration
+    # Set mesh configuration - validation done at entry point
     state.collocation_points_per_interval = polynomial_degrees
     state.global_normalized_mesh_nodes = mesh_array
     state.configured = True

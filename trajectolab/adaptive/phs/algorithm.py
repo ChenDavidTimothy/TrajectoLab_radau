@@ -46,43 +46,6 @@ from trajectolab.tl_types import (
 logger = logging.getLogger(__name__)
 
 
-def _validate_mesh_configuration(
-    polynomial_degrees: list[int],
-    mesh_points: FloatArray,
-    min_degree: int,
-    max_degree: int,
-) -> None:
-    """Validate mesh configuration parameters."""
-    if not polynomial_degrees:
-        raise ValueError("polynomial_degrees must be provided and non-empty")
-
-    if len(polynomial_degrees) != len(mesh_points) - 1:
-        raise ValueError(
-            f"Number of polynomial degrees ({len(polynomial_degrees)}) "
-            f"must be one less than number of mesh points ({len(mesh_points)})"
-        )
-
-    if not np.isclose(mesh_points[0], -1.0):
-        raise ValueError(f"First mesh point must be -1.0, got {mesh_points[0]}")
-
-    if not np.isclose(mesh_points[-1], 1.0):
-        raise ValueError(f"Last mesh point must be 1.0, got {mesh_points[-1]}")
-
-    if not np.all(np.diff(mesh_points) > 1e-9):
-        raise ValueError("Mesh points must be strictly increasing with minimum spacing of 1e-9")
-
-    # Validate polynomial degree bounds
-    for i, degree in enumerate(polynomial_degrees):
-        if degree < min_degree:
-            raise ValueError(
-                f"Polynomial degree {degree} for interval {i} is below minimum {min_degree}"
-            )
-        if degree > max_degree:
-            raise ValueError(
-                f"Polynomial degree {degree} for interval {i} is above maximum {max_degree}"
-            )
-
-
 def _extract_solution_trajectories(
     solution: OptimalControlSolution, problem: ProblemProtocol, polynomial_degrees: list[int]
 ) -> None:
@@ -464,7 +427,9 @@ def solve_phs_adaptive_internal(
     ode_method: str = "RK45",
     ode_max_step: float | None = None,
 ) -> OptimalControlSolution:
-    """Internal PHS-Adaptive mesh refinement algorithm implementation."""
+    """
+    Internal PHS-Adaptive mesh refinement algorithm implementation.
+    """
 
     # Log algorithm start (INFO - user cares about adaptive progress)
     logger.info(
@@ -480,14 +445,6 @@ def solve_phs_adaptive_internal(
         max_polynomial_degree,
         ode_solver_tolerance,
         num_error_sim_points,
-    )
-
-    # Validate parameters
-    _validate_mesh_configuration(
-        initial_polynomial_degrees,
-        initial_mesh_points,
-        min_polynomial_degree,
-        max_polynomial_degree,
     )
 
     # Store adaptive parameters
