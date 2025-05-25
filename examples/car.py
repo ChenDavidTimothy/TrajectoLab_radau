@@ -38,7 +38,7 @@ problem.set_initial_guess(terminal_time=2.0)
 # Solve with adaptive mesh
 solution = tl.solve_adaptive(
     problem,
-    error_tolerance=1e-7,
+    error_tolerance=1e-6,
     max_iterations=20,
     min_polynomial_degree=4,
     max_polynomial_degree=8,
