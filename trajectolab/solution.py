@@ -5,6 +5,7 @@ This module provides the Solution class that wraps optimization results
 in a user-friendly interface with plotting capabilities and trajectory access.
 """
 
+import logging
 from typing import TypeAlias, cast
 
 import matplotlib.pyplot as plt
@@ -14,6 +15,10 @@ from matplotlib.figure import Figure as MplFigure
 from matplotlib.lines import Line2D
 
 from .tl_types import FloatArray, OptimalControlSolution, ProblemProtocol, SymType
+
+
+# Library logger - no handler configuration
+logger = logging.getLogger(__name__)
 
 
 # Type aliases
@@ -138,14 +143,14 @@ class Solution:
             >>> plt.ylabel("Position")
         """
         if not self.success:
-            print("Warning: Solution not successful")
+            logger.warning("Cannot get trajectory: Solution not successful")
             empty = np.array([], dtype=np.float64)
             return empty, empty
 
         # Resolve identifier to name and type
         var_name, var_type = self._resolve_variable(identifier)
         if var_name is None:
-            print(f"Warning: Variable '{identifier}' not found")
+            logger.warning("Variable '%s' not found in solution", identifier)
             empty = np.array([], dtype=np.float64)
             return empty, empty
 
@@ -200,7 +205,7 @@ class Solution:
             >>> solution.plot(figsize=(12, 10))   # Custom size
         """
         if not self.success:
-            print("Cannot plot: Solution not successful")
+            logger.warning("Cannot plot: Solution not successful")
             return
 
         num_states = len(self._state_names)
@@ -208,7 +213,7 @@ class Solution:
         total_plots = num_states + num_controls
 
         if total_plots == 0:
-            print("Nothing to plot")
+            logger.info("No variables to plot")
             return
 
         # Create subplots
@@ -273,7 +278,8 @@ class Solution:
     ) -> None:
         """Plot list of variables of same type."""
         if not self.success or not names:
-            print(f"Cannot plot {var_type}s")
+            reason = "solution not successful" if not self.success else "no variables specified"
+            logger.warning("Cannot plot %ss: %s", var_type, reason)
             return
 
         fig, axes = plt.subplots(len(names), 1, figsize=figsize, sharex=True)

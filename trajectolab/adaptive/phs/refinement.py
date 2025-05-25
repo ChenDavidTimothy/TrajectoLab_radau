@@ -173,7 +173,7 @@ def h_reduce_intervals(
 
     # Check for None values before arithmetic operations
     if t0 is None or tf is None:
-        print("      h-reduction failed: Initial or terminal time is None.")
+        logger.warning("h-reduction failed: Initial or terminal time is None")
         return False
 
     alpha = (tf - t0) / 2.0
@@ -239,7 +239,7 @@ def h_reduce_intervals(
             opti = solution.opti_object
             raw_sol = solution.raw_solution
             if opti is None or raw_sol is None:
-                print("      h-reduction failed: opti or raw_sol is None.")
+                logger.warning("h-reduction failed: Optimization object or raw solution is None")
                 return False
 
             Xk_nlp_raw = raw_sol.value(
@@ -249,7 +249,7 @@ def h_reduce_intervals(
 
         initial_state_fwd = Xk_nlp[:, 0].flatten()
     except Exception as e:
-        print(f"      h-reduction failed: Error getting initial state: {e}")
+        logger.warning("h-reduction failed: Error getting initial state: %s", str(e))
         return False
 
     # Forward simulation through merged domain
@@ -259,8 +259,10 @@ def h_reduce_intervals(
     num_fwd_pts = max(2, num_sim_points // 2)
     fwd_tau_points = np.linspace(-1.0, target_end_tau_k, num_fwd_pts, dtype=np.float64)
 
-    print(
-        f"      h-reduction: Starting Merged IVP sim from zeta_k=-1 to {target_end_tau_k:.3f} ({num_fwd_pts} pts)"
+    logger.info(
+        "h-reduction: Starting merged forward simulation from zeta_k=-1 to %.3f (%d points)",
+        target_end_tau_k,
+        num_fwd_pts,
     )
 
     # Import here to avoid circular imports
@@ -285,9 +287,9 @@ def h_reduce_intervals(
             fwd_trajectory = fwd_sim.y
             fwd_sim_success = True
         else:
-            print(f"      Merged IVP failed: {fwd_sim.message}")
+            logger.warning("Merged forward simulation failed: %s", fwd_sim.message)
     except Exception as e:
-        print(f"      Exception during merged IVP simulation: {e}")
+        logger.warning("Exception during merged forward simulation: %s", str(e))
 
     # Get terminal state for backward simulation
     try:
@@ -297,7 +299,7 @@ def h_reduce_intervals(
             opti = solution.opti_object
             raw_sol = solution.raw_solution
             if opti is None or raw_sol is None:
-                print("      h-reduction failed: opti or raw_sol is None.")
+                logger.warning("h-reduction failed: Optimization object or raw solution is None")
                 return False
 
             Xkp1_nlp_raw = raw_sol.value(
@@ -307,7 +309,7 @@ def h_reduce_intervals(
 
         terminal_state_bwd = Xkp1_nlp[:, -1].flatten()
     except Exception as e:
-        print(f"      h-reduction failed: Error getting terminal state: {e}")
+        logger.warning("h-reduction failed: Error getting terminal state: %s", str(e))
         return False
 
     # Backward simulation through merged domain
@@ -318,8 +320,10 @@ def h_reduce_intervals(
     bwd_tau_points = np.linspace(1.0, target_end_tau_kp1, num_bwd_pts, dtype=np.float64)
     sorted_bwd_tau_points = np.flip(bwd_tau_points)
 
-    print(
-        f"      h-reduction: Starting Merged TVP sim from zeta_kp1=1 to {target_end_tau_kp1:.3f} ({num_bwd_pts} pts)"
+    logger.info(
+        "h-reduction: Starting merged backward simulation from zeta_kp1=1 to %.3f (%d points)",
+        target_end_tau_kp1,
+        num_bwd_pts,
     )
 
     # Define these upfront to ensure they're bound in all code paths
@@ -346,9 +350,9 @@ def h_reduce_intervals(
             bwd_trajectory = np.array(flipped_data, dtype=np.float64).reshape(rows, cols)
             bwd_sim_success = True
         else:
-            print(f"      Merged TVP failed: {bwd_sim.message}")
+            logger.warning("Merged backward simulation failed: %s", bwd_sim.message)
     except Exception as e:
-        print(f"      Exception during merged TVP simulation: {e}")
+        logger.warning("Exception during merged backward simulation: %s", str(e))
 
     # For problems with no states, just check if simulations were successful
     if num_states == 0:
@@ -409,7 +413,9 @@ def h_reduce_intervals(
     max_error = max(max_fwd_error, max_bwd_error)
 
     if np.isnan(max_error):
-        print("      h-reduction check: max_error calculation resulted in NaN. Merge not approved.")
+        logger.warning(
+            "h-reduction check: max_error calculation resulted in NaN. Merge not approved"
+        )
         max_error = np.inf
 
     can_merge = max_error <= error_tol
