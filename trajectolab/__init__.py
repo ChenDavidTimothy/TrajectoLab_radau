@@ -6,7 +6,8 @@ This package provides a unified interface for solving optimal control problems
 using the Radau Pseudospectral Method for direct collocation.
 
 Logging:
-By default, TrajectoLab produces no output. To enable logging:
+By default, TrajectoLab produces no output. To enable logging::
+
     import logging
     logging.getLogger('trajectolab').setLevel(logging.INFO)  # Major operations
     logging.getLogger('trajectolab').setLevel(logging.DEBUG)  # Detailed debugging
