@@ -255,9 +255,9 @@ class Problem:
         initial: ConstraintInput = None,
         final: ConstraintInput = None,
         boundary: ConstraintInput = None,
-    ) -> SymType:
+    ) -> variables_problem.StateVariableImpl:
         """
-        Define a state variable with constraint specification.
+        Define a state variable with constraint specification and initial/final properties.
 
         Args:
             name: Variable name (must be unique)
@@ -275,12 +275,21 @@ class Problem:
                 - None: No path constraint
 
         Returns:
-            CasADi symbolic variable for use in dynamics and constraints
+            StateVariableImpl object with .initial and .final properties
 
         Example:
             >>> x = problem.state("position", initial=0.0, final=1.0)
             >>> v = problem.state("velocity", boundary=(-10.0, 10.0))
             >>> y = problem.state("height", initial=(0.0, 5.0))
+            >>>
+            >>> # Use in dynamics (current state)
+            >>> problem.dynamics({x: v, v: u})
+            >>>
+            >>> # Use in objective (endpoint values)
+            >>> problem.minimize(x.final**2 + 0.1 * x.initial)
+            >>>
+            >>> # Use in constraints (endpoint values)
+            >>> problem.subject_to(x.final >= x.initial + 5.0)
         """
         state_var = variables_problem.create_state_variable(
             self._variable_state, name, initial, final, boundary

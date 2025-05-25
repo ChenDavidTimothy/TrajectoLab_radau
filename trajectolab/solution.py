@@ -122,6 +122,7 @@ class Solution:
                 - Variable name as string (e.g., "position")
                 - Variable index as integer
                 - Symbolic variable from problem definition
+                - StateVariableImpl or TimeVariableImpl wrapper objects
 
         Returns:
             Tuple of (time_array, values_array) where:
@@ -168,8 +169,16 @@ class Solution:
 
     def _resolve_variable(self, identifier: _VariableIdentifier) -> tuple[str | None, str | None]:
         """Resolve variable identifier to (name, type)."""
+        # Handle wrapper objects (StateVariableImpl, TimeVariableImpl)
+        if hasattr(identifier, "_sym_var"):
+            # This is a wrapper object - get the underlying symbol
+            underlying_sym = identifier._sym_var
+            if underlying_sym in self._sym_to_name:
+                var_name = self._sym_to_name[underlying_sym]
+            else:
+                return None, None
         # Handle symbolic variables
-        if hasattr(identifier, "is_symbolic") or hasattr(identifier, "is_constant"):
+        elif hasattr(identifier, "is_symbolic") or hasattr(identifier, "is_constant"):
             sym_identifier = cast(SymType, identifier)
             if sym_identifier in self._sym_to_name:
                 var_name = self._sym_to_name[sym_identifier]
@@ -319,8 +328,6 @@ class Solution:
 
         ax.set_ylabel(name)
         ax.grid(True, alpha=0.3)
-
-    # Add these two new methods to the Solution class:
 
     def _plot_control_step_function(
         self,

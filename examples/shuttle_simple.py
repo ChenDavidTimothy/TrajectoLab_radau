@@ -82,7 +82,7 @@ problem.dynamics(
 )
 
 # Objective: maximize crossrange (latitude)
-problem.minimize(-theta)
+problem.minimize(-theta.final)
 
 # Mesh and initial guess
 problem.set_mesh([8] * 3, np.linspace(-1.0, 1.0, 4))

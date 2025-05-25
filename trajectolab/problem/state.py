@@ -67,9 +67,11 @@ class _BoundaryConstraint:
 
 @dataclass
 class _VariableInfo:
-    """Internal storage for variable metadata."""
+    """Internal storage for variable metadata with initial/final symbol support."""
 
     symbol: SymType
+    initial_symbol: SymType | None = None  # For states only
+    final_symbol: SymType | None = None  # For states only
     initial_constraint: _BoundaryConstraint | None = None
     final_constraint: _BoundaryConstraint | None = None
     boundary_constraint: _BoundaryConstraint | None = None
@@ -125,6 +127,8 @@ class VariableState:
         self,
         name: str,
         symbol: SymType,
+        initial_symbol: SymType | None = None,
+        final_symbol: SymType | None = None,
         initial_constraint: _BoundaryConstraint | None = None,
         final_constraint: _BoundaryConstraint | None = None,
         boundary_constraint: _BoundaryConstraint | None = None,
@@ -153,6 +157,8 @@ class VariableState:
             try:
                 var_info = _VariableInfo(
                     symbol=symbol,
+                    initial_symbol=initial_symbol,
+                    final_symbol=final_symbol,
                     initial_constraint=initial_constraint,
                     final_constraint=final_constraint,
                     boundary_constraint=boundary_constraint,
@@ -198,6 +204,8 @@ class VariableState:
             try:
                 var_info = _VariableInfo(
                     symbol=symbol,
+                    initial_symbol=None,  # Controls don't have initial/final symbols
+                    final_symbol=None,  # Controls don't have initial/final symbols
                     initial_constraint=None,  # Controls don't have initial constraints
                     final_constraint=None,  # Controls don't have final constraints
                     boundary_constraint=boundary_constraint,
@@ -226,6 +234,42 @@ class VariableState:
             )
 
         return [info.symbol for info in self._state_info]
+
+    def get_ordered_state_initial_symbols(self) -> list[SymType]:
+        """Get state initial symbols in order."""
+        # Data integrity check (internal consistency)
+        if len(self._state_info) != len(self._state_names):
+            raise DataIntegrityError(
+                f"State info count ({len(self._state_info)}) doesn't match names count ({len(self._state_names)})",
+                "TrajectoLab variable storage inconsistency",
+            )
+
+        symbols = []
+        for info in self._state_info:
+            if info.initial_symbol is None:
+                raise DataIntegrityError(
+                    "State initial symbol is None", "TrajectoLab state symbol corruption"
+                )
+            symbols.append(info.initial_symbol)
+        return symbols
+
+    def get_ordered_state_final_symbols(self) -> list[SymType]:
+        """Get state final symbols in order."""
+        # Data integrity check (internal consistency)
+        if len(self._state_info) != len(self._state_names):
+            raise DataIntegrityError(
+                f"State info count ({len(self._state_info)}) doesn't match names count ({len(self._state_names)})",
+                "TrajectoLab variable storage inconsistency",
+            )
+
+        symbols = []
+        for info in self._state_info:
+            if info.final_symbol is None:
+                raise DataIntegrityError(
+                    "State final symbol is None", "TrajectoLab state symbol corruption"
+                )
+            symbols.append(info.final_symbol)
+        return symbols
 
     def get_ordered_control_symbols(self) -> list[SymType]:
         """Get control symbols in order - with data integrity validation."""

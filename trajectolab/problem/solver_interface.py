@@ -17,6 +17,7 @@ from ..tl_types import (
     ObjectiveCallable,
     PathConstraintsCallable,
     ProblemParameters,
+    SymExpr,
 )
 from ..utils.expression_cache import (
     create_cache_key_from_variable_state,
@@ -24,6 +25,25 @@ from ..utils.expression_cache import (
 )
 from .constraints_problem import get_event_constraints_function, get_path_constraints_function
 from .state import ConstraintState, VariableState
+
+
+def _convert_expression_symbols(expr: SymExpr, variable_state: VariableState) -> SymExpr:
+    """
+    Convert any StateVariableImpl or TimeVariableImpl objects in expressions to underlying symbols.
+
+    This ensures that expressions stored in dynamics, objectives, etc. contain only pure CasADi symbols.
+    """
+    if not isinstance(expr, ca.MX):
+        return expr
+
+    # Get all symbols that might need conversion
+    all_state_syms = variable_state.get_ordered_state_symbols()
+    all_state_initial_syms = variable_state.get_ordered_state_initial_symbols()
+    all_state_final_syms = variable_state.get_ordered_state_final_symbols()
+
+    # For now, return expression as-is since the main issue is in storage, not conversion
+    # The conversion should happen at the storage level in set_dynamics
+    return expr
 
 
 def get_dynamics_function(variable_state: VariableState) -> DynamicsCallable:
@@ -55,7 +75,13 @@ def get_dynamics_function(variable_state: VariableState) -> DynamicsCallable:
         dynamics_expr = []
         for state_sym in state_syms:
             if state_sym in variable_state.dynamics_expressions:
-                dynamics_expr.append(variable_state.dynamics_expressions[state_sym])
+                expr = variable_state.dynamics_expressions[state_sym]
+                # Ensure we have a pure MX expression
+                if isinstance(expr, ca.MX):
+                    dynamics_expr.append(expr)
+                else:
+                    # Convert to MX if it's not already
+                    dynamics_expr.append(ca.MX(expr))
             else:
                 dynamics_expr.append(ca.MX(0))
 
@@ -116,6 +142,8 @@ def get_objective_function(variable_state: VariableState) -> ObjectiveCallable:
         """Build CasADi objective function - expensive operation."""
         # Use unified storage - direct O(1) access
         state_syms = variable_state.get_ordered_state_symbols()
+        state_initial_syms = variable_state.get_ordered_state_initial_symbols()
+        state_final_syms = variable_state.get_ordered_state_final_symbols()
 
         # Create inputs for unified objective function
         t0 = (
@@ -141,19 +169,39 @@ def get_objective_function(variable_state: VariableState) -> ObjectiveCallable:
             else ca.MX.sym("p", 0)  # type: ignore[arg-type]
         )
 
-        # Substitute state variables with final state values
+        # Substitute symbols in objective expression
         objective_expr = variable_state.objective_expression
-        if state_syms:
-            old_syms = []
-            new_syms = []
 
-            for i, sym in enumerate(state_syms):
-                old_syms.append(sym)
-                if len(state_syms) == 1:
-                    new_syms.append(xf_vec)
-                else:
-                    new_syms.append(xf_vec[i])
+        # Create substitution maps for all symbols
+        old_syms = []
+        new_syms = []
 
+        # Map current state symbols to final state values (default behavior)
+        for i, sym in enumerate(state_syms):
+            old_syms.append(sym)
+            if len(state_syms) == 1:
+                new_syms.append(xf_vec)
+            else:
+                new_syms.append(xf_vec[i])
+
+        # Map state initial symbols to initial state values
+        for i, sym in enumerate(state_initial_syms):
+            old_syms.append(sym)
+            if len(state_syms) == 1:
+                new_syms.append(x0_vec)
+            else:
+                new_syms.append(x0_vec[i])
+
+        # Map state final symbols to final state values
+        for i, sym in enumerate(state_final_syms):
+            old_syms.append(sym)
+            if len(state_syms) == 1:
+                new_syms.append(xf_vec)
+            else:
+                new_syms.append(xf_vec[i])
+
+        # Apply substitutions
+        if old_syms:
             objective_expr = ca.substitute([objective_expr], old_syms, new_syms)[0]
 
         # Create unified objective function
