@@ -14,13 +14,11 @@ from matplotlib.axes import Axes as MplAxes
 from matplotlib.figure import Figure as MplFigure
 from matplotlib.lines import Line2D
 
-from .problem.variables_problem import StateVariableImpl, TimeVariableImpl
-from .tl_types import CasadiMX, FloatArray, OptimalControlSolution, ProblemProtocol
+from .tl_types import FloatArray, OptimalControlSolution, ProblemProtocol
 
 
 logger = logging.getLogger(__name__)
 
-_VariableIdentifier: TypeAlias = str | int | CasadiMX | StateVariableImpl | TimeVariableImpl
 _TrajectoryTuple: TypeAlias = tuple[FloatArray, FloatArray]
 
 
@@ -65,69 +63,85 @@ class Solution:
         if problem is not None:
             self._state_names = problem.get_ordered_state_names()
             self._control_names = problem.get_ordered_control_names()
-
-            self._sym_to_name: dict[CasadiMX, str] = {}
-            state_syms = problem.get_ordered_state_symbols()
-            control_syms = problem.get_ordered_control_symbols()
-
-            for name, sym in zip(self._state_names, state_syms, strict=False):
-                self._sym_to_name[sym] = name
-            for name, sym in zip(self._control_names, control_syms, strict=False):
-                self._sym_to_name[sym] = name
         else:
             self._state_names = []
             self._control_names = []
-            self._sym_to_name = {}
 
-    def get_trajectory(self, identifier: _VariableIdentifier) -> _TrajectoryTuple:
-        """Get time and value trajectory for any variable."""
+    def __getitem__(self, key: str) -> FloatArray:
+        """
+        Dictionary-style access to solution variables and time arrays.
+
+        Args:
+            key: Variable name, "time_states", or "time_controls"
+
+        Returns:
+            FloatArray containing the requested data
+
+        Raises:
+            KeyError: If the variable name is not found
+
+        Examples:
+            >>> altitude_data = solution["altitude"]
+            >>> thrust_data = solution["thrust"]
+            >>> time_states = solution["time_states"]
+            >>> time_controls = solution["time_controls"]
+        """
         if not self.success:
-            logger.warning("Cannot get trajectory: Solution not successful")
-            empty = np.array([], dtype=np.float64)
-            return empty, empty
+            logger.warning("Cannot access variable '%s': Solution not successful", key)
+            return np.array([], dtype=np.float64)
 
-        var_name, var_type = self._resolve_variable(identifier)
-        if var_name is None:
-            logger.warning("Variable '%s' not found in solution", identifier)
-            empty = np.array([], dtype=np.float64)
-            return empty, empty
+        # Handle time arrays
+        if key == "time_states":
+            return self.time_states
+        elif key == "time_controls":
+            return self.time_controls
 
-        if var_type == "state":
-            time_array = self.time_states
-            var_index = self._state_names.index(var_name)
-            values_array = self.states[var_index]
-        else:
-            time_array = self.time_controls
-            var_index = self._control_names.index(var_name)
-            values_array = self.controls[var_index]
+        # Handle state variables
+        if key in self._state_names:
+            var_index = self._state_names.index(key)
+            return self.states[var_index]
 
-        return time_array, values_array
+        # Handle control variables
+        if key in self._control_names:
+            var_index = self._control_names.index(key)
+            return self.controls[var_index]
 
-    def _resolve_variable(self, identifier: _VariableIdentifier) -> tuple[str | None, str | None]:
-        """Resolve variable identifier to (name, type)."""
-        if not isinstance(identifier, str | int) and hasattr(identifier, "_symbolic_var"):
-            underlying_sym = identifier._symbolic_var
-            if underlying_sym in self._sym_to_name:
-                var_name = self._sym_to_name[underlying_sym]
-            else:
-                return None, None
-        elif not isinstance(identifier, str | int) and (
-            hasattr(identifier, "is_symbolic") or hasattr(identifier, "is_constant")
-        ):
-            sym_identifier = cast(CasadiMX, identifier)
-            if sym_identifier in self._sym_to_name:
-                var_name = self._sym_to_name[sym_identifier]
-            else:
-                return None, None
-        else:
-            var_name = str(identifier)
+        # Variable not found
+        available_vars = self._state_names + self._control_names + ["time_states", "time_controls"]
+        raise KeyError(f"Variable '{key}' not found. Available variables: {available_vars}")
 
-        if var_name in self._state_names:
-            return var_name, "state"
-        elif var_name in self._control_names:
-            return var_name, "control"
-        else:
-            return None, None
+    def __contains__(self, key: str) -> bool:
+        """
+        Check if a variable exists in the solution.
+
+        Args:
+            key: Variable name to check
+
+        Returns:
+            True if variable exists, False otherwise
+
+        Examples:
+            >>> if "altitude" in solution:
+            ...     altitude = solution["altitude"]
+        """
+        if key in ["time_states", "time_controls"]:
+            return True
+        return key in self._state_names or key in self._control_names
+
+    @property
+    def state_names(self) -> list[str]:
+        """Get list of available state variable names."""
+        return self._state_names.copy()
+
+    @property
+    def control_names(self) -> list[str]:
+        """Get list of available control variable names."""
+        return self._control_names.copy()
+
+    @property
+    def variable_names(self) -> list[str]:
+        """Get list of all available variable names including time arrays."""
+        return self._state_names + self._control_names + ["time_states", "time_controls"]
 
     def plot(self, figsize: tuple[float, float] = (10.0, 8.0)) -> None:
         """Plot all state and control trajectories."""
@@ -203,7 +217,17 @@ class Solution:
         self, ax: MplAxes, name: str, var_type: str, colors: list | np.ndarray | None
     ) -> None:
         """Plot single variable with correct mathematical representation."""
-        time_array, values_array = self.get_trajectory(name)
+        if name not in self:
+            logger.warning("Variable '%s' not found for plotting", name)
+            return
+
+        # Get time and values using dictionary access
+        if var_type == "state":
+            time_array = self["time_states"]
+            values_array = self[name]
+        else:
+            time_array = self["time_controls"]
+            values_array = self[name]
 
         if time_array.size == 0:
             return
@@ -347,8 +371,8 @@ class Solution:
         if self.success:
             print(f"  Objective: {self.objective}")
             print(f"  Time: {self.initial_time} → {self.final_time}")
-            print(f"  States: {len(self._state_names)}")
-            print(f"  Controls: {len(self._control_names)}")
+            print(f"  States: {len(self._state_names)} {self._state_names}")
+            print(f"  Controls: {len(self._control_names)} {self._control_names}")
             if self.mesh_nodes is not None:
                 print(f"  Mesh intervals: {len(self.mesh_nodes) - 1}")
         else:

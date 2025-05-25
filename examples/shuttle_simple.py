@@ -1,5 +1,5 @@
 """
-TrajectoLab Example: Space Shuttle Reentry
+TrajectoLab Example: Space Shuttle Reentry - Updated with Dictionary Access
 """
 
 import casadi as ca
@@ -126,12 +126,103 @@ solution = tl.solve_adaptive(
     },
 )
 
-# Results
 if solution.success:
     crossrange_deg = -solution.objective * 180.0 / np.pi
     print("Shuttle reentry solved successfully!")
     print(f"Final time: {solution.final_time:.1f} seconds")
     print(f"Crossrange: {crossrange_deg:.2f} degrees")
+    print()
+
+    # Access trajectory data directly - no function calls needed!
+    time_states = solution["time_states"]  # State time grid
+    time_controls = solution["time_controls"]  # Control time grid (different!)
+
+    # Physical trajectory data (convert from scaled variables)
+    altitude_scaled = solution["altitude_scaled"]
+    velocity_scaled = solution["velocity_scaled"]
+    latitude = solution["latitude"]
+    longitude = solution["longitude"]
+    flight_path_angle = solution["flight_path_angle"]
+    heading_angle = solution["heading_angle"]
+
+    # Control trajectories
+    angle_of_attack = solution["angle_of_attack"]
+    bank_angle = solution["bank_angle"]
+
+    # Convert to physical units for engineering analysis
+    altitude_ft = altitude_scaled * H_SCALE
+    velocity_fps = velocity_scaled * V_SCALE
+
+    # Engineering analysis using direct array access
+    print("=== TRAJECTORY ANALYSIS ===")
+    print(f"Initial altitude: {altitude_ft[0] / 1000:.1f} kft")
+    print(f"Final altitude: {altitude_ft[-1] / 1000:.1f} kft")
+    print(f"Altitude loss: {(altitude_ft[0] - altitude_ft[-1]) / 1000:.1f} kft")
+    print()
+
+    print(f"Initial velocity: {velocity_fps[0]:.0f} ft/s")
+    print(f"Final velocity: {velocity_fps[-1]:.0f} ft/s")
+    print(f"Velocity reduction: {velocity_fps[0] - velocity_fps[-1]:.0f} ft/s")
+    print()
+
+    print(f"Maximum crossrange: {np.max(np.abs(latitude)) * 180 / np.pi:.2f} degrees")
+    print(f"Final longitude: {longitude[-1] * 180 / np.pi:.2f} degrees")
+    print()
+
+    # Control analysis
+    alpha_deg = angle_of_attack * 180 / np.pi
+    beta_deg = bank_angle * 180 / np.pi
+    print(f"Angle of attack range: [{np.min(alpha_deg):.1f}, {np.max(alpha_deg):.1f}] deg")
+    print(f"Bank angle range: [{np.min(beta_deg):.1f}, {np.max(beta_deg):.1f}] deg")
+    print()
+
+    # =============================================================================
+    # Demonstrate programmatic variable access
+    # =============================================================================
+
+    print("=== AVAILABLE VARIABLES ===")
+    print(f"States: {solution.state_names}")
+    print(f"Controls: {solution.control_names}")
+    print()
+
+    # Check for specific variables programmatically
+    critical_variables = ["altitude_scaled", "velocity_scaled", "angle_of_attack"]
+    print("Critical variables available:")
+    for var in critical_variables:
+        if var in solution:
+            data = solution[var]
+            print(
+                f"  {var}: {len(data)} data points, range [{np.min(data):.3f}, {np.max(data):.3f}]"
+            )
+        else:
+            print(f"  {var}: NOT AVAILABLE")
+    print()
+
+    # =============================================================================
+    # Export data for external analysis (common engineering workflow)
+    # =============================================================================
+
+    # Create data dictionary for easy export to MATLAB, pandas, etc.
+    trajectory_data = {}
+
+    # Add time arrays (different grids!)
+    trajectory_data["time_states"] = solution["time_states"]
+    trajectory_data["time_controls"] = solution["time_controls"]
+
+    # Add all state variables
+    for state_name in solution.state_names:
+        trajectory_data[state_name] = solution[state_name]
+
+    # Add all control variables
+    for control_name in solution.control_names:
+        trajectory_data[control_name] = solution[control_name]
+
+    print(f"Trajectory data dictionary created with {len(trajectory_data)} arrays")
+    print("Ready for export to MATLAB, pandas DataFrame, plotting tools, etc.")
+    print()
+
+    # Plot the solution
     solution.plot()
+
 else:
     print(f"Failed: {solution.message}")

@@ -51,8 +51,8 @@ if solution.success:
     print(f"Objective: {solution.objective:.6f}")
 
     # Check constraint satisfaction
-    t_states, pos_vals = solution.get_trajectory(pos)
-    _, speed_vals = solution.get_trajectory(speed)
+    pos_vals = solution["position"]
+    speed_vals = solution["speed"]
     speed_limit_vals = 1.0 - np.sin(2.0 * np.pi * pos_vals) / 2.0
     max_violation = np.max(speed_vals - speed_limit_vals)
     print(f"Max speed limit violation: {max_violation:.6f}")
