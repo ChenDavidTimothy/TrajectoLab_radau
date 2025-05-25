@@ -9,9 +9,10 @@ import logging
 from collections.abc import Sequence
 from typing import Any
 
-from ..tl_types import FloatArray, NumericArrayLike, SymExpr, SymType
+from ..tl_types import CasadiMX, FloatArray, NumericArrayLike, SymExpr
 from . import constraints_problem, initial_guess_problem, mesh, solver_interface, variables_problem
 from .state import ConstraintInput, ConstraintState, MeshState, VariableState
+from .variables_problem import StateVariableImpl
 
 
 # Library logger - no handler configuration
@@ -74,17 +75,17 @@ class Problem:
         return self._variable_state.parameters
 
     @property
-    def _sym_time(self) -> SymType | None:
+    def _sym_time(self) -> CasadiMX | None:
         """Internal time symbol."""
         return self._variable_state.sym_time
 
     @property
-    def _sym_time_initial(self) -> SymType | None:
+    def _sym_time_initial(self) -> CasadiMX | None:
         """Internal initial time symbol."""
         return self._variable_state.sym_time_initial
 
     @property
-    def _sym_time_final(self) -> SymType | None:
+    def _sym_time_final(self) -> CasadiMX | None:
         """Internal final time symbol."""
         return self._variable_state.sym_time_final
 
@@ -99,7 +100,7 @@ class Problem:
         return self._variable_state.tf_bounds
 
     @property
-    def _dynamics_expressions(self) -> dict[SymType, SymExpr]:
+    def _dynamics_expressions(self) -> dict[CasadiMX, SymExpr]:
         """Internal dynamics expressions storage."""
         return self._variable_state.dynamics_expressions
 
@@ -119,7 +120,7 @@ class Problem:
         return self._variable_state.integral_expressions
 
     @property
-    def _integral_symbols(self) -> list[SymType]:
+    def _integral_symbols(self) -> list[CasadiMX]:
         """Internal integral symbols storage."""
         return self._variable_state.integral_symbols
 
@@ -166,11 +167,11 @@ class Problem:
         """
         return self._variable_state.get_variable_counts()
 
-    def get_ordered_state_symbols(self) -> list[SymType]:
+    def get_ordered_state_symbols(self) -> list[CasadiMX]:
         """Get state variable symbols in definition order."""
         return self._variable_state.get_ordered_state_symbols()
 
-    def get_ordered_control_symbols(self) -> list[SymType]:
+    def get_ordered_control_symbols(self) -> list[CasadiMX]:
         """Get control variable symbols in definition order."""
         return self._variable_state.get_ordered_control_symbols()
 
@@ -310,7 +311,7 @@ class Problem:
         self,
         name: str,
         boundary: ConstraintInput = None,
-    ) -> SymType:
+    ) -> CasadiMX:
         """
         Define a control variable with path constraints.
 
@@ -338,7 +339,7 @@ class Problem:
 
         return control_var
 
-    def parameter(self, name: str, value: Any) -> SymType:
+    def parameter(self, name: str, value: Any) -> CasadiMX:
         """
         Define a parameter variable with a fixed value.
 
@@ -363,17 +364,19 @@ class Problem:
 
         return param_var
 
-    def dynamics(self, dynamics_dict: dict[SymType, SymExpr]) -> None:
+    def dynamics(
+        self, dynamics_dict: dict[CasadiMX | StateVariableImpl, SymExpr | StateVariableImpl]
+    ) -> None:
         """
         Define the system dynamics as differential equations.
 
-        Specifies the time derivatives of all state variables as functions of
-        states, controls, time, and parameters.
+        This method converts any StateVariableImpl values to their underlying symbolic
+        expressions before setting the dynamics.
 
         Args:
             dynamics_dict: Dictionary mapping each state variable to its time derivative.
-                Keys must be state variables created with problem.state().
-                Values are symbolic expressions using states, controls, time, and parameters.
+                Keys can be state variables created with problem.state() or their underlying symbols.
+                Values are symbolic expressions or StateVariableImpl objects that will be converted.
 
         Example:
             >>> x = problem.state("position")
@@ -384,12 +387,16 @@ class Problem:
             ...     v: u            # dv/dt = u
             ... })
         """
-        variables_problem.set_dynamics(self._variable_state, dynamics_dict)
+        converted_dynamics = {
+            key: (val.sym if isinstance(val, StateVariableImpl) else val)
+            for key, val in dynamics_dict.items()
+        }
+        variables_problem.set_dynamics(self._variable_state, converted_dynamics)
 
         # Log dynamics definition (INFO - user cares about major setup)
         logger.info("Dynamics defined for %d state variables", len(dynamics_dict))
 
-    def add_integral(self, integrand_expr: SymExpr) -> SymType:
+    def add_integral(self, integrand_expr: SymExpr) -> CasadiMX:
         """
         Add an integral expression to be computed during solution.
 

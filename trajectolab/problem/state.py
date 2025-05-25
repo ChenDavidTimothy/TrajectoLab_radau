@@ -10,7 +10,7 @@ from typing import Any
 
 from ..exceptions import DataIntegrityError
 from ..input_validation import validate_constraint_input_format, validate_variable_name
-from ..tl_types import FloatArray, SymExpr, SymType
+from ..tl_types import CasadiMX, FloatArray, SymExpr
 
 
 # Constraint input type definition
@@ -69,9 +69,9 @@ class _BoundaryConstraint:
 class _VariableInfo:
     """Internal storage for variable metadata with initial/final symbol support."""
 
-    symbol: SymType
-    initial_symbol: SymType | None = None  # For states only
-    final_symbol: SymType | None = None  # For states only
+    symbol: CasadiMX
+    initial_symbol: CasadiMX | None = None  # For states only
+    final_symbol: CasadiMX | None = None  # For states only
     initial_constraint: _BoundaryConstraint | None = None
     final_constraint: _BoundaryConstraint | None = None
     boundary_constraint: _BoundaryConstraint | None = None
@@ -102,17 +102,17 @@ class VariableState:
     parameters: dict[str, Any] = field(default_factory=dict)
 
     # Symbolic time variables
-    sym_time: SymType | None = None
-    sym_time_initial: SymType | None = None
-    sym_time_final: SymType | None = None
+    sym_time: CasadiMX | None = None
+    sym_time_initial: CasadiMX | None = None
+    sym_time_final: CasadiMX | None = None
 
     # Expressions
-    dynamics_expressions: dict[SymType, SymExpr] = field(default_factory=dict)
+    dynamics_expressions: dict[CasadiMX, SymExpr] = field(default_factory=dict)
     objective_expression: SymExpr | None = None
 
     # Integral tracking
     integral_expressions: list[SymExpr] = field(default_factory=list)
-    integral_symbols: list[SymType] = field(default_factory=list)
+    integral_symbols: list[CasadiMX] = field(default_factory=list)
     num_integrals: int = 0
 
     # Time bounds (using unified constraint format)
@@ -126,9 +126,9 @@ class VariableState:
     def add_state(
         self,
         name: str,
-        symbol: SymType,
-        initial_symbol: SymType | None = None,
-        final_symbol: SymType | None = None,
+        symbol: CasadiMX,
+        initial_symbol: CasadiMX | None = None,
+        final_symbol: CasadiMX | None = None,
         initial_constraint: _BoundaryConstraint | None = None,
         final_constraint: _BoundaryConstraint | None = None,
         boundary_constraint: _BoundaryConstraint | None = None,
@@ -176,7 +176,7 @@ class VariableState:
     def add_control(
         self,
         name: str,
-        symbol: SymType,
+        symbol: CasadiMX,
         boundary_constraint: _BoundaryConstraint | None = None,
     ) -> None:
         """Add control variable to unified storage - USES CENTRALIZED VALIDATION."""
@@ -224,7 +224,7 @@ class VariableState:
     # EFFICIENT ACCESS METHODS - Data integrity validation only
     # ========================================================================
 
-    def get_ordered_state_symbols(self) -> list[SymType]:
+    def get_ordered_state_symbols(self) -> list[CasadiMX]:
         """Get state symbols in order - with data integrity validation."""
         # Data integrity check (internal consistency)
         if len(self._state_info) != len(self._state_names):
@@ -235,7 +235,7 @@ class VariableState:
 
         return [info.symbol for info in self._state_info]
 
-    def get_ordered_state_initial_symbols(self) -> list[SymType]:
+    def get_ordered_state_initial_symbols(self) -> list[CasadiMX]:
         """Get state initial symbols in order."""
         # Data integrity check (internal consistency)
         if len(self._state_info) != len(self._state_names):
@@ -253,7 +253,7 @@ class VariableState:
             symbols.append(info.initial_symbol)
         return symbols
 
-    def get_ordered_state_final_symbols(self) -> list[SymType]:
+    def get_ordered_state_final_symbols(self) -> list[CasadiMX]:
         """Get state final symbols in order."""
         # Data integrity check (internal consistency)
         if len(self._state_info) != len(self._state_names):
@@ -271,7 +271,7 @@ class VariableState:
             symbols.append(info.final_symbol)
         return symbols
 
-    def get_ordered_control_symbols(self) -> list[SymType]:
+    def get_ordered_control_symbols(self) -> list[CasadiMX]:
         """Get control symbols in order - with data integrity validation."""
         # Data integrity check (internal consistency)
         if len(self._control_info) != len(self._control_names):

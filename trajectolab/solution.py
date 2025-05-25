@@ -15,12 +15,12 @@ from matplotlib.figure import Figure as MplFigure
 from matplotlib.lines import Line2D
 
 from .problem.variables_problem import StateVariableImpl, TimeVariableImpl
-from .tl_types import FloatArray, OptimalControlSolution, ProblemProtocol, SymType
+from .tl_types import CasadiMX, FloatArray, OptimalControlSolution, ProblemProtocol
 
 
 logger = logging.getLogger(__name__)
 
-_VariableIdentifier: TypeAlias = str | int | SymType | StateVariableImpl | TimeVariableImpl
+_VariableIdentifier: TypeAlias = str | int | CasadiMX | StateVariableImpl | TimeVariableImpl
 _TrajectoryTuple: TypeAlias = tuple[FloatArray, FloatArray]
 
 
@@ -66,7 +66,7 @@ class Solution:
             self._state_names = problem.get_ordered_state_names()
             self._control_names = problem.get_ordered_control_names()
 
-            self._sym_to_name: dict[SymType, str] = {}
+            self._sym_to_name: dict[CasadiMX, str] = {}
             state_syms = problem.get_ordered_state_symbols()
             control_syms = problem.get_ordered_control_symbols()
 
@@ -114,7 +114,7 @@ class Solution:
         elif not isinstance(identifier, str | int) and (
             hasattr(identifier, "is_symbolic") or hasattr(identifier, "is_constant")
         ):
-            sym_identifier = cast(SymType, identifier)
+            sym_identifier = cast(CasadiMX, identifier)
             if sym_identifier in self._sym_to_name:
                 var_name = self._sym_to_name[sym_identifier]
             else:

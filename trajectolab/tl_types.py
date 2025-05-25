@@ -26,7 +26,6 @@ NumericArrayLike: TypeAlias = (
 )
 
 # --- Core Symbolic Types ---
-SymType: TypeAlias = ca.MX
 SymExpr: TypeAlias = ca.MX | float | int
 
 # --- CasADi Types (Simplified) ---
@@ -93,12 +92,12 @@ class TimeVariable(Protocol):
     """Protocol for time variable with initial/final properties."""
 
     @property
-    def initial(self) -> SymType: ...
+    def initial(self) -> CasadiMX: ...
 
     @property
-    def final(self) -> SymType: ...
+    def final(self) -> CasadiMX: ...
 
-    def __call__(self) -> SymType: ...
+    def __call__(self) -> CasadiMX: ...
 
 
 # --- Initial Guess Classes ---
@@ -210,14 +209,14 @@ class ProblemProtocol(Protocol):
     _tf_bounds: tuple[float, float]
 
     # Symbolic variables
-    _sym_time: SymType | None
-    _sym_time_initial: SymType | None
-    _sym_time_final: SymType | None
-    _dynamics_expressions: dict[SymType, SymExpr]
+    _sym_time: CasadiMX | None
+    _sym_time_initial: CasadiMX | None
+    _sym_time_final: CasadiMX | None
+    _dynamics_expressions: dict[CasadiMX, SymExpr]
     _objective_expression: SymExpr | None
     _constraints: list[SymExpr]
     _integral_expressions: list[SymExpr]
-    _integral_symbols: list[SymType]
+    _integral_symbols: list[CasadiMX]
     _parameters: ProblemParameters
 
     # Methods that return variable info
@@ -225,11 +224,11 @@ class ProblemProtocol(Protocol):
         """Return (num_states, num_controls)"""
         ...
 
-    def get_ordered_state_symbols(self) -> list[SymType]:
+    def get_ordered_state_symbols(self) -> list[CasadiMX]:
         """Get state symbols in order"""
         ...
 
-    def get_ordered_control_symbols(self) -> list[SymType]:
+    def get_ordered_control_symbols(self) -> list[CasadiMX]:
         """Get control symbols in order"""
         ...
 

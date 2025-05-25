@@ -97,7 +97,7 @@ def solve_fixed_mesh(
         )
 
     # Comprehensive validation
-    validate_problem_ready_for_solving(problem)
+    validate_problem_ready_for_solving(cast(ProblemProtocol, problem))
 
     # Set solver options
     problem.solver_options = nlp_options or DEFAULT_NLP_OPTIONS
@@ -209,7 +209,7 @@ def solve_adaptive(
     validate_adaptive_solver_parameters(
         error_tolerance, max_iterations, min_polynomial_degree, max_polynomial_degree
     )
-    validate_problem_ready_for_solving(problem)
+    validate_problem_ready_for_solving(cast(ProblemProtocol, problem))
 
     # Set default ODE solver if not provided
     if ode_solver is None:
@@ -223,9 +223,8 @@ def solve_adaptive(
     initial_mesh_points = problem.global_normalized_mesh_nodes
 
     # Log initial mesh (DEBUG)
-    logger.debug(
-        "Initial mesh: degrees=%s, points=%d", initial_polynomial_degrees, len(initial_mesh_points)
-    )
+    points_count = len(initial_mesh_points) if initial_mesh_points is not None else 0
+    logger.debug("Initial mesh: degrees=%s, points=%d", initial_polynomial_degrees, points_count)
 
     # Set solver options
     problem.solver_options = nlp_options or DEFAULT_NLP_OPTIONS
