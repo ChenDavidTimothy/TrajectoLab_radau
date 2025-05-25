@@ -370,13 +370,13 @@ class Problem:
         """
         Define the system dynamics as differential equations.
 
-        This method converts any StateVariableImpl values to their underlying symbolic
-        expressions before setting the dynamics.
+        Specifies the time derivatives of all state variables as functions of
+        states, controls, time, and parameters.
 
         Args:
             dynamics_dict: Dictionary mapping each state variable to its time derivative.
                 Keys can be state variables created with problem.state() or their underlying symbols.
-                Values are symbolic expressions or StateVariableImpl objects that will be converted.
+                Values are symbolic expressions using states, controls, time, and parameters.
 
         Example:
             >>> x = problem.state("position")
@@ -388,7 +388,7 @@ class Problem:
             ... })
         """
         converted_dynamics = {
-            key: (val.sym if isinstance(val, StateVariableImpl) else val)
+            key: (val._symbolic_var if isinstance(val, StateVariableImpl) else val)
             for key, val in dynamics_dict.items()
         }
         variables_problem.set_dynamics(self._variable_state, converted_dynamics)

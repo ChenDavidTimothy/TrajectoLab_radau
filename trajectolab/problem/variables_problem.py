@@ -24,8 +24,20 @@ def _convert_expression_to_pure_symbols(expr: SymExpr) -> SymExpr:
     else:
         try:
             return ca.MX(expr)
-        except Exception:
-            return expr
+        except Exception as e:
+            # FIXED: Provide better error handling instead of silent fallback
+            import inspect
+
+            if inspect.isfunction(expr) or inspect.ismethod(expr):
+                raise ValueError(
+                    f"Cannot convert function/method {expr} to CasADi expression. "
+                    f"Ensure all expressions in dynamics are properly evaluated symbolic expressions."
+                ) from e
+            else:
+                raise ValueError(
+                    f"Cannot convert expression of type {type(expr)} to CasADi MX: {expr}. "
+                    f"Original error: {e}"
+                ) from e
 
 
 class _SymbolicVariableBase:

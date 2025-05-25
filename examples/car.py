@@ -47,16 +47,6 @@ solution = tl.solve_adaptive(
 
 # Results
 if solution.success:
-    print(f"Optimal lap time: {solution.final_time:.3f} seconds")
-    print(f"Objective: {solution.objective:.6f}")
-
-    # Check constraint satisfaction
-    pos_vals = solution["position"]
-    speed_vals = solution["speed"]
-    speed_limit_vals = 1 - np.sin(2.0 * np.pi * pos_vals) / 2
-    max_violation = np.max(speed_vals - speed_limit_vals)
-    print(f"Max speed limit violation: {max_violation:.6f}")
-
     solution.plot()
 else:
     print(f"Failed: {solution.message}")
