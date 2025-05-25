@@ -1,5 +1,5 @@
 """
-Integral setup functions for the direct solver.
+Integral constraint setup using quadrature rules for the direct solver.
 """
 
 import casadi as ca

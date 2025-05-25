@@ -1,6 +1,5 @@
 """
-Error estimation functions for the PHS adaptive algorithm - SIMPLIFIED.
-Updated to use unified storage system and type system.
+Error estimation functions using forward and backward dynamics simulation.
 """
 
 import logging

@@ -1,6 +1,5 @@
 """
-Utilities for CasADi integration and conversion - ENHANCED WITH FAIL-FAST.
-Added targeted error handling for critical TrajectoLab data preparation operations.
+Utility functions for CasADi integration, conversion, and numerical validation.
 """
 
 import logging

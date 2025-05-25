@@ -1,6 +1,5 @@
-# trajectolab/direct_solver/core_solver.py
 """
-Core orchestration for the direct solver with production logging.
+Core orchestration for the direct pseudospectral solver using Radau collocation.
 """
 
 import logging

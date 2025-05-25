@@ -1,6 +1,5 @@
 """
-Radau pseudospectral method implementation - USES CENTRALIZED VALIDATION.
-All ConfigurationError validations moved to input_validation.py
+Radau pseudospectral method implementation with cached basis function computation.
 """
 
 import threading

@@ -1,6 +1,5 @@
 """
-Initial guess application functions for the direct solver - USES CENTRALIZED VALIDATION.
-All redundant validations removed since validate_initial_guess_structure() provides comprehensive validation.
+Initial guess application functions for optimization variables.
 """
 
 from typing import cast

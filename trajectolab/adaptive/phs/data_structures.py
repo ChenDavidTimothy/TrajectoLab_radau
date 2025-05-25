@@ -1,6 +1,5 @@
 """
-Core data structures for the PHS adaptive algorithm - SIMPLIFIED.
-Updated to use unified type system and storage.
+Data structures and parameter containers for the PHS adaptive algorithm.
 """
 
 import logging

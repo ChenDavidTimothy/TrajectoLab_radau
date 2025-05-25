@@ -1,6 +1,5 @@
 """
-COMPREHENSIVE input validation utilities - ALL ConfigurationError logic centralized here.
-This module is the single source of truth for validating user configuration.
+Centralized input validation for all user configuration parameters.
 """
 
 import logging

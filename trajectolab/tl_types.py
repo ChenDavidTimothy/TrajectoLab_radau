@@ -1,6 +1,5 @@
 """
-Core type definitions for the TrajectoLab project - UNIFIED CONSTRAINT API.
-Updated to include types for the new unified constraint specification.
+Core type definitions and protocols for the TrajectoLab optimal control framework.
 """
 
 from __future__ import annotations

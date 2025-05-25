@@ -1,6 +1,5 @@
 """
-Variable management functions for optimal control problems - UNIFIED CONSTRAINT API.
-Implements the new unified constraint specification with initial/final/boundary parameters.
+Variable creation and management functions for optimal control problem definition.
 """
 
 from __future__ import annotations

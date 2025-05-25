@@ -1,6 +1,5 @@
 """
-Solver interface conversion functions for optimal control problems - SIMPLIFIED.
-Removed ALL legacy code, uses only unified storage and caching.
+Interface conversion functions between problem definition and solver requirements.
 """
 
 from __future__ import annotations

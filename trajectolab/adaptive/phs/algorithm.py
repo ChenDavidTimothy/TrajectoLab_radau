@@ -1,6 +1,5 @@
 """
-PHS adaptive algorithm implementation as a pure function - SIMPLIFIED.
-Updated to use unified storage system throughout.
+Main PHS adaptive mesh refinement algorithm implementation.
 """
 
 import logging

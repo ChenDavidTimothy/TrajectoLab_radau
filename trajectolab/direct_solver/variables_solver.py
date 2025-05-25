@@ -1,7 +1,5 @@
 """
-Variable setup functions for the direct solver - MASSIVE CLEANUP.
-All ConfigurationError validations moved to centralized input_validation.py
-Only DataIntegrityError validations remain for internal consistency checking.
+Optimization variable setup and configuration for the direct solver.
 """
 
 import casadi as ca

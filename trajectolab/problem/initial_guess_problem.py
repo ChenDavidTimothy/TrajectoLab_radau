@@ -1,7 +1,5 @@
 """
-Initial guess management functions for optimal control problems - FIXED ORDERING DEPENDENCY.
-Updated to allow set_initial_guess() and set_mesh() to be called in any order.
-Validation is deferred until both pieces of information are available.
+Initial guess validation and management with flexible ordering support.
 """
 
 from __future__ import annotations

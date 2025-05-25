@@ -1,6 +1,8 @@
-# trajectolab/solver.py
 """
-Solver interface with production logging.
+Main solver interface for optimal control problems.
+
+This module provides the primary solving functions that users call to solve
+their optimal control problems using either fixed or adaptive mesh strategies.
 """
 
 import logging
@@ -39,7 +41,44 @@ def solve_fixed_mesh(
     problem: Problem,
     nlp_options: dict[str, object] | None = None,
 ) -> Solution:
-    """Solve optimal control problem with fixed mesh."""
+    """
+    Solve an optimal control problem using a fixed pseudospectral mesh.
+
+    This function solves the problem using the mesh configuration specified
+    in problem.set_mesh(). The mesh remains fixed during optimization, making
+    this approach faster but potentially less accurate than adaptive methods.
+
+    Args:
+        problem: Problem instance with configured mesh, dynamics, and objective
+        nlp_options: Optional IPOPT solver options. Common options include:
+            - "ipopt.max_iter": Maximum iterations (default: 3000)
+            - "ipopt.tol": Convergence tolerance (default: 1e-8)
+            - "ipopt.print_level": Output verbosity 0-12 (default: 0)
+
+    Returns:
+        Solution object containing optimization results, trajectories, and metadata.
+        Check solution.success to verify if optimization succeeded.
+
+    Raises:
+        ConfigurationError: If problem is not properly configured
+
+    Example:
+        >>> import trajectolab as tl
+        >>> import numpy as np
+        >>>
+        >>> problem = tl.Problem("Minimum Time")
+        >>> t = problem.time(initial=0.0)
+        >>> x = problem.state("position", initial=0.0, final=1.0)
+        >>> u = problem.control("thrust", boundary=(-1.0, 1.0))
+        >>> problem.dynamics({x: u})
+        >>> problem.minimize(t.final)
+        >>> problem.set_mesh([10], np.array([-1.0, 1.0]))
+        >>>
+        >>> solution = tl.solve_fixed_mesh(problem)
+        >>> if solution.success:
+        ...     print(f"Optimal time: {solution.final_time:.3f}")
+        ...     solution.plot()
+    """
 
     # Log major operation start (INFO - user cares about this)
     logger.info("Starting fixed-mesh solve: problem='%s'", problem.name)
@@ -96,7 +135,58 @@ def solve_adaptive(
     nlp_options: dict[str, object] | None = None,
     initial_guess: InitialGuess | None = None,
 ) -> Solution:
-    """Solve optimal control problem using adaptive mesh refinement."""
+    """
+    Solve an optimal control problem using adaptive mesh refinement.
+
+    This function automatically refines the mesh during optimization to achieve
+    a specified error tolerance. It uses the PHS (p-refinement, h-refinement,
+    s-refinement) algorithm to adaptively adjust polynomial degrees and mesh spacing.
+
+    Args:
+        problem: Problem instance with initial mesh configuration
+        error_tolerance: Target relative error tolerance (default: 1e-6)
+        max_iterations: Maximum refinement iterations (default: 10)
+        min_polynomial_degree: Minimum polynomial degree per interval (default: 3)
+        max_polynomial_degree: Maximum polynomial degree per interval (default: 10)
+        ode_solver_tolerance: Tolerance for error estimation ODE solver (default: 1e-7)
+        ode_method: ODE integration method for error estimation (default: "RK45")
+        ode_max_step: Maximum step size for ODE solver (default: None)
+        num_error_sim_points: Number of points for error simulation (default: 50)
+        ode_solver: Custom ODE solver function (default: scipy.integrate.solve_ivp)
+        nlp_options: Optional IPOPT solver options for each NLP solve
+        initial_guess: Initial guess for first iteration (overrides problem guess)
+
+    Returns:
+        Solution object with final refined mesh and high-accuracy results.
+        The solution contains the final mesh configuration used.
+
+    Raises:
+        ConfigurationError: If problem is not properly configured or parameters are invalid
+
+    Example:
+        >>> import trajectolab as tl
+        >>> import numpy as np
+        >>>
+        >>> problem = tl.Problem("High Precision")
+        >>> # ... define problem ...
+        >>> problem.set_mesh([5], np.array([-1.0, 1.0]))  # Initial mesh
+        >>>
+        >>> solution = tl.solve_adaptive(
+        ...     problem,
+        ...     error_tolerance=1e-8,
+        ...     max_iterations=15
+        ... )
+        >>>
+        >>> if solution.success:
+        ...     print(f"Converged with {len(solution.mesh_intervals)} intervals")
+        ...     print(f"Final polynomial degrees: {solution.mesh_intervals}")
+        ...     solution.plot()
+
+    Note:
+        Adaptive solving typically takes longer than fixed mesh but provides
+        higher accuracy and automatic mesh optimization. The initial mesh
+        specified in problem.set_mesh() is used as the starting point.
+    """
 
     # Log major operation start with key parameters (INFO - user cares)
     logger.info(

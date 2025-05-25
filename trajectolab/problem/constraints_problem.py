@@ -1,6 +1,5 @@
 """
-Constraint management functions for optimal control problems - UNIFIED CONSTRAINT API.
-Updated to handle unified constraint specification including control initial/final constraints.
+Constraint processing and conversion functions for path and event constraints.
 """
 
 from __future__ import annotations

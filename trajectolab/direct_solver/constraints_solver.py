@@ -1,6 +1,5 @@
 """
-Fixed collocation constraints application with proper scaling validation - SIMPLIFIED.
-Updated to use unified storage system.
+Constraint application functions for collocation, path, and event constraints.
 """
 
 import logging

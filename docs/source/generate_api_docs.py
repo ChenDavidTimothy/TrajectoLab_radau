@@ -20,22 +20,22 @@ def generate_api_docs():
     project_root = Path(__file__).resolve().parent.parent.parent
     sys.path.insert(0, str(project_root))
 
-    print(f"ℹ️  Project root: {project_root}")
-    print("🔍 Generating PUBLIC API documentation only...")
+    print(f"Project root: {project_root}")
+    print("Generating PUBLIC API documentation only...")
 
     try:
         import trajectolab
 
-        print(f"✓ TrajectoLab imported from: {trajectolab.__file__}")
+        print(f"TrajectoLab imported from: {trajectolab.__file__}")
     except ImportError as e:
-        print(f"❌ Error importing TrajectoLab: {e}")
+        print(f"Error importing TrajectoLab: {e}")
         print("   Ensure TrajectoLab is installed: pip install -e .")
         return
 
     # Create output directory
     api_dir = Path(__file__).parent / "api"
     api_dir.mkdir(exist_ok=True)
-    print(f"ℹ️  Output directory: {api_dir}")
+    print(f"Output directory: {api_dir}")
 
     # Define ONLY the public API - matches trajectolab.__all__
     PUBLIC_API_MODULES = {
@@ -69,8 +69,8 @@ def generate_api_docs():
     # Generate RST files for each public module
     all_generated_modules = []
 
-    for category_key, category_info in PUBLIC_API_MODULES.items():
-        print(f"  📁 {category_info['title']}")
+    for _category_key, category_info in PUBLIC_API_MODULES.items():
+        print(f"  {category_info['title']}")
 
         for module_name in category_info["modules"]:
             # Create safe filename
@@ -94,7 +94,7 @@ def generate_api_docs():
             # Write RST file
             rst_path.write_text(rst_content.strip() + "\n")
             all_generated_modules.append((safe_name, module_name, category_info["title"]))
-            print(f"    ✓ {rst_path.name}")
+            print(f"    {rst_path.name}")
 
     # Generate the main API index
     index_content = f"""
@@ -136,7 +136,7 @@ Quick Start
 """
 
     # Add categorized module documentation
-    for category_key, category_info in PUBLIC_API_MODULES.items():
+    for _category_key, category_info in PUBLIC_API_MODULES.items():
         title = category_info["title"]
         description = category_info["description"]
 
@@ -153,7 +153,7 @@ Quick Start
     index_path.write_text(index_content)
 
     print(f"\n✓ Generated API index: {index_path.name}")
-    print("🎉 PUBLIC API documentation complete!")
+    print("PUBLIC API documentation complete!")
     print(f"   Generated {len(all_generated_modules)} module docs in {api_dir}")
     print(
         f"   Total public modules: {sum(len(cat['modules']) for cat in PUBLIC_API_MODULES.values())}"

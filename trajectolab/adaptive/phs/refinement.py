@@ -1,6 +1,5 @@
 """
-Mesh refinement strategies for the PHS adaptive algorithm - SIMPLIFIED.
-Updated to use unified storage system and type system.
+Mesh refinement strategies including p-refinement, h-refinement, and reduction.
 """
 
 import logging

@@ -1,6 +1,5 @@
 """
-Solution extraction and formatting utilities - ENHANCED WITH FAIL-FAST.
-Added targeted error handling for critical TrajectoLab solution processing.
+Solution data extraction and formatting from raw CasADi optimization results.
 """
 
 import logging

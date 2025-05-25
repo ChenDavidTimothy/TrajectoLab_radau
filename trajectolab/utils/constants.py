@@ -1,9 +1,5 @@
 """
-Numerical constants for TrajectoLab computations.
-
-This module defines tolerances, thresholds, and physical constants used
-throughout the codebase for numerical stability and convergence criteria.
-All constants are typed for better type safety.
+Numerical constants and tolerances used throughout TrajectoLab computations.
 """
 
 from typing import TypeAlias

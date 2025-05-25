@@ -1,6 +1,5 @@
 """
-State data classes for problem definition - USES CENTRALIZED VALIDATION.
-All ConfigurationError validations moved to input_validation.py
+State management classes for variables, constraints, and mesh configuration.
 """
 
 from __future__ import annotations

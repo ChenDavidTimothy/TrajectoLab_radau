@@ -1,6 +1,5 @@
 """
-CasADi expression caching system for massive performance improvements - SIMPLIFIED.
-Removed redundant cache implementations, unified into single cache manager.
+Expression caching system for CasADi functions to improve computational performance.
 """
 
 import hashlib

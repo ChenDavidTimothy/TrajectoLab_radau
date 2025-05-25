@@ -1,6 +1,5 @@
 """
-Memory pool system for optimal trajectory interpolation - SIMPLIFIED.
-Reduced complexity while maintaining 50-90% memory allocation reduction.
+Memory pool system for efficient buffer reuse during trajectory interpolation.
 """
 
 import threading

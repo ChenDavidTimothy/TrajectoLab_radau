@@ -1,6 +1,5 @@
 """
-Numerical utilities for the PHS adaptive algorithm - SIMPLIFIED.
-Updated to use unified type system.
+Numerical utilities for polynomial interpolation and coordinate transformations.
 """
 
 import numpy as np

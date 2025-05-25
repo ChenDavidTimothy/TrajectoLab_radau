@@ -1,6 +1,5 @@
 """
-Initial guess handling for the PHS adaptive algorithm - ENHANCED WITH FAIL-FAST.
-Added targeted error handling for critical TrajectoLab interpolation operations.
+Initial guess propagation and interpolation for adaptive mesh refinement.
 """
 
 import logging

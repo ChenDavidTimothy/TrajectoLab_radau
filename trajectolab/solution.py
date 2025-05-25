@@ -1,7 +1,8 @@
 """
-Solution interface - SIMPLIFIED.
-Removed ALL wrapper forwarding, uses direct field access with integrated plotting.
-FIXED: Unreachable code issue in mesh legend creation.
+Solution interface for optimal control problem results.
+
+This module provides the Solution class that wraps optimization results
+in a user-friendly interface with plotting capabilities and trajectory access.
 """
 
 from typing import TypeAlias, cast
@@ -21,11 +22,36 @@ _TrajectoryTuple: TypeAlias = tuple[FloatArray, FloatArray]
 
 
 class Solution:
-    """SIMPLIFIED solution interface with direct field access and integrated plotting."""
+    """
+    User-friendly interface for optimal control problem solutions.
+
+    The Solution class provides easy access to optimization results including
+    trajectories, objective values, and built-in plotting capabilities. It wraps
+    the raw solver output in a convenient interface.
+
+    Attributes:
+        success: Whether the optimization was successful
+        message: Status message from the solver
+        initial_time: Initial time value (t0)
+        final_time: Final time value (tf)
+        objective: Objective function value at the solution
+        integrals: Values of integral expressions (if any)
+        time_states: Time points for state trajectories
+        states: List of state variable trajectories
+        time_controls: Time points for control trajectories
+        controls: List of control variable trajectories
+        mesh_intervals: Polynomial degrees used in final mesh
+        mesh_nodes: Normalized mesh node locations
+
+    Note:
+        Solutions are typically created by solve_fixed_mesh() or solve_adaptive().
+        Direct instantiation is not recommended.
+    """
 
     def __init__(
         self, raw_solution: OptimalControlSolution | None, problem: ProblemProtocol | None
     ) -> None:
+        """Initialize solution wrapper from raw optimization results."""
         # DIRECT FIELD ACCESS - No wrapper forwarding
         if raw_solution is not None:
             self.success = raw_solution.success
@@ -79,11 +105,38 @@ class Solution:
             self._sym_to_name = {}
 
     # ========================================================================
-    # TRAJECTORY ACCESS - Direct from stored data
+    # TRAJECTORY ACCESS
     # ========================================================================
 
     def get_trajectory(self, identifier: _VariableIdentifier) -> _TrajectoryTuple:
-        """Get trajectory for any variable (state or control)."""
+        """
+        Get time and value trajectory for any variable.
+
+        Args:
+            identifier: Variable identifier, can be:
+                - Variable name as string (e.g., "position")
+                - Variable index as integer
+                - Symbolic variable from problem definition
+
+        Returns:
+            Tuple of (time_array, values_array) where:
+                - time_array: 1D array of time points
+                - values_array: 1D array of variable values
+
+        Example:
+            >>> # Get trajectory by name
+            >>> time, pos = solution.get_trajectory("position")
+            >>>
+            >>> # Get trajectory by symbolic variable
+            >>> x = problem.state("position")
+            >>> time, pos = solution.get_trajectory(x)
+            >>>
+            >>> # Plot trajectory
+            >>> import matplotlib.pyplot as plt
+            >>> plt.plot(time, pos)
+            >>> plt.xlabel("Time")
+            >>> plt.ylabel("Position")
+        """
         if not self.success:
             print("Warning: Solution not successful")
             empty = np.array([], dtype=np.float64)
@@ -129,11 +182,23 @@ class Solution:
             return None, None
 
     # ========================================================================
-    # INTEGRATED PLOTTING - No separate module needed
+    # PLOTTING INTERFACE
     # ========================================================================
 
     def plot(self, figsize: tuple[float, float] = (10.0, 8.0)) -> None:
-        """Plot all states and controls."""
+        """
+        Plot all state and control trajectories.
+
+        Creates a multi-panel plot showing all state and control variables
+        over time, with automatic mesh interval coloring if available.
+
+        Args:
+            figsize: Figure size as (width, height) in inches
+
+        Example:
+            >>> solution.plot()                    # Default size
+            >>> solution.plot(figsize=(12, 10))   # Custom size
+        """
         if not self.success:
             print("Cannot plot: Solution not successful")
             return
@@ -172,14 +237,34 @@ class Solution:
     def plot_states(
         self, names: list[str] | None = None, figsize: tuple[float, float] = (10.0, 8.0)
     ) -> None:
-        """Plot specific states."""
+        """
+        Plot specific state variables.
+
+        Args:
+            names: List of state variable names to plot. If None, plots all states.
+            figsize: Figure size as (width, height) in inches
+
+        Example:
+            >>> solution.plot_states(["position", "velocity"])
+            >>> solution.plot_states()  # Plot all states
+        """
         names = names or self._state_names
         self._plot_variables(names, "state", figsize)
 
     def plot_controls(
         self, names: list[str] | None = None, figsize: tuple[float, float] = (10.0, 8.0)
     ) -> None:
-        """Plot specific controls."""
+        """
+        Plot specific control variables.
+
+        Args:
+            names: List of control variable names to plot. If None, plots all controls.
+            figsize: Figure size as (width, height) in inches
+
+        Example:
+            >>> solution.plot_controls(["thrust", "steering"])
+            >>> solution.plot_controls()  # Plot all controls
+        """
         names = names or self._control_names
         self._plot_variables(names, "control", figsize)
 
@@ -267,7 +352,6 @@ class Solution:
 
     def _add_mesh_legend(self, fig: MplFigure, colors: np.ndarray) -> None:
         """Add mesh interval legend."""
-        # FIXED: Check for empty list instead of None since mesh_intervals is always a list
         if not self.mesh_intervals:
             return
 
@@ -286,7 +370,21 @@ class Solution:
     # ========================================================================
 
     def summary(self) -> None:
-        """Print solution summary."""
+        """
+        Print a summary of the solution results.
+
+        Displays key information including success status, objective value,
+        time horizon, variable counts, and mesh configuration.
+
+        Example:
+            >>> solution.summary()
+            Solution Status: Success
+              Objective: 2.345e-02
+              Time: 0.000 → 3.142
+              States: 3
+              Controls: 2
+              Mesh intervals: 5
+        """
         print(f"Solution Status: {'Success' if self.success else 'Failed'}")
         if self.success:
             print(f"  Objective: {self.objective}")

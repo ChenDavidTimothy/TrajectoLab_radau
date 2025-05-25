@@ -1,5 +1,5 @@
 """
-Type definitions and data structures for the direct solver.
+Type definitions and data structure containers for the direct solver.
 """
 
 from __future__ import annotations

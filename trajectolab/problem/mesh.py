@@ -1,6 +1,5 @@
-# trajectolab/problem/mesh.py
 """
-Mesh configuration with production logging.
+Mesh configuration and validation for pseudospectral discretization.
 """
 
 import logging
