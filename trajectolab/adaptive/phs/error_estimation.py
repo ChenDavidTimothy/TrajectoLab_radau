@@ -16,7 +16,6 @@ from trajectolab.tl_types import (
     OptimalControlSolution,
     ProblemProtocol,
 )
-from trajectolab.utils.casadi_utils import convert_casadi_to_numpy
 from trajectolab.utils.constants import DEFAULT_ODE_RTOL
 
 
@@ -142,24 +141,15 @@ def simulate_dynamics_for_error_estimation(
         global_tau = beta_k * tau + beta_k0
         physical_time = alpha * global_tau + alpha_0
 
-        # Since ProblemProtocol requires get_dynamics_function, we always use the direct approach
+        # Get dynamics result as list[ca.MX] from protocol
         dynamics_result = casadi_dynamics_function(
             ca.MX(state), ca.MX(control), ca.MX(physical_time), problem_parameters
         )
-        # Convert the result to numpy
-        if isinstance(dynamics_result, list):
-            state_deriv_np = np.array(
-                [float(ca.evalf(expr)) for expr in dynamics_result], dtype=np.float64
-            )
-        else:
-            # Use convert_casadi_to_numpy for proper conversion
-            state_deriv_np = convert_casadi_to_numpy(
-                cast(ca.Function, casadi_dynamics_function),
-                state,
-                control,
-                physical_time,
-                problem_parameters,
-            )
+
+        # Convert list[ca.MX] to numpy - protocol guarantees this is a list
+        state_deriv_np = np.array(
+            [float(ca.evalf(expr)) for expr in dynamics_result], dtype=np.float64
+        )
 
         if state_deriv_np.shape[0] != num_states:
             raise ValueError(
@@ -319,4 +309,4 @@ def calculate_gamma_normalizers(
     gamma_denominator = 1.0 + max_abs_values
     gamma_factors = 1.0 / np.maximum(gamma_denominator, np.float64(1e-12))
 
-    return cast(FloatArray, gamma_factors.reshape(-1, 1))
+    return gamma_factors.reshape(-1, 1)
