@@ -25,6 +25,12 @@ _TrajectoryTuple: TypeAlias = tuple[FloatArray, FloatArray]
 class Solution:
     """User-friendly interface for optimal control problem solutions."""
 
+    # Type hints for key attributes to ensure proper type inference
+    success: bool
+    objective: float  # Always a float - NaN for failed solutions
+    initial_time: float | None
+    final_time: float | None
+
     def __init__(
         self, raw_solution: OptimalControlSolution | None, problem: ProblemProtocol | None
     ) -> None:
@@ -34,7 +40,9 @@ class Solution:
             self.message = raw_solution.message
             self.initial_time = raw_solution.initial_time_variable
             self.final_time = raw_solution.terminal_time_variable
-            self.objective = raw_solution.objective
+            self.objective = (
+                raw_solution.objective if raw_solution.objective is not None else float("nan")
+            )
             self.integrals = raw_solution.integrals
             self.time_states = raw_solution.time_states
             self.states = raw_solution.states
@@ -49,7 +57,7 @@ class Solution:
             self.message = "No solution"
             self.initial_time = None
             self.final_time = None
-            self.objective = None
+            self.objective = float("nan")
             self.integrals = None
             self.time_states = np.array([], dtype=np.float64)
             self.states = []
