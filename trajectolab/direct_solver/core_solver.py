@@ -3,7 +3,6 @@ Core orchestration for the direct pseudospectral solver using Radau collocation.
 """
 
 import logging
-from typing import cast
 
 import casadi as ca
 
@@ -11,7 +10,6 @@ from ..exceptions import DataIntegrityError, SolutionExtractionError
 from ..radau import RadauBasisComponents, compute_radau_collocation_components
 from ..solution_extraction import extract_and_format_solution
 from ..tl_types import (
-    FloatArray,
     OptimalControlSolution,
     ProblemProtocol,
 )
@@ -115,7 +113,7 @@ def _process_mesh_intervals(
     dynamics_function = problem.get_dynamics_function()
     path_constraints_function = problem.get_path_constraints_function()
     integral_integrand_function = problem.get_integrand_function()
-    global_mesh_nodes = cast(FloatArray, problem.global_normalized_mesh_nodes)
+    global_mesh_nodes = problem.global_normalized_mesh_nodes
 
     # Data integrity validation (internal consistency)
     if len(global_mesh_nodes) != num_mesh_intervals + 1:
@@ -307,7 +305,7 @@ def _execute_solve(
     opti: ca.Opti, problem: ProblemProtocol, num_mesh_intervals: int
 ) -> OptimalControlSolution:
     """Execute the solve and handle results."""
-    global_mesh_nodes = cast(FloatArray, problem.global_normalized_mesh_nodes)
+    global_mesh_nodes = problem.global_normalized_mesh_nodes
     collocation_points = problem.collocation_points_per_interval
 
     try:
