@@ -62,7 +62,7 @@ class ProblemProtocol(Protocol):
     # Mesh properties (RESTORED - solver needs these)
     _mesh_configured: bool
     collocation_points_per_interval: list[int]
-    global_normalized_mesh_nodes: FloatArray | None
+    global_normalized_mesh_nodes: FloatArray
 
     # Time bounds (RESTORED - solver needs these)
     _t0_bounds: tuple[float, float]
@@ -108,6 +108,10 @@ class ProblemProtocol(Protocol):
     def validate_initial_guess(self) -> None:
         """Validate the current initial guess"""
         ...
+
+    def set_mesh(
+        self, polynomial_degrees: list[int], mesh_points: FloatArray | list[float]
+    ) -> None: ...
 
 
 # --- UNIFIED CONSTRAINT SYSTEM ---
