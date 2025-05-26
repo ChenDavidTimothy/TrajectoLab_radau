@@ -151,75 +151,268 @@ class Solution:
         """Get list of all available variable names including time arrays."""
         return self._state_names + self._control_names + ["time_states", "time_controls"]
 
-    def plot(self, figsize: tuple[float, float] = (10.0, 8.0)) -> None:
-        """Plot all state and control trajectories."""
+    def plot(self, *variable_names: str, figsize: tuple[float, float] = (10.0, 8.0)) -> None:
+        """
+        Plot trajectories with smart layout and windowing.
+
+        Args:
+            *variable_names: Optional specific variable names to plot. If none provided,
+                all states and controls are plotted in separate windows.
+            figsize: Figure size for each window
+
+        Raises:
+            ValueError: If attempting to plot time arrays directly or unknown variables
+
+        Examples:
+            >>> solution.plot()  # Separate windows for states and controls
+            >>> solution.plot("position", "velocity")  # Specific variables in one window
+            >>> solution.plot("thrust", "altitude")  # Mixed state/control variables
+
+        Note:
+            - States and controls are automatically separated into different windows when no
+              specific variables are requested
+            - Smart layout uses optimal subplot arrangements (up to 3x3 per window)
+            - Additional windows are created when more than 9 variables per type
+        """
         if not self.success:
             logger.warning("Cannot plot: Solution not successful")
             return
 
-        num_states = len(self._state_names)
-        num_controls = len(self._control_names)
-        total_plots = num_states + num_controls
+        # Validate requested variables
+        if variable_names:
+            self._validate_plot_variables(list(variable_names))
+            # Plot specific variables in organized windows
+            self._plot_specific_variables(list(variable_names), figsize)
+        else:
+            # Default behavior: separate windows for states and controls
+            self._plot_default_layout(figsize)
 
-        if total_plots == 0:
+    def _validate_plot_variables(self, variable_names: list[str]) -> None:
+        """
+        Validate variables for plotting.
+
+        Args:
+            variable_names: List of variable names to validate
+
+        Raises:
+            ValueError: If time arrays or unknown variables are requested
+        """
+        # Check for time array plotting attempts
+        time_arrays = [name for name in variable_names if name in ["time_states", "time_controls"]]
+        if time_arrays:
+            raise ValueError(
+                f"Cannot plot time arrays directly: {time_arrays}. "
+                "Time arrays are automatically used as x-axis for trajectory plots."
+            )
+
+        # Check for unknown variables
+        unknown_vars = [name for name in variable_names if name not in self]
+        if unknown_vars:
+            available_vars = self._state_names + self._control_names
+            raise ValueError(
+                f"Unknown variables: {unknown_vars}. Available variables: {available_vars}"
+            )
+
+    def _plot_default_layout(self, figsize: tuple[float, float]) -> None:
+        """Plot all variables with states and controls in separate windows."""
+        figures_created = []
+
+        if self._state_names:
+            figures_created.extend(
+                self._create_variable_windows(
+                    self._state_names, "States", "state", figsize, show_immediately=False
+                )
+            )
+
+        if self._control_names:
+            figures_created.extend(
+                self._create_variable_windows(
+                    self._control_names, "Controls", "control", figsize, show_immediately=False
+                )
+            )
+
+        if not self._state_names and not self._control_names:
             logger.info("No variables to plot")
             return
 
-        fig, axes = plt.subplots(total_plots, 1, figsize=figsize, sharex=True)
-        if total_plots == 1:
-            axes = [axes]
+        # Show all figures simultaneously
+        for fig in figures_created:
+            plt.figure(fig.number)
+            plt.show(block=False)
 
+        # Make the last figure blocking so program doesn't exit immediately in scripts
+        if figures_created:
+            plt.figure(figures_created[-1].number)
+            plt.show()
+
+    def _plot_specific_variables(
+        self, variable_names: list[str], figsize: tuple[float, float]
+    ) -> None:
+        """Plot specific requested variables in organized windows."""
+        self._create_variable_windows(
+            variable_names, "Variables", "mixed", figsize, show_immediately=True
+        )
+        # For specific variables, show immediately since there's typically only one window
+
+    def _create_variable_windows(
+        self,
+        variables: list[str],
+        window_title: str,
+        var_type: str,
+        figsize: tuple[float, float],
+        show_immediately: bool = True,
+    ) -> list[MplFigure]:
+        """
+        Create optimally-laid-out windows for variable groups.
+
+        Args:
+            variables: List of variable names to plot
+            window_title: Base title for windows
+            var_type: Type of variables ("state", "control", or "mixed")
+            figsize: Figure size for each window
+            show_immediately: Whether to show figures immediately or return them for later display
+
+        Returns:
+            List of created figures
+        """
+        max_plots_per_window = 9  # 3x3 grid maximum
+        num_variables = len(variables)
+
+        if num_variables == 0:
+            return []
+
+        figures_created = []
+
+        # Create windows for groups of variables
+        window_count = 1
+        for start_idx in range(0, num_variables, max_plots_per_window):
+            end_idx = min(start_idx + max_plots_per_window, num_variables)
+            window_variables = variables[start_idx:end_idx]
+
+            # Determine window title
+            if num_variables <= max_plots_per_window:
+                title = window_title
+            else:
+                title = f"{window_title} ({window_count})"
+
+            fig = self._create_single_window(
+                window_variables, title, var_type, figsize, show_immediately
+            )
+            figures_created.append(fig)
+            window_count += 1
+
+        return figures_created
+
+    def _create_single_window(
+        self,
+        variables: list[str],
+        title: str,
+        var_type: str,
+        figsize: tuple[float, float],
+        show_immediately: bool = True,
+    ) -> MplFigure:
+        """
+        Create a single window with optimal subplot layout.
+
+        Args:
+            variables: Variables to plot in this window
+            title: Window title
+            var_type: Variable type for determining plot style
+            figsize: Figure size
+            show_immediately: Whether to show the figure immediately
+
+        Returns:
+            Created matplotlib figure
+        """
+        num_plots = len(variables)
+        if num_plots == 0:
+            return plt.figure()
+
+        # Determine optimal layout
+        rows, cols = self._determine_subplot_layout(num_plots)
+
+        # Create figure and subplots
+        fig, axes = plt.subplots(rows, cols, figsize=figsize, sharex=True)
+        fig.suptitle(title)
+
+        # Handle single subplot case
+        if num_plots == 1:
+            axes = [axes]
+        elif isinstance(axes, np.ndarray):
+            axes = axes.flatten()
+
+        # Get colors for mesh intervals
         colors = self._get_interval_colors()
 
-        for i, name in enumerate(self._state_names):
-            self._plot_single_variable(axes[i], name, "state", colors)
+        # Plot each variable
+        for i, var_name in enumerate(variables):
+            self._plot_single_variable(axes[i], var_name, self._get_variable_type(var_name), colors)
 
-        for i, name in enumerate(self._control_names):
-            self._plot_single_variable(axes[num_states + i], name, "control", colors)
+        # Hide unused subplots
+        for i in range(num_plots, len(axes)):
+            axes[i].set_visible(False)
 
-        axes[-1].set_xlabel("Time")
+        # Set x-label on bottom plots
+        bottom_row_start = (rows - 1) * cols
+        for i in range(bottom_row_start, min(bottom_row_start + cols, num_plots)):
+            axes[i].set_xlabel("Time")
+
+        # Add mesh legend if applicable
         if colors is not None and len(colors) > 0:
             self._add_mesh_legend(fig, colors)
+
         plt.tight_layout()
-        plt.show()
 
-    def plot_states(
-        self, names: list[str] | None = None, figsize: tuple[float, float] = (10.0, 8.0)
-    ) -> None:
-        """Plot specific state variables."""
-        names = names or self._state_names
-        self._plot_variables(names, "state", figsize)
+        if show_immediately:
+            plt.show()
 
-    def plot_controls(
-        self, names: list[str] | None = None, figsize: tuple[float, float] = (10.0, 8.0)
-    ) -> None:
-        """Plot specific control variables."""
-        names = names or self._control_names
-        self._plot_variables(names, "control", figsize)
+        return fig
 
-    def _plot_variables(
-        self, names: list[str], var_type: str, figsize: tuple[float, float]
-    ) -> None:
-        """Plot list of variables of same type."""
-        if not self.success or not names:
-            reason = "solution not successful" if not self.success else "no variables specified"
-            logger.warning("Cannot plot %ss: %s", var_type, reason)
-            return
+    def _determine_subplot_layout(self, num_plots: int) -> tuple[int, int]:
+        """
+        Determine optimal (rows, cols) layout for given number of plots.
 
-        fig, axes = plt.subplots(len(names), 1, figsize=figsize, sharex=True)
-        if len(names) == 1:
-            axes = [axes]
+        Args:
+            num_plots: Number of plots to arrange
 
-        colors = self._get_interval_colors()
+        Returns:
+            Tuple of (rows, columns) for optimal layout
+        """
+        if num_plots == 1:
+            return (1, 1)
+        elif num_plots == 2:
+            return (2, 1)
+        elif num_plots == 3:
+            return (2, 2)
+        elif num_plots == 4:
+            return (2, 2)
+        elif num_plots in [5, 6]:
+            return (3, 2)
+        elif num_plots in [7, 8, 9]:
+            return (3, 3)
+        else:
+            # Fallback for edge cases (shouldn't occur with max 9 per window)
+            rows = int(np.ceil(np.sqrt(num_plots)))
+            cols = int(np.ceil(num_plots / rows))
+            return (rows, cols)
 
-        for i, name in enumerate(names):
-            self._plot_single_variable(axes[i], name, var_type, colors)
+    def _get_variable_type(self, var_name: str) -> str:
+        """
+        Determine if variable is state or control.
 
-        axes[-1].set_xlabel("Time")
-        if colors is not None and len(colors) > 0:
-            self._add_mesh_legend(fig, colors)
-        plt.tight_layout()
-        plt.show()
+        Args:
+            var_name: Variable name
+
+        Returns:
+            "state" or "control"
+        """
+        if var_name in self._state_names:
+            return "state"
+        elif var_name in self._control_names:
+            return "control"
+        else:
+            # Fallback (shouldn't occur after validation)
+            return "state"
 
     def _plot_single_variable(
         self, ax: MplAxes, name: str, var_type: str, colors: list | np.ndarray | None
