@@ -3,7 +3,7 @@ Utility functions for CasADi integration, conversion, and numerical validation.
 """
 
 import logging
-from typing import Any, TypeAlias, cast
+from typing import cast
 
 import casadi as ca
 import numpy as np
@@ -13,11 +13,6 @@ from trajectolab.tl_types import FloatArray, ProblemParameters
 
 
 logger = logging.getLogger(__name__)
-
-# Type aliases for better type safety
-_CasadiExpression: TypeAlias = ca.MX | ca.DM | ca.SX
-_CasadiObject: TypeAlias = ca.MX | ca.DM | ca.Function | ca.SX | Any
-_CasadiResult: TypeAlias = ca.MX | ca.DM | list[ca.MX] | tuple[ca.MX, ...]
 
 
 class CasadiConversionError(Exception):
@@ -127,81 +122,3 @@ def convert_casadi_to_numpy(
         raise  # Re-raise TrajectoLab-specific errors
     except Exception as e:
         raise CasadiConversionError(f"CasADi dynamics evaluation failed: {e}") from e
-
-
-def validate_casadi_expression(expr: _CasadiObject) -> bool:
-    """
-    Validate that an expression is a proper CasADi type.
-    """
-    return isinstance(expr, ca.MX | ca.DM | ca.SX)
-
-
-def extract_casadi_value(
-    casadi_obj: _CasadiObject, target_shape: tuple[int, int] | None = None
-) -> FloatArray:
-    """
-    Extract numerical value from CasADi object and ensure proper shape with enhanced validation.
-    """
-    # Guard clause: Validate input
-    if casadi_obj is None:
-        raise DataIntegrityError(
-            "casadi_obj cannot be None", "Invalid CasADi object for value extraction"
-        )
-
-    try:
-        # Convert to numpy array
-        if hasattr(casadi_obj, "to_DM"):
-            np_array = np.array(casadi_obj.to_DM(), dtype=np.float64)
-        elif hasattr(casadi_obj, "full"):
-            np_array = np.array(casadi_obj.full(), dtype=np.float64)
-        else:
-            np_array = np.array(casadi_obj, dtype=np.float64)
-
-        # Critical: Check for NaN/Inf in extracted values
-        if np.any(np.isnan(np_array)) or np.any(np.isinf(np_array)):
-            raise DataIntegrityError(
-                "Extracted CasADi values contain NaN or Inf",
-                "Numerical corruption in CasADi extraction",
-            )
-
-        # Reshape if target shape provided
-        if target_shape is not None:
-            expected_rows, expected_cols = target_shape
-
-            # Guard clause: Validate target shape
-            if expected_rows < 0 or expected_cols < 0:
-                raise DataIntegrityError(
-                    f"Invalid target shape: {target_shape}", "Negative dimensions in reshape target"
-                )
-
-            # Handle empty arrays
-            if expected_rows == 0:
-                return np.empty((0, expected_cols), dtype=np.float64)
-
-            # Ensure 2D shape
-            if np_array.ndim == 1:
-                if len(np_array) == expected_rows:
-                    np_array = np_array.reshape(expected_rows, 1)
-                elif len(np_array) == expected_cols:
-                    np_array = np_array.reshape(1, expected_cols)
-                else:
-                    np_array = np_array.reshape(1, -1)
-
-            # Transpose if dimensions are swapped
-            if (
-                np_array.shape[0] != expected_rows
-                and np_array.shape[1] == expected_rows
-                and np_array.shape[0] == expected_cols
-            ):
-                np_array = np_array.T
-
-            # Validate final shape
-            if np_array.shape != (expected_rows, expected_cols):
-                logger.warning(f"Could not reshape to target {target_shape}, got {np_array.shape}")
-
-        return cast(FloatArray, np_array)
-
-    except DataIntegrityError:
-        raise  # Re-raise TrajectoLab-specific errors
-    except Exception as e:
-        raise CasadiConversionError(f"Failed to extract CasADi value: {e}") from e
