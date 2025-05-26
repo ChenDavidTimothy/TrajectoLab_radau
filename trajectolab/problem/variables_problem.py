@@ -8,24 +8,23 @@ from typing import Any, cast
 
 import casadi as ca
 
-from ..tl_types import SymExpr
 from .state import ConstraintInput, VariableState, _BoundaryConstraint
 
 
-def _convert_expression_to_pure_symbols(expr: SymExpr) -> SymExpr:
-    """Convert expressions containing wrapper objects to pure CasADi symbols."""
+def _convert_expression_to_casadi(expr: Any) -> ca.MX:
+    """Convert expressions to CasADi MX - SIMPLIFIED."""
+    # Handle wrapper objects
     symbolic_var = getattr(expr, "_symbolic_var", None)
     if symbolic_var is not None:
         return symbolic_var
     elif isinstance(expr, ca.MX):
         return expr
     elif isinstance(expr, int | float):
-        return expr
+        return ca.MX(expr)
     else:
         try:
             return ca.MX(expr)
         except Exception as e:
-            # FIXED: Provide better error handling instead of silent fallback
             import inspect
 
             if inspect.isfunction(expr) or inspect.ismethod(expr):
@@ -81,50 +80,50 @@ class _SymbolicVariableBase:
 
     # Arithmetic operators
     def __add__(self, other: Any) -> ca.MX:
-        return self._symbolic_var + _convert_expression_to_pure_symbols(other)
+        return self._symbolic_var + _convert_expression_to_casadi(other)
 
     def __radd__(self, other: Any) -> ca.MX:
-        return _convert_expression_to_pure_symbols(other) + self._symbolic_var
+        return _convert_expression_to_casadi(other) + self._symbolic_var
 
     def __sub__(self, other: Any) -> ca.MX:
-        return self._symbolic_var - _convert_expression_to_pure_symbols(other)
+        return self._symbolic_var - _convert_expression_to_casadi(other)
 
     def __rsub__(self, other: Any) -> ca.MX:
-        return _convert_expression_to_pure_symbols(other) - self._symbolic_var
+        return _convert_expression_to_casadi(other) - self._symbolic_var
 
     def __mul__(self, other: Any) -> ca.MX:
-        return self._symbolic_var * _convert_expression_to_pure_symbols(other)
+        return self._symbolic_var * _convert_expression_to_casadi(other)
 
     def __rmul__(self, other: Any) -> ca.MX:
-        return _convert_expression_to_pure_symbols(other) * self._symbolic_var
+        return _convert_expression_to_casadi(other) * self._symbolic_var
 
     def __truediv__(self, other: Any) -> ca.MX:
-        return self._symbolic_var / _convert_expression_to_pure_symbols(other)
+        return self._symbolic_var / _convert_expression_to_casadi(other)
 
     def __rtruediv__(self, other: Any) -> ca.MX:
-        return _convert_expression_to_pure_symbols(other) / self._symbolic_var
+        return _convert_expression_to_casadi(other) / self._symbolic_var
 
     def __pow__(self, other: Any) -> ca.MX:
-        return self._symbolic_var ** _convert_expression_to_pure_symbols(other)
+        return self._symbolic_var ** _convert_expression_to_casadi(other)
 
     def __neg__(self) -> ca.MX:
         return cast(ca.MX, -self._symbolic_var)
 
     # Comparison operators
     def __lt__(self, other: Any) -> ca.MX:
-        return self._symbolic_var < _convert_expression_to_pure_symbols(other)
+        return self._symbolic_var < _convert_expression_to_casadi(other)
 
     def __le__(self, other: Any) -> ca.MX:
-        return self._symbolic_var <= _convert_expression_to_pure_symbols(other)
+        return self._symbolic_var <= _convert_expression_to_casadi(other)
 
     def __gt__(self, other: Any) -> ca.MX:
-        return self._symbolic_var > _convert_expression_to_pure_symbols(other)
+        return self._symbolic_var > _convert_expression_to_casadi(other)
 
     def __ge__(self, other: Any) -> ca.MX:
-        return self._symbolic_var >= _convert_expression_to_pure_symbols(other)
+        return self._symbolic_var >= _convert_expression_to_casadi(other)
 
     def __ne__(self, other: Any) -> ca.MX:
-        return self._symbolic_var != _convert_expression_to_pure_symbols(other)
+        return self._symbolic_var != _convert_expression_to_casadi(other)
 
 
 class TimeVariableImpl(_SymbolicVariableBase):
@@ -255,7 +254,7 @@ def create_parameter_variable(
 
 
 def set_dynamics(
-    state: VariableState, dynamics_dict: dict[ca.MX | StateVariableImpl, SymExpr]
+    state: VariableState, dynamics_dict: dict[ca.MX | StateVariableImpl, ca.MX | float | int]
 ) -> None:
     """Set dynamics expressions."""
     ordered_state_symbols = state.get_ordered_state_symbols()
@@ -275,18 +274,18 @@ def set_dynamics(
     converted_dict = {}
     for key, value in dynamics_dict.items():
         storage_key = getattr(key, "_symbolic_var", key)
-        storage_value = _convert_expression_to_pure_symbols(value)
+        storage_value = _convert_expression_to_casadi(value)
         converted_dict[storage_key] = storage_value
 
     state.dynamics_expressions = converted_dict
 
 
-def add_integral(state: VariableState, integrand_expr: SymExpr) -> ca.MX:
+def add_integral(state: VariableState, integrand_expr: ca.MX | float | int) -> ca.MX:
     """Add an integral expression."""
     integral_name = f"integral_{len(state.integral_expressions)}"
     integral_sym = ca.MX.sym(integral_name, 1)  # type: ignore[arg-type]
 
-    pure_expr = _convert_expression_to_pure_symbols(integrand_expr)
+    pure_expr = _convert_expression_to_casadi(integrand_expr)
     state.integral_expressions.append(pure_expr)
     state.integral_symbols.append(integral_sym)
     state.num_integrals = len(state.integral_expressions)
@@ -294,7 +293,7 @@ def add_integral(state: VariableState, integrand_expr: SymExpr) -> ca.MX:
     return integral_sym
 
 
-def set_objective(state: VariableState, objective_expr: SymExpr) -> None:
+def set_objective(state: VariableState, objective_expr: ca.MX | float | int) -> None:
     """Set the objective expression."""
-    pure_expr = _convert_expression_to_pure_symbols(objective_expr)
+    pure_expr = _convert_expression_to_casadi(objective_expr)
     state.objective_expression = pure_expr

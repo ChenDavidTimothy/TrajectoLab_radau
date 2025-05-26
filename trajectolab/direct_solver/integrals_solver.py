@@ -2,12 +2,13 @@
 Integral constraint setup using quadrature rules for the direct solver.
 """
 
+from collections.abc import Callable
+
 import casadi as ca
 
 from ..radau import RadauBasisComponents
 from ..tl_types import (
     FloatArray,
-    IntegralIntegrandCallable,
     ProblemParameters,
 )
 
@@ -21,7 +22,7 @@ def setup_integrals(
     global_normalized_mesh_nodes: FloatArray,
     initial_time_variable: ca.MX,
     terminal_time_variable: ca.MX,
-    integral_integrand_function: IntegralIntegrandCallable,
+    integral_integrand_function: Callable[..., ca.MX],
     problem_parameters: ProblemParameters,
     num_integrals: int,
     accumulated_integral_expressions: list[ca.MX],

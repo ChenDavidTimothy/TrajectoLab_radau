@@ -3,19 +3,18 @@ Error estimation functions using forward and backward dynamics simulation.
 """
 
 import logging
+from collections.abc import Callable
 from typing import cast
 
+import casadi as ca
 import numpy as np
 
 from trajectolab.adaptive.phs.data_structures import IntervalSimulationBundle
 from trajectolab.tl_types import (
-    ControlEvaluator,
     FloatArray,
-    GammaFactors,
     ODESolverCallable,
     OptimalControlSolution,
     ProblemProtocol,
-    StateEvaluator,
 )
 from trajectolab.utils.casadi_utils import convert_casadi_to_numpy
 from trajectolab.utils.constants import DEFAULT_ODE_RTOL
@@ -83,8 +82,8 @@ def simulate_dynamics_for_error_estimation(
     interval_idx: int,
     solution: "OptimalControlSolution",
     problem: ProblemProtocol,
-    state_evaluator: StateEvaluator,
-    control_evaluator: ControlEvaluator,
+    state_evaluator: Callable[[float], FloatArray],
+    control_evaluator: Callable[[float], FloatArray],
     ode_solver: ODESolverCallable,
     ode_rtol: float = DEFAULT_ODE_RTOL,
     n_eval_points: int = 50,
@@ -143,14 +142,29 @@ def simulate_dynamics_for_error_estimation(
         global_tau = beta_k * tau + beta_k0
         physical_time = alpha * global_tau + alpha_0
 
-        # Use the consolidated conversion function
-        state_deriv_np = convert_casadi_to_numpy(
-            casadi_dynamics_function,
-            state,
-            control,
-            physical_time,
-            problem_parameters,
-        )
+        if hasattr(problem, "get_dynamics_function"):
+            # Use a different approach - call the function directly
+            dynamics_result = casadi_dynamics_function(
+                ca.MX(state), ca.MX(control), ca.MX(physical_time), problem_parameters
+            )
+            # Convert the result to numpy
+            if isinstance(dynamics_result, list):
+                state_deriv_np = np.array(
+                    [float(ca.evalf(expr)) for expr in dynamics_result], dtype=np.float64
+                )
+            else:
+                state_deriv_np = np.array(
+                    ca.evalf(dynamics_result).full().flatten(), dtype=np.float64
+                )
+        else:
+            # Fallback to original approach
+            state_deriv_np = convert_casadi_to_numpy(
+                cast(ca.Function, casadi_dynamics_function),
+                state,
+                control,
+                physical_time,
+                problem_parameters,
+            )
 
         if state_deriv_np.shape[0] != num_states:
             raise ValueError(
@@ -212,7 +226,7 @@ def simulate_dynamics_for_error_estimation(
 
 
 def calculate_relative_error_estimate(
-    interval_idx: int, sim_bundle: IntervalSimulationBundle, gamma_factors: GammaFactors
+    interval_idx: int, sim_bundle: IntervalSimulationBundle, gamma_factors: FloatArray
 ) -> float:
     """Calculates the maximum relative error estimate for an interval."""
     # Check for failed simulations
@@ -275,7 +289,7 @@ def calculate_relative_error_estimate(
 
 def calculate_gamma_normalizers(
     solution: "OptimalControlSolution", problem: ProblemProtocol
-) -> GammaFactors | None:
+) -> FloatArray | None:
     """Calculates gamma_i normalization factors for error estimation - SIMPLIFIED."""
     if not solution.success or solution.raw_solution is None:
         return None
@@ -310,4 +324,4 @@ def calculate_gamma_normalizers(
     gamma_denominator = 1.0 + max_abs_values
     gamma_factors = 1.0 / np.maximum(gamma_denominator, np.float64(1e-12))
 
-    return cast(GammaFactors, gamma_factors.reshape(-1, 1))
+    return cast(FloatArray, gamma_factors.reshape(-1, 1))

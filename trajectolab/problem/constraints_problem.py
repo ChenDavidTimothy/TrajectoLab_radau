@@ -4,14 +4,13 @@ Constraint processing and conversion functions for path and event constraints.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import casadi as ca
 
 from ..tl_types import (
     Constraint,
-    EventConstraintsCallable,
-    PathConstraintsCallable,
     ProblemParameters,
-    SymExpr,
 )
 from .state import (
     ConstraintState,
@@ -20,12 +19,16 @@ from .state import (
 )
 
 
-def add_constraint(state: ConstraintState, constraint_expr: SymExpr) -> None:
+def add_constraint(state: ConstraintState, constraint_expr: ca.MX | float | int) -> None:
     """Add a constraint expression."""
-    state.constraints.append(constraint_expr)
+    # Convert to ca.MX before storing
+    if isinstance(constraint_expr, ca.MX):
+        state.constraints.append(constraint_expr)
+    else:
+        state.constraints.append(ca.MX(constraint_expr))
 
 
-def _is_path_constraint(expr: SymExpr, variable_state: VariableState) -> bool:
+def _is_path_constraint(expr: ca.MX | float | int, variable_state: VariableState) -> bool:
     """Check if constraint is path constraint (depends only on states, controls, time)."""
     # Path constraints only depend on states, controls and time (t)
     # Not on initial/final specific values (t0/tf)
@@ -39,7 +42,7 @@ def _is_path_constraint(expr: SymExpr, variable_state: VariableState) -> bool:
     return not depends_on_t0_tf
 
 
-def _symbolic_constraint_to_constraint(expr: SymExpr) -> Constraint:
+def _symbolic_constraint_to_constraint(expr: ca.MX) -> Constraint:
     """Convert symbolic constraint to unified Constraint."""
     # Handle equality constraints: expr == value
     if (
@@ -98,7 +101,7 @@ def _boundary_constraint_to_constraints(
 
 def get_path_constraints_function(
     constraint_state: ConstraintState, variable_state: VariableState
-) -> PathConstraintsCallable | None:
+) -> Callable[..., list[Constraint]] | None:
     """
     Get path constraints function for solver using unified constraint API.
 
@@ -201,7 +204,7 @@ def _has_event_constraints(variable_state: VariableState) -> bool:
 def get_event_constraints_function(
     constraint_state: ConstraintState,
     variable_state: VariableState,
-) -> EventConstraintsCallable | None:
+) -> Callable[..., list[Constraint]] | None:
     """Get event constraints function for solver using unified constraint API."""
     # Filter event constraints
     event_constraints = [

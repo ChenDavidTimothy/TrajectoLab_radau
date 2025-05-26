@@ -5,16 +5,13 @@ Interface conversion functions between problem definition and solver requirement
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Callable
 from typing import cast
 
 import casadi as ca
 
 from ..tl_types import (
-    DynamicsCallable,
-    EventConstraintsCallable,
-    IntegralIntegrandCallable,
-    ObjectiveCallable,
-    PathConstraintsCallable,
+    Constraint,
     ProblemParameters,
 )
 from ..utils.expression_cache import (
@@ -25,7 +22,7 @@ from .constraints_problem import get_event_constraints_function, get_path_constr
 from .state import ConstraintState, VariableState
 
 
-def get_dynamics_function(variable_state: VariableState) -> DynamicsCallable:
+def get_dynamics_function(variable_state: VariableState) -> Callable[..., list[ca.MX]]:
     """Get dynamics function for solver with expression caching and unified storage."""
     dynamics_exprs = [str(expr) for expr in variable_state.dynamics_expressions.values()]
     expr_hash = hashlib.sha256("".join(sorted(dynamics_exprs)).encode()).hexdigest()[:16]
@@ -92,7 +89,7 @@ def get_dynamics_function(variable_state: VariableState) -> DynamicsCallable:
     return vectorized_dynamics
 
 
-def get_objective_function(variable_state: VariableState) -> ObjectiveCallable:
+def get_objective_function(variable_state: VariableState) -> Callable[..., ca.MX]:
     """Get objective function for solver with expression caching and unified storage."""
     if variable_state.objective_expression is None:
         raise ValueError("Objective expression not defined")
@@ -193,7 +190,7 @@ def get_objective_function(variable_state: VariableState) -> ObjectiveCallable:
     return unified_objective
 
 
-def get_integrand_function(variable_state: VariableState) -> IntegralIntegrandCallable | None:
+def get_integrand_function(variable_state: VariableState) -> Callable[..., ca.MX] | None:
     """Get integrand function for solver with expression caching and unified storage."""
     if not variable_state.integral_expressions:
         return None
@@ -252,13 +249,13 @@ def get_integrand_function(variable_state: VariableState) -> IntegralIntegrandCa
 
 def get_path_constraints_function_for_problem(
     constraint_state: ConstraintState, variable_state: VariableState
-) -> PathConstraintsCallable | None:
+) -> Callable[..., list[Constraint]] | None:
     """Get path constraints function for solver using unified storage."""
     return get_path_constraints_function(constraint_state, variable_state)
 
 
 def get_event_constraints_function_for_problem(
     constraint_state: ConstraintState, variable_state: VariableState
-) -> EventConstraintsCallable | None:
+) -> Callable[..., list[Constraint]] | None:
     """Get event constraints function for solver using unified storage."""
     return get_event_constraints_function(constraint_state, variable_state)

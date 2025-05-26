@@ -89,7 +89,8 @@ ignore = [
     "N815",  # Variable in class scope should not be mixedCase (scientific)
     "S311",  # Pseudo-random generators not suitable for cryptographic purposes
     "S101", # Use assert statements (allow in tests)
-    "RUF003"
+    "RUF003",
+    "S603"
 ]
 
 # Per-file ignores

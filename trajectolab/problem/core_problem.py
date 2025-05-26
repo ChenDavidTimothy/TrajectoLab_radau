@@ -11,7 +11,7 @@ from typing import Any
 
 import casadi as ca
 
-from ..tl_types import FloatArray, NumericArrayLike, SymExpr
+from ..tl_types import FloatArray, NumericArrayLike
 from . import constraints_problem, initial_guess_problem, mesh, solver_interface, variables_problem
 from .state import ConstraintInput, ConstraintState, MeshState, VariableState
 from .variables_problem import StateVariableImpl
@@ -102,22 +102,22 @@ class Problem:
         return self._variable_state.tf_bounds
 
     @property
-    def _dynamics_expressions(self) -> dict[ca.MX, SymExpr]:
+    def _dynamics_expressions(self) -> dict[ca.MX, ca.MX]:
         """Internal dynamics expressions storage."""
         return self._variable_state.dynamics_expressions
 
     @property
-    def _objective_expression(self) -> SymExpr | None:
+    def _objective_expression(self) -> ca.MX | None:
         """Internal objective expression storage."""
         return self._variable_state.objective_expression
 
     @property
-    def _constraints(self) -> list[SymExpr]:
+    def _constraints(self) -> list[ca.MX]:
         """Internal constraint expressions storage."""
         return self._constraint_state.constraints
 
     @property
-    def _integral_expressions(self) -> list[SymExpr]:
+    def _integral_expressions(self) -> list[ca.MX]:
         """Internal integral expressions storage."""
         return self._variable_state.integral_expressions
 
@@ -367,7 +367,8 @@ class Problem:
         return param_var
 
     def dynamics(
-        self, dynamics_dict: dict[ca.MX | StateVariableImpl, SymExpr | StateVariableImpl]
+        self,
+        dynamics_dict: dict[ca.MX | StateVariableImpl, ca.MX | float | int | StateVariableImpl],
     ) -> None:
         """
         Define the system dynamics as differential equations.
@@ -398,7 +399,7 @@ class Problem:
         # Log dynamics definition (INFO - user cares about major setup)
         logger.info("Dynamics defined for %d state variables", len(dynamics_dict))
 
-    def add_integral(self, integrand_expr: SymExpr) -> ca.MX:
+    def add_integral(self, integrand_expr: ca.MX | float | int) -> ca.MX:
         """
         Add an integral expression to be computed during solution.
 
@@ -425,7 +426,7 @@ class Problem:
 
         return integral_var
 
-    def minimize(self, objective_expr: SymExpr) -> None:
+    def minimize(self, objective_expr: ca.MX | float | int) -> None:
         """
         Define the objective function to minimize.
 
@@ -449,7 +450,7 @@ class Problem:
         # Log objective definition (INFO - user cares about major setup)
         logger.info("Objective function defined")
 
-    def subject_to(self, constraint_expr: SymExpr) -> None:
+    def subject_to(self, constraint_expr: ca.MX | float | int) -> None:
         """
         Add a constraint to the problem.
 

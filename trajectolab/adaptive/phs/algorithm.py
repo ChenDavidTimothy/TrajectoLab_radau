@@ -3,7 +3,7 @@ Main PHS adaptive mesh refinement algorithm implementation.
 """
 
 import logging
-from typing import cast
+from collections.abc import Callable
 
 import numpy as np
 
@@ -33,14 +33,7 @@ from trajectolab.radau import (
     compute_barycentric_weights,
     compute_radau_collocation_components,
 )
-from trajectolab.tl_types import (
-    ControlEvaluator,
-    FloatArray,
-    InitialGuess,
-    OptimalControlSolution,
-    ProblemProtocol,
-    StateEvaluator,
-)
+from trajectolab.tl_types import FloatArray, InitialGuess, OptimalControlSolution, ProblemProtocol
 
 
 logger = logging.getLogger(__name__)
@@ -93,13 +86,13 @@ def _create_interpolants(
     solution: OptimalControlSolution,
     problem: ProblemProtocol,
     polynomial_degrees: list[int],
-) -> tuple[list[StateEvaluator | None], list[ControlEvaluator | None]]:
+) -> tuple[list[Callable[[float], FloatArray] | None], list[Callable[[float], FloatArray] | None]]:
     """Create state and control interpolants for all intervals using unified storage."""
     num_intervals = len(polynomial_degrees)
     basis_cache: dict[int, RadauBasisComponents] = {}
     control_weights_cache: dict[int, FloatArray] = {}
-    state_evaluators: list[StateEvaluator | None] = [None] * num_intervals
-    control_evaluators: list[ControlEvaluator | None] = [None] * num_intervals
+    state_evaluators: list[Callable[[float], FloatArray] | None] = [None] * num_intervals
+    control_evaluators: list[Callable[[float], FloatArray] | None] = [None] * num_intervals
 
     states_list = solution.solved_state_trajectories_per_interval
     controls_list = solution.solved_control_trajectories_per_interval
@@ -185,8 +178,8 @@ def _estimate_errors(
     solution: OptimalControlSolution,
     problem: ProblemProtocol,
     polynomial_degrees: list[int],
-    state_evaluators: list[StateEvaluator | None],
-    control_evaluators: list[ControlEvaluator | None],
+    state_evaluators: list[Callable[[float], FloatArray] | None],
+    control_evaluators: list[Callable[[float], FloatArray] | None],
     adaptive_params: AdaptiveParameters,
     gamma_factors: FloatArray,
 ) -> list[float]:
@@ -228,8 +221,8 @@ def _refine_mesh(
     adaptive_params: AdaptiveParameters,
     solution: OptimalControlSolution,
     problem: ProblemProtocol,
-    state_evaluators: list[StateEvaluator | None],
-    control_evaluators: list[ControlEvaluator | None],
+    state_evaluators: list[Callable[[float], FloatArray] | None],
+    control_evaluators: list[Callable[[float], FloatArray] | None],
     gamma_factors: FloatArray,
 ) -> tuple[list[int], FloatArray]:
     """Refine mesh for next iteration with correct h-reduction ordering."""
@@ -305,9 +298,9 @@ def _refine_mesh(
                     problem,
                     adaptive_params,
                     gamma_factors,
-                    cast(StateEvaluator, state_eval_first),
+                    state_eval_first,
                     control_eval_first,
-                    cast(StateEvaluator, state_eval_second),
+                    state_eval_second,
                     control_eval_second,
                 )
 

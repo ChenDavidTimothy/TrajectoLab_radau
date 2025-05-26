@@ -2,7 +2,7 @@
 Constraint application functions for collocation, path, and event constraints.
 """
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 
 import casadi as ca
 
@@ -10,9 +10,7 @@ from trajectolab.input_validation import validate_dynamics_output, validate_inte
 from trajectolab.radau import RadauBasisComponents
 from trajectolab.tl_types import (
     Constraint,
-    DynamicsCallable,
     FloatArray,
-    PathConstraintsCallable,
     ProblemParameters,
     ProblemProtocol,
 )
@@ -37,7 +35,7 @@ def apply_collocation_constraints(
     global_normalized_mesh_nodes: FloatArray,
     initial_time_variable: ca.MX,
     terminal_time_variable: ca.MX,
-    dynamics_function: DynamicsCallable,
+    dynamics_function: Callable[..., list[ca.MX]],
     problem_parameters: ProblemParameters,
     problem: ProblemProtocol | None = None,
 ) -> None:
@@ -115,7 +113,7 @@ def apply_path_constraints(
     global_normalized_mesh_nodes: FloatArray,
     initial_time_variable: ca.MX,
     terminal_time_variable: ca.MX,
-    path_constraints_function: PathConstraintsCallable,
+    path_constraints_function: Callable[..., list[Constraint]],
     problem_parameters: ProblemParameters,
     problem: ProblemProtocol | None = None,
 ) -> None:

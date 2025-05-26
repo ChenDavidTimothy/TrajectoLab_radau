@@ -1,21 +1,19 @@
 """
-Core type definitions and protocols for the TrajectoLab optimal control framework.
+Core type definitions for the TrajectoLab optimal control framework - SIMPLIFIED.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from typing import Any, Protocol, TypeAlias, TypeVar
+from typing import Any, Protocol, TypeAlias
 
 import casadi as ca
 import numpy as np
-from numpy import int_ as np_int_
 from numpy.typing import NDArray
 
 
-# --- Core Numerical Types (Consolidated) ---
-FloatArray: TypeAlias = NDArray[np.float64]  # Single array type for all float arrays
-IntArray: TypeAlias = NDArray[np_int_]
+# --- NUMERICAL SAFETY TYPES (Non-negotiable) ---
+FloatArray: TypeAlias = NDArray[np.float64]  # Critical for numerical precision
 NumericArrayLike: TypeAlias = (
     NDArray[np.floating[Any]]
     | NDArray[np.integer[Any]]
@@ -25,14 +23,7 @@ NumericArrayLike: TypeAlias = (
     | list[int]
 )
 
-# --- Core Symbolic Types ---
-SymExpr: TypeAlias = ca.MX | float | int
-
-
-# --- Problem Structure ---
-ProblemParameters: TypeAlias = dict[str, float | int | str]
-
-# --- Unified Constraint API Types ---
+# --- USER API TYPES (High value) ---
 ConstraintInput: TypeAlias = float | int | tuple[float | int | None, float | int | None] | None
 """
 Type alias for unified constraint specification.
@@ -43,8 +34,83 @@ Supported input types:
 - None: No constraint specified
 """
 
+ProblemParameters: TypeAlias = dict[str, float | int | str]
 
-# --- Unified Constraint System ---
+
+# --- EXTERNAL INTERFACE PROTOCOLS (Required) ---
+class ODESolverResult(Protocol):
+    """Protocol for the result of ODE solvers like solve_ivp."""
+
+    y: FloatArray
+    t: FloatArray
+    success: bool
+    message: str
+
+
+ODESolverCallable: TypeAlias = Callable[..., ODESolverResult]
+
+
+class ProblemProtocol(Protocol):
+    """Protocol defining the expected interface of a Problem object for solver."""
+
+    # Essential solver properties (RESTORED - these are actually needed)
+    _num_integrals: int
+    _parameters: ProblemParameters
+    initial_guess: Any
+    solver_options: dict[str, object]
+
+    # Mesh properties (RESTORED - solver needs these)
+    _mesh_configured: bool
+    collocation_points_per_interval: list[int]
+    global_normalized_mesh_nodes: FloatArray | None
+
+    # Time bounds (RESTORED - solver needs these)
+    _t0_bounds: tuple[float, float]
+    _tf_bounds: tuple[float, float]
+
+    # Expression storage (RESTORED - validation needs these)
+    _dynamics_expressions: dict[ca.MX, ca.MX]
+    _objective_expression: ca.MX | None
+
+    # Essential solver methods
+    def get_variable_counts(self) -> tuple[int, int]:
+        """Return (num_states, num_controls)"""
+        ...
+
+    def get_ordered_state_names(self) -> list[str]:
+        """Get state names in order"""
+        ...
+
+    def get_ordered_control_names(self) -> list[str]:
+        """Get control names in order"""
+        ...
+
+    def get_dynamics_function(self) -> Callable[..., list[ca.MX]]:
+        """Get dynamics function for solver"""
+        ...
+
+    def get_objective_function(self) -> Callable[..., ca.MX]:
+        """Get objective function for solver"""
+        ...
+
+    def get_integrand_function(self) -> Callable[..., ca.MX] | None:
+        """Get integrand function for solver"""
+        ...
+
+    def get_path_constraints_function(self) -> Callable[..., list[Constraint]] | None:
+        """Get path constraints function for solver"""
+        ...
+
+    def get_event_constraints_function(self) -> Callable[..., list[Constraint]] | None:
+        """Get event constraints function for solver"""
+        ...
+
+    def validate_initial_guess(self) -> None:
+        """Validate the current initial guess"""
+        ...
+
+
+# --- UNIFIED CONSTRAINT SYSTEM ---
 class Constraint:
     """Unified constraint class for optimal control problems."""
 
@@ -80,20 +146,7 @@ class Constraint:
         return f"Constraint({' '.join(bounds)})"
 
 
-# --- Time Variable Protocol ---
-class TimeVariable(Protocol):
-    """Protocol for time variable with initial/final properties."""
-
-    @property
-    def initial(self) -> ca.MX: ...
-
-    @property
-    def final(self) -> ca.MX: ...
-
-    def __call__(self) -> ca.MX: ...
-
-
-# --- Initial Guess Classes ---
+# --- DATA CONTAINERS ---
 class InitialGuess:
     """Initial guess for the optimal control problem."""
 
@@ -136,117 +189,14 @@ class OptimalControlSolution:
         self.solved_control_trajectories_per_interval: list[FloatArray] | None = None
 
 
-# --- Solver Callable Types ---
-DynamicsCallable: TypeAlias = Callable[
-    [ca.MX, ca.MX, ca.MX, ProblemParameters],
-    list[ca.MX] | ca.MX | Sequence[ca.MX],
-]
+# --- TIME VARIABLE PROTOCOL ---
+class TimeVariable(Protocol):
+    """Protocol for time variable with initial/final properties."""
 
-ObjectiveCallable: TypeAlias = Callable[
-    [ca.MX, ca.MX, ca.MX, ca.MX, ca.MX | None, ProblemParameters],
-    ca.MX,
-]
+    @property
+    def initial(self) -> ca.MX: ...
 
-IntegralIntegrandCallable: TypeAlias = Callable[
-    [ca.MX, ca.MX, ca.MX, int, ProblemParameters],
-    ca.MX,
-]
+    @property
+    def final(self) -> ca.MX: ...
 
-PathConstraintsCallable: TypeAlias = Callable[
-    [ca.MX, ca.MX, ca.MX, ProblemParameters],
-    list[Constraint] | Constraint,
-]
-
-EventConstraintsCallable: TypeAlias = Callable[
-    [ca.MX, ca.MX, ca.MX, ca.MX, ca.MX | None, ProblemParameters],
-    list[Constraint] | Constraint,
-]
-
-# --- Adaptive Algorithm Types ---
-StateEvaluator: TypeAlias = Callable[[float | FloatArray], FloatArray]
-ControlEvaluator: TypeAlias = Callable[[float | FloatArray], FloatArray]
-DynamicsRHSCallable: TypeAlias = Callable[[float, FloatArray], FloatArray]
-GammaFactors: TypeAlias = FloatArray
-
-
-# --- ODE Solver Types ---
-class ODESolverResult(Protocol):
-    """Protocol for the result of ODE solvers like solve_ivp."""
-
-    y: FloatArray
-    t: FloatArray
-    success: bool
-    message: str
-
-
-ODESolverCallable: TypeAlias = Callable[..., ODESolverResult]
-
-# --- Type Variable ---
-T = TypeVar("T")
-
-
-# --- Problem Protocol (Updated for Unified API) ---
-class ProblemProtocol(Protocol):
-    """Protocol defining the expected interface of a Problem object."""
-
-    name: str
-    _num_integrals: int
-    collocation_points_per_interval: list[int]
-    global_normalized_mesh_nodes: FloatArray | None
-    initial_guess: Any
-    solver_options: dict[str, object]
-    _mesh_configured: bool
-
-    # Time bounds (compatibility)
-    _t0_bounds: tuple[float, float]
-    _tf_bounds: tuple[float, float]
-
-    # Symbolic variables
-    _sym_time: ca.MX | None
-    _sym_time_initial: ca.MX | None
-    _sym_time_final: ca.MX | None
-    _dynamics_expressions: dict[ca.MX, SymExpr]
-    _objective_expression: SymExpr | None
-    _constraints: list[SymExpr]
-    _integral_expressions: list[SymExpr]
-    _integral_symbols: list[ca.MX]
-    _parameters: ProblemParameters
-
-    # Methods that return variable info
-    def get_variable_counts(self) -> tuple[int, int]:
-        """Return (num_states, num_controls)"""
-        ...
-
-    def get_ordered_state_symbols(self) -> list[ca.MX]:
-        """Get state symbols in order"""
-        ...
-
-    def get_ordered_control_symbols(self) -> list[ca.MX]:
-        """Get control symbols in order"""
-        ...
-
-    def get_ordered_state_names(self) -> list[str]:
-        """Get state names in order"""
-        ...
-
-    def get_ordered_control_names(self) -> list[str]:
-        """Get control names in order"""
-        ...
-
-    def get_state_bounds(self) -> list[tuple[float | None, float | None]]:
-        """Get state bounds in order (compatibility)"""
-        ...
-
-    def get_control_bounds(self) -> list[tuple[float | None, float | None]]:
-        """Get control bounds in order (compatibility)"""
-        ...
-
-    def set_mesh(
-        self, polynomial_degrees: list[int], mesh_points: FloatArray | list[float]
-    ) -> None: ...
-    def validate_initial_guess(self) -> None: ...
-    def get_dynamics_function(self) -> DynamicsCallable: ...
-    def get_objective_function(self) -> ObjectiveCallable: ...
-    def get_integrand_function(self) -> IntegralIntegrandCallable | None: ...
-    def get_path_constraints_function(self) -> PathConstraintsCallable | None: ...
-    def get_event_constraints_function(self) -> EventConstraintsCallable | None: ...
+    def __call__(self) -> ca.MX: ...

@@ -12,7 +12,7 @@ import casadi as ca
 
 from ..exceptions import DataIntegrityError
 from ..input_validation import validate_constraint_input_format, validate_variable_name
-from ..tl_types import FloatArray, SymExpr
+from ..tl_types import FloatArray
 
 
 # Constraint input type definition
@@ -109,11 +109,11 @@ class VariableState:
     sym_time_final: ca.MX | None = None
 
     # Expressions
-    dynamics_expressions: dict[ca.MX, SymExpr] = field(default_factory=dict)
-    objective_expression: SymExpr | None = None
+    dynamics_expressions: dict[ca.MX, ca.MX] = field(default_factory=dict)
+    objective_expression: ca.MX | None = None
 
     # Integral tracking
-    integral_expressions: list[SymExpr] = field(default_factory=list)
+    integral_expressions: list[ca.MX] = field(default_factory=list)
     integral_symbols: list[ca.MX] = field(default_factory=list)
     num_integrals: int = 0
 
@@ -401,7 +401,7 @@ class VariableState:
 class ConstraintState:
     """State for constraints."""
 
-    constraints: list[SymExpr] = field(default_factory=list)
+    constraints: list[ca.MX] = field(default_factory=list)
 
 
 @dataclass

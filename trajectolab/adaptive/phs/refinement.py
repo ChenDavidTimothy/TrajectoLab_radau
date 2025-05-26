@@ -3,6 +3,7 @@ Mesh refinement strategies including p-refinement, h-refinement, and reduction.
 """
 
 import logging
+from collections.abc import Callable
 from typing import cast
 
 import casadi as ca
@@ -21,12 +22,9 @@ from trajectolab.adaptive.phs.numerical import (
     map_local_tau_from_interval_k_to_equivalent_in_interval_k_plus_1,
 )
 from trajectolab.tl_types import (
-    ControlEvaluator,
     FloatArray,
-    GammaFactors,
     OptimalControlSolution,
     ProblemProtocol,
-    StateEvaluator,
 )
 from trajectolab.utils.casadi_utils import convert_casadi_to_numpy
 from trajectolab.utils.constants import DEFAULT_ODE_ATOL_FACTOR
@@ -126,11 +124,11 @@ def h_reduce_intervals(
     solution: "OptimalControlSolution",
     problem: ProblemProtocol,
     adaptive_params: AdaptiveParameters,
-    gamma_factors: GammaFactors,
-    state_evaluator_first: StateEvaluator,
-    control_evaluator_first: ControlEvaluator | None,
-    state_evaluator_second: StateEvaluator,
-    control_evaluator_second: ControlEvaluator | None,
+    gamma_factors: FloatArray,
+    state_evaluator_first: Callable[[float], FloatArray],
+    control_evaluator_first: Callable[[float], FloatArray] | None,
+    state_evaluator_second: Callable[[float], FloatArray],
+    control_evaluator_second: Callable[[float], FloatArray] | None,
 ) -> bool:
     """Check if two adjacent intervals can be merged."""
 
@@ -184,7 +182,7 @@ def h_reduce_intervals(
     scaling_kp1 = alpha * beta_kp1
 
     def _get_control_value(
-        control_evaluator: ControlEvaluator | None, local_tau: float
+        control_evaluator: Callable[[float], FloatArray] | None, local_tau: float
     ) -> FloatArray:
         """Get control value from evaluator, with clipping to handle boundary conditions."""
         if control_evaluator is None:
