@@ -1,5 +1,5 @@
 """
-Core type definitions for the TrajectoLab optimal control framework - SIMPLIFIED.
+Core type definitions for the TrajectoLab optimal control framework
 """
 
 from __future__ import annotations
@@ -191,16 +191,3 @@ class OptimalControlSolution:
         self.global_mesh_nodes_at_solve_time: FloatArray | None = None
         self.solved_state_trajectories_per_interval: list[FloatArray] | None = None
         self.solved_control_trajectories_per_interval: list[FloatArray] | None = None
-
-
-# --- TIME VARIABLE PROTOCOL ---
-class TimeVariable(Protocol):
-    """Protocol for time variable with initial/final properties."""
-
-    @property
-    def initial(self) -> ca.MX: ...
-
-    @property
-    def final(self) -> ca.MX: ...
-
-    def __call__(self) -> ca.MX: ...
