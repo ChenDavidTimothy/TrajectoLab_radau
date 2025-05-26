@@ -125,10 +125,10 @@ def h_reduce_intervals(
     problem: ProblemProtocol,
     adaptive_params: AdaptiveParameters,
     gamma_factors: FloatArray,
-    state_evaluator_first: Callable[[float], FloatArray],
-    control_evaluator_first: Callable[[float], FloatArray] | None,
-    state_evaluator_second: Callable[[float], FloatArray],
-    control_evaluator_second: Callable[[float], FloatArray] | None,
+    state_evaluator_first: Callable[[float | FloatArray], FloatArray],
+    control_evaluator_first: Callable[[float | FloatArray], FloatArray] | None,
+    state_evaluator_second: Callable[[float | FloatArray], FloatArray],
+    control_evaluator_second: Callable[[float | FloatArray], FloatArray] | None,
 ) -> bool:
     """Check if two adjacent intervals can be merged."""
 
@@ -182,7 +182,7 @@ def h_reduce_intervals(
     scaling_kp1 = alpha * beta_kp1
 
     def _get_control_value(
-        control_evaluator: Callable[[float], FloatArray] | None, local_tau: float
+        control_evaluator: Callable[[float | FloatArray], FloatArray] | None, local_tau: float
     ) -> FloatArray:
         """Get control value from evaluator, with clipping to handle boundary conditions."""
         if control_evaluator is None:

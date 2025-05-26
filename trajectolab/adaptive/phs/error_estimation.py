@@ -82,8 +82,8 @@ def simulate_dynamics_for_error_estimation(
     interval_idx: int,
     solution: "OptimalControlSolution",
     problem: ProblemProtocol,
-    state_evaluator: Callable[[float], FloatArray],
-    control_evaluator: Callable[[float], FloatArray],
+    state_evaluator: Callable[[float | FloatArray], FloatArray],
+    control_evaluator: Callable[[float | FloatArray], FloatArray],
     ode_solver: ODESolverCallable,
     ode_rtol: float = DEFAULT_ODE_RTOL,
     n_eval_points: int = 50,
@@ -142,22 +142,17 @@ def simulate_dynamics_for_error_estimation(
         global_tau = beta_k * tau + beta_k0
         physical_time = alpha * global_tau + alpha_0
 
-        if hasattr(problem, "get_dynamics_function"):
-            # Use a different approach - call the function directly
-            dynamics_result = casadi_dynamics_function(
-                ca.MX(state), ca.MX(control), ca.MX(physical_time), problem_parameters
+        # Since ProblemProtocol requires get_dynamics_function, we always use the direct approach
+        dynamics_result = casadi_dynamics_function(
+            ca.MX(state), ca.MX(control), ca.MX(physical_time), problem_parameters
+        )
+        # Convert the result to numpy
+        if isinstance(dynamics_result, list):
+            state_deriv_np = np.array(
+                [float(ca.evalf(expr)) for expr in dynamics_result], dtype=np.float64
             )
-            # Convert the result to numpy
-            if isinstance(dynamics_result, list):
-                state_deriv_np = np.array(
-                    [float(ca.evalf(expr)) for expr in dynamics_result], dtype=np.float64
-                )
-            else:
-                state_deriv_np = np.array(
-                    ca.evalf(dynamics_result).full().flatten(), dtype=np.float64
-                )
         else:
-            # Fallback to original approach
+            # Use convert_casadi_to_numpy for proper conversion
             state_deriv_np = convert_casadi_to_numpy(
                 cast(ca.Function, casadi_dynamics_function),
                 state,

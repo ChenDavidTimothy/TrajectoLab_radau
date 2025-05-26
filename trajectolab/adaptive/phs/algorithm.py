@@ -86,13 +86,20 @@ def _create_interpolants(
     solution: OptimalControlSolution,
     problem: ProblemProtocol,
     polynomial_degrees: list[int],
-) -> tuple[list[Callable[[float], FloatArray] | None], list[Callable[[float], FloatArray] | None]]:
+) -> tuple[
+    list[Callable[[float | FloatArray], FloatArray] | None],
+    list[Callable[[float | FloatArray], FloatArray] | None],
+]:
     """Create state and control interpolants for all intervals using unified storage."""
     num_intervals = len(polynomial_degrees)
     basis_cache: dict[int, RadauBasisComponents] = {}
     control_weights_cache: dict[int, FloatArray] = {}
-    state_evaluators: list[Callable[[float], FloatArray] | None] = [None] * num_intervals
-    control_evaluators: list[Callable[[float], FloatArray] | None] = [None] * num_intervals
+    state_evaluators: list[Callable[[float | FloatArray], FloatArray] | None] = [
+        None
+    ] * num_intervals
+    control_evaluators: list[Callable[[float | FloatArray], FloatArray] | None] = [
+        None
+    ] * num_intervals
 
     states_list = solution.solved_state_trajectories_per_interval
     controls_list = solution.solved_control_trajectories_per_interval
@@ -178,8 +185,8 @@ def _estimate_errors(
     solution: OptimalControlSolution,
     problem: ProblemProtocol,
     polynomial_degrees: list[int],
-    state_evaluators: list[Callable[[float], FloatArray] | None],
-    control_evaluators: list[Callable[[float], FloatArray] | None],
+    state_evaluators: list[Callable[[float | FloatArray], FloatArray] | None],
+    control_evaluators: list[Callable[[float | FloatArray], FloatArray] | None],
     adaptive_params: AdaptiveParameters,
     gamma_factors: FloatArray,
 ) -> list[float]:
@@ -221,8 +228,8 @@ def _refine_mesh(
     adaptive_params: AdaptiveParameters,
     solution: OptimalControlSolution,
     problem: ProblemProtocol,
-    state_evaluators: list[Callable[[float], FloatArray] | None],
-    control_evaluators: list[Callable[[float], FloatArray] | None],
+    state_evaluators: list[Callable[[float | FloatArray], FloatArray] | None],
+    control_evaluators: list[Callable[[float | FloatArray], FloatArray] | None],
     gamma_factors: FloatArray,
 ) -> tuple[list[int], FloatArray]:
     """Refine mesh for next iteration with correct h-reduction ordering."""
