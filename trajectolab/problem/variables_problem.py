@@ -11,32 +11,11 @@ import casadi as ca
 from .state import ConstraintInput, VariableState, _BoundaryConstraint
 
 
-def _convert_expression_to_casadi(expr: Any) -> ca.MX:
-    """Convert expressions to CasADi MX - SIMPLIFIED."""
-    # Handle wrapper objects
-    symbolic_var = getattr(expr, "_symbolic_var", None)
-    if symbolic_var is not None:
-        return symbolic_var
-    elif isinstance(expr, ca.MX):
-        return expr
-    elif isinstance(expr, int | float):
-        return ca.MX(expr)
-    else:
-        try:
-            return ca.MX(expr)
-        except Exception as e:
-            import inspect
-
-            if inspect.isfunction(expr) or inspect.ismethod(expr):
-                raise ValueError(
-                    f"Cannot convert function/method {expr} to CasADi expression. "
-                    f"Ensure all expressions in dynamics are properly evaluated symbolic expressions."
-                ) from e
-            else:
-                raise ValueError(
-                    f"Cannot convert expression of type {type(expr)} to CasADi MX: {expr}. "
-                    f"Original error: {e}"
-                ) from e
+def _extract_casadi_symbol(expr: Any) -> ca.MX:
+    """Extract CasADi symbol from wrapper objects, otherwise return as-is."""
+    if hasattr(expr, "_symbolic_var"):
+        return expr._symbolic_var
+    return expr
 
 
 class _SymbolicVariableBase:
@@ -78,52 +57,52 @@ class _SymbolicVariableBase:
             return self._symbolic_var is other._symbolic_var
         return self._symbolic_var is other
 
-    # Arithmetic operators
+    # Simplified arithmetic operators - let CasADi handle conversion
     def __add__(self, other: Any) -> ca.MX:
-        return self._symbolic_var + _convert_expression_to_casadi(other)
+        return self._symbolic_var + other
 
     def __radd__(self, other: Any) -> ca.MX:
-        return _convert_expression_to_casadi(other) + self._symbolic_var
+        return other + self._symbolic_var
 
     def __sub__(self, other: Any) -> ca.MX:
-        return self._symbolic_var - _convert_expression_to_casadi(other)
+        return self._symbolic_var - other
 
     def __rsub__(self, other: Any) -> ca.MX:
-        return _convert_expression_to_casadi(other) - self._symbolic_var
+        return other - self._symbolic_var
 
     def __mul__(self, other: Any) -> ca.MX:
-        return self._symbolic_var * _convert_expression_to_casadi(other)
+        return self._symbolic_var * other
 
     def __rmul__(self, other: Any) -> ca.MX:
-        return _convert_expression_to_casadi(other) * self._symbolic_var
+        return other * self._symbolic_var
 
     def __truediv__(self, other: Any) -> ca.MX:
-        return self._symbolic_var / _convert_expression_to_casadi(other)
+        return self._symbolic_var / other
 
     def __rtruediv__(self, other: Any) -> ca.MX:
-        return _convert_expression_to_casadi(other) / self._symbolic_var
+        return other / self._symbolic_var
 
     def __pow__(self, other: Any) -> ca.MX:
-        return self._symbolic_var ** _convert_expression_to_casadi(other)
+        return self._symbolic_var**other
 
     def __neg__(self) -> ca.MX:
         return cast(ca.MX, -self._symbolic_var)
 
-    # Comparison operators
+    # Simplified comparison operators
     def __lt__(self, other: Any) -> ca.MX:
-        return self._symbolic_var < _convert_expression_to_casadi(other)
+        return self._symbolic_var < other
 
     def __le__(self, other: Any) -> ca.MX:
-        return self._symbolic_var <= _convert_expression_to_casadi(other)
+        return self._symbolic_var <= other
 
     def __gt__(self, other: Any) -> ca.MX:
-        return self._symbolic_var > _convert_expression_to_casadi(other)
+        return self._symbolic_var > other
 
     def __ge__(self, other: Any) -> ca.MX:
-        return self._symbolic_var >= _convert_expression_to_casadi(other)
+        return self._symbolic_var >= other
 
     def __ne__(self, other: Any) -> ca.MX:
-        return self._symbolic_var != _convert_expression_to_casadi(other)
+        return self._symbolic_var != other
 
 
 class TimeVariableImpl(_SymbolicVariableBase):
@@ -256,12 +235,13 @@ def create_parameter_variable(
 def set_dynamics(
     state: VariableState, dynamics_dict: dict[ca.MX | StateVariableImpl, ca.MX | float | int]
 ) -> None:
-    """Set dynamics expressions."""
+    """Set dynamics expressions with improved error handling."""
     ordered_state_symbols = state.get_ordered_state_symbols()
 
+    # Validate that all keys are known state variables
     for state_sym in dynamics_dict.keys():
         found = False
-        underlying_sym = getattr(state_sym, "_symbolic_var", state_sym)
+        underlying_sym = _extract_casadi_symbol(state_sym)
 
         for sym in ordered_state_symbols:
             if underlying_sym is sym:
@@ -271,21 +251,58 @@ def set_dynamics(
         if not found:
             raise ValueError("Dynamics provided for undefined state variable")
 
+    # Convert expressions with better error handling
     converted_dict = {}
     for key, value in dynamics_dict.items():
-        storage_key = getattr(key, "_symbolic_var", key)
-        storage_value = _convert_expression_to_casadi(value)
+        storage_key = _extract_casadi_symbol(key)
+
+        try:
+            # Let CasADi handle the conversion
+            if isinstance(value, ca.MX):
+                storage_value = value
+            else:
+                storage_value = ca.MX(value)
+        except Exception as e:
+            # Provide helpful error messages for common mistakes
+            if callable(value):
+                raise ValueError(
+                    f"Dynamics expression appears to be a function {value}. "
+                    f"Did you forget to call it? Use f(x, u) not f."
+                ) from e
+            else:
+                raise ValueError(
+                    f"Cannot convert dynamics expression of type {type(value)} to CasADi MX: {value}. "
+                    f"Original error: {e}"
+                ) from e
+
         converted_dict[storage_key] = storage_value
 
     state.dynamics_expressions = converted_dict
 
 
 def add_integral(state: VariableState, integrand_expr: ca.MX | float | int) -> ca.MX:
-    """Add an integral expression."""
+    """Add an integral expression with improved error handling."""
     integral_name = f"integral_{len(state.integral_expressions)}"
     integral_sym = ca.MX.sym(integral_name, 1)  # type: ignore[arg-type]
 
-    pure_expr = _convert_expression_to_casadi(integrand_expr)
+    try:
+        # Let CasADi handle the conversion
+        if isinstance(integrand_expr, ca.MX):
+            pure_expr = integrand_expr
+        else:
+            pure_expr = ca.MX(integrand_expr)
+    except Exception as e:
+        if callable(integrand_expr):
+            raise ValueError(
+                f"Integrand appears to be a function {integrand_expr}. "
+                f"Did you forget to call it? Use f(x, u) not f."
+            ) from e
+        else:
+            raise ValueError(
+                f"Cannot convert integrand expression of type {type(integrand_expr)} to CasADi MX: {integrand_expr}. "
+                f"Original error: {e}"
+            ) from e
+
     state.integral_expressions.append(pure_expr)
     state.integral_symbols.append(integral_sym)
     state.num_integrals = len(state.integral_expressions)
@@ -294,6 +311,23 @@ def add_integral(state: VariableState, integrand_expr: ca.MX | float | int) -> c
 
 
 def set_objective(state: VariableState, objective_expr: ca.MX | float | int) -> None:
-    """Set the objective expression."""
-    pure_expr = _convert_expression_to_casadi(objective_expr)
+    """Set the objective expression with improved error handling."""
+    try:
+        # Let CasADi handle the conversion
+        if isinstance(objective_expr, ca.MX):
+            pure_expr = objective_expr
+        else:
+            pure_expr = ca.MX(objective_expr)
+    except Exception as e:
+        if callable(objective_expr):
+            raise ValueError(
+                f"Objective appears to be a function {objective_expr}. "
+                f"Did you forget to call it? Use f(x, u) not f."
+            ) from e
+        else:
+            raise ValueError(
+                f"Cannot convert objective expression of type {type(objective_expr)} to CasADi MX: {objective_expr}. "
+                f"Original error: {e}"
+            ) from e
+
     state.objective_expression = pure_expr
