@@ -390,7 +390,7 @@ def _refine_mesh(
                 tau_end = mesh_points[k + 1]
                 num_subintervals = len(action_data)
                 new_nodes = np.linspace(tau_start, tau_end, num_subintervals + 1, dtype=np.float64)
-                next_mesh_points.extend(new_nodes[1:].tolist())
+                next_mesh_points.extend(list(new_nodes[1:]))
             k += 1
 
         elif any(merge.first_idx == k for merge in approved_merges):

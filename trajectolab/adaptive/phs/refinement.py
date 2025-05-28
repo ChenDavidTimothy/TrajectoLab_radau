@@ -63,7 +63,7 @@ def _calculate_trajectory_errors_with_gamma(
 
     abs_diff = np.abs(X_sim - X_nlp)
     scaled_errors = gamma_factors.flatten() * abs_diff
-    return scaled_errors.tolist()
+    return list(scaled_errors)
 
 
 # ========================================================================
