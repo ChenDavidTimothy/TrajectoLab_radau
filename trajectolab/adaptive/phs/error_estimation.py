@@ -125,16 +125,16 @@ def _calculate_combined_error_estimate(
         is_bwd_nan = np.isnan(bwd_err)
 
         if not is_fwd_nan and not is_bwd_nan:
-            combined_errors_per_state[i] = max(fwd_err, bwd_err)
+            combined_errors_per_state[i] = np.float64(max(fwd_err, bwd_err))
         elif not is_fwd_nan:  # Only fwd is valid
-            combined_errors_per_state[i] = fwd_err
+            combined_errors_per_state[i] = np.float64(fwd_err)
         elif not is_bwd_nan:  # Only bwd is valid
-            combined_errors_per_state[i] = bwd_err
+            combined_errors_per_state[i] = np.float64(bwd_err)
         # If both are NaN, combined_errors_per_state[i] remains NaN
 
     # Aggregate errors across states, ignoring NaNs if other valid errors exist
     if combined_errors_per_state.size > 0:
-        max_error = np.nanmax(combined_errors_per_state)
+        max_error = float(np.nanmax(combined_errors_per_state))
     else:  # No states
         max_error = 0.0  # Or np.inf if that's more appropriate for zero states
 
