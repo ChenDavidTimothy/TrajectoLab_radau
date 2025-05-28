@@ -29,6 +29,95 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 
+# ========================================================================
+# MATHEMATICAL CORE FUNCTIONS - Pure calculations for testing
+# ========================================================================
+
+
+def _calculate_gamma_normalization_factors(max_state_values: FloatArray) -> FloatArray:
+    """Pure gamma calculation - easily testable."""
+    gamma_denominator = 1.0 + max_state_values
+    gamma_factors = 1.0 / np.maximum(gamma_denominator, np.float64(1e-12))
+    return gamma_factors.reshape(-1, 1)
+
+
+def _find_maximum_state_values_across_intervals(Y_solved_list: list[FloatArray]) -> FloatArray:
+    """Pure maximum value calculation across intervals - easily testable."""
+    if not Y_solved_list:
+        return np.array([], dtype=np.float64)
+
+    # Determine number of states from first non-empty interval
+    num_states = 0
+    for Xk in Y_solved_list:
+        if Xk.size > 0:
+            num_states = Xk.shape[0]
+            break
+
+    if num_states == 0:
+        return np.array([], dtype=np.float64)
+
+    # Find maximum absolute value for each state component
+    max_abs_values = np.zeros(num_states, dtype=np.float64)
+    first_interval = True
+
+    for Xk in Y_solved_list:
+        if Xk.size == 0:
+            continue
+
+        max_abs_in_interval = np.max(np.abs(Xk), axis=1)
+
+        if first_interval:
+            max_abs_values = max_abs_in_interval
+            first_interval = False
+        else:
+            max_abs_values = np.maximum(max_abs_values, max_abs_in_interval)
+
+    return max_abs_values
+
+
+def _calculate_trajectory_error_differences(
+    sim_trajectory: FloatArray, nlp_trajectory: FloatArray, gamma_factors: FloatArray
+) -> tuple[FloatArray, FloatArray]:
+    """Pure trajectory error calculation - easily testable."""
+    # Calculate absolute differences
+    abs_diff = np.abs(sim_trajectory - nlp_trajectory)
+
+    # Apply gamma scaling
+    scaled_errors = gamma_factors * abs_diff
+
+    # Calculate maximum errors per state
+    max_errors_per_state = (
+        np.nanmax(scaled_errors, axis=1)
+        if scaled_errors.size > 0
+        else np.zeros(gamma_factors.shape[0], dtype=np.float64)
+    )
+
+    return abs_diff, max_errors_per_state
+
+
+def _calculate_combined_error_estimate(
+    max_fwd_errors_per_state: FloatArray, max_bwd_errors_per_state: FloatArray
+) -> float:
+    """Pure combined error calculation - easily testable."""
+    # Combined error
+    max_errors_per_state = np.maximum(max_fwd_errors_per_state, max_bwd_errors_per_state)
+    max_error = np.nanmax(max_errors_per_state) if max_errors_per_state.size > 0 else np.inf
+
+    # Ensure minimum error threshold
+    if max_error < 1e-15:
+        max_error = 1e-15
+
+    if np.isnan(max_error):
+        return np.inf
+
+    return float(max_error)
+
+
+# ========================================================================
+# ORCHESTRATION FUNCTIONS - Simulation and coordination
+# ========================================================================
+
+
 def _simulate_forward(
     dynamics_rhs,
     initial_state: FloatArray,
@@ -97,23 +186,23 @@ def simulate_dynamics_for_error_estimation(
         logger.warning(f"NLP solution unsuccessful for interval {interval_idx}")
         return result
 
-    # Get variable counts from unified storage
+    # Get variable counts from unified storage - ORCHESTRATION SETUP
     num_states, num_controls = problem.get_variable_counts()
     casadi_dynamics_function = problem.get_dynamics_function()
     problem_parameters = problem._parameters
 
-    # Validate time variables
+    # Validate time variables - ORCHESTRATION SETUP
     if solution.initial_time_variable is None or solution.terminal_time_variable is None:
         logger.error(f"Missing time variables for interval {interval_idx}")
         return result
 
-    # Time transformation parameters
+    # Time transformation parameters - ORCHESTRATION SETUP
     t0 = solution.initial_time_variable
     tf = solution.terminal_time_variable
     alpha = (tf - t0) / 2.0
     alpha_0 = (tf + t0) / 2.0
 
-    # Validate global mesh
+    # Validate global mesh - ORCHESTRATION SETUP
     if solution.global_normalized_mesh_nodes is None:
         logger.error(f"Missing global mesh for interval {interval_idx}")
         return result
@@ -158,7 +247,7 @@ def simulate_dynamics_for_error_estimation(
 
         return cast(FloatArray, overall_scaling * state_deriv_np)
 
-    # Forward simulation
+    # Forward simulation - ORCHESTRATION
     initial_state = state_evaluator(-1.0)
     if initial_state.ndim > 1:
         initial_state = initial_state.flatten()
@@ -168,7 +257,7 @@ def simulate_dynamics_for_error_estimation(
         dynamics_rhs, initial_state, fwd_tau_points, ode_solver, ode_rtol
     )
 
-    # Store forward results
+    # Store forward results - ORCHESTRATION
     result.forward_simulation_local_tau_evaluation_points = fwd_tau_points
     if fwd_success:
         result.state_trajectory_from_forward_simulation = fwd_trajectory
@@ -181,7 +270,7 @@ def simulate_dynamics_for_error_estimation(
         fwd_tau_points
     )
 
-    # Backward simulation
+    # Backward simulation - ORCHESTRATION
     terminal_state = state_evaluator(1.0)
     if terminal_state.ndim > 1:
         terminal_state = terminal_state.flatten()
@@ -191,7 +280,7 @@ def simulate_dynamics_for_error_estimation(
         dynamics_rhs, terminal_state, bwd_tau_points, ode_solver, ode_rtol
     )
 
-    # Store backward results
+    # Store backward results - ORCHESTRATION
     sorted_bwd_tau_points = np.flip(bwd_tau_points)
     result.backward_simulation_local_tau_evaluation_points = sorted_bwd_tau_points
 
@@ -214,7 +303,7 @@ def calculate_relative_error_estimate(
     interval_idx: int, sim_bundle: IntervalSimulationBundle, gamma_factors: FloatArray
 ) -> float:
     """Calculates the maximum relative error estimate for an interval."""
-    # Check for failed simulations
+    # Check for failed simulations - ORCHESTRATION VALIDATION
     if (
         not sim_bundle.are_forward_and_backward_simulations_successful
         or sim_bundle.state_trajectory_from_forward_simulation is None
@@ -229,47 +318,30 @@ def calculate_relative_error_estimate(
     if num_states == 0:
         return 0.0
 
-    # Forward errors
-    fwd_diff = np.abs(
-        sim_bundle.state_trajectory_from_forward_simulation
-        - sim_bundle.nlp_state_trajectory_evaluated_at_forward_simulation_points
+    # Forward errors using MATHEMATICAL CORE
+    fwd_diff, max_fwd_errors = _calculate_trajectory_error_differences(
+        sim_bundle.state_trajectory_from_forward_simulation,
+        sim_bundle.nlp_state_trajectory_evaluated_at_forward_simulation_points,
+        gamma_factors,
     )
     logger.debug(f"Forward max difference for interval {interval_idx}: {np.max(fwd_diff):.2e}")
 
-    fwd_errors = gamma_factors * fwd_diff
-    max_fwd_errors = (
-        np.nanmax(fwd_errors, axis=1)
-        if fwd_errors.size > 0
-        else np.zeros(num_states, dtype=np.float64)
-    )
-
-    # Backward errors
-    bwd_diff = np.abs(
-        sim_bundle.state_trajectory_from_backward_simulation
-        - sim_bundle.nlp_state_trajectory_evaluated_at_backward_simulation_points
+    # Backward errors using MATHEMATICAL CORE
+    bwd_diff, max_bwd_errors = _calculate_trajectory_error_differences(
+        sim_bundle.state_trajectory_from_backward_simulation,
+        sim_bundle.nlp_state_trajectory_evaluated_at_backward_simulation_points,
+        gamma_factors,
     )
     logger.debug(f"Backward max difference for interval {interval_idx}: {np.max(bwd_diff):.2e}")
 
-    bwd_errors = gamma_factors * bwd_diff
-    max_bwd_errors = (
-        np.nanmax(bwd_errors, axis=1)
-        if bwd_errors.size > 0
-        else np.zeros(num_states, dtype=np.float64)
-    )
-
-    # Combined error
-    max_errors_per_state = np.maximum(max_fwd_errors, max_bwd_errors)
-    max_error = np.nanmax(max_errors_per_state) if max_errors_per_state.size > 0 else np.inf
-
-    # Ensure minimum error threshold
-    if max_error < 1e-15:
-        max_error = 1e-15
+    # Combined error using MATHEMATICAL CORE
+    max_error = _calculate_combined_error_estimate(max_fwd_errors, max_bwd_errors)
 
     if np.isnan(max_error):
         logger.warning(f"Error calculation resulted in NaN for interval {interval_idx}")
         return np.inf
 
-    return float(max_error)
+    return max_error
 
 
 def calculate_gamma_normalizers(
@@ -279,7 +351,7 @@ def calculate_gamma_normalizers(
     if not solution.success or solution.raw_solution is None:
         return None
 
-    # Get variable counts from unified storage
+    # Get variable counts from unified storage - ORCHESTRATION SETUP
     num_states, _ = problem.get_variable_counts()
     if num_states == 0:
         return np.array([], dtype=np.float64).reshape(0, 1)
@@ -289,24 +361,8 @@ def calculate_gamma_normalizers(
         logger.warning("Missing solved state trajectories for gamma calculation")
         return None
 
-    # Find maximum absolute value for each state component
-    max_abs_values = np.zeros(num_states, dtype=np.float64)
-    first_interval = True
+    # Use MATHEMATICAL CORE for calculation
+    max_abs_values = _find_maximum_state_values_across_intervals(Y_solved_list)
+    gamma_factors = _calculate_gamma_normalization_factors(max_abs_values)
 
-    for Xk in Y_solved_list:
-        if Xk.size == 0:
-            continue
-
-        max_abs_in_interval = np.max(np.abs(Xk), axis=1)
-
-        if first_interval:
-            max_abs_values = max_abs_in_interval
-            first_interval = False
-        else:
-            max_abs_values = np.maximum(max_abs_values, max_abs_in_interval)
-
-    # Calculate gamma factors
-    gamma_denominator = 1.0 + max_abs_values
-    gamma_factors = 1.0 / np.maximum(gamma_denominator, np.float64(1e-12))
-
-    return gamma_factors.reshape(-1, 1)
+    return gamma_factors

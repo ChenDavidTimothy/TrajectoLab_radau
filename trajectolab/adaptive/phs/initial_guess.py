@@ -30,234 +30,33 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 
-def _interpolate_trajectory_to_new_mesh_optimized(
-    prev_trajectory_per_interval: list[FloatArray],
-    prev_mesh_points: FloatArray,
-    prev_polynomial_degrees: list[int],
-    target_mesh_points: FloatArray,
-    target_polynomial_degrees: list[int],
-    num_variables: int,
-    is_state_trajectory: bool = True,
-) -> list[FloatArray]:
-    """
-    OPTIMIZED interpolation using memory pooling - ENHANCED WITH FAIL-FAST.
-    """
-    trajectory_type = "state" if is_state_trajectory else "control"
-    logger.info(f"    OPTIMIZED interpolation of {trajectory_type} trajectories:")
-    logger.info(
-        f"      Previous mesh: {len(prev_mesh_points) - 1} intervals, degrees {prev_polynomial_degrees}"
-    )
-    logger.info(
-        f"      Target mesh: {len(target_mesh_points) - 1} intervals, degrees {target_polynomial_degrees}"
-    )
-
-    # Guard clause: Validate input consistency
-    if len(prev_trajectory_per_interval) != len(prev_polynomial_degrees):
-        raise InterpolationError(
-            f"Previous trajectory count ({len(prev_trajectory_per_interval)}) doesn't match polynomial degrees count ({len(prev_polynomial_degrees)})",
-            "Input data inconsistency in interpolation",
-        )
-
-    # Guard clause: Check for empty inputs
-    if not prev_trajectory_per_interval or not target_polynomial_degrees:
-        raise InterpolationError(
-            "Cannot interpolate with empty trajectory or polynomial degree data",
-            "Missing interpolation input data",
-        )
-
-    try:
-        # Use memory pool context for automatic buffer management
-        with create_buffer_context() as buffer_pool:
-            # Create polynomial interpolants for each interval in previous solution
-            prev_interpolants = []
-
-            for k, (N_k, traj_k) in enumerate(
-                zip(prev_polynomial_degrees, prev_trajectory_per_interval, strict=False)
-            ):
-                # Critical: Validate trajectory shape
-                expected_nodes = N_k + 1 if is_state_trajectory else N_k
-                expected_shape = (num_variables, expected_nodes)
-
-                try:
-                    validate_array_shape_and_integrity(
-                        traj_k,
-                        expected_shape,
-                        f"Previous {trajectory_type} trajectory for interval {k}",
-                        "interpolation input validation",
-                    )
-                except DataIntegrityError as e:
-                    raise InterpolationError(str(e), "Shape mismatch in interpolation input") from e
-
-                # Get the appropriate nodes for this interval type (cached via Radau cache)
-                try:
-                    if is_state_trajectory:
-                        basis_components = compute_radau_collocation_components(N_k)
-                        local_nodes = basis_components.state_approximation_nodes
-                        barycentric_weights = basis_components.barycentric_weights_for_state_nodes
-                    else:
-                        basis_components = compute_radau_collocation_components(N_k)
-                        local_nodes = basis_components.collocation_nodes
-                        from trajectolab.radau import compute_barycentric_weights
-
-                        barycentric_weights = compute_barycentric_weights(local_nodes)
-                except Exception as e:
-                    raise InterpolationError(
-                        f"Failed to compute basis components for interval {k} with degree {N_k}: {e}",
-                        "Radau basis computation error",
-                    ) from e
-
-                # Create interpolant for this interval
-                try:
-                    interpolant = PolynomialInterpolant(local_nodes, traj_k, barycentric_weights)
-                    prev_interpolants.append(interpolant)
-                    logger.debug(
-                        f"        Interval {k}: Created interpolant for {traj_k.shape} trajectory"
-                    )
-                except Exception as e:
-                    raise InterpolationError(
-                        f"Failed to create interpolant for interval {k}: {e}",
-                        "Polynomial interpolant construction error",
-                    ) from e
-
-            # Interpolate trajectory values for each target interval using pooled memory
-            target_trajectories = []
-
-            for k, N_k_target in enumerate(target_polynomial_degrees):
-                logger.debug(f"      Processing target interval {k} (degree {N_k_target})...")
-
-                # Get target nodes for this interval type (cached via Radau cache)
-                try:
-                    if is_state_trajectory:
-                        target_basis = compute_radau_collocation_components(N_k_target)
-                        target_local_nodes = target_basis.state_approximation_nodes
-                        num_target_nodes = N_k_target + 1
-                    else:
-                        target_basis = compute_radau_collocation_components(N_k_target)
-                        target_local_nodes = target_basis.collocation_nodes
-                        num_target_nodes = N_k_target
-                except Exception as e:
-                    raise InterpolationError(
-                        f"Failed to compute target basis for interval {k} with degree {N_k_target}: {e}",
-                        "Target basis computation error",
-                    ) from e
-
-                # Get pooled buffer instead of allocating new memory
-                target_traj_k = buffer_pool.get_buffer((num_variables, num_target_nodes))
-
-                # Global interval boundaries for target interval k
-                target_tau_start = target_mesh_points[k]
-                target_tau_end = target_mesh_points[k + 1]
-
-                # Vectorized evaluation where possible
-                global_tau_points = np.array(
-                    [
-                        map_local_interval_tau_to_global_normalized_tau(
-                            local_tau, target_tau_start, target_tau_end
-                        )
-                        for local_tau in target_local_nodes
-                    ],
-                    dtype=np.float64,
-                )
-
-                # Process all nodes for this interval
-                for j, (_, global_tau) in enumerate(
-                    zip(target_local_nodes, global_tau_points, strict=False)
-                ):
-                    # Find which previous interval contains this global tau
-                    prev_interval_idx = _find_containing_interval(global_tau, prev_mesh_points)
-
-                    if prev_interval_idx is None:
-                        # Point is outside previous mesh - use boundary values
-                        if global_tau < prev_mesh_points[0]:
-                            prev_interval_idx = 0
-                            prev_local_tau = -1.0
-                        elif global_tau > prev_mesh_points[-1]:
-                            prev_interval_idx = len(prev_interpolants) - 1
-                            prev_local_tau = 1.0
-                        else:
-                            raise InterpolationError(
-                                f"Could not locate global_tau {global_tau} in mesh boundaries",
-                                "Mesh boundary mapping error",
-                            )
-                    else:
-                        # Convert global tau to local tau for the containing previous interval
-                        prev_tau_start = prev_mesh_points[prev_interval_idx]
-                        prev_tau_end = prev_mesh_points[prev_interval_idx + 1]
-                        prev_local_tau = map_global_normalized_tau_to_local_interval_tau(
-                            global_tau, prev_tau_start, prev_tau_end
-                        )
-
-                    # Evaluate the interpolant at this local tau
-                    try:
-                        interpolated_values = prev_interpolants[prev_interval_idx](prev_local_tau)
-                        if interpolated_values.ndim > 1:
-                            interpolated_values = interpolated_values.flatten()
-
-                        # Critical: Validate interpolated values
-                        try:
-                            validate_array_numerical_integrity(
-                                interpolated_values,
-                                f"Interpolated values at tau={prev_local_tau}",
-                                "interpolation result validation",
-                            )
-                        except DataIntegrityError as e:
-                            raise DataIntegrityError(
-                                str(e), "Numerical corruption in interpolation result"
-                            ) from e
-
-                        # Store the interpolated values
-                        if len(interpolated_values) == num_variables:
-                            target_traj_k[:, j] = interpolated_values
-                        elif num_variables == 0:
-                            # Handle empty variable case
-                            pass
-                        else:
-                            raise InterpolationError(
-                                f"Dimension mismatch: interpolated {len(interpolated_values)} values, expected {num_variables}",
-                                "Interpolation output dimension error",
-                            )
-
-                    except Exception as e:
-                        if isinstance(e, InterpolationError | DataIntegrityError):
-                            raise  # Re-raise TrajectoLab-specific errors
-                        raise InterpolationError(
-                            f"Failed to evaluate interpolant: {e}", "Interpolant evaluation error"
-                        ) from e
-
-                # Copy result from pooled buffer to permanent storage
-                result_array = np.array(target_traj_k, dtype=np.float64, copy=True)
-
-                # Final validation of result
-                try:
-                    validate_array_numerical_integrity(
-                        result_array,
-                        f"Final interpolated trajectory for interval {k}",
-                        "final interpolation result validation",
-                    )
-                except DataIntegrityError as e:
-                    raise DataIntegrityError(
-                        str(e), "Corruption in final interpolation result"
-                    ) from e
-
-                target_trajectories.append(result_array)
-                logger.debug(
-                    f"        Interval {k}: Created trajectory of shape {result_array.shape}"
-                )
-
-        logger.info(f"    ✓ Successfully interpolated {trajectory_type} trajectories (OPTIMIZED)")
-        return cast(list[FloatArray], target_trajectories)
-
-    except Exception as e:
-        if isinstance(e, InterpolationError | DataIntegrityError):
-            raise  # Re-raise TrajectoLab-specific errors
-        raise InterpolationError(
-            f"Failed to interpolate {trajectory_type} trajectories: {e}",
-            "Critical interpolation failure",
-        ) from e
+# ========================================================================
+# MATHEMATICAL CORE FUNCTIONS - Pure calculations for testing
+# ========================================================================
 
 
-def _find_containing_interval(global_tau: float, mesh_points: FloatArray) -> int | None:
-    """Find which mesh interval contains the given global tau value."""
+def _interpolate_polynomial_at_evaluation_points(
+    nodes: FloatArray,
+    values: FloatArray,
+    evaluation_points: FloatArray,
+    barycentric_weights: FloatArray,
+) -> FloatArray:
+    """Pure polynomial interpolation calculation - easily testable."""
+    from trajectolab.radau import evaluate_lagrange_polynomial_at_point
+
+    num_variables = values.shape[0]
+    num_eval_points = len(evaluation_points)
+    result = np.zeros((num_variables, num_eval_points), dtype=np.float64)
+
+    for i, point in enumerate(evaluation_points):
+        lagrange_coeffs = evaluate_lagrange_polynomial_at_point(nodes, barycentric_weights, point)
+        result[:, i] = np.dot(values, lagrange_coeffs)
+
+    return result
+
+
+def _find_containing_interval_index(global_tau: float, mesh_points: FloatArray) -> int | None:
+    """Pure interval location calculation - easily testable."""
     tolerance = 1e-10
 
     if global_tau < mesh_points[0] - tolerance:
@@ -279,6 +78,277 @@ def _find_containing_interval(global_tau: float, mesh_points: FloatArray) -> int
     return None
 
 
+def _calculate_global_tau_points_for_interval(
+    target_local_nodes: FloatArray, target_tau_start: float, target_tau_end: float
+) -> FloatArray:
+    """Pure coordinate transformation calculation - easily testable."""
+    return np.array(
+        [
+            map_local_interval_tau_to_global_normalized_tau(
+                local_tau, target_tau_start, target_tau_end
+            )
+            for local_tau in target_local_nodes
+        ],
+        dtype=np.float64,
+    )
+
+
+def _determine_interpolation_parameters(
+    global_tau: float, prev_mesh_points: FloatArray
+) -> tuple[int, float]:
+    """Pure interpolation parameter calculation - easily testable."""
+    # Find which previous interval contains this global tau
+    prev_interval_idx = _find_containing_interval_index(global_tau, prev_mesh_points)
+
+    if prev_interval_idx is None:
+        # Point is outside previous mesh - use boundary values
+        if global_tau < prev_mesh_points[0]:
+            return 0, -1.0
+        elif global_tau > prev_mesh_points[-1]:
+            return len(prev_mesh_points) - 2, 1.0
+        else:
+            raise InterpolationError(
+                f"Could not locate global_tau {global_tau} in mesh boundaries",
+                "Mesh boundary mapping error",
+            )
+    else:
+        # Convert global tau to local tau for the containing previous interval
+        prev_tau_start = prev_mesh_points[prev_interval_idx]
+        prev_tau_end = prev_mesh_points[prev_interval_idx + 1]
+        prev_local_tau = map_global_normalized_tau_to_local_interval_tau(
+            global_tau, prev_tau_start, prev_tau_end
+        )
+        return prev_interval_idx, prev_local_tau
+
+
+def _validate_interpolated_trajectory_result(
+    trajectory: FloatArray, num_variables: int, interval_idx: int, trajectory_type: str
+) -> None:
+    """Pure validation calculation - easily testable."""
+    try:
+        validate_array_numerical_integrity(
+            trajectory,
+            f"Final interpolated trajectory for interval {interval_idx}",
+            "final interpolation result validation",
+        )
+    except DataIntegrityError as e:
+        raise DataIntegrityError(str(e), "Corruption in final interpolation result") from e
+
+    if trajectory.shape[0] != num_variables:
+        raise InterpolationError(
+            f"Variable count mismatch in {trajectory_type} trajectory for interval {interval_idx}: "
+            f"expected {num_variables}, got {trajectory.shape[0]}",
+            "Interpolation output dimension error",
+        )
+
+
+# ========================================================================
+# ORCHESTRATION FUNCTIONS - Memory management and setup
+# ========================================================================
+
+
+def _interpolate_trajectory_to_new_mesh_optimized(
+    prev_trajectory_per_interval: list[FloatArray],
+    prev_mesh_points: FloatArray,
+    prev_polynomial_degrees: list[int],
+    target_mesh_points: FloatArray,
+    target_polynomial_degrees: list[int],
+    num_variables: int,
+    is_state_trajectory: bool = True,
+) -> list[FloatArray]:
+    """
+    OPTIMIZED interpolation using memory pooling - ENHANCED WITH FAIL-FAST.
+    """
+    trajectory_type = "state" if is_state_trajectory else "control"
+    logger.info(f"    OPTIMIZED interpolation of {trajectory_type} trajectories:")
+    logger.info(
+        f"      Previous mesh: {len(prev_mesh_points) - 1} intervals, degrees {prev_polynomial_degrees}"
+    )
+    logger.info(
+        f"      Target mesh: {len(target_mesh_points) - 1} intervals, degrees {target_polynomial_degrees}"
+    )
+
+    # Guard clause: Validate input consistency - ORCHESTRATION VALIDATION
+    if len(prev_trajectory_per_interval) != len(prev_polynomial_degrees):
+        raise InterpolationError(
+            f"Previous trajectory count ({len(prev_trajectory_per_interval)}) doesn't match polynomial degrees count ({len(prev_polynomial_degrees)})",
+            "Input data inconsistency in interpolation",
+        )
+
+    # Guard clause: Check for empty inputs - ORCHESTRATION VALIDATION
+    if not prev_trajectory_per_interval or not target_polynomial_degrees:
+        raise InterpolationError(
+            "Cannot interpolate with empty trajectory or polynomial degree data",
+            "Missing interpolation input data",
+        )
+
+    try:
+        # Use memory pool context for automatic buffer management - ORCHESTRATION SETUP
+        with create_buffer_context() as buffer_pool:
+            # Create polynomial interpolants for each interval in previous solution - ORCHESTRATION SETUP
+            prev_interpolants = []
+
+            for k, (N_k, traj_k) in enumerate(
+                zip(prev_polynomial_degrees, prev_trajectory_per_interval, strict=False)
+            ):
+                # Critical: Validate trajectory shape - ORCHESTRATION VALIDATION
+                expected_nodes = N_k + 1 if is_state_trajectory else N_k
+                expected_shape = (num_variables, expected_nodes)
+
+                try:
+                    validate_array_shape_and_integrity(
+                        traj_k,
+                        expected_shape,
+                        f"Previous {trajectory_type} trajectory for interval {k}",
+                        "interpolation input validation",
+                    )
+                except DataIntegrityError as e:
+                    raise InterpolationError(str(e), "Shape mismatch in interpolation input") from e
+
+                # Get the appropriate nodes for this interval type (cached via Radau cache) - ORCHESTRATION SETUP
+                try:
+                    if is_state_trajectory:
+                        basis_components = compute_radau_collocation_components(N_k)
+                        local_nodes = basis_components.state_approximation_nodes
+                        barycentric_weights = basis_components.barycentric_weights_for_state_nodes
+                    else:
+                        basis_components = compute_radau_collocation_components(N_k)
+                        local_nodes = basis_components.collocation_nodes
+                        from trajectolab.radau import compute_barycentric_weights
+
+                        barycentric_weights = compute_barycentric_weights(local_nodes)
+                except Exception as e:
+                    raise InterpolationError(
+                        f"Failed to compute basis components for interval {k} with degree {N_k}: {e}",
+                        "Radau basis computation error",
+                    ) from e
+
+                # Create interpolant for this interval - ORCHESTRATION SETUP
+                try:
+                    interpolant = PolynomialInterpolant(local_nodes, traj_k, barycentric_weights)
+                    prev_interpolants.append(interpolant)
+                    logger.debug(
+                        f"        Interval {k}: Created interpolant for {traj_k.shape} trajectory"
+                    )
+                except Exception as e:
+                    raise InterpolationError(
+                        f"Failed to create interpolant for interval {k}: {e}",
+                        "Polynomial interpolant construction error",
+                    ) from e
+
+            # Interpolate trajectory values for each target interval using pooled memory - ORCHESTRATION COORDINATION
+            target_trajectories = []
+
+            for k, N_k_target in enumerate(target_polynomial_degrees):
+                logger.debug(f"      Processing target interval {k} (degree {N_k_target})...")
+
+                # Get target nodes for this interval type (cached via Radau cache) - ORCHESTRATION SETUP
+                try:
+                    if is_state_trajectory:
+                        target_basis = compute_radau_collocation_components(N_k_target)
+                        target_local_nodes = target_basis.state_approximation_nodes
+                        num_target_nodes = N_k_target + 1
+                    else:
+                        target_basis = compute_radau_collocation_components(N_k_target)
+                        target_local_nodes = target_basis.collocation_nodes
+                        num_target_nodes = N_k_target
+                except Exception as e:
+                    raise InterpolationError(
+                        f"Failed to compute target basis for interval {k} with degree {N_k_target}: {e}",
+                        "Target basis computation error",
+                    ) from e
+
+                # Get pooled buffer instead of allocating new memory - ORCHESTRATION SETUP
+                target_traj_k = buffer_pool.get_buffer((num_variables, num_target_nodes))
+
+                # Global interval boundaries for target interval k - ORCHESTRATION SETUP
+                target_tau_start = target_mesh_points[k]
+                target_tau_end = target_mesh_points[k + 1]
+
+                # Use MATHEMATICAL CORE for coordinate transformation
+                global_tau_points = _calculate_global_tau_points_for_interval(
+                    target_local_nodes, target_tau_start, target_tau_end
+                )
+
+                # Process all nodes for this interval - ORCHESTRATION COORDINATION
+                for j, (_, global_tau) in enumerate(
+                    zip(target_local_nodes, global_tau_points, strict=False)
+                ):
+                    # Use MATHEMATICAL CORE for interpolation parameter determination
+                    try:
+                        prev_interval_idx, prev_local_tau = _determine_interpolation_parameters(
+                            global_tau, prev_mesh_points
+                        )
+                    except InterpolationError:
+                        raise
+
+                    # Evaluate the interpolant at this local tau - ORCHESTRATION COORDINATION
+                    try:
+                        interpolated_values = prev_interpolants[prev_interval_idx](prev_local_tau)
+                        if interpolated_values.ndim > 1:
+                            interpolated_values = interpolated_values.flatten()
+
+                        # Critical: Validate interpolated values - ORCHESTRATION VALIDATION
+                        try:
+                            validate_array_numerical_integrity(
+                                interpolated_values,
+                                f"Interpolated values at tau={prev_local_tau}",
+                                "interpolation result validation",
+                            )
+                        except DataIntegrityError as e:
+                            raise DataIntegrityError(
+                                str(e), "Numerical corruption in interpolation result"
+                            ) from e
+
+                        # Store the interpolated values - ORCHESTRATION COORDINATION
+                        if len(interpolated_values) == num_variables:
+                            target_traj_k[:, j] = interpolated_values
+                        elif num_variables == 0:
+                            # Handle empty variable case
+                            pass
+                        else:
+                            raise InterpolationError(
+                                f"Dimension mismatch: interpolated {len(interpolated_values)} values, expected {num_variables}",
+                                "Interpolation output dimension error",
+                            )
+
+                    except Exception as e:
+                        if isinstance(e, InterpolationError | DataIntegrityError):
+                            raise  # Re-raise TrajectoLab-specific errors
+                        raise InterpolationError(
+                            f"Failed to evaluate interpolant: {e}", "Interpolant evaluation error"
+                        ) from e
+
+                # Copy result from pooled buffer to permanent storage - ORCHESTRATION COORDINATION
+                result_array = np.array(target_traj_k, dtype=np.float64, copy=True)
+
+                # Use MATHEMATICAL CORE for final validation
+                _validate_interpolated_trajectory_result(
+                    result_array, num_variables, k, trajectory_type
+                )
+
+                target_trajectories.append(result_array)
+                logger.debug(
+                    f"        Interval {k}: Created trajectory of shape {result_array.shape}"
+                )
+
+        logger.info(f"    ✓ Successfully interpolated {trajectory_type} trajectories (OPTIMIZED)")
+        return cast(list[FloatArray], target_trajectories)
+
+    except Exception as e:
+        if isinstance(e, InterpolationError | DataIntegrityError):
+            raise  # Re-raise TrajectoLab-specific errors
+        raise InterpolationError(
+            f"Failed to interpolate {trajectory_type} trajectories: {e}",
+            "Critical interpolation failure",
+        ) from e
+
+
+def _find_containing_interval(global_tau: float, mesh_points: FloatArray) -> int | None:
+    """Find which mesh interval contains the given global tau value."""
+    return _find_containing_interval_index(global_tau, mesh_points)
+
+
 def propagate_solution_to_new_mesh(
     prev_solution: OptimalControlSolution,
     problem: ProblemProtocol,
@@ -290,14 +360,14 @@ def propagate_solution_to_new_mesh(
     """
     logger.info("  Starting OPTIMIZED aggressive interpolation-based propagation...")
 
-    # Guard clause: Validate previous solution
+    # Guard clause: Validate previous solution - ORCHESTRATION VALIDATION
     if not prev_solution.success:
         raise InterpolationError(
             "Cannot propagate from unsuccessful previous solution",
             "Invalid source solution for propagation",
         )
 
-    # Guard clause: Get previous mesh information and validate it exists
+    # Guard clause: Get previous mesh information and validate it exists - ORCHESTRATION VALIDATION
     prev_states = prev_solution.solved_state_trajectories_per_interval
     prev_controls = prev_solution.solved_control_trajectories_per_interval
     prev_mesh = prev_solution.global_mesh_nodes_at_solve_time
@@ -324,7 +394,7 @@ def propagate_solution_to_new_mesh(
             "Missing source degree data",
         )
 
-    # Guard clause: Validate target mesh configuration
+    # Guard clause: Validate target mesh configuration - ORCHESTRATION VALIDATION
     if len(target_polynomial_degrees) != len(target_mesh_points) - 1:
         raise ConfigurationError(
             f"Target polynomial degrees count ({len(target_polynomial_degrees)}) doesn't match target mesh intervals ({len(target_mesh_points) - 1})",
@@ -332,12 +402,12 @@ def propagate_solution_to_new_mesh(
         )
 
     try:
-        # ALWAYS propagate time variables and integrals (mesh-independent)
+        # ALWAYS propagate time variables and integrals (mesh-independent) - ORCHESTRATION SETUP
         t0_guess = prev_solution.initial_time_variable
         tf_guess = prev_solution.terminal_time_variable
         integrals_guess = prev_solution.integrals
 
-        # Critical: Validate time variables
+        # Critical: Validate time variables - ORCHESTRATION VALIDATION
         if t0_guess is None or tf_guess is None:
             raise InterpolationError(
                 "Previous solution missing time variables", "Invalid time data for propagation"
@@ -354,7 +424,7 @@ def propagate_solution_to_new_mesh(
             else:
                 logger.info(f"    Propagated integrals: {len(integrals_guess)} values")
 
-        # Get problem dimensions using unified storage
+        # Get problem dimensions using unified storage - ORCHESTRATION SETUP
         num_states, num_controls = problem.get_variable_counts()
 
         logger.info(f"    Problem dimensions: {num_states} states, {num_controls} controls")
@@ -362,7 +432,7 @@ def propagate_solution_to_new_mesh(
             f"    Mesh transition: {len(prev_degrees)} → {len(target_polynomial_degrees)} intervals"
         )
 
-        # Use memory-pooled interpolation for massive performance gains
+        # Use memory-pooled interpolation for massive performance gains - ORCHESTRATION COORDINATION
         states_guess = _interpolate_trajectory_to_new_mesh_optimized(
             prev_trajectory_per_interval=prev_states,
             prev_mesh_points=prev_mesh,
@@ -383,7 +453,7 @@ def propagate_solution_to_new_mesh(
             is_state_trajectory=False,
         )
 
-        # Create initial guess object
+        # Create initial guess object - ORCHESTRATION SETUP
         initial_guess = InitialGuess(
             initial_time_variable=t0_guess,
             terminal_time_variable=tf_guess,
@@ -392,7 +462,7 @@ def propagate_solution_to_new_mesh(
             integrals=integrals_guess,
         )
 
-        # Validate the interpolated initial guess using existing validation infrastructure
+        # Validate the interpolated initial guess using existing validation infrastructure - ORCHESTRATION VALIDATION
         logger.info("  Validating interpolated initial guess...")
         validate_initial_guess_structure(
             initial_guess=initial_guess,

@@ -36,6 +36,41 @@ __all__ = ["h_reduce_intervals", "h_refine_params", "p_reduce_interval", "p_refi
 logger = logging.getLogger(__name__)
 
 
+def _calculate_merge_feasibility_from_errors(
+    all_fwd_errors: list[float], all_bwd_errors: list[float], error_tol: float
+) -> tuple[bool, float]:
+    """Pure merge feasibility calculation - easily testable."""
+    max_fwd_error = np.nanmax(all_fwd_errors) if all_fwd_errors else np.inf
+    max_bwd_error = np.nanmax(all_bwd_errors) if all_bwd_errors else np.inf
+    max_error = max(max_fwd_error, max_bwd_error)
+
+    if np.isnan(max_error):
+        max_error = np.inf
+
+    can_merge = max_error <= error_tol
+    return can_merge, max_error
+
+
+def _calculate_trajectory_errors_with_gamma(
+    X_sim: FloatArray, X_nlp: FloatArray, gamma_factors: FloatArray
+) -> list[float]:
+    """Pure trajectory error calculation - easily testable."""
+    if np.any(np.isnan(X_sim)):
+        return []
+
+    if X_nlp.ndim > 1:
+        X_nlp = X_nlp.flatten()
+
+    abs_diff = np.abs(X_sim - X_nlp)
+    scaled_errors = gamma_factors.flatten() * abs_diff
+    return scaled_errors.tolist()
+
+
+# ========================================================================
+# ORCHESTRATION FUNCTIONS - Setup and coordination
+# ========================================================================
+
+
 def p_refine_interval(
     max_error: float, current_Nk: int, error_tol: float, N_max: int
 ) -> PRefineResult:
@@ -149,7 +184,7 @@ def h_reduce_intervals(
         logger.debug("h-reduction failed: Raw solution missing")
         return False
 
-    # Extract mesh and time information
+    # Extract mesh and time information - ORCHESTRATION SETUP
     global_mesh = solution.global_normalized_mesh_nodes
     if global_mesh is None:
         logger.debug("h-reduction failed: Global mesh is None")
@@ -166,7 +201,7 @@ def h_reduce_intervals(
         logger.debug("h-reduction check: One interval has zero length. Merge not possible")
         return False
 
-    # Time transformation parameters
+    # Time transformation parameters - ORCHESTRATION SETUP
     t0 = solution.initial_time_variable
     tf = solution.terminal_time_variable
 
@@ -226,7 +261,7 @@ def h_reduce_intervals(
         )
         return cast(FloatArray, scaling_kp1 * f_rhs_np)
 
-    # Get state values at interval endpoints
+    # Get state values at interval endpoints - ORCHESTRATION SETUP
     try:
         Y_solved_list = solution.solved_state_trajectories_per_interval
         Nk_k = problem.collocation_points_per_interval[first_idx]
@@ -251,7 +286,7 @@ def h_reduce_intervals(
         logger.warning("h-reduction failed: Error getting initial state: %s", str(e))
         return False
 
-    # Forward simulation through merged domain
+    # Forward simulation through merged domain - ORCHESTRATION
     target_end_tau_k = map_local_tau_from_interval_k_plus_1_to_equivalent_in_interval_k(
         1.0, tau_start_k, tau_shared, tau_end_kp1
     )
@@ -290,7 +325,7 @@ def h_reduce_intervals(
     except Exception as e:
         logger.warning("Exception during merged forward simulation: %s", str(e))
 
-    # Get terminal state for backward simulation
+    # Get terminal state for backward simulation - ORCHESTRATION SETUP
     try:
         if Y_solved_list is not None and (first_idx + 1) < len(Y_solved_list):
             Xkp1_nlp = Y_solved_list[first_idx + 1]
@@ -311,7 +346,7 @@ def h_reduce_intervals(
         logger.warning("h-reduction failed: Error getting terminal state: %s", str(e))
         return False
 
-    # Backward simulation through merged domain
+    # Backward simulation through merged domain - ORCHESTRATION
     target_end_tau_kp1 = map_local_tau_from_interval_k_to_equivalent_in_interval_k_plus_1(
         -1.0, tau_start_k, tau_shared, tau_end_kp1
     )
@@ -359,12 +394,10 @@ def h_reduce_intervals(
         logger.debug("h-reduction check (no states): can_intervals_be_merged=%s", can_merge)
         return can_merge
 
-    # Calculate errors for merged domain
+    # Calculate errors for merged domain using MATHEMATICAL CORE
     all_fwd_errors: list[float] = []
     for i, zeta_k in enumerate(fwd_tau_points):
         X_sim = fwd_trajectory[:, i]
-        if np.any(np.isnan(X_sim)):
-            continue
 
         # Get NLP state for comparison
         if -1.0 <= zeta_k <= 1.0 + 1e-9:
@@ -375,18 +408,13 @@ def h_reduce_intervals(
             )
             X_nlp = state_evaluator_second(zeta_kp1)
 
-        if X_nlp.ndim > 1:
-            X_nlp = X_nlp.flatten()
-
-        abs_diff = np.abs(X_sim - X_nlp)
-        scaled_errors = gamma_factors.flatten() * abs_diff
-        all_fwd_errors.extend(scaled_errors.tolist())
+        # Use mathematical core function for error calculation
+        trajectory_errors = _calculate_trajectory_errors_with_gamma(X_sim, X_nlp, gamma_factors)
+        all_fwd_errors.extend(trajectory_errors)
 
     all_bwd_errors: list[float] = []
     for i, zeta_kp1 in enumerate(sorted_bwd_tau_points):
         X_sim = bwd_trajectory[:, i]
-        if np.any(np.isnan(X_sim)):
-            continue
 
         # Get NLP state for comparison
         if -1.0 - 1e-9 <= zeta_kp1 <= 1.0:
@@ -399,25 +427,14 @@ def h_reduce_intervals(
             )
             X_nlp = state_evaluator_first(zeta_k)
 
-        if X_nlp.ndim > 1:
-            X_nlp = X_nlp.flatten()
+        # Use mathematical core function for error calculation
+        trajectory_errors = _calculate_trajectory_errors_with_gamma(X_sim, X_nlp, gamma_factors)
+        all_bwd_errors.extend(trajectory_errors)
 
-        abs_diff = np.abs(X_sim - X_nlp)
-        scaled_errors = gamma_factors.flatten() * abs_diff
-        all_bwd_errors.extend(scaled_errors.tolist())
-
-    # Get maximum error for merged domain
-    max_fwd_error = np.nanmax(all_fwd_errors) if all_fwd_errors else np.inf
-    max_bwd_error = np.nanmax(all_bwd_errors) if all_bwd_errors else np.inf
-    max_error = max(max_fwd_error, max_bwd_error)
-
-    if np.isnan(max_error):
-        logger.warning(
-            "h-reduction check: max_error calculation resulted in NaN. Merge not approved"
-        )
-        max_error = np.inf
-
-    can_merge = max_error <= error_tol
+    # Use mathematical core function for merge decision
+    can_merge, max_error = _calculate_merge_feasibility_from_errors(
+        all_fwd_errors, all_bwd_errors, error_tol
+    )
 
     logger.debug("h-reduction result: max_error=%.4e, can_merge=%s", max_error, can_merge)
 
