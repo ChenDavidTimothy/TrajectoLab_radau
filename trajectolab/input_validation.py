@@ -19,11 +19,6 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T")
 
 
-# ============================================================================
-# CONSOLIDATED CONFIGURATION VALIDATION FUNCTIONS
-# ============================================================================
-
-
 def validate_problem_ready_for_solving(problem: ProblemProtocol) -> None:
     """
     COMPREHENSIVE validation that problem is properly configured for solving.
@@ -247,11 +242,6 @@ def validate_adaptive_solver_parameters(
             f"Max polynomial degree ({max_polynomial_degree}) must be >= min degree ({min_polynomial_degree})",
             "Invalid polynomial degree range",
         )
-
-
-# ============================================================================
-# EXISTING VALIDATION FUNCTIONS (keep these)
-# ============================================================================
 
 
 def validate_dynamics_output(
@@ -535,11 +525,6 @@ def validate_interval_trajectory_consistency(
             f"{trajectory_type} trajectory for interval {k}",
             f"{context} - interval {k}",
         )
-
-
-# ============================================================================
-# HELPER FUNCTIONS (these handle data integrity, not user configuration)
-# ============================================================================
 
 
 def validate_integral_values(integrals: float | FloatArray | None, num_integrals: int) -> None:
