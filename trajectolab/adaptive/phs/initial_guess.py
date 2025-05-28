@@ -56,26 +56,46 @@ def _interpolate_polynomial_at_evaluation_points(
 
 
 def _find_containing_interval_index(global_tau: float, mesh_points: FloatArray) -> int | None:
-    """Pure interval location calculation - easily testable."""
+    """
+    Finds the 0-indexed interval 'k' such that mesh_points[k] <= global_tau < mesh_points[k+1].
+    Points exactly at mesh_points[k] are considered in interval 'k'.
+    The last point mesh_points[-1] is considered part of the last interval.
+    """
+    if not isinstance(mesh_points, np.ndarray) or mesh_points.ndim != 1 or mesh_points.size < 2:
+        # Or raise an error, depending on expected robustness
+        logger.error("Invalid mesh_points provided to _find_containing_interval_index.")
+        return None
+
+    # A small tolerance for floating point comparisons at boundaries
+    # This was 1e-10 in the original test/code.
+    # Using a slightly smaller one or making it relative might be more robust,
+    # but let's stick to the established one for now.
     tolerance = 1e-10
 
-    if global_tau < mesh_points[0] - tolerance:
-        return None
-    if global_tau > mesh_points[-1] + tolerance:
-        return None
+    # Handle points outside the mesh boundaries (potentially snapping if within tolerance)
+    if global_tau < mesh_points[0]:
+        if abs(global_tau - mesh_points[0]) < tolerance:
+            return 0  # Snap to the first interval
+        return None  # Clearly outside
 
-    # Use binary search for large meshes
-    if len(mesh_points) > 10:
-        idx = int(np.searchsorted(mesh_points, global_tau)) - 1
-        if 0 <= idx < len(mesh_points) - 1:
-            return idx
+    if global_tau > mesh_points[-1]:
+        if abs(global_tau - mesh_points[-1]) < tolerance:
+            return len(mesh_points) - 2  # Snap to the last interval
+        return None  # Clearly outside
 
-    # Fallback: linear search for small meshes
-    for k in range(len(mesh_points) - 1):
-        if mesh_points[k] - tolerance <= global_tau <= mesh_points[k + 1] + tolerance:
-            return k
+    # If global_tau is exactly the last point of the mesh
+    if abs(global_tau - mesh_points[-1]) < tolerance:  # Handles Convention 3
+        return len(mesh_points) - 2
 
-    return None
+    idx = np.searchsorted(mesh_points, global_tau, side="right")  # Key line for interval search
+
+    found_interval_idx = max(0, int(idx) - 1)  # Converts searchsorted result to interval index
+
+    # Safeguard for upper bound, consistent with Convention 3
+    if found_interval_idx >= len(mesh_points) - 1:
+        found_interval_idx = len(mesh_points) - 2
+
+    return int(found_interval_idx)
 
 
 def _calculate_global_tau_points_for_interval(

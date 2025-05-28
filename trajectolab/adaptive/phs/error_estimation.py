@@ -98,17 +98,55 @@ def _calculate_trajectory_error_differences(
 def _calculate_combined_error_estimate(
     max_fwd_errors_per_state: FloatArray, max_bwd_errors_per_state: FloatArray
 ) -> float:
-    """Pure combined error calculation - easily testable."""
-    # Combined error
-    max_errors_per_state = np.maximum(max_fwd_errors_per_state, max_bwd_errors_per_state)
-    max_error = np.nanmax(max_errors_per_state) if max_errors_per_state.size > 0 else np.inf
+    """
+    Calculates the combined maximum error from forward and backward simulations.
+    Prioritizes valid numerical errors over NaNs for each state component.
+    """
+    if not isinstance(max_fwd_errors_per_state, np.ndarray) or not isinstance(
+        max_bwd_errors_per_state, np.ndarray
+    ):
+        raise TypeError(
+            "Inputs max_fwd_errors_per_state and max_bwd_errors_per_state must be numpy arrays."
+        )
 
-    # Ensure minimum error threshold
-    if max_error < 1e-15:
-        max_error = 1e-15
+    if max_fwd_errors_per_state.shape != max_bwd_errors_per_state.shape:
+        raise ValueError(
+            "Input arrays max_fwd_errors_per_state and max_bwd_errors_per_state must have the same shape."
+        )
 
+    num_states = max_fwd_errors_per_state.shape[0]
+    combined_errors_per_state = np.full(num_states, np.nan, dtype=np.float64)
+
+    for i in range(num_states):
+        fwd_err = max_fwd_errors_per_state[i]
+        bwd_err = max_bwd_errors_per_state[i]
+
+        is_fwd_nan = np.isnan(fwd_err)
+        is_bwd_nan = np.isnan(bwd_err)
+
+        if not is_fwd_nan and not is_bwd_nan:
+            combined_errors_per_state[i] = max(fwd_err, bwd_err)
+        elif not is_fwd_nan:  # Only fwd is valid
+            combined_errors_per_state[i] = fwd_err
+        elif not is_bwd_nan:  # Only bwd is valid
+            combined_errors_per_state[i] = bwd_err
+        # If both are NaN, combined_errors_per_state[i] remains NaN
+
+    # Aggregate errors across states, ignoring NaNs if other valid errors exist
+    if combined_errors_per_state.size > 0:
+        max_error = np.nanmax(combined_errors_per_state)
+    else:  # No states
+        max_error = 0.0  # Or np.inf if that's more appropriate for zero states
+
+    # If all per-state errors were NaN, nanmax returns NaN (with a warning)
     if np.isnan(max_error):
         return np.inf
+
+    # Ensure a minimum error threshold for numerical stability or to drive refinement
+    # This threshold was mentioned as 1e-15 in tests.
+    MIN_ERROR_THRESHOLD = 1e-15
+    if max_error < MIN_ERROR_THRESHOLD and max_error != 0.0:  # Allow true zero error
+        max_error = MIN_ERROR_THRESHOLD
 
     return float(max_error)
 

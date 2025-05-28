@@ -39,16 +39,40 @@ logger = logging.getLogger(__name__)
 def _calculate_merge_feasibility_from_errors(
     all_fwd_errors: list[float], all_bwd_errors: list[float], error_tol: float
 ) -> tuple[bool, float]:
-    """Pure merge feasibility calculation - easily testable."""
-    max_fwd_error = np.nanmax(all_fwd_errors) if all_fwd_errors else np.inf
-    max_bwd_error = np.nanmax(all_bwd_errors) if all_bwd_errors else np.inf
+    """
+    Determines if two intervals can be merged based on their error estimates.
+    A merge is not feasible if any error component is NaN.
+    """
+    np_fwd_errors = (
+        np.array(all_fwd_errors, dtype=np.float64)
+        if all_fwd_errors
+        else np.array([], dtype=np.float64)
+    )
+    np_bwd_errors = (
+        np.array(all_bwd_errors, dtype=np.float64)
+        if all_bwd_errors
+        else np.array([], dtype=np.float64)
+    )
+
+    # FIX: Handle case where both error lists are actually empty
+    if not np_fwd_errors.size and not np_bwd_errors.size:
+        return False, np.inf  # As per test expectation
+
+    if np.any(np.isnan(np_fwd_errors)) or np.any(np.isnan(np_bwd_errors)):
+        return False, np.inf
+
+    # Proceed if no NaNs are present
+    max_fwd_error = np.max(np_fwd_errors) if np_fwd_errors.size > 0 else 0.0
+    max_bwd_error = np.max(np_bwd_errors) if np_bwd_errors.size > 0 else 0.0
+
     max_error = max(max_fwd_error, max_bwd_error)
 
-    if np.isnan(max_error):
-        max_error = np.inf
+    if max_error == np.inf:
+        can_merge = False
+    else:
+        can_merge = max_error <= error_tol
 
-    can_merge = max_error <= error_tol
-    return can_merge, max_error
+    return bool(can_merge), float(max_error)
 
 
 def _calculate_trajectory_errors_with_gamma(

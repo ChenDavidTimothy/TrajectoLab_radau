@@ -26,17 +26,3 @@ DEFAULT_ODE_RTOL: _Tolerance = 1e-7
 
 DEFAULT_ODE_ATOL_FACTOR: _Factor = 1e-1
 """Factor for computing absolute tolerance from relative tolerance."""
-
-# --- Iteration Limits ---
-MAX_MESH_REFINEMENT_ITERATIONS: int = 100
-"""Maximum iterations for adaptive mesh refinement."""
-
-MAX_NLP_SOLVER_ITERATIONS: int = 3000
-"""Default maximum iterations for NLP solver."""
-
-# --- Validation Ranges ---
-MIN_POLYNOMIAL_DEGREE: int = 1
-"""Minimum allowed polynomial degree for discretization."""
-
-MAX_POLYNOMIAL_DEGREE: int = 50
-"""Maximum allowed polynomial degree for discretization."""
