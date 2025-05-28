@@ -428,36 +428,13 @@ class TestAdaptiveSystemValidation:
         When the solution is smooth, increasing polynomial degree should decrease
         error exponentially with the degree.
         """
-        # Smooth problem: minimize ∫u²dt subject to ẋ = u + sin(2πt), x(0) = 0, x(1) = 0
-        # This has a smooth solution
-        problem = tl.Problem("Smooth Convergence Test")
-
-        # Time variable
-        t = problem.time(initial=0.0, final=1.0)
-
-        # State with boundary conditions
-        x = problem.state("x", initial=0.0, final=0.0)
-
-        # Control
-        u = problem.control("u")
-
-        # Get physical time for forcing term
-        time_states = solution["time_states"] if "solution" in locals() else None
-
-        # Create time-dependent forcing term using CasADi
-        # For normalized time τ ∈ [-1,1], physical time t = (τ+1)/2
-        # We want sin(2π*t) = sin(π*(τ+1))
-        pi = np.pi
-
-        # Use a parameter to represent time within the dynamics
-        # This is a limitation - we'll use a simpler smooth problem instead
 
         # Simplified smooth problem: minimize ∫u²dt subject to ẋ = u, x(0) = 0, x(1) = A
         # where A is chosen to make the solution smooth
         A = 0.5  # Small final condition
 
         problem_simple = tl.Problem("Simple Smooth Test")
-        t_simple = problem_simple.time(initial=0.0, final=1.0)
+        _t_simple = problem_simple.time(initial=0.0, final=1.0)
         x_simple = problem_simple.state("x", initial=0.0, final=A)
         u_simple = problem_simple.control("u")
 

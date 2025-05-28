@@ -28,8 +28,8 @@ class Solution:
     # Type hints for key attributes to ensure proper type inference
     success: bool
     objective: float  # Always a float - NaN for failed solutions
-    initial_time: float | None
-    final_time: float | None
+    initial_time: float  # Always a float - NaN for failed solutions
+    final_time: float  # Always a float - NaN for failed solutions
 
     def __init__(
         self, raw_solution: OptimalControlSolution | None, problem: ProblemProtocol | None
@@ -38,8 +38,19 @@ class Solution:
         if raw_solution is not None:
             self.success = raw_solution.success
             self.message = raw_solution.message
-            self.initial_time = raw_solution.initial_time_variable
-            self.final_time = raw_solution.terminal_time_variable
+
+            # Ensure time values are always floats (NaN if missing/invalid)
+            self.initial_time = (
+                raw_solution.initial_time_variable
+                if raw_solution.initial_time_variable is not None
+                else float("nan")
+            )
+            self.final_time = (
+                raw_solution.terminal_time_variable
+                if raw_solution.terminal_time_variable is not None
+                else float("nan")
+            )
+
             self.objective = (
                 raw_solution.objective if raw_solution.objective is not None else float("nan")
             )
@@ -55,8 +66,8 @@ class Solution:
         else:
             self.success = False
             self.message = "No solution"
-            self.initial_time = None
-            self.final_time = None
+            self.initial_time = float("nan")
+            self.final_time = float("nan")
             self.objective = float("nan")
             self.integrals = None
             self.time_states = np.array([], dtype=np.float64)
@@ -456,7 +467,7 @@ class Solution:
         extended_values = np.copy(values_array)
 
         if len(time_array) > 0:
-            if self.final_time is not None and self.final_time > time_array[-1]:
+            if not np.isnan(self.final_time) and self.final_time > time_array[-1]:
                 extended_times = np.append(extended_times, self.final_time)
                 extended_values = np.append(extended_values, values_array[-1])
             elif len(time_array) > 1:
@@ -542,7 +553,7 @@ class Solution:
 
     def _get_mesh_intervals(self) -> list[tuple[float, float]]:
         """Get mesh interval boundaries in physical time."""
-        if self.mesh_nodes is None or self.initial_time is None or self.final_time is None:
+        if self.mesh_nodes is None or np.isnan(self.initial_time) or np.isnan(self.final_time):
             return []
 
         alpha = (self.final_time - self.initial_time) / 2.0
@@ -571,7 +582,10 @@ class Solution:
         print(f"Solution Status: {'Success' if self.success else 'Failed'}")
         if self.success:
             print(f"  Objective: {self.objective}")
-            print(f"  Time: {self.initial_time} → {self.final_time}")
+            if not np.isnan(self.initial_time) and not np.isnan(self.final_time):
+                print(f"  Time: {self.initial_time} → {self.final_time}")
+            elif not np.isnan(self.final_time):
+                print(f"  Final Time: {self.final_time}")
             print(f"  States: {len(self._state_names)} {self._state_names}")
             print(f"  Controls: {len(self._control_names)} {self._control_names}")
             if self.mesh_nodes is not None:
