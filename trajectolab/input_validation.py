@@ -5,7 +5,7 @@ Centralized input validation for all user configuration parameters.
 import logging
 import math
 from collections.abc import Sequence
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 import casadi as ca
 import numpy as np
@@ -329,7 +329,9 @@ def validate_initial_guess_structure(
     # Critical state trajectory validation
     if initial_guess.states is not None:
         expected_state_shapes = [(num_states, N + 1) for N in polynomial_degrees]
-        validate_trajectory_arrays(initial_guess.states, expected_state_shapes, "state")
+        validate_interval_trajectory_consistency(
+            initial_guess.states, num_intervals, expected_state_shapes, "state"
+        )
 
         if len(initial_guess.states) != num_intervals:
             raise DataIntegrityError(
@@ -340,40 +342,14 @@ def validate_initial_guess_structure(
     # Critical control trajectory validation
     if initial_guess.controls is not None:
         expected_control_shapes = [(num_controls, N) for N in polynomial_degrees]
-        validate_trajectory_arrays(initial_guess.controls, expected_control_shapes, "control")
+        validate_interval_trajectory_consistency(
+            initial_guess.controls, num_intervals, expected_control_shapes, "control"
+        )
 
         if len(initial_guess.controls) != num_intervals:
             raise DataIntegrityError(
                 f"Control trajectories count ({len(initial_guess.controls)}) doesn't match intervals ({num_intervals})",
                 "Initial guess structure inconsistency",
-            )
-
-
-def validate_trajectory_arrays(
-    trajectories: list[FloatArray],
-    expected_shapes: list[tuple[int, int]],
-    trajectory_type: str,
-) -> None:
-    """Validate trajectory arrays against expected shapes with fail-fast."""
-    if len(trajectories) != len(expected_shapes):
-        raise DataIntegrityError(
-            f"{trajectory_type.capitalize()} trajectory count mismatch: got {len(trajectories)}, expected {len(expected_shapes)}",
-            f"TrajectoLab {trajectory_type} data preparation error",
-        )
-
-    for k, (traj, expected_shape) in enumerate(zip(trajectories, expected_shapes, strict=False)):
-        # Critical shape validation
-        if traj.shape != expected_shape:
-            raise DataIntegrityError(
-                f"{trajectory_type.capitalize()} trajectory for interval {k} has shape {traj.shape}, expected {expected_shape}",
-                "Shape mismatch in TrajectoLab trajectory data",
-            )
-
-        # Critical NaN/Inf validation - TrajectoLab's responsibility to catch this
-        if np.any(np.isnan(traj)) or np.any(np.isinf(traj)):
-            raise DataIntegrityError(
-                f"{trajectory_type.capitalize()} trajectory for interval {k} contains NaN or Inf values",
-                "Invalid numerical data in TrajectoLab trajectory",
             )
 
 
@@ -445,23 +421,26 @@ def validate_time_bounds(
         )
 
 
-def validate_problem_dimensions(num_states: int, num_controls: int, num_integrals: int) -> None:
-    """Validate problem dimension parameters."""
+def validate_problem_dimensions(
+    num_states: int, num_controls: int, num_integrals: int, context: str = "problem dimensions"
+) -> None:
+    """Validate problem dimension parameters with context support."""
     if num_states < 0:
         raise ConfigurationError(
-            f"Number of states must be non-negative, got {num_states}", "Invalid problem dimensions"
+            f"Number of states must be non-negative, got {num_states}",
+            f"Invalid problem dimensions in {context}",
         )
 
     if num_controls < 0:
         raise ConfigurationError(
             f"Number of controls must be non-negative, got {num_controls}",
-            "Invalid problem dimensions",
+            f"Invalid problem dimensions in {context}",
         )
 
     if num_integrals < 0:
         raise ConfigurationError(
             f"Number of integrals must be non-negative, got {num_integrals}",
-            "Invalid problem dimensions",
+            f"Invalid problem dimensions in {context}",
         )
 
     # Warning for edge case
@@ -474,27 +453,93 @@ def validate_problem_dimensions(num_states: int, num_controls: int, num_integral
         )
 
 
+def validate_array_numerical_integrity(
+    array: FloatArray, name: str, context: str = "data validation"
+) -> None:
+    """Centralized NaN/Inf validation with context - CONSOLIDATED."""
+    if np.any(np.isnan(array)) or np.any(np.isinf(array)):
+        raise DataIntegrityError(
+            f"{name} contains NaN or Inf values", f"Numerical corruption in {context}"
+        )
+
+
+def validate_array_shape_and_integrity(
+    array: FloatArray, expected_shape: tuple[int, ...], name: str, context: str = "data validation"
+) -> None:
+    """Centralized shape and numerical validation - CONSOLIDATED."""
+    if array.shape != expected_shape:
+        raise DataIntegrityError(
+            f"{name} has shape {array.shape}, expected {expected_shape}",
+            f"Shape mismatch in {context}",
+        )
+
+    validate_array_numerical_integrity(array, name, context)
+
+
+def validate_casadi_result_integrity(
+    result: Any,
+    expected_shape: tuple[int, ...] | None = None,
+    name: str = "CasADi result",
+    context: str = "CasADi evaluation",
+) -> FloatArray:
+    """Centralized CasADi result validation and conversion - CONSOLIDATED."""
+    try:
+        if isinstance(result, ca.DM | ca.MX):
+            result_np = np.array(result.full(), dtype=np.float64)
+        elif isinstance(result, list | tuple):
+            if not result:
+                raise DataIntegrityError(f"Empty {name}", f"{context} returned empty result")
+            # Handle array of CasADi objects
+            result_np = np.array([float(ca.evalf(item)) for item in result], dtype=np.float64)
+        else:
+            result_np = np.array(result, dtype=np.float64)
+
+        # Ensure it's a proper FloatArray
+        result_np = np.asarray(result_np, dtype=np.float64)
+
+        # Validate numerical integrity
+        validate_array_numerical_integrity(result_np, name, context)
+
+        # Validate shape if provided
+        if expected_shape is not None:
+            validate_array_shape_and_integrity(result_np, expected_shape, name, context)
+
+        return cast(FloatArray, result_np)
+
+    except Exception as e:
+        if isinstance(e, DataIntegrityError):
+            raise
+        raise DataIntegrityError(
+            f"Failed to validate and convert {name}: {e}", f"{context} validation error"
+        ) from e
+
+
+def validate_interval_trajectory_consistency(
+    trajectories: list[FloatArray],
+    expected_intervals: int,
+    expected_shapes: list[tuple[int, int]],
+    trajectory_type: str,
+    context: str = "trajectory validation",
+) -> None:
+    """Centralized trajectory consistency validation - CONSOLIDATED."""
+    if len(trajectories) != expected_intervals:
+        raise DataIntegrityError(
+            f"{trajectory_type.capitalize()} trajectory count ({len(trajectories)}) doesn't match expected intervals ({expected_intervals})",
+            f"Trajectory structure inconsistency in {context}",
+        )
+
+    for k, (traj, expected_shape) in enumerate(zip(trajectories, expected_shapes, strict=False)):
+        validate_array_shape_and_integrity(
+            traj,
+            expected_shape,
+            f"{trajectory_type} trajectory for interval {k}",
+            f"{context} - interval {k}",
+        )
+
+
 # ============================================================================
 # HELPER FUNCTIONS (these handle data integrity, not user configuration)
 # ============================================================================
-
-
-def _validate_numeric_value(value: float | int, name: str) -> None:
-    """Validate a single numeric value."""
-    if not isinstance(value, int | float):
-        raise ValueError(f"{name} must be scalar, got {type(value)}")
-    if np.isnan(value) or np.isinf(value):
-        raise DataIntegrityError(f"{name} has invalid value: {value}", "Numerical data corruption")
-
-
-def _validate_array_values(array: FloatArray, name: str) -> None:
-    """Validate array for NaN and infinite values."""
-    if np.any(np.isnan(array)):
-        raise DataIntegrityError(f"{name} contains NaN values", "Numerical data corruption")
-    if np.any(np.isinf(array)):
-        raise DataIntegrityError(f"{name} contains infinite values", "Numerical data corruption")
-    if array.dtype != np.float64:
-        raise ValueError(f"{name} has dtype {array.dtype}, expected float64")
 
 
 def validate_integral_values(integrals: float | FloatArray | None, num_integrals: int) -> None:
@@ -504,34 +549,38 @@ def validate_integral_values(integrals: float | FloatArray | None, num_integrals
 
     if num_integrals == 1:
         if not isinstance(integrals, int | float):
-            raise ValueError(f"For single integral, expected scalar, got {type(integrals)}")
-        _validate_numeric_value(integrals, "Integral")
+            raise DataIntegrityError(f"For single integral, expected scalar, got {type(integrals)}")
+        validate_array_numerical_integrity(np.array([integrals]), "Integral", "integral validation")
     elif num_integrals > 1:
         if isinstance(integrals, int | float):
-            raise ValueError(
+            raise DataIntegrityError(
                 f"For {num_integrals} integrals, guess must be array-like, got scalar {integrals}"
             )
 
         integrals_array = np.array(integrals, dtype=np.float64)
         if integrals_array.size != num_integrals:
-            raise ValueError(
+            raise DataIntegrityError(
                 f"Integral guess must have exactly {num_integrals} elements, got {integrals_array.size}"
             )
-        _validate_array_values(integrals_array, "Integrals")
+        validate_array_numerical_integrity(integrals_array, "Integrals")
 
 
 def validate_time_values(initial_time: float | None, terminal_time: float | None) -> None:
     """Validate actual time values (not bounds)."""
     if initial_time is not None:
-        _validate_numeric_value(initial_time, "Initial time")
+        validate_array_numerical_integrity(
+            np.array([initial_time]), "Initial time", "time validation"
+        )
 
     if terminal_time is not None:
-        _validate_numeric_value(terminal_time, "Terminal time")
+        validate_array_numerical_integrity(
+            np.array([terminal_time]), "Terminal time", "time validation"
+        )
 
     # Check time ordering if both are present
     if initial_time is not None and terminal_time is not None:
         if terminal_time <= initial_time:
-            raise ValueError(
+            raise DataIntegrityError(
                 f"Terminal time ({terminal_time}) must be greater than initial time ({initial_time})"
             )
 
@@ -562,7 +611,7 @@ def set_integral_guess_values(
         if isinstance(guess, int | float):
             opti.set_initial(integral_vars, float(guess))
         else:
-            raise ValueError(f"Expected scalar for single integral, got {type(guess)}")
+            raise ConfigurationError(f"Expected scalar for single integral, got {type(guess)}")
     elif num_integrals > 1:
         guess_array = np.array(guess, dtype=np.float64)
         opti.set_initial(integral_vars, guess_array.flatten())

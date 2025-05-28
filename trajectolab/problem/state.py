@@ -424,16 +424,14 @@ class MeshState:
         if self.global_normalized_mesh_nodes is not None:
             import numpy as np
 
+            from ..input_validation import validate_array_numerical_integrity
+
             if not isinstance(self.global_normalized_mesh_nodes, np.ndarray):
                 raise DataIntegrityError(
                     f"Mesh nodes must be numpy array, got {type(self.global_normalized_mesh_nodes)}",
                     "TrajectoLab mesh storage error",
                 )
 
-            # Check for NaN/Inf in mesh nodes (data integrity)
-            if np.any(np.isnan(self.global_normalized_mesh_nodes)) or np.any(
-                np.isinf(self.global_normalized_mesh_nodes)
-            ):
-                raise DataIntegrityError(
-                    "Mesh nodes contain NaN or infinite values", "TrajectoLab mesh data corruption"
-                )
+            validate_array_numerical_integrity(
+                self.global_normalized_mesh_nodes, "Mesh nodes", "mesh data storage validation"
+            )

@@ -13,7 +13,11 @@ from trajectolab.adaptive.phs.numerical import (
     map_local_interval_tau_to_global_normalized_tau,
 )
 from trajectolab.exceptions import ConfigurationError, DataIntegrityError, InterpolationError
-from trajectolab.input_validation import validate_initial_guess_structure
+from trajectolab.input_validation import (
+    validate_array_numerical_integrity,
+    validate_array_shape_and_integrity,
+    validate_initial_guess_structure,
+)
 from trajectolab.radau import compute_radau_collocation_components
 from trajectolab.tl_types import FloatArray, InitialGuess, OptimalControlSolution, ProblemProtocol
 from trajectolab.utils.memory_pool import create_buffer_context
@@ -72,19 +76,17 @@ def _interpolate_trajectory_to_new_mesh_optimized(
             ):
                 # Critical: Validate trajectory shape
                 expected_nodes = N_k + 1 if is_state_trajectory else N_k
+                expected_shape = (num_variables, expected_nodes)
 
-                if traj_k.shape != (num_variables, expected_nodes):
-                    raise InterpolationError(
-                        f"Previous {trajectory_type} trajectory for interval {k} has shape {traj_k.shape}, expected ({num_variables}, {expected_nodes})",
-                        "Shape mismatch in interpolation input",
+                try:
+                    validate_array_shape_and_integrity(
+                        traj_k,
+                        expected_shape,
+                        f"Previous {trajectory_type} trajectory for interval {k}",
+                        "interpolation input validation",
                     )
-
-                # Critical: Check for NaN/Inf in trajectory data
-                if np.any(np.isnan(traj_k)) or np.any(np.isinf(traj_k)):
-                    raise DataIntegrityError(
-                        f"Previous {trajectory_type} trajectory for interval {k} contains NaN or Inf values",
-                        "Numerical corruption in interpolation input",
-                    )
+                except DataIntegrityError as e:
+                    raise InterpolationError(str(e), "Shape mismatch in interpolation input") from e
 
                 # Get the appropriate nodes for this interval type (cached via Radau cache)
                 try:
@@ -192,13 +194,16 @@ def _interpolate_trajectory_to_new_mesh_optimized(
                             interpolated_values = interpolated_values.flatten()
 
                         # Critical: Validate interpolated values
-                        if np.any(np.isnan(interpolated_values)) or np.any(
-                            np.isinf(interpolated_values)
-                        ):
-                            raise DataIntegrityError(
-                                f"Invalid interpolated values at tau={prev_local_tau}: contains NaN or Inf",
-                                "Numerical corruption in interpolation result",
+                        try:
+                            validate_array_numerical_integrity(
+                                interpolated_values,
+                                f"Interpolated values at tau={prev_local_tau}",
+                                "interpolation result validation",
                             )
+                        except DataIntegrityError as e:
+                            raise DataIntegrityError(
+                                str(e), "Numerical corruption in interpolation result"
+                            ) from e
 
                         # Store the interpolated values
                         if len(interpolated_values) == num_variables:
@@ -223,11 +228,16 @@ def _interpolate_trajectory_to_new_mesh_optimized(
                 result_array = np.array(target_traj_k, dtype=np.float64, copy=True)
 
                 # Final validation of result
-                if np.any(np.isnan(result_array)) or np.any(np.isinf(result_array)):
-                    raise DataIntegrityError(
-                        f"Final interpolated trajectory for interval {k} contains NaN or Inf",
-                        "Corruption in final interpolation result",
+                try:
+                    validate_array_numerical_integrity(
+                        result_array,
+                        f"Final interpolated trajectory for interval {k}",
+                        "final interpolation result validation",
                     )
+                except DataIntegrityError as e:
+                    raise DataIntegrityError(
+                        str(e), "Corruption in final interpolation result"
+                    ) from e
 
                 target_trajectories.append(result_array)
                 logger.debug(
@@ -333,11 +343,9 @@ def propagate_solution_to_new_mesh(
                 "Previous solution missing time variables", "Invalid time data for propagation"
             )
 
-        if np.isnan(t0_guess) or np.isinf(t0_guess) or np.isnan(tf_guess) or np.isinf(tf_guess):
-            raise DataIntegrityError(
-                f"Invalid time variables: t0={t0_guess}, tf={tf_guess}",
-                "Numerical corruption in time data",
-            )
+        validate_array_numerical_integrity(
+            np.array([t0_guess, tf_guess]), "Time variables", "time data propagation"
+        )
 
         logger.info(f"    Propagated time variables: t0={t0_guess}, tf={tf_guess}")
         if integrals_guess is not None:

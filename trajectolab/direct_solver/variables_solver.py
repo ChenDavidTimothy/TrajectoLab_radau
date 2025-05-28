@@ -5,7 +5,10 @@ Optimization variable setup and configuration for the direct solver.
 import casadi as ca
 
 from ..exceptions import DataIntegrityError
-from ..input_validation import validate_casadi_optimization_object, validate_mesh_interval_count
+from ..input_validation import (
+    validate_casadi_optimization_object,
+    validate_mesh_interval_count,
+)
 from ..tl_types import ProblemProtocol
 from ..utils.constants import MINIMUM_TIME_INTERVAL
 from .types_solver import VariableReferences, _IntervalBundle

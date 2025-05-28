@@ -8,6 +8,7 @@ import casadi as ca
 import numpy as np
 
 from .exceptions import DataIntegrityError, SolutionExtractionError
+from .input_validation import validate_array_numerical_integrity
 from .tl_types import (
     FloatArray,
     OptimalControlSolution,
@@ -40,12 +41,9 @@ def extract_integral_values(
             if num_integrals == 1:
                 if np_array_value.size == 1:
                     result = float(np_array_value.item())
-                    # Critical: Check for NaN/Inf in TrajectoLab's result
-                    if np.isnan(result) or np.isinf(result):
-                        raise DataIntegrityError(
-                            f"Integral value is invalid: {result}",
-                            "Numerical corruption in integral extraction",
-                        )
+                    validate_array_numerical_integrity(
+                        np.array([result]), "Integral value", "integral extraction"
+                    )
                     return result
                 else:
                     logger.warning(
@@ -58,22 +56,17 @@ def extract_integral_values(
                         return np.nan
             else:
                 result_array = np_array_value.flatten().astype(np.float64)
-                # Critical: Check for NaN/Inf in TrajectoLab's result
-                if np.any(np.isnan(result_array)) or np.any(np.isinf(result_array)):
-                    raise DataIntegrityError(
-                        "Integral array contains NaN or Inf values",
-                        "Numerical corruption in integral extraction",
-                    )
+                validate_array_numerical_integrity(
+                    result_array, "Integral array", "integral extraction"
+                )
                 return result_array
 
         elif isinstance(raw_value, float | int):
             if num_integrals == 1:
                 result = float(raw_value)
-                if np.isnan(result) or np.isinf(result):
-                    raise DataIntegrityError(
-                        f"Integral value is invalid: {result}",
-                        "Numerical corruption in integral extraction",
-                    )
+                validate_array_numerical_integrity(
+                    np.array([result]), "Integral value", "integral extraction"
+                )
                 return result
             else:
                 logger.warning(
@@ -140,11 +133,11 @@ def process_trajectory_points(
         solved_values = solved_values.reshape(1, -1)
 
     # Critical: Check for NaN/Inf in solution values
-    if np.any(np.isnan(solved_values)) or np.any(np.isinf(solved_values)):
-        raise DataIntegrityError(
-            f"Solution values for interval {mesh_interval_index} contain NaN or Inf",
-            "Numerical corruption in solution data",
-        )
+    validate_array_numerical_integrity(
+        solved_values,
+        f"Solution values for interval {mesh_interval_index}",
+        "solution data extraction",
+    )
 
     # For controls, we don't include the final point (which belongs to states)
     num_nodes_to_process = len(current_interval_local_tau_values)
@@ -182,11 +175,11 @@ def process_trajectory_points(
             for var_index in range(num_variables):
                 value = solved_values[var_index, node_index]
                 # Critical: Check individual values
-                if np.isnan(value) or np.isinf(value):
-                    raise DataIntegrityError(
-                        f"Invalid trajectory value at interval {mesh_interval_index}, node {node_index}: {value}",
-                        "Numerical corruption in trajectory data",
-                    )
+                validate_array_numerical_integrity(
+                    np.array([value]),
+                    f"Trajectory value at interval {mesh_interval_index}, node {node_index}",
+                    "trajectory data extraction",
+                )
                 trajectory_values_lists[var_index].append(value)
             last_added_point = physical_time
 
@@ -240,14 +233,12 @@ def extract_and_format_solution(
             raise DataIntegrityError(
                 f"Invalid initial time: {initial_time}", "Core solution corruption"
             )
-        if np.isnan(terminal_time) or np.isinf(terminal_time):
-            raise DataIntegrityError(
-                f"Invalid terminal time: {terminal_time}", "Core solution corruption"
-            )
-        if np.isnan(objective) or np.isinf(objective):
-            raise DataIntegrityError(
-                f"Invalid objective value: {objective}", "Core solution corruption"
-            )
+        validate_array_numerical_integrity(
+            np.array([terminal_time]), "Terminal time", "core solution extraction"
+        )
+        validate_array_numerical_integrity(
+            np.array([objective]), "Objective value", "core solution extraction"
+        )
 
         solution.initial_time_variable = initial_time
         solution.terminal_time_variable = terminal_time
@@ -368,11 +359,11 @@ def extract_and_format_solution(
                     state_vals = np.array(state_vals)
 
                 # Critical: Validate extracted state values
-                if np.any(np.isnan(state_vals)) or np.any(np.isinf(state_vals)):
-                    raise DataIntegrityError(
-                        f"State values for interval {mesh_idx} contain NaN or Inf",
-                        "Per-interval state data corruption",
-                    )
+                validate_array_numerical_integrity(
+                    state_vals,
+                    f"State values for interval {mesh_idx}",
+                    "per-interval state data extraction",
+                )
 
                 # Ensure it's 2D for consistent processing
                 if num_states == 1 and state_vals.ndim == 1:
@@ -406,11 +397,11 @@ def extract_and_format_solution(
                     control_vals = np.array(control_vals)
 
                 # Critical: Validate extracted control values
-                if np.any(np.isnan(control_vals)) or np.any(np.isinf(control_vals)):
-                    raise DataIntegrityError(
-                        f"Control values for interval {mesh_idx} contain NaN or Inf",
-                        "Per-interval control data corruption",
-                    )
+                validate_array_numerical_integrity(
+                    control_vals,
+                    f"Control values for interval {mesh_idx}",
+                    "per-interval control data extraction",
+                )
 
                 # Ensure it's 2D for consistent processing
                 if num_controls == 1 and control_vals.ndim == 1:
