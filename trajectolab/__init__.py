@@ -24,18 +24,22 @@ from trajectolab.exceptions import (
     TrajectoLabBaseError,
 )
 from trajectolab.problem import Problem
+from trajectolab.problem.multi_phase_problem import MultiPhaseProblem
 from trajectolab.solver import solve_adaptive, solve_fixed_mesh
+from trajectolab.solver_multi_phase import solve_multi_phase_fixed_mesh
 
 
 __all__ = [
     "ConfigurationError",
     "DataIntegrityError",
     "InterpolationError",
+    "MultiPhaseProblem",
     "Problem",
     "SolutionExtractionError",
     "TrajectoLabBaseError",
     "solve_adaptive",
     "solve_fixed_mesh",
+    "solve_multi_phase_fixed_mesh",
 ]
 
 __version__ = "0.2.1"
