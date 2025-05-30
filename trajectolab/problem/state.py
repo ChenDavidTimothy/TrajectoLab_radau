@@ -102,6 +102,7 @@ class VariableState:
 
     # Parameters (simple dict is sufficient)
     parameters: dict[str, Any] = field(default_factory=dict)
+    parameter_symbols: dict[str, ca.MX] = field(default_factory=dict)  # ← ADD THIS LINE
 
     # Symbolic time variables
     sym_time: ca.MX | None = None

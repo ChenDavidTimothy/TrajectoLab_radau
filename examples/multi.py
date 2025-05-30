@@ -99,9 +99,15 @@ def test_tumor_growth_multi_phase():
         # ẏ = a
         import casadi as ca
 
+        def safe_log_ratio(p, q, eps=1e-8):
+            """Numerically stable log(p/q) with safeguarding."""
+            p_safe = ca.fmax(p, eps)  # Ensure p > 0
+            q_safe = ca.fmax(q, eps)  # Ensure q > 0
+            return ca.log(p_safe / q_safe)
+
         phase1.dynamics(
             {
-                p1: -xi_param * p1 * ca.log(p1 / q1),
+                p1: -xi_param * p1 * safe_log_ratio(p1, q1),  # ← FIXED: numerically stable
                 q1: q1 * (b_param - (mu_param + d_param * p1 ** (2 / 3) + G_param * a_param)),
                 y1: a_param,
             }
@@ -128,9 +134,9 @@ def test_tumor_growth_multi_phase():
         # ẏ = 0  [NO drug administration!]
         phase2.dynamics(
             {
-                p2: -xi_param * p2 * ca.log(p2 / q2),
-                q2: q2 * (b_param - (mu_param + d_param * p2 ** (2 / 3))),  # No Ga term
-                y2: 0.0,  # No drug administration
+                p2: -xi_param * p2 * safe_log_ratio(p2, q2),  # ← FIXED: numerically stable
+                q2: q2 * (b_param - (mu_param + d_param * p2 ** (2 / 3))),
+                y2: 0.0,
             }
         )
 
@@ -178,11 +184,46 @@ def test_tumor_growth_multi_phase():
                 f"{phase_info['num_controls']} controls, mesh_configured={phase_info['mesh_configured']}"
             )
 
+        print("\nStep 9.5: Setting initial guess...")
+
+        # Phase 1: 9 nodes (8 collocation + 1 endpoint)
+        t1_guess = np.linspace(0.0, 1.0, 9)  # Normalized time
+        p1_guess = np.full(9, p_0)  # Start with initial value
+        q1_guess = np.full(9, q_0)  # Start with initial value
+        y1_guess = np.linspace(0.0, 50.0, 9)  # Linear drug accumulation
+
+        phase1_states = np.array([p1_guess, q1_guess, y1_guess])
+
+        # Phase 2: 9 nodes (8 collocation + 1 endpoint)
+        p2_guess = np.full(9, p_0 * 0.8)  # Slightly reduced tumor
+        q2_guess = np.full(9, q_0 * 0.9)  # Slightly improved
+        y2_guess = np.full(9, 50.0)  # Constant drug level
+
+        phase2_states = np.array([p2_guess, q2_guess, y2_guess])
+
+        # Set initial guess for phases
+        phase1.set_initial_guess(states=[phase1_states], initial_time=0.0, terminal_time=0.5)
+
+        phase2.set_initial_guess(states=[phase2_states], initial_time=0.5, terminal_time=2.0)
+
+        print("✓ Initial guess set for both phases")
+
         # Step 10: Attempt to solve
         print("\nStep 10: Attempting to solve multi-phase problem...")
         print("This may take some time for the complex tumor growth dynamics...")
 
-        solution = tl.solve_multi_phase_fixed_mesh(mp_problem)
+        solution = tl.solve_multi_phase_fixed_mesh(
+            mp_problem,
+            nlp_options={
+                "ipopt.print_level": 5,  # More output for debugging
+                "ipopt.sb": "yes",
+                "ipopt.max_iter": 3000,
+                "ipopt.tol": 1e-6,  # Slightly relaxed tolerance
+                "ipopt.acceptable_tol": 1e-5,  # Backup tolerance
+                "ipopt.mu_strategy": "adaptive",  # Robust barrier strategy
+                "ipopt.alpha_for_y": "safer-min-dual-infeas",  # Numerical stability
+            },
+        )
 
         print(f"\n{'=' * 60}")
         print("SOLUTION RESULTS:")

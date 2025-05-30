@@ -462,15 +462,7 @@ def validate_multi_phase_problem_structure(problem: MultiPhaseProblemProtocol) -
 def _inject_global_parameters_into_phases(problem: MultiPhaseProblemProtocol) -> None:
     """
     Inject global parameters into each phase's parameter dictionary.
-
-    This ensures that global parameters s are available to each phase when creating
-    dynamics functions, following the CGPOPS mathematical structure where dynamics
-    are defined as: ẏ^(p) = a^(p)(y^(p)(t), u^(p)(t), t, s)
-
-    Mirrors the single-phase parameter mechanism that already works perfectly.
-
-    Args:
-        problem: Multi-phase problem with global parameters to inject
+    FIXED: Now properly stores both values AND symbols.
     """
     if not hasattr(problem, "global_parameters") or not problem.global_parameters:
         logger.debug("No global parameters to inject into phases")
@@ -482,23 +474,27 @@ def _inject_global_parameters_into_phases(problem: MultiPhaseProblemProtocol) ->
         len(problem.phases),
     )
 
-    # Inject global parameters into each phase using the same mechanism as single-phase
+    # Inject global parameters into each phase using CORRECTED mechanism
     for phase_idx, phase_problem in enumerate(problem.phases):
         try:
-            # Access the phase's parameter storage (same as single-phase architecture)
+            # Access both parameter storages
             phase_parameters = phase_problem._variable_state.parameters
+            phase_param_symbols = phase_problem._variable_state.parameter_symbols  # ← ADD
 
             # Inject each global parameter into the phase
             for param_name, param_value in problem.global_parameters.items():
-                if param_name in phase_parameters:
-                    logger.debug(
-                        "Phase %d: Global parameter '%s' overriding existing phase parameter",
-                        phase_idx,
-                        param_name,
-                    )
-
-                # Store in phase parameters (same pattern as single-phase)
+                # Store value (existing pattern)
                 phase_parameters[param_name] = param_value
+
+                # Store symbol (MISSING PIECE) - get from multi-phase problem
+                if (
+                    hasattr(problem, "_global_parameter_symbols")
+                    and param_name in problem._global_parameter_symbols
+                ):
+                    phase_param_symbols[param_name] = problem._global_parameter_symbols[
+                        param_name
+                    ]  # ← ADD
+
                 logger.debug(
                     "Phase %d: Injected global parameter '%s' = %s",
                     phase_idx,
