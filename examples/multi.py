@@ -39,15 +39,14 @@ def test_tumor_growth_multi_phase():
     print("=" * 60)
 
     try:
-        # Problem parameters (estimated values since Table 10.33 not provided)
         # These may need adjustment based on the actual parameter values
         xi = 0.084  # ξ parameter
         b = 5.85  # birth rate parameter
         mu = 0.02  # death rate parameter
         d = 0.00873  # density parameter
-        G = 15.3  # drug efficacy parameter
+        G = 0.15  # drug efficacy parameter
         a = 75.0  # drug administration rate
-        A = 100.0  # maximum drug accumulation
+        A = 15.0  # maximum drug accumulation
 
         # Computed parameters
         p_bar = ((b - mu) / d) ** (3 / 2)  # p̄ = q̄ = [(b-μ)/d]^(3/2)
@@ -107,14 +106,14 @@ def test_tumor_growth_multi_phase():
 
         phase1.dynamics(
             {
-                p1: -xi_param * p1 * safe_log_ratio(p1, q1),  # ← FIXED: numerically stable
+                p1: -xi_param * p1 * safe_log_ratio(p1, q1),
                 q1: q1 * (b_param - (mu_param + d_param * p1 ** (2 / 3) + G_param * a_param)),
                 y1: a_param,
             }
         )
 
         # Phase 1 mesh configuration
-        phase1.set_mesh([8], np.array([-1.0, 1.0]))
+        phase1.set_mesh([100], np.array([-1.0, 1.0]))
         print("✓ Phase 1 configured")
 
         # Step 5: Configure Phase 2 (No Drug Administration)
@@ -141,7 +140,7 @@ def test_tumor_growth_multi_phase():
         )
 
         # Phase 2 mesh configuration
-        phase2.set_mesh([8], np.array([-1.0, 1.0]))
+        phase2.set_mesh([100], np.array([-1.0, 1.0]))
         print("✓ Phase 2 configured")
 
         # Step 6: Add inter-phase continuity constraints
@@ -187,17 +186,17 @@ def test_tumor_growth_multi_phase():
         print("\nStep 9.5: Setting initial guess...")
 
         # Phase 1: 9 nodes (8 collocation + 1 endpoint)
-        t1_guess = np.linspace(0.0, 1.0, 9)  # Normalized time
-        p1_guess = np.full(9, p_0)  # Start with initial value
-        q1_guess = np.full(9, q_0)  # Start with initial value
-        y1_guess = np.linspace(0.0, 50.0, 9)  # Linear drug accumulation
+        t1_guess = np.linspace(0.0, 1.0, 101)  # Normalized time
+        p1_guess = np.full(101, p_0)  # Start with initial value
+        q1_guess = np.full(101, q_0)  # Start with initial value
+        y1_guess = np.linspace(0.0, 50.0, 101)  # Linear drug accumulation
 
         phase1_states = np.array([p1_guess, q1_guess, y1_guess])
 
         # Phase 2: 9 nodes (8 collocation + 1 endpoint)
-        p2_guess = np.full(9, p_0 * 0.8)  # Slightly reduced tumor
-        q2_guess = np.full(9, q_0 * 0.9)  # Slightly improved
-        y2_guess = np.full(9, 50.0)  # Constant drug level
+        p2_guess = np.full(101, p_0 * 0.8)  # Slightly reduced tumor
+        q2_guess = np.full(101, q_0 * 0.9)  # Slightly improved
+        y2_guess = np.full(101, 50.0)  # Constant drug level
 
         phase2_states = np.array([p2_guess, q2_guess, y2_guess])
 
@@ -215,7 +214,7 @@ def test_tumor_growth_multi_phase():
         solution = tl.solve_multi_phase_fixed_mesh(
             mp_problem,
             nlp_options={
-                "ipopt.print_level": 5,  # More output for debugging
+                "ipopt.print_level": 3,  # More output for debugging
                 "ipopt.sb": "yes",
                 "ipopt.max_iter": 3000,
                 "ipopt.tol": 1e-6,  # Slightly relaxed tolerance
