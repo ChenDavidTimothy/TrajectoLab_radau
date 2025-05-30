@@ -39,36 +39,45 @@ def add_cross_phase_constraint(
 
 def _symbolic_constraint_to_constraint(expr: ca.MX) -> Constraint:
     """Convert symbolic constraint to unified Constraint."""
-    # Handle equality constraints: expr == value
-    if (
-        isinstance(expr, ca.MX)
-        and hasattr(expr, "is_op")
-        and expr.is_op(getattr(ca, "OP_EQ", "eq"))
-    ):
-        lhs = expr.dep(0)
-        rhs = expr.dep(1)
-        return Constraint(val=lhs - rhs, equals=0.0)
 
-    # Handle inequality constraints: expr <= value or expr >= value
-    elif (
-        isinstance(expr, ca.MX)
-        and hasattr(expr, "is_op")
-        and expr.is_op(getattr(ca, "OP_LE", "le"))
-    ):
-        lhs = expr.dep(0)
-        rhs = expr.dep(1)
-        return Constraint(val=lhs - rhs, max_val=0.0)
+    # Handle CasADi API compatibility - try to get proper operation constants
+    try:
+        # Attempt to get the actual integer constants from CasADi
+        OP_EQ = getattr(ca, "OP_EQ", None)
+        OP_LE = getattr(ca, "OP_LE", None)
+        OP_GE = getattr(ca, "OP_GE", None)
 
-    elif (
-        isinstance(expr, ca.MX)
-        and hasattr(expr, "is_op")
-        and expr.is_op(getattr(ca, "OP_GE", "ge"))
-    ):
-        lhs = expr.dep(0)
-        rhs = expr.dep(1)
-        return Constraint(val=lhs - rhs, min_val=0.0)
+        # Only proceed with operation checking if we have valid integer constants
+        if (
+            isinstance(expr, ca.MX)
+            and hasattr(expr, "is_op")
+            and OP_EQ is not None
+            and isinstance(OP_EQ, int)
+        ):
+            # Handle equality constraints: expr == value
+            if expr.is_op(OP_EQ):
+                lhs = expr.dep(0)
+                rhs = expr.dep(1)
+                return Constraint(val=lhs - rhs, equals=0.0)
+
+            # Handle inequality constraints: expr <= value
+            elif OP_LE is not None and isinstance(OP_LE, int) and expr.is_op(OP_LE):
+                lhs = expr.dep(0)
+                rhs = expr.dep(1)
+                return Constraint(val=lhs - rhs, max_val=0.0)
+
+            # Handle inequality constraints: expr >= value
+            elif OP_GE is not None and isinstance(OP_GE, int) and expr.is_op(OP_GE):
+                lhs = expr.dep(0)
+                rhs = expr.dep(1)
+                return Constraint(val=lhs - rhs, min_val=0.0)
+
+    except (AttributeError, TypeError, NotImplementedError):
+        # CasADi API compatibility issue - fall back to safe default
+        pass
 
     # Default case: treat as equality constraint
+    # This handles cross-phase constraints like (t0_p2-tf_p1) which should equal zero
     return Constraint(val=expr, equals=0.0)
 
 

@@ -419,8 +419,12 @@ class Problem:
 
     def validate_multiphase_configuration(self) -> None:
         """Validate the multiphase problem configuration with automatic symbolic processing."""
+        print("DEBUG: validate_multiphase_configuration() called")
+
         # First, process symbolic boundary constraints
+        print("DEBUG: About to call _process_symbolic_boundary_constraints()")
         self._process_symbolic_boundary_constraints()
+        print("DEBUG: Finished _process_symbolic_boundary_constraints()")
 
         # Then do existing validation
         # Validate that we have at least one phase
@@ -448,19 +452,26 @@ class Problem:
     def _process_symbolic_boundary_constraints(self) -> None:
         """
         Process symbolic boundary constraints and convert them to cross-phase event constraints.
-
-        This enables user-friendly API where t2.time(initial=t1.final) automatically
-        creates the appropriate cross-phase constraint.
         """
         logger.debug("Processing symbolic boundary constraints for automatic cross-phase linking")
 
         for phase_id, phase_def in self._multiphase_state.phases.items():
+            # ADD THIS DEBUG BLOCK
+            print(f"\n=== DEBUG: Processing Phase {phase_id} ===")
+            print(f"t0_constraint.is_symbolic(): {phase_def.t0_constraint.is_symbolic()}")
+            print(f"tf_constraint.is_symbolic(): {phase_def.tf_constraint.is_symbolic()}")
+            if phase_def.t0_constraint.is_symbolic():
+                print(f"t0 symbolic expression: {phase_def.t0_constraint.symbolic_expression}")
+            if phase_def.tf_constraint.is_symbolic():
+                print(f"tf symbolic expression: {phase_def.tf_constraint.symbolic_expression}")
+
             # Process time constraints
             if phase_def.t0_constraint.is_symbolic():
                 constraint_expr = (
                     phase_def.sym_time_initial - phase_def.t0_constraint.symbolic_expression
                 )
                 self._multiphase_state.cross_phase_constraints.append(constraint_expr)
+                print(f"Added t0 cross-phase constraint: {constraint_expr}")
                 logger.debug(f"Added automatic time initial constraint for phase {phase_id}")
 
             if phase_def.tf_constraint.is_symbolic():
@@ -468,6 +479,7 @@ class Problem:
                     phase_def.sym_time_final - phase_def.tf_constraint.symbolic_expression
                 )
                 self._multiphase_state.cross_phase_constraints.append(constraint_expr)
+                print(f"Added tf cross-phase constraint: {constraint_expr}")
                 logger.debug(f"Added automatic time final constraint for phase {phase_id}")
 
             # Process state symbolic boundary constraints

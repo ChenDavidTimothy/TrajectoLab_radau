@@ -171,7 +171,12 @@ def apply_multiphase_cross_phase_event_constraints(
     """Apply cross-phase event constraints to the multiphase optimization problem."""
     cross_phase_constraints_function = problem.get_cross_phase_event_constraints_function()
     if cross_phase_constraints_function is None:
+        print("DEBUG: No cross-phase constraints function found")
         return
+
+    print(
+        f"DEBUG: Applying cross-phase constraints with {len(problem._cross_phase_constraints)} raw constraints"
+    )
 
     cross_phase_constraints_result: list[Constraint] | Constraint = (
         cross_phase_constraints_function(
@@ -186,5 +191,7 @@ def apply_multiphase_cross_phase_event_constraints(
         else [cross_phase_constraints_result]
     )
 
-    for constraint in constraints_to_apply:
+    print(f"DEBUG: About to apply {len(constraints_to_apply)} processed cross-phase constraints")
+    for i, constraint in enumerate(constraints_to_apply):
+        print(f"DEBUG: Constraint {i}: {constraint}")
         apply_constraint(opti, constraint)

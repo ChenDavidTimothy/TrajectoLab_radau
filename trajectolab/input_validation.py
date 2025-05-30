@@ -39,6 +39,9 @@ def validate_multiphase_problem_ready_for_solving(problem: ProblemProtocol) -> N
     for phase_id in phase_ids:
         validate_phase_configuration(problem, phase_id)
 
+    # CRITICAL: This processes symbolic boundary constraints like t2.initial = t1.final
+    problem.validate_multiphase_configuration()
+
     # Validate multiphase problem completeness
     validate_multiphase_problem_completeness(problem)
 

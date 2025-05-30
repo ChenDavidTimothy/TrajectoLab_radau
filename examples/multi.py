@@ -5,6 +5,7 @@ Focuses on inspecting the two-phase solution data.
 """
 
 import matplotlib.pyplot as plt
+import numpy as np
 
 import trajectolab as tl
 
@@ -37,14 +38,41 @@ def solve_two_phase_hypersensitive_debug():
 
     problem_phase.minimize(integral1 + integral2)
 
-    # Simplified initial guess for debugging
-    # Approximate x values: 0-20s (1.5 -> 1.25), 20-40s (1.25 -> 1.0)
+    states_guess_p1 = []
+    controls_guess_p1 = []
+    states_guess_p2 = []
+    controls_guess_p2 = []
+
+    # Phase 1: [0, 20] with x going from 1.5 to something intermediate
+    for N in [10, 6, 10]:  # Match your mesh
+        tau = np.linspace(-1, 1, N + 1)
+        # Linear interpolation from 1.5 to ~0.5 over phase 1
+        x_vals = 1.5 + (0.5 - 1.5) * (tau + 1) / 2
+        states_guess_p1.append(x_vals.reshape(1, -1))
+        controls_guess_p1.append(np.zeros((1, N)))
+
+    # Phase 2: [20, 40] with x going from ~0.5 to 1.0
+    for N in [10, 6, 10]:  # Match your mesh
+        tau = np.linspace(-1, 1, N + 1)
+        # Linear interpolation from 0.5 to 1.0 over phase 2
+        x_vals = 0.5 + (1.0 - 0.5) * (tau + 1) / 2
+        states_guess_p2.append(x_vals.reshape(1, -1))
+        controls_guess_p2.append(np.zeros((1, N)))
+
+    # Set the multiphase initial guess
+    problem_phase.set_initial_guess(
+        phase_states={1: states_guess_p1, 2: states_guess_p2},
+        phase_controls={1: controls_guess_p1, 2: controls_guess_p2},
+        phase_initial_times={1: 0.0, 2: 20.0},  # Give solver the expected time values
+        phase_terminal_times={1: 20.0, 2: 40.0},
+        phase_integrals={1: 0.1, 2: 0.1},
+    )
 
     print("Solving with IPOPT print_level = 3...")
     solution = tl.solve_fixed_mesh(
         problem_phase,
         nlp_options={
-            "ipopt.print_level": 3,  # Increased verbosity
+            "ipopt.print_level": 0,  # Increased verbosity
             "ipopt.max_iter": 200,
             "ipopt.tol": 1e-8,
             "ipopt.constr_viol_tol": 1e-8,  # Added for robustness

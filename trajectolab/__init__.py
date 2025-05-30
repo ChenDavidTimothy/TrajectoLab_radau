@@ -41,4 +41,4 @@ __all__ = [
 __version__ = "0.3.0"  # Updated for multiphase support
 
 # PRODUCTION LOGGING: Silent by default, user controls everything
-logging.getLogger(__name__).addHandler(logging.NullHandler())
+logging.getLogger(__name__).setLevel(logging.DEBUG)
