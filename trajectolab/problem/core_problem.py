@@ -7,8 +7,7 @@ multiphase optimal control problems using TrajectoLab's unified constraint API.
 """
 
 import logging
-from collections.abc import Generator, Sequence
-from contextlib import contextmanager
+from collections.abc import Sequence
 from typing import Any
 
 import casadi as ca
@@ -182,8 +181,7 @@ class Problem:
     # MULTIPHASE API METHODS - Public Interface
     # ========================================================================
 
-    @contextmanager
-    def phase(self, phase_id: PhaseID) -> Generator[PhaseContext, None, None]:
+    def phase(self, phase_id: PhaseID) -> PhaseContext:
         """
         Create a phase context for defining phase-specific variables and constraints.
 
@@ -199,8 +197,7 @@ class Problem:
             >>>     u = ascent.control("thrust", boundary=(0, 1))
             >>>     ascent.dynamics({x: u})
         """
-        phase_context = PhaseContext(self, phase_id)
-        yield phase_context
+        return PhaseContext(self, phase_id)
 
     def parameter(
         self,
