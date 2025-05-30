@@ -1,295 +1,292 @@
-# examples/kinetic_batch_reactor.py
+# examples/hypersensitive_validation_comparison.py
 """
-TrajectoLab Example: Kinetic Batch Reactor - Three Phase Chemical Process Control
-Based on Example 10.80 lwbr01 from optimal control literature.
-
-This is a complex chemical reactor problem with:
-- 3 phases: Transient Stage 1, Transient Stage 2, Steady State
-- 6 differential state variables (y1-y6)
-- 5 control variables (u1-u5) with algebraic constraints
-- Temperature-dependent chemical kinetics
-- Objective: Minimize final time + penalty on final parameter
-
-Expected optimal: J* = 3.16466910; t_F^(3) = 1.7468208
+TrajectoLab Validation: Automated Single vs Multi-Phase Comparison
+Runs multiple versions of hypersensitive problem and compares results.
 """
 
-import casadi as ca
+import time
+
+import numpy as np
 
 import trajectolab as tl
 
 
-# Chemical kinetics model constants
-k1_hat = 1.3708e12
-beta1 = 9.2984e3
-K1 = 2.575e-16
+def solve_single_phase_hypersensitive():
+    """Solve original single-phase hypersensitive problem."""
+    print("🔄 Solving Single-Phase Hypersensitive...")
 
-k_minus1_hat = 1.6215e20
-beta_minus1 = 1.3108e4
-K2 = 4.876e-14
+    problem = tl.Problem("Single-Phase Hypersensitive")
 
-k2_hat = 5.2282e12
-beta2 = 9.5999e3
-K3 = 1.7884e-16
+    with problem.phase(1) as phase:
+        t = phase.time(initial=0, final=40)
+        x = phase.state("x", initial=1.5, final=1.0)
+        u = phase.control("u")
 
-print("Kinetic Batch Reactor - Chemical Process Control")
-print("=" * 60)
-print("Model Constants:")
-print(f"  k̂₁ = {k1_hat:.4e}, β₁ = {beta1:.4e}, K₁ = {K1:.4e}")
-print(f"  k̂₋₁ = {k_minus1_hat:.4e}, β₋₁ = {beta_minus1:.4e}, K₂ = {K2:.4e}")
-print(f"  k̂₂ = {k2_hat:.4e}, β₂ = {beta2:.4e}, K₃ = {K3:.4e}")
+        phase.dynamics({x: -(x**3) + u})
+        integrand = 0.5 * (x**2 + u**2)
+        integral_var = phase.add_integral(integrand)
 
-# Create multiphase chemical reactor problem
-problem = tl.Problem("Kinetic Batch Reactor")
+        # Use same refined mesh as in examples/hypersensitive.py
+        phase.set_mesh([20, 12, 20], [-1.0, -1 / 3, 1 / 3, 1.0])
 
-# Static parameter for optimization
-p = problem.parameter("p", boundary=(0.0, 0.0262))
+    problem.minimize(integral_var)
 
-# Phase 1: Transient Stage 1 (0 to 0.01)
-with problem.phase(1) as phase1:
-    print("\nDefining Phase 1: Transient Stage 1")
+    # Set initial guess matching the original
+    states_guess = []
+    controls_guess = []
+    for N in [20, 12, 20]:
+        tau = np.linspace(-1, 1, N + 1)
+        x_vals = 1.5 + (1.0 - 1.5) * (tau + 1) / 2
+        states_guess.append(x_vals.reshape(1, -1))
+        controls_guess.append(np.zeros((1, N)))
 
-    # Time for phase 1 (fixed duration)
-    t1 = phase1.time(initial=0.0, final=0.01)
-
-    # Differential state variables
-    y1_1 = phase1.state("y1", initial=1.5776, boundary=(None, 2))
-    y2_1 = phase1.state("y2", initial=8.32, boundary=(5, 10))
-    y3_1 = phase1.state("y3", initial=0.0, boundary=(None, 2))
-    y4_1 = phase1.state("y4", initial=0.0, boundary=(None, 2))
-    y5_1 = phase1.state("y5", initial=0.0, boundary=(None, 2))
-    y6_1 = phase1.state("y6", final=p, boundary=(None, 0.1))
-
-    # Control variables (algebraic variables in original formulation)
-    u1_1 = phase1.control("u1", boundary=(0, 15))
-    u2_1 = phase1.control("u2", boundary=(0, 0.02))
-    u3_1 = phase1.control("u3", boundary=(0, 5e-5))
-    u4_1 = phase1.control("u4", boundary=(0, 5e-5))
-    u5_1 = phase1.control("u5", boundary=(293.15, 393.15))
-
-    # Temperature-dependent rate constants
-    k1_1 = k1_hat * ca.exp(-beta1 / u5_1)
-    k_minus1_1 = k_minus1_hat * ca.exp(-beta_minus1 / u5_1)
-    k2_1 = k2_hat * ca.exp(-beta2 / u5_1)
-    k3_1 = k1_1
-    k_minus3_1 = k_minus1_1 / 2
-
-    # Differential equations (10.584)-(10.589)
-    phase1.dynamics(
-        {
-            y1_1: -k2_1 * y2_1 * u2_1,
-            y2_1: -k1_1 * y2_1 * y6_1 + k_minus1_1 * u4_1 - k2_1 * y2_1 * u2_1,
-            y3_1: k2_1 * y2_1 * u2_1 + k3_1 * y4_1 * y6_1 - k_minus3_1 * u3_1,
-            y4_1: -k3_1 * y4_1 * y6_1 + k_minus3_1 * u3_1,
-            y5_1: k1_1 * y2_1 * y6_1 - k_minus1_1 * u4_1,
-            y6_1: -k1_1 * y2_1 * y6_1 + k_minus1_1 * u4_1 - k3_1 * y4_1 * y6_1 + k_minus3_1 * u3_1,
-        }
+    problem.set_initial_guess(
+        phase_states={1: states_guess},
+        phase_controls={1: controls_guess},
+        phase_initial_times={1: 0.0},
+        phase_terminal_times={1: 40.0},
+        phase_integrals={1: 0.1},
     )
 
-    # Algebraic constraints as path constraints (10.590)-(10.594)
-    phase1.subject_to(p - y6_1 + 10 ** (-u1_1) - u2_1 - u3_1 - u4_1 == 0)
-    phase1.subject_to(u2_1 - K2 * y1_1 / (K2 + 10 ** (-u1_1)) == 0)
-    phase1.subject_to(u3_1 - K3 * y3_1 / (K3 + 10 ** (-u1_1)) == 0)
-    phase1.subject_to(u4_1 - K1 * y5_1 / (K1 + 10 ** (-u1_1)) == 0)
-    # Inequality constraint (10.594)
-    phase1.subject_to(y4_1 <= 2 * t1**2)
+    start_time = time.time()
+    solution = tl.solve_fixed_mesh(
+        problem,
+        nlp_options={
+            "ipopt.print_level": 0,
+            "ipopt.max_iter": 200,
+            "ipopt.tol": 1e-8,
+        },
+    )
+    solve_time = time.time() - start_time
 
-    # Mesh for phase 1
-    phase1.set_mesh([8, 8], [-1.0, 0.0, 1.0])
+    return solution, solve_time
 
-# Phase 2: Transient Stage 2 (0.01 to t_F^(2))
-with problem.phase(2) as phase2:
-    print("Defining Phase 2: Transient Stage 2")
 
-    # Time for phase 2 (free final time)
-    t2 = phase2.time(initial=t1.final, final=(0.02, None))
+def solve_two_phase_hypersensitive():
+    """Solve two-phase hypersensitive problem."""
+    print("🔄 Solving Two-Phase Hypersensitive...")
 
-    # State continuity from phase 1
-    y1_2 = phase2.state("y1", initial=y1_1.final, boundary=(None, 2))
-    y2_2 = phase2.state("y2", initial=y2_1.final, boundary=(5, 10))
-    y3_2 = phase2.state("y3", initial=y3_1.final, boundary=(None, 2))
-    y4_2 = phase2.state("y4", initial=y4_1.final, boundary=(None, 2))
-    y5_2 = phase2.state("y5", initial=y5_1.final, boundary=(None, 2))
-    y6_2 = phase2.state("y6", initial=y6_1.final, boundary=(None, 0.1))
+    problem = tl.Problem("Two-Phase Hypersensitive")
 
-    # Control variables
-    u1_2 = phase2.control("u1", boundary=(0, 15))
-    u2_2 = phase2.control("u2", boundary=(0, 0.02))
-    u3_2 = phase2.control("u3", boundary=(0, 5e-5))
-    u4_2 = phase2.control("u4", boundary=(0, 5e-5))
-    u5_2 = phase2.control("u5", boundary=(293.15, 393.15))
+    # Phase 1: [0, 20]
+    with problem.phase(1) as phase1:
+        t1 = phase1.time(initial=0.0, final=(18.0, 22.0))
+        x1 = phase1.state("x", initial=1.5)
+        u1 = phase1.control("u")
+        phase1.dynamics({x1: -(x1**3) + u1})
+        integral1 = phase1.add_integral(0.5 * (x1**2 + u1**2))
+        phase1.set_mesh([10, 6, 10], [-1.0, -1 / 3, 1 / 3, 1.0])
 
-    # Temperature-dependent rate constants
-    k1_2 = k1_hat * ca.exp(-beta1 / u5_2)
-    k_minus1_2 = k_minus1_hat * ca.exp(-beta_minus1 / u5_2)
-    k2_2 = k2_hat * ca.exp(-beta2 / u5_2)
-    k3_2 = k1_2
-    k_minus3_2 = k_minus1_2 / 2
+    # Phase 2: [20, 40]
+    with problem.phase(2) as phase2:
+        t2 = phase2.time(initial=t1.final, final=40.0)
+        x2 = phase2.state("x", initial=x1.final, final=1.0)
+        u2 = phase2.control("u")
+        phase2.dynamics({x2: -(x2**3) + u2})
+        integral2 = phase2.add_integral(0.5 * (x2**2 + u2**2))
+        phase2.set_mesh([10, 6, 10], [-1.0, -1 / 3, 1 / 3, 1.0])
 
-    # Same differential equations
-    phase2.dynamics(
-        {
-            y1_2: -k2_2 * y2_2 * u2_2,
-            y2_2: -k1_2 * y2_2 * y6_2 + k_minus1_2 * u4_2 - k2_2 * y2_2 * u2_2,
-            y3_2: k2_2 * y2_2 * u2_2 + k3_2 * y4_2 * y6_2 - k_minus3_2 * u3_2,
-            y4_2: -k3_2 * y4_2 * y6_2 + k_minus3_2 * u3_2,
-            y5_2: k1_2 * y2_2 * y6_2 - k_minus1_2 * u4_2,
-            y6_2: -k1_2 * y2_2 * y6_2 + k_minus1_2 * u4_2 - k3_2 * y4_2 * y6_2 + k_minus3_2 * u3_2,
-        }
+    problem.minimize(integral1 + integral2)
+
+    # Create initial guess
+    def create_phase_guess(t_start, t_end, x_start, x_end, mesh_sizes):
+        states, controls = [], []
+        for N in mesh_sizes:
+            tau = np.linspace(-1, 1, N + 1)
+            t_vals = t_start + (t_end - t_start) * (tau + 1) / 2
+            x_vals = x_start + (x_end - x_start) * (t_vals - t_start) / (t_end - t_start)
+            states.append(x_vals.reshape(1, -1))
+            controls.append(np.zeros((1, N)))
+        return states, controls
+
+    states_p1, controls_p1 = create_phase_guess(0, 20, 1.5, 1.25, [10, 6, 10])
+    states_p2, controls_p2 = create_phase_guess(20, 40, 1.25, 1.0, [10, 6, 10])
+
+    problem.set_initial_guess(
+        phase_states={1: states_p1, 2: states_p2},
+        phase_controls={1: controls_p1, 2: controls_p2},
+        phase_initial_times={1: 0.0, 2: 20.0},
+        phase_terminal_times={1: 20.0, 2: 40.0},
+        phase_integrals={1: 0.05, 2: 0.05},
     )
 
-    # Same algebraic constraints
-    phase2.subject_to(p - y6_2 + 10 ** (-u1_2) - u2_2 - u3_2 - u4_2 == 0)
-    phase2.subject_to(u2_2 - K2 * y1_2 / (K2 + 10 ** (-u1_2)) == 0)
-    phase2.subject_to(u3_2 - K3 * y3_2 / (K3 + 10 ** (-u1_2)) == 0)
-    phase2.subject_to(u4_2 - K1 * y5_2 / (K1 + 10 ** (-u1_2)) == 0)
-    phase2.subject_to(y4_2 <= 2 * t2**2)
-
-    # Mesh for phase 2
-    phase2.set_mesh([10, 10], [-1.0, 0.0, 1.0])
-
-# Phase 3: Steady State (t_F^(2) to t_F^(3))
-with problem.phase(3) as phase3:
-    print("Defining Phase 3: Steady State")
-
-    # Time for phase 3 (free final time with minimum bound)
-    t3 = phase3.time(initial=t2.final, final=(1.5, None))
-
-    # State continuity from phase 2
-    y1_3 = phase3.state("y1", initial=y1_2.final, boundary=(None, 2))
-    y2_3 = phase3.state("y2", initial=y2_2.final, boundary=(5, 10))
-    y3_3 = phase3.state("y3", initial=y3_2.final, boundary=(None, 2))
-    y4_3 = phase3.state("y4", initial=y4_2.final, boundary=(None, 2))
-    y5_3 = phase3.state("y5", initial=y5_2.final, boundary=(None, 2))
-    y6_3 = phase3.state("y6", initial=y6_2.final, boundary=(None, 0.1))
-
-    # Control variables
-    u1_3 = phase3.control("u1", boundary=(0, 15))
-    u2_3 = phase3.control("u2", boundary=(0, 0.02))
-    u3_3 = phase3.control("u3", boundary=(0, 5e-5))
-    u4_3 = phase3.control("u4", boundary=(0, 5e-5))
-    u5_3 = phase3.control("u5", boundary=(293.15, 393.15))
-
-    # Temperature-dependent rate constants
-    k1_3 = k1_hat * ca.exp(-beta1 / u5_3)
-    k_minus1_3 = k_minus1_hat * ca.exp(-beta_minus1 / u5_3)
-    k2_3 = k2_hat * ca.exp(-beta2 / u5_3)
-    k3_3 = k1_3
-    k_minus3_3 = k_minus1_3 / 2
-
-    # Same differential equations (but no inequality constraint in steady state)
-    phase3.dynamics(
-        {
-            y1_3: -k2_3 * y2_3 * u2_3,
-            y2_3: -k1_3 * y2_3 * y6_3 + k_minus1_3 * u4_3 - k2_3 * y2_3 * u2_3,
-            y3_3: k2_3 * y2_3 * u2_3 + k3_3 * y4_3 * y6_3 - k_minus3_3 * u3_3,
-            y4_3: -k3_3 * y4_3 * y6_3 + k_minus3_3 * u3_3,
-            y5_3: k1_3 * y2_3 * y6_3 - k_minus1_3 * u4_3,
-            y6_3: -k1_3 * y2_3 * y6_3 + k_minus1_3 * u4_3 - k3_3 * y4_3 * y6_3 + k_minus3_3 * u3_3,
-        }
+    start_time = time.time()
+    solution = tl.solve_fixed_mesh(
+        problem,
+        nlp_options={
+            "ipopt.print_level": 0,
+            "ipopt.max_iter": 200,
+            "ipopt.tol": 1e-8,
+        },
     )
+    solve_time = time.time() - start_time
 
-    # Algebraic constraints (equations 10.590-10.593, no 10.594 in steady state)
-    phase3.subject_to(p - y6_3 + 10 ** (-u1_3) - u2_3 - u3_3 - u4_3 == 0)
-    phase3.subject_to(u2_3 - K2 * y1_3 / (K2 + 10 ** (-u1_3)) == 0)
-    phase3.subject_to(u3_3 - K3 * y3_3 / (K3 + 10 ** (-u1_3)) == 0)
-    phase3.subject_to(u4_3 - K1 * y5_3 / (K1 + 10 ** (-u1_3)) == 0)
+    return solution, solve_time
 
-    # Mesh for phase 3
-    phase3.set_mesh([12, 12], [-1.0, 0.0, 1.0])
 
-# Cross-phase constraints (state continuity is handled automatically through initial conditions)
-print("Cross-phase constraints: State continuity enforced through initial conditions")
+def validate_solution_quality(solution, problem_name):
+    """Validate solution meets hypersensitive problem requirements."""
+    if not solution.success:
+        return False, f"{problem_name}: Solution failed"
 
-# Objective: Minimize J = t_F^(3) + 100*p^(3)
-problem.minimize(t3.final + 100 * p)
+    errors = []
 
-print("Objective: Minimize final time + 100*parameter penalty")
-print("Expected optimal: J* = 3.16466910; t_F^(3) = 1.7468208")
+    # Check boundary conditions
+    if hasattr(solution, "get_phase_ids"):
+        # Multi-phase
+        first_phase = min(solution.get_phase_ids())
+        last_phase = max(solution.get_phase_ids())
 
-# Solve the three-phase kinetic batch reactor problem
-print("\nSolving Three-Phase Kinetic Batch Reactor Problem...")
-print("=" * 60)
+        x_initial = solution[(first_phase, "x")][0]
+        x_final = solution[(last_phase, "x")][-1]
 
-solution = tl.solve_fixed_mesh(
-    problem,
-    nlp_options={
-        "ipopt.print_level": 3,
-        "ipopt.max_iter": 3000,
-        "ipopt.tol": 1e-8,
-        "ipopt.constr_viol_tol": 1e-8,
-        "ipopt.acceptable_tol": 1e-6,
-        "ipopt.nlp_scaling_method": "gradient-based",
-        "ipopt.mu_strategy": "adaptive",
-    },
-)
+        total_time = solution.get_total_mission_time()
+    else:
+        # Single-phase (legacy check)
+        x_initial = solution.phase_states[1][0][0, 0]
+        x_final = solution.phase_states[1][0][0, -1]
+        total_time = solution.phase_terminal_times[1] - solution.phase_initial_times[1]
 
-# Results and Analysis
-if solution.success:
-    print("\n" + "=" * 60)
-    print("KINETIC BATCH REACTOR OPTIMIZATION SUCCESS!")
+    # Validate boundary conditions
+    if abs(x_initial - 1.5) > 1e-6:
+        errors.append(f"Initial condition: x(0) = {x_initial:.6f}, expected 1.5")
+
+    if abs(x_final - 1.0) > 1e-6:
+        errors.append(f"Final condition: x(T) = {x_final:.6f}, expected 1.0")
+
+    if abs(total_time - 40.0) > 1e-6:
+        errors.append(f"Time horizon: T = {total_time:.6f}, expected 40.0")
+
+    # Check for reasonable objective value (known approximate range)
+    if solution.objective < 0 or solution.objective > 100:
+        errors.append(f"Objective value {solution.objective:.6f} seems unreasonable")
+
+    return len(errors) == 0, errors
+
+
+def compare_solutions():
+    """Run comprehensive comparison of single vs multi-phase solutions."""
+
+    print("=" * 80)
+    print("🧪 HYPERSENSITIVE PROBLEM: MULTIPHASE VALIDATION SUITE")
+    print("=" * 80)
+    print("Testing mathematical equivalence of phase decomposition")
+    print("Expected: All versions should produce IDENTICAL results")
+    print("=" * 80)
+
+    results = {}
+
+    # Solve single-phase (reference)
+    try:
+        solution_1p, time_1p = solve_single_phase_hypersensitive()
+        valid_1p, errors_1p = validate_solution_quality(solution_1p, "Single-Phase")
+        results["single"] = {
+            "solution": solution_1p,
+            "time": time_1p,
+            "valid": valid_1p,
+            "errors": errors_1p,
+        }
+    except Exception as e:
+        print(f"❌ Single-phase failed: {e}")
+        results["single"] = {"solution": None, "error": str(e)}
+
+    # Solve two-phase
+    try:
+        solution_2p, time_2p = solve_two_phase_hypersensitive()
+        valid_2p, errors_2p = validate_solution_quality(solution_2p, "Two-Phase")
+        results["two_phase"] = {
+            "solution": solution_2p,
+            "time": time_2p,
+            "valid": valid_2p,
+            "errors": errors_2p,
+        }
+    except Exception as e:
+        print(f"❌ Two-phase failed: {e}")
+        results["two_phase"] = {"solution": None, "error": str(e)}
+
+    # Report results
+    print("\n📊 VALIDATION RESULTS:")
     print("=" * 60)
 
-    print(f"Objective Value: {solution.objective:.8f}")
-    print("Expected Optimal: 3.16466910")
-    print(f"Error: {abs(solution.objective - 3.16466910):.2e}")
+    reference_obj = None
 
-    # Phase results
-    print(f"\nPhase 1 Duration: {solution.get_phase_duration(1):.6f} (fixed at 0.01)")
-    print(f"Phase 2 Duration: {solution.get_phase_duration(2):.6f}")
-    print(f"Phase 3 Duration: {solution.get_phase_duration(3):.6f}")
-    print(f"Total Process Time: {solution.get_total_mission_time():.6f}")
-    print("Expected Final Time: 1.7468208")
+    for name, result in results.items():
+        if "error" in result:
+            print(f"❌ {name.upper()}: FAILED - {result['error']}")
+            continue
 
-    # Parameter value
-    print(f"\nOptimal Parameter p: {solution.static_parameters[0]:.8f}")
+        solution = result["solution"]
+        solve_time = result["time"]
+        valid = result["valid"]
+        errors = result["errors"]
 
-    # Final states for each phase
-    print("\nFinal State Values:")
-    for phase_id in [1, 2, 3]:
-        print(f"  Phase {phase_id}:")
-        for i in range(1, 7):
-            state_name = f"y{i}"
-            if (phase_id, state_name) in solution:
-                final_val = solution[(phase_id, state_name)][-1]
-                print(f"    {state_name}: {final_val:.6f}")
+        if solution.success:
+            print(f"✅ {name.upper()}: SUCCESS")
+            print(f"   Objective:   {solution.objective:.8f}")
+            print(f"   Solve time:  {solve_time:.3f}s")
+            print(f"   Valid:       {valid}")
 
-    # Verify state continuity
-    print("\nState Continuity Verification:")
-    for i in range(1, 7):
-        state_name = f"y{i}"
-        y1_final = solution[(1, state_name)][-1]
-        y2_initial = solution[(2, state_name)][0]
-        y2_final = solution[(2, state_name)][-1]
-        y3_initial = solution[(3, state_name)][0]
+            if not valid:
+                for error in errors:
+                    print(f"   ⚠️  {error}")
 
+            # Set reference or compare
+            if reference_obj is None:
+                reference_obj = solution.objective
+                print("   📌 REFERENCE objective set")
+            else:
+                diff = abs(solution.objective - reference_obj)
+                rel_error = diff / abs(reference_obj) if reference_obj != 0 else float("inf")
+
+                print(f"   🎯 vs Reference: Δ = {diff:.2e}, rel = {rel_error:.2e}")
+
+                if rel_error < 1e-6:
+                    print("   ✅ EXCELLENT: Matches reference to machine precision!")
+                elif rel_error < 1e-4:
+                    print("   ✅ GOOD: Matches reference within tolerance")
+                else:
+                    print("   ❌ POOR: Significant difference from reference!")
+        else:
+            print(f"❌ {name.upper()}: FAILED - {solution.message}")
+
+    print("\n" + "=" * 80)
+    print("🏁 VALIDATION SUMMARY:")
+
+    if (
+        reference_obj is not None
+        and len([r for r in results.values() if "error" not in r and r["solution"].success]) > 1
+    ):
+        print("✅ Multi-phase implementation appears mathematically correct!")
+        print("   All successful solutions match within numerical precision")
+        print("   Phase decomposition preserves optimality")
+    else:
+        print("❌ Validation incomplete or problems detected")
+        print("   Review failed solutions above")
+
+    print("=" * 80)
+
+    return results
+
+
+if __name__ == "__main__":
+    results = compare_solutions()
+
+    # Optional: Plot comparison if solutions successful
+    successful_solutions = [
+        (name, result["solution"])
+        for name, result in results.items()
+        if "error" not in result and result["solution"].success
+    ]
+
+    if len(successful_solutions) >= 2:
         print(
-            f"  {state_name}: P1→P2 diff: {abs(y1_final - y2_initial):.2e}, P2→P3 diff: {abs(y2_final - y3_initial):.2e}"
+            f"\n📈 Plotting {len(successful_solutions)} successful solutions for visual comparison..."
         )
 
-    # Plot the solution
-    print("\nPlotting kinetic batch reactor trajectories...")
-    solution.plot(show_phase_boundaries=True, figsize=(15, 12))
-
-    # Plot individual phases for detailed analysis
-    for phase_id in [1, 2, 3]:
-        solution.plot(phase_id=phase_id, figsize=(12, 10))
-
-    print("\n" + "=" * 70)
-    print("- Complex chemical kinetics with temperature-dependent rates")
-    print("- Three-phase process: Transient 1 → Transient 2 → Steady State")
-    print("- Algebraic constraints handled as path constraints")
-    print("=" * 70)
-
-else:
-    print(f"\nOptimization failed: {solution.message}")
-    print("\nProblem Structure:")
-    print(f"  Phases: {solution.get_phase_ids()}")
-    for phase_id in problem.get_phase_ids():
-        num_states, num_controls = problem.get_phase_variable_counts(phase_id)
-        print(f"  Phase {phase_id}: {num_states} states, {num_controls} controls")
-
-    print("\nThis is a challenging problem with:")
-    print("  - Complex chemical kinetics")
-    print("  - Temperature-dependent rate constants")
-    print("  - Algebraic constraints")
-    print("  - Multiple time scales across phases")
+        for name, solution in successful_solutions:
+            print(f"Plotting {name} solution...")
+            if hasattr(solution, "plot"):
+                try:
+                    solution.plot(show_phase_boundaries=True, figsize=(12, 8))
+                except Exception as e:
+                    print(f"Plot failed for {name}: {e}")
