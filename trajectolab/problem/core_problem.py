@@ -14,6 +14,10 @@ import casadi as ca
 
 from ..tl_types import FloatArray, NumericArrayLike, PhaseID
 from . import constraints_problem, initial_guess_problem, mesh, solver_interface, variables_problem
+from .constraints_problem import (
+    get_cross_phase_event_constraints_function,
+    get_phase_path_constraints_function,
+)
 from .state import ConstraintInput, MultiPhaseVariableState, PhaseDefinition
 from .variables_problem import StateVariableImpl, TimeVariableImpl
 
@@ -407,13 +411,11 @@ class Problem:
         """Get path constraints function for given phase."""
         if phase_id not in self._multiphase_state.phases:
             raise ValueError(f"Phase {phase_id} does not exist")
-        return solver_interface.get_phase_path_constraints_function(
-            self._multiphase_state.phases[phase_id]
-        )
+        return get_phase_path_constraints_function(self._multiphase_state.phases[phase_id])
 
     def get_cross_phase_event_constraints_function(self) -> Any:
         """Get cross-phase event constraints function."""
-        return solver_interface.get_cross_phase_event_constraints_function(self._multiphase_state)
+        return get_cross_phase_event_constraints_function(self._multiphase_state)
 
     def validate_multiphase_configuration(self) -> None:
         """Validate the multiphase problem configuration."""

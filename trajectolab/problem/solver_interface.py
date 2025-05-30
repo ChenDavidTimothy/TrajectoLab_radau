@@ -11,15 +11,11 @@ from typing import cast
 
 import casadi as ca
 
-from ..tl_types import Constraint, PhaseID
+from ..tl_types import PhaseID
 from ..utils.expression_cache import (
     create_cache_key_from_multiphase_state,
     create_cache_key_from_phase_state,
     get_global_expression_cache,
-)
-from .constraints_problem import (
-    get_cross_phase_event_constraints_function,
-    get_phase_path_constraints_function,
 )
 from .state import MultiPhaseVariableState, PhaseDefinition
 
@@ -101,12 +97,12 @@ def get_multiphase_objective_function(
             t0 = (
                 phase_def.sym_time_initial
                 if phase_def.sym_time_initial is not None
-                else ca.MX.sym(f"t0_p{phase_id}", 1)
+                else ca.MX.sym(f"t0_p{phase_id}", 1)  # type: ignore[arg-type]
             )  # type: ignore[arg-type]
             tf = (
                 phase_def.sym_time_final
                 if phase_def.sym_time_final is not None
-                else ca.MX.sym(f"tf_p{phase_id}", 1)
+                else ca.MX.sym(f"tf_p{phase_id}", 1)  # type: ignore[arg-type]
             )  # type: ignore[arg-type]
 
             # State vectors
@@ -115,19 +111,19 @@ def get_multiphase_objective_function(
             state_final_syms = phase_def.get_ordered_state_final_symbols()
 
             x0_vec = ca.vertcat(
-                *[ca.MX.sym(f"x0_{i}_p{phase_id}", 1) for i in range(len(state_syms))]
+                *[ca.MX.sym(f"x0_{i}_p{phase_id}", 1) for i in range(len(state_syms))]  # type: ignore[arg-type]
             )  # type: ignore[arg-type]
             xf_vec = ca.vertcat(
-                *[ca.MX.sym(f"xf_{i}_p{phase_id}", 1) for i in range(len(state_syms))]
+                *[ca.MX.sym(f"xf_{i}_p{phase_id}", 1) for i in range(len(state_syms))]  # type: ignore[arg-type]
             )  # type: ignore[arg-type]
 
             # Integral vector
             q_vec = (
                 ca.vertcat(
-                    *[ca.MX.sym(f"q_{i}_p{phase_id}", 1) for i in range(phase_def.num_integrals)]
+                    *[ca.MX.sym(f"q_{i}_p{phase_id}", 1) for i in range(phase_def.num_integrals)]  # type: ignore[arg-type]
                 )
                 if phase_def.num_integrals > 0
-                else ca.MX.sym(f"q_p{phase_id}", 1)
+                else ca.MX.sym(f"q_p{phase_id}", 1)  # type: ignore[arg-type]
             )  # type: ignore[arg-type]
 
             phase_inputs.extend([t0, tf, x0_vec, xf_vec, q_vec])
@@ -159,9 +155,9 @@ def get_multiphase_objective_function(
         # Static parameters
         static_param_syms = multiphase_state.static_parameters.get_ordered_parameter_symbols()
         s_vec = (
-            ca.vertcat(*[ca.MX.sym(f"s_{i}", 1) for i in range(len(static_param_syms))])
+            ca.vertcat(*[ca.MX.sym(f"s_{i}", 1) for i in range(len(static_param_syms))])  # type: ignore[arg-type]
             if static_param_syms
-            else ca.MX.sym("s", 1)
+            else ca.MX.sym("s", 1)  # type: ignore[arg-type]
         )  # type: ignore[arg-type]
 
         for i, param_sym in enumerate(static_param_syms):
@@ -202,7 +198,7 @@ def get_multiphase_objective_function(
                         data["tf"],
                         data["x0"],
                         data["xf"],
-                        data.get("q", ca.DM.zeros(1, 1)),
+                        data.get("q", ca.DM.zeros(1, 1)),  # type: ignore[arg-type]
                     ]
                 )
             else:
@@ -224,7 +220,7 @@ def get_multiphase_objective_function(
             inputs.append(static_parameters_vec)
         else:
             num_params = multiphase_state.static_parameters.get_parameter_count()
-            inputs.append(ca.DM.zeros(max(1, num_params), 1))
+            inputs.append(ca.DM.zeros(max(1, num_params), 1))  # type: ignore[arg-type]
 
         result = obj_func(*inputs)
         obj_output = result[0] if isinstance(result, list | tuple) else result
@@ -279,17 +275,3 @@ def get_phase_integrand_function(phase_def: PhaseDefinition) -> Callable[..., ca
         return cast(ca.MX, integrand_output)
 
     return vectorized_integrand
-
-
-def get_phase_path_constraints_function(
-    phase_def: PhaseDefinition,
-) -> Callable[..., list[Constraint]] | None:
-    """Get path constraints function for a specific phase."""
-    return get_phase_path_constraints_function(phase_def)
-
-
-def get_cross_phase_event_constraints_function(
-    multiphase_state: MultiPhaseVariableState,
-) -> Callable[..., list[Constraint]] | None:
-    """Get cross-phase event constraints function."""
-    return get_cross_phase_event_constraints_function(multiphase_state)
