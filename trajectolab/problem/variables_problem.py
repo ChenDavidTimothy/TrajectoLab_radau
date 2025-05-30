@@ -227,9 +227,8 @@ def create_parameter_variable(
     value: Any,
 ) -> ca.MX:
     """Create a parameter variable."""
-    sym_var = ca.MX.sym(name, 1)
+    sym_var = ca.MX.sym(name, 1)  # type: ignore[arg-type]
     state.parameters[name] = value
-    state.parameter_symbols[name] = sym_var  # ← ADD THIS LINE
     return sym_var
 
 

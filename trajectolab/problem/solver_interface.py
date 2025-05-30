@@ -38,9 +38,7 @@ def get_dynamics_function(variable_state: VariableState) -> Callable[..., list[c
         controls_vec = ca.vertcat(*control_syms) if control_syms else ca.MX()
         time = variable_state.sym_time if variable_state.sym_time is not None else ca.MX.sym("t", 1)  # type: ignore[arg-type]
         param_syms = (
-            ca.vertcat(
-                *variable_state.parameter_symbols.values()
-            )  # ← CHANGED: use symbols, not keys
+            ca.vertcat(*variable_state.parameters.keys())
             if variable_state.parameters
             else ca.MX.sym("p", 0)  # type: ignore[arg-type]
         )
@@ -123,7 +121,7 @@ def get_objective_function(variable_state: VariableState) -> Callable[..., ca.MX
             else ca.MX.sym("q", 1)  # type: ignore[arg-type]
         )
         param_syms = (
-            ca.vertcat(*variable_state.parameter_symbols.values())
+            ca.vertcat(*variable_state.parameters.keys())
             if variable_state.parameters
             else ca.MX.sym("p", 0)  # type: ignore[arg-type]
         )
@@ -210,7 +208,7 @@ def get_integrand_function(variable_state: VariableState) -> Callable[..., ca.MX
         controls_vec = ca.vertcat(*control_syms) if control_syms else ca.MX()
         time = variable_state.sym_time if variable_state.sym_time is not None else ca.MX.sym("t", 1)  # type: ignore[arg-type]
         param_syms = (
-            ca.vertcat(*variable_state.parameter_symbols.values())
+            ca.vertcat(*variable_state.parameters.keys())
             if variable_state.parameters
             else ca.MX.sym("p", 0)  # type: ignore[arg-type]
         )

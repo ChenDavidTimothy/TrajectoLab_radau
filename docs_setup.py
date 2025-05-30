@@ -358,9 +358,9 @@ Space Shuttle Reentry
 
 High-fidelity aerospace trajectory optimization.
 
-.. literalinclude:: ../../../examples/shuttle_simple.py
+.. literalinclude:: ../../../examples/shuttle.py
    :language: python
-   :caption: examples/shuttle_simple.py
+   :caption: examples/shuttle.py
 
 Chemical Reactor
 ~~~~~~~~~~~~~~~~
@@ -388,7 +388,7 @@ Each example demonstrates different features:
 * **car.py**: Basic problem setup, adaptive solving
 * **hiv.py**: Multi-state dynamics, control bounds
 * **hypersensitive.py**: Stiff systems, mesh refinement
-* **shuttle_simple.py**: Complex aerospace dynamics
+* **shuttle.py**: Complex aerospace dynamics
 * **crane.py**: Industrial optimization
 """,
         "docs/source/installation.rst": """
