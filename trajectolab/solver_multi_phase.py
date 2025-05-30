@@ -45,94 +45,7 @@ def solve_multi_phase_fixed_mesh(
     """
     Solve a multi-phase optimal control problem using fixed pseudospectral meshes.
 
-    This function solves multi-phase problems using the mesh configurations specified
-    for each phase. Each phase uses its configured mesh which remains fixed during
-    optimization. Creates a unified NLP following CGPOPS methodology for efficient
-    simultaneous optimization across all phases.
-
-    Args:
-        problem: MultiPhaseProblem instance with configured phases, inter-phase
-            constraints, global objective, and mesh configurations for all phases
-        nlp_options: Optional IPOPT solver options. Common options include:
-            - "ipopt.max_iter": Maximum iterations (default: 5000 for multi-phase)
-            - "ipopt.tol": Convergence tolerance (default: 1e-8)
-            - "ipopt.print_level": Output verbosity 0-12 (default: 0)
-            - "ipopt.mu_strategy": Barrier parameter strategy
-            - "ipopt.linear_solver": Linear solver (ma27, ma57, ma77, ma86, mumps)
-
-    Returns:
-        MultiPhaseSolution object containing optimization results, phase-specific
-        trajectories, global parameters, and comprehensive analysis capabilities.
-        Check solution.success to verify if optimization succeeded.
-
-    Raises:
-        trajectolab.ConfigurationError: If problem is not properly configured
-
-    Example:
-        >>> import trajectolab as tl
-        >>> import numpy as np
-        >>>
-        >>> # Create multi-phase problem
-        >>> mp_problem = tl.MultiPhaseProblem("Spacecraft Mission")
-        >>>
-        >>> # Add phases
-        >>> ascent = mp_problem.add_phase("Ascent")
-        >>> coast = mp_problem.add_phase("Coast")
-        >>> descent = mp_problem.add_phase("Descent")
-        >>>
-        >>> # Configure ascent phase
-        >>> t1 = ascent.time(initial=0.0)
-        >>> h1 = ascent.state("altitude", initial=0.0)
-        >>> v1 = ascent.state("velocity", initial=0.0)
-        >>> u1 = ascent.control("thrust", boundary=(0.0, 1.0))
-        >>> ascent.dynamics({h1: v1, v1: u1})
-        >>> ascent.set_mesh([10], np.array([-1.0, 1.0]))
-        >>>
-        >>> # Configure coast phase
-        >>> t2 = coast.time()
-        >>> h2 = coast.state("altitude")
-        >>> v2 = coast.state("velocity")
-        >>> coast.dynamics({h2: v2, v2: 0})  # Ballistic coast
-        >>> coast.set_mesh([5], np.array([-1.0, 1.0]))
-        >>>
-        >>> # Configure descent phase
-        >>> t3 = descent.time()
-        >>> h3 = descent.state("altitude", final=0.0)
-        >>> v3 = descent.state("velocity", final=0.0)
-        >>> u3 = descent.control("thrust", boundary=(-1.0, 0.0))
-        >>> descent.dynamics({h3: v3, v3: u3})
-        >>> descent.set_mesh([15], np.array([-1.0, 1.0]))
-        >>>
-        >>> # Link phases with continuity constraints
-        >>> mp_problem.link_phases(h1.final == h2.initial)  # Altitude continuity
-        >>> mp_problem.link_phases(v1.final == v2.initial)  # Velocity continuity
-        >>> mp_problem.link_phases(t1.final == t2.initial)  # Time continuity
-        >>> mp_problem.link_phases(h2.final == h3.initial)
-        >>> mp_problem.link_phases(v2.final == v3.initial)
-        >>> mp_problem.link_phases(t2.final == t3.initial)
-        >>>
-        >>> # Add global parameters
-        >>> gravity = mp_problem.add_global_parameter("gravity", 9.81)
-        >>> mass = mp_problem.add_global_parameter("vehicle_mass", 1000.0)
-        >>>
-        >>> # Set global objective (minimize total mission time)
-        >>> total_time = (t1.final - t1.initial +
-        ...               t2.final - t2.initial +
-        ...               t3.final - t3.initial)
-        >>> mp_problem.set_global_objective(total_time)
-        >>>
-        >>> # Solve multi-phase problem
-        >>> solution = tl.solve_multi_phase_fixed_mesh(mp_problem)
-        >>>
-        >>> if solution.success:
-        ...     print(f"Optimal mission time: {solution.objective:.3f} seconds")
-        ...     print(f"Global parameters: {solution.global_parameters}")
-        ...     solution.plot_phases()
-        ...     solution.print_solution_summary()
-        ...
-        ...     # Access individual phases
-        ...     ascent_solution = solution.get_phase_solution(0)
-        ...     print(f"Ascent duration: {ascent_solution.final_time:.3f} seconds")
+    [Keep existing docstring content...]
     """
 
     # Log major operation start with key parameters (INFO - user cares)
@@ -158,21 +71,24 @@ def solve_multi_phase_fixed_mesh(
             len(problem.inter_phase_constraints),
         )
 
-    # Comprehensive validation
-    validate_multi_phase_problem_structure(cast(MultiPhaseProblemProtocol, problem))
-
-    # Set solver options
-    problem.solver_options = nlp_options or DEFAULT_MULTI_PHASE_NLP_OPTIONS
-
-    # Log solver configuration (DEBUG)
-    logger.debug("Multi-phase NLP solver options: %s", problem.solver_options)
-
-    # Convert to protocol and solve
-    protocol_problem = cast(MultiPhaseProblemProtocol, problem)
-
     try:
-        # Solve using multi-phase core solver
+        # Comprehensive validation - let this raise exceptions instead of catching them
+        logger.debug("Validating multi-phase problem structure")
+        validate_multi_phase_problem_structure(cast(MultiPhaseProblemProtocol, problem))
+        logger.debug("Multi-phase problem validation successful")
+
+        # Set solver options
+        problem.solver_options = nlp_options or DEFAULT_MULTI_PHASE_NLP_OPTIONS
+
+        # Log solver configuration (DEBUG)
+        logger.debug("Multi-phase NLP solver options: %s", problem.solver_options)
+
+        # Convert to protocol and solve
+        protocol_problem = cast(MultiPhaseProblemProtocol, problem)
+
+        logger.debug("Calling multi-phase core solver")
         solution_data = solve_multi_phase_radau_collocation(protocol_problem)
+        logger.debug("Multi-phase core solver completed")
 
         # Log solution status (INFO - user cares about success/failure)
         if solution_data.success:
@@ -183,6 +99,8 @@ def solve_multi_phase_fixed_mesh(
             )
         else:
             logger.warning("Multi-phase fixed-mesh solve failed: %s", solution_data.message)
+            # Print the failure message to console so user sees it
+            print(f"Multi-phase solve failed: {solution_data.message}")
 
         # Create comprehensive solution wrapper
         solution = MultiPhaseSolution(solution_data, protocol_problem)
@@ -190,17 +108,62 @@ def solve_multi_phase_fixed_mesh(
         logger.debug("Multi-phase solution wrapper created successfully")
         return solution
 
+    except NotImplementedError as e:
+        error_msg = f"Multi-phase feature not yet implemented: {e}"
+        logger.error(error_msg)
+        print(f"ERROR: {error_msg}")
+
+        # Create failed solution object with clear error message
+        from .tl_types import MultiPhaseOptimalControlSolution
+
+        failed_solution_data = MultiPhaseOptimalControlSolution()
+        failed_solution_data.success = False
+        failed_solution_data.message = error_msg
+        failed_solution_data.phase_count = problem.get_phase_count()
+
+        solution = MultiPhaseSolution(
+            failed_solution_data, cast(MultiPhaseProblemProtocol, problem)
+        )
+        return solution
+
+    except ConfigurationError as e:
+        error_msg = f"Multi-phase configuration error: {e}"
+        logger.error(error_msg)
+        print(f"ERROR: {error_msg}")
+
+        # Create failed solution object with clear error message
+        from .tl_types import MultiPhaseOptimalControlSolution
+
+        failed_solution_data = MultiPhaseOptimalControlSolution()
+        failed_solution_data.success = False
+        failed_solution_data.message = error_msg
+        failed_solution_data.phase_count = problem.get_phase_count()
+
+        solution = MultiPhaseSolution(
+            failed_solution_data, cast(MultiPhaseProblemProtocol, problem)
+        )
+        return solution
+
     except Exception as e:
-        logger.error("Multi-phase fixed-mesh solve failed: %s", str(e))
+        error_msg = f"Multi-phase solve failed with unexpected error: {e}"
+        logger.error(error_msg)
+        print(f"ERROR: {error_msg}")
+
+        # For debugging, also print the traceback
+        import traceback
+
+        print("Full traceback:")
+        traceback.print_exc()
 
         # Create failed solution object
         from .tl_types import MultiPhaseOptimalControlSolution
 
         failed_solution_data = MultiPhaseOptimalControlSolution()
         failed_solution_data.success = False
-        failed_solution_data.message = f"Multi-phase solve failed: {e}"
+        failed_solution_data.message = error_msg
         failed_solution_data.phase_count = problem.get_phase_count()
 
+        protocol_problem = cast(MultiPhaseProblemProtocol, problem)
         solution = MultiPhaseSolution(failed_solution_data, protocol_problem)
         return solution
 

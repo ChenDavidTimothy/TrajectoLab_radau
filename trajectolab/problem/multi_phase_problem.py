@@ -620,34 +620,312 @@ class MultiPhaseProblem:
             endpoint_vectors.append(endpoint_placeholder)
         return endpoint_vectors
 
-    def get_inter_phase_constraints_function(self) -> Callable[..., list[Constraint]] | None:
-        """Get inter-phase event constraints function for solver."""
-        if not self.inter_phase_constraints:
-            return None
+    def get_global_objective_function(self) -> Callable[[list, dict[str, float]], ca.MX]:
+        """
+        Get global objective function for solver.
 
-        # TODO: Implementation will be completed in Phase 3B: Multi-Phase Constraint Application
-        # This maintains separation between problem definition and solver implementation
-        raise NotImplementedError(
-            "Inter-phase constraints function not yet implemented. "
-            "Will be completed in Phase 3B: Multi-Phase Constraint Application."
-        )
+        Implements CGPOPS Equation (17): J = φ(E^(1), ..., E^(P), s)
+        where E^(p) are phase endpoint vectors and s are global static parameters.
 
-    def get_global_objective_function(self) -> Callable[..., ca.MX]:
-        """Get global objective function for solver."""
+        Returns:
+            Function that evaluates global objective over phase endpoints
+        """
         if self.global_objective_expression is None:
             raise ConfigurationError(
                 "Global objective function not defined",
                 "Multi-phase problem solver interface error",
             )
 
-        # TODO: Implementation will be completed in Phase 2B: Multi-Phase State Management
-        # This maintains separation between problem definition and solver implementation
-        raise NotImplementedError(
-            "Global objective function not yet implemented. "
-            "Will be completed in Phase 2B: Multi-Phase State Management."
-        )
+        def evaluate_global_objective(
+            phase_endpoint_data: list[dict[str, Any]], global_params: dict[str, float]
+        ) -> ca.MX:
+            """
+            Evaluate global objective function over phase endpoints.
+
+            Args:
+                phase_endpoint_data: List of phase endpoint data dictionaries
+                global_params: Global parameter values
+
+            Returns:
+                Evaluated objective expression
+            """
+            try:
+                # Create substitution map for phase endpoints and global parameters
+                substitution_old = []
+                substitution_new = []
+
+                # Substitute phase endpoint information
+                for phase_idx, endpoint_data in enumerate(phase_endpoint_data):
+                    # Map phase variables to endpoint data
+                    phase = self.phases[phase_idx]
+
+                    # Get state symbols and map to initial/final values
+                    state_symbols = phase.get_ordered_state_symbols()
+                    state_initial_symbols = (
+                        phase._variable_state.get_ordered_state_initial_symbols()
+                    )
+                    state_final_symbols = phase._variable_state.get_ordered_state_final_symbols()
+
+                    # Map initial states Y_1^(p)
+                    if (
+                        "initial_state" in endpoint_data
+                        and endpoint_data["initial_state"] is not None
+                    ):
+                        for i, sym in enumerate(state_initial_symbols):
+                            substitution_old.append(sym)
+                            if (
+                                hasattr(endpoint_data["initial_state"], "shape")
+                                and endpoint_data["initial_state"].shape
+                            ):
+                                substitution_new.append(
+                                    endpoint_data["initial_state"][i]
+                                    if i < endpoint_data["initial_state"].shape[0]
+                                    else endpoint_data["initial_state"]
+                                )
+                            else:
+                                substitution_new.append(endpoint_data["initial_state"])
+
+                    # Map final states Y_{N^(p)+1}^(p)
+                    if "final_state" in endpoint_data and endpoint_data["final_state"] is not None:
+                        for i, sym in enumerate(state_final_symbols):
+                            substitution_old.append(sym)
+                            if (
+                                hasattr(endpoint_data["final_state"], "shape")
+                                and endpoint_data["final_state"].shape
+                            ):
+                                substitution_new.append(
+                                    endpoint_data["final_state"][i]
+                                    if i < endpoint_data["final_state"].shape[0]
+                                    else endpoint_data["final_state"]
+                                )
+                            else:
+                                substitution_new.append(endpoint_data["final_state"])
+
+                    # Map times t_0^(p), t_f^(p)
+                    if (
+                        phase._variable_state.sym_time_initial is not None
+                        and "initial_time" in endpoint_data
+                    ):
+                        substitution_old.append(phase._variable_state.sym_time_initial)
+                        substitution_new.append(endpoint_data["initial_time"])
+
+                    if (
+                        phase._variable_state.sym_time_final is not None
+                        and "terminal_time" in endpoint_data
+                    ):
+                        substitution_old.append(phase._variable_state.sym_time_final)
+                        substitution_new.append(endpoint_data["terminal_time"])
+
+                    # Map integrals Q^(p)
+                    if "integrals" in endpoint_data and endpoint_data["integrals"] is not None:
+                        integral_symbols = phase._variable_state.integral_symbols
+                        for i, integral_sym in enumerate(integral_symbols):
+                            substitution_old.append(integral_sym)
+                            if (
+                                hasattr(endpoint_data["integrals"], "shape")
+                                and endpoint_data["integrals"].shape
+                            ):
+                                substitution_new.append(
+                                    endpoint_data["integrals"][i]
+                                    if i < endpoint_data["integrals"].shape[0]
+                                    else endpoint_data["integrals"]
+                                )
+                            else:
+                                substitution_new.append(endpoint_data["integrals"])
+
+                # Substitute global parameters s
+                for param_name, param_symbol in self._global_parameter_symbols.items():
+                    if param_name in global_params:
+                        substitution_old.append(param_symbol)
+                        substitution_new.append(global_params[param_name])
+
+                # Perform substitution
+                if substitution_old and substitution_new:
+                    objective_result = ca.substitute(
+                        [self.global_objective_expression], substitution_old, substitution_new
+                    )[0]
+                else:
+                    objective_result = self.global_objective_expression
+
+                return objective_result
+
+            except Exception as e:
+                raise ConfigurationError(
+                    f"Global objective function evaluation failed: {e}",
+                    "Multi-phase problem objective evaluation error",
+                ) from e
+
+        return evaluate_global_objective
+
+    def get_inter_phase_constraints_function(self) -> Callable[..., list[Constraint]] | None:
+        """
+        Get inter-phase event constraints function for solver.
+
+        Implements CGPOPS Equation (20): b_min ≤ b(E^(1), ..., E^(P), s) ≤ b_max
+        where constraints link phase endpoint vectors through event constraints.
+
+        Returns:
+            Function that evaluates inter-phase constraints, or None if no constraints
+        """
+        if not self.inter_phase_constraints:
+            return None
+
+        def evaluate_inter_phase_constraints(
+            phase_endpoint_data: list[dict[str, Any]], global_params: dict[str, float]
+        ) -> list[Constraint]:
+            """
+            Evaluate inter-phase event constraints.
+
+            Args:
+                phase_endpoint_data: List of phase endpoint data dictionaries
+                global_params: Global parameter values
+
+            Returns:
+                List of evaluated constraint objects
+            """
+            try:
+                constraints = []
+
+                for constraint_expr in self.inter_phase_constraints:
+                    # Create substitution map similar to objective function
+                    substitution_old = []
+                    substitution_new = []
+
+                    # Substitute phase endpoint information
+                    for phase_idx, endpoint_data in enumerate(phase_endpoint_data):
+                        phase = self.phases[phase_idx]
+
+                        # Get state symbols
+                        state_symbols = phase.get_ordered_state_symbols()
+                        state_initial_symbols = (
+                            phase._variable_state.get_ordered_state_initial_symbols()
+                        )
+                        state_final_symbols = (
+                            phase._variable_state.get_ordered_state_final_symbols()
+                        )
+
+                        # Map initial states
+                        if (
+                            "initial_state" in endpoint_data
+                            and endpoint_data["initial_state"] is not None
+                        ):
+                            for i, sym in enumerate(state_initial_symbols):
+                                substitution_old.append(sym)
+                                if (
+                                    hasattr(endpoint_data["initial_state"], "shape")
+                                    and endpoint_data["initial_state"].shape
+                                ):
+                                    substitution_new.append(
+                                        endpoint_data["initial_state"][i]
+                                        if i < endpoint_data["initial_state"].shape[0]
+                                        else endpoint_data["initial_state"]
+                                    )
+                                else:
+                                    substitution_new.append(endpoint_data["initial_state"])
+
+                        # Map final states
+                        if (
+                            "final_state" in endpoint_data
+                            and endpoint_data["final_state"] is not None
+                        ):
+                            for i, sym in enumerate(state_final_symbols):
+                                substitution_old.append(sym)
+                                if (
+                                    hasattr(endpoint_data["final_state"], "shape")
+                                    and endpoint_data["final_state"].shape
+                                ):
+                                    substitution_new.append(
+                                        endpoint_data["final_state"][i]
+                                        if i < endpoint_data["final_state"].shape[0]
+                                        else endpoint_data["final_state"]
+                                    )
+                                else:
+                                    substitution_new.append(endpoint_data["final_state"])
+
+                        # Map times
+                        if (
+                            phase._variable_state.sym_time_initial is not None
+                            and "initial_time" in endpoint_data
+                        ):
+                            substitution_old.append(phase._variable_state.sym_time_initial)
+                            substitution_new.append(endpoint_data["initial_time"])
+
+                        if (
+                            phase._variable_state.sym_time_final is not None
+                            and "terminal_time" in endpoint_data
+                        ):
+                            substitution_old.append(phase._variable_state.sym_time_final)
+                            substitution_new.append(endpoint_data["terminal_time"])
+
+                        # Map integrals
+                        if "integrals" in endpoint_data and endpoint_data["integrals"] is not None:
+                            integral_symbols = phase._variable_state.integral_symbols
+                            for i, integral_sym in enumerate(integral_symbols):
+                                substitution_old.append(integral_sym)
+                                if (
+                                    hasattr(endpoint_data["integrals"], "shape")
+                                    and endpoint_data["integrals"].shape
+                                ):
+                                    substitution_new.append(
+                                        endpoint_data["integrals"][i]
+                                        if i < endpoint_data["integrals"].shape[0]
+                                        else endpoint_data["integrals"]
+                                    )
+                                else:
+                                    substitution_new.append(endpoint_data["integrals"])
+
+                    # Substitute global parameters
+                    for param_name, param_symbol in self._global_parameter_symbols.items():
+                        if param_name in global_params:
+                            substitution_old.append(param_symbol)
+                            substitution_new.append(global_params[param_name])
+
+                    # Perform substitution and create constraint
+                    if substitution_old and substitution_new:
+                        constraint_result = ca.substitute(
+                            [constraint_expr], substitution_old, substitution_new
+                        )[0]
+                    else:
+                        constraint_result = constraint_expr
+
+                    # Convert to unified Constraint object
+                    from ..tl_types import Constraint
+
+                    # Handle different constraint types (==, <=, >=)
+                    if hasattr(constraint_result, "is_op"):
+                        if constraint_result.is_op(getattr(ca, "OP_EQ", "eq")):
+                            lhs = constraint_result.dep(0)
+                            rhs = constraint_result.dep(1)
+                            constraints.append(Constraint(val=lhs - rhs, equals=0.0))
+                        elif constraint_result.is_op(getattr(ca, "OP_LE", "le")):
+                            lhs = constraint_result.dep(0)
+                            rhs = constraint_result.dep(1)
+                            constraints.append(Constraint(val=lhs - rhs, max_val=0.0))
+                        elif constraint_result.is_op(getattr(ca, "OP_GE", "ge")):
+                            lhs = constraint_result.dep(0)
+                            rhs = constraint_result.dep(1)
+                            constraints.append(Constraint(val=lhs - rhs, min_val=0.0))
+                        else:
+                            # Default: treat as equality constraint
+                            constraints.append(Constraint(val=constraint_result, equals=0.0))
+                    else:
+                        constraints.append(Constraint(val=constraint_result, equals=0.0))
+
+                return constraints
+
+            except Exception as e:
+                raise ConfigurationError(
+                    f"Inter-phase constraint evaluation failed: {e}",
+                    "Multi-phase problem constraint evaluation error",
+                ) from e
+
+        return evaluate_inter_phase_constraints
 
     def validate_multi_phase_structure(self) -> None:
-        """Validate multi-phase problem structure - protocol method."""
+        """
+        Validate multi-phase problem structure - protocol method.
+
+        This replaces the NotImplementedError with actual validation.
+        """
         # Delegate to main validation method
         self.validate_complete_structure()

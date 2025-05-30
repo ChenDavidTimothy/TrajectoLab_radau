@@ -45,4 +45,4 @@ __all__ = [
 __version__ = "0.2.1"
 
 # PRODUCTION LOGGING: Silent by default, user controls everything
-logging.getLogger(__name__).addHandler(logging.NullHandler())
+logging.getLogger("trajectolab").setLevel(logging.DEBUG)

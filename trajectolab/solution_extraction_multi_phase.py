@@ -305,8 +305,8 @@ def _extract_global_parameters_debug(
                         global_params[param_name] = float(param_array[i])
 
             return global_params
-    except Exception:
-        pass
+    except Exception as e:
+        logger.exception("State continuity analysis failed: %s", e)
 
     return dict(problem.global_parameters)
 
@@ -356,10 +356,10 @@ def _extract_individual_phase_solutions(
             try:
                 # Use existing single-phase solution extraction
                 phase_solution = extract_and_format_solution(
-                    solver_solution=solver_solution,
-                    opti=opti,
+                    casadi_solution_object=solver_solution,
+                    casadi_optimization_problem_object=opti,
                     problem=phase_problem,
-                    collocation_points_per_interval=collocation_points,
+                    num_collocation_nodes_per_interval=collocation_points,
                     global_normalized_mesh_nodes=global_mesh_nodes,
                 )
 

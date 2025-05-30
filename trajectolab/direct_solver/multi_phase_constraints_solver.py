@@ -242,21 +242,8 @@ def apply_inter_phase_event_constraints(
     """
     Apply inter-phase event constraints linking phases.
 
-    Implements the key CGPOPS inter-phase event constraints from Equation (20):
-    b_min ≤ b(E^(1), ..., E^(P), s) ≤ b_max
-
-    These constraints provide the off-diagonal coupling in the constraint Jacobian,
-    linking endpoint vectors E^(p) = [Y_1^(p), t_0^(p), Y_{N^(p)+1}^(p), t_f^(p), Q^(p)]
-    from different phases through the global constraint function b().
-
-    Args:
-        opti: CasADi optimization object
-        variables: Multi-phase variable references
-        problem: Multi-phase problem protocol
-        metadata: Multi-phase metadata bundle
-
-    Raises:
-        DataIntegrityError: If inter-phase constraint application fails
+    Fixed to handle CasADi context issues by reconstructing constraints
+    using actual optimization variables instead of stored expressions.
     """
     # Check if there are inter-phase constraints to apply
     if not problem.inter_phase_constraints:
@@ -266,8 +253,6 @@ def apply_inter_phase_event_constraints(
     logger.debug("Applying %d inter-phase event constraints", len(problem.inter_phase_constraints))
 
     try:
-        # Apply inter-phase constraints directly from expressions
-        # These are already in CasADi constraint form from the problem definition
         constraint_count = 0
 
         for i, constraint_expr in enumerate(problem.inter_phase_constraints):
@@ -277,13 +262,27 @@ def apply_inter_phase_event_constraints(
                     "Inter-phase constraint application error",
                 )
 
-            # Apply constraint expression directly
-            # The constraint expression should already be in the form suitable for CasADi
-            # (using ==, <=, >= operators to create constraint expressions)
-            opti.subject_to(constraint_expr)
-            constraint_count += 1
+            # Create substitution map to replace symbolic variables with actual optimization variables
+            substitution_map = _create_variable_substitution_map(variables, problem)
 
-            logger.debug("Applied inter-phase constraint %d", i)
+            # Reconstruct constraint using actual optimization variables
+            try:
+                reconstructed_constraint = _substitute_variables_in_constraint(
+                    constraint_expr, substitution_map
+                )
+
+                # Apply reconstructed constraint
+                opti.subject_to(reconstructed_constraint)
+                constraint_count += 1
+
+                logger.debug("Applied inter-phase constraint %d", i)
+
+            except Exception as sub_error:
+                logger.error("Failed to apply inter-phase constraint %d: %s", i, str(sub_error))
+                raise DataIntegrityError(
+                    f"Failed to apply inter-phase constraint {i}: {sub_error}",
+                    "Inter-phase constraint application error",
+                ) from sub_error
 
         # Update metadata with actual constraint count
         metadata.inter_phase_constraint_count = constraint_count
@@ -298,6 +297,159 @@ def apply_inter_phase_event_constraints(
             f"Inter-phase event constraint application failed: {e}",
             "TrajectoLab inter-phase constraint error",
         ) from e
+
+
+def _create_variable_substitution_map(
+    variables: MultiPhaseVariableReferences,
+    problem: MultiPhaseProblemProtocol,
+) -> dict[ca.MX, ca.MX]:
+    """
+    Create mapping from symbolic variables to actual optimization variables.
+
+    This maps the symbols used in constraint expressions to the actual
+    variables created in the current Opti context.
+    """
+    substitution_map = {}
+
+    try:
+        # Map phase variables
+        for phase_idx, (phase_vars, phase_problem) in enumerate(
+            zip(variables.phase_variables, problem.phases, strict=False)
+        ):
+            # Get phase variable symbols and names
+            state_symbols = phase_problem.get_ordered_state_symbols()
+            state_initial_symbols = (
+                phase_problem._variable_state.get_ordered_state_initial_symbols()
+            )
+            state_final_symbols = phase_problem._variable_state.get_ordered_state_final_symbols()
+
+            # Map initial state symbols to actual initial state variables (first mesh node)
+            for i, (state_sym, initial_sym) in enumerate(
+                zip(state_symbols, state_initial_symbols, strict=False)
+            ):
+                if len(phase_vars.state_at_mesh_nodes) > 0:
+                    # Map both the regular state symbol and initial symbol to the first mesh node
+                    substitution_map[initial_sym] = phase_vars.state_at_mesh_nodes[0][i]
+
+            # Map final state symbols to actual final state variables (last mesh node)
+            for i, final_sym in enumerate(state_final_symbols):
+                if len(phase_vars.state_at_mesh_nodes) > 0:
+                    # Map final symbol to the last mesh node
+                    substitution_map[final_sym] = phase_vars.state_at_mesh_nodes[-1][i]
+
+            # Map time symbols
+            if phase_problem._variable_state.sym_time_initial is not None:
+                substitution_map[phase_problem._variable_state.sym_time_initial] = (
+                    phase_vars.initial_time
+                )
+
+            if phase_problem._variable_state.sym_time_final is not None:
+                substitution_map[phase_problem._variable_state.sym_time_final] = (
+                    phase_vars.terminal_time
+                )
+
+            # Map integral symbols if present
+            integral_symbols = phase_problem._variable_state.integral_symbols
+            if integral_symbols and phase_vars.integral_variables is not None:
+                for i, integral_sym in enumerate(integral_symbols):
+                    if phase_vars.num_integrals == 1:
+                        substitution_map[integral_sym] = phase_vars.integral_variables
+                    else:
+                        substitution_map[integral_sym] = phase_vars.integral_variables[i]
+
+        # Map global parameters if present
+        if hasattr(problem, "_global_parameter_symbols"):
+            for param_name, param_symbol in problem._global_parameter_symbols.items():
+                if variables.global_parameters is not None:
+                    # Find parameter index
+                    if param_name in variables.global_parameter_names:
+                        param_idx = variables.global_parameter_names.index(param_name)
+                        if variables.global_parameters.size1() == 1:
+                            substitution_map[param_symbol] = variables.global_parameters
+                        else:
+                            substitution_map[param_symbol] = variables.global_parameters[param_idx]
+                else:
+                    # Use constant value if no optimization variable
+                    if param_name in problem.global_parameters:
+                        substitution_map[param_symbol] = ca.MX(
+                            problem.global_parameters[param_name]
+                        )
+
+        logger.debug("Created substitution map with %d entries", len(substitution_map))
+        return substitution_map
+
+    except Exception as e:
+        logger.error("Failed to create variable substitution map: %s", str(e))
+        raise DataIntegrityError(
+            f"Failed to create variable substitution map: {e}",
+            "Inter-phase constraint substitution error",
+        ) from e
+
+
+def _substitute_variables_in_constraint(
+    constraint_expr: ca.MX,
+    substitution_map: dict[ca.MX, ca.MX],
+) -> ca.MX:
+    """
+    Substitute symbolic variables with actual optimization variables in constraint.
+
+    This reconstructs the constraint expression using variables from the current Opti context.
+    """
+    try:
+        if not substitution_map:
+            logger.warning("Empty substitution map, returning original constraint")
+            return constraint_expr
+
+        # Extract old and new variables for substitution
+        old_vars = list(substitution_map.keys())
+        new_vars = list(substitution_map.values())
+
+        # Perform substitution
+        reconstructed_expr = ca.substitute([constraint_expr], old_vars, new_vars)[0]
+
+        logger.debug("Successfully substituted variables in constraint")
+        return reconstructed_expr
+
+    except Exception as e:
+        logger.error("Variable substitution failed: %s", str(e))
+        raise DataIntegrityError(
+            f"Variable substitution failed: {e}",
+            "Inter-phase constraint variable substitution error",
+        ) from e
+
+
+def debug_print_variable_mapping(
+    variables: MultiPhaseVariableReferences,
+    problem: MultiPhaseProblemProtocol,
+) -> None:
+    """
+    Debug function to print variable mapping information.
+    Call this from apply_inter_phase_event_constraints if needed.
+    """
+    print("\n=== Variable Mapping Debug ===")
+
+    for phase_idx, (phase_vars, phase_problem) in enumerate(
+        zip(variables.phase_variables, problem.phases, strict=False)
+    ):
+        print(f"\nPhase {phase_idx}:")
+
+        # State variables
+        state_names = phase_problem.get_ordered_state_names()
+        state_initial_symbols = phase_problem._variable_state.get_ordered_state_initial_symbols()
+        state_final_symbols = phase_problem._variable_state.get_ordered_state_final_symbols()
+
+        print(f"  State variables: {state_names}")
+        print(f"  Initial symbols: {[s.name() for s in state_initial_symbols]}")
+        print(f"  Final symbols: {[s.name() for s in state_final_symbols]}")
+        print(f"  Actual mesh nodes: {len(phase_vars.state_at_mesh_nodes)}")
+
+        # Time variables
+        if phase_problem._variable_state.sym_time_initial:
+            print(f"  Initial time symbol: {phase_problem._variable_state.sym_time_initial.name()}")
+        if phase_problem._variable_state.sym_time_final:
+            print(f"  Final time symbol: {phase_problem._variable_state.sym_time_final.name()}")
+
+    print("=== End Variable Mapping Debug ===\n")
 
 
 def apply_multi_phase_integral_constraints(
