@@ -428,6 +428,10 @@ def validate_multi_phase_problem_structure(problem: MultiPhaseProblemProtocol) -
                 "Multi-phase problem validation error",
             )
 
+        # CRITICAL FIX: Inject global parameters into each phase before validation
+        # This mirrors how single-phase parameters work in the existing codebase
+        _inject_global_parameters_into_phases(problem)
+
         # Validate each phase
         for phase_idx, phase_problem in enumerate(problem.phases):
             _validate_individual_phase_for_solving(phase_problem, phase_idx)
@@ -453,6 +457,68 @@ def validate_multi_phase_problem_structure(problem: MultiPhaseProblemProtocol) -
         raise ConfigurationError(
             f"Multi-phase problem validation failed: {e}", "Multi-phase problem validation error"
         ) from e
+
+
+def _inject_global_parameters_into_phases(problem: MultiPhaseProblemProtocol) -> None:
+    """
+    Inject global parameters into each phase's parameter dictionary.
+
+    This ensures that global parameters s are available to each phase when creating
+    dynamics functions, following the CGPOPS mathematical structure where dynamics
+    are defined as: ẏ^(p) = a^(p)(y^(p)(t), u^(p)(t), t, s)
+
+    Mirrors the single-phase parameter mechanism that already works perfectly.
+
+    Args:
+        problem: Multi-phase problem with global parameters to inject
+    """
+    if not hasattr(problem, "global_parameters") or not problem.global_parameters:
+        logger.debug("No global parameters to inject into phases")
+        return
+
+    logger.debug(
+        "Injecting %d global parameters into %d phases",
+        len(problem.global_parameters),
+        len(problem.phases),
+    )
+
+    # Inject global parameters into each phase using the same mechanism as single-phase
+    for phase_idx, phase_problem in enumerate(problem.phases):
+        try:
+            # Access the phase's parameter storage (same as single-phase architecture)
+            phase_parameters = phase_problem._variable_state.parameters
+
+            # Inject each global parameter into the phase
+            for param_name, param_value in problem.global_parameters.items():
+                if param_name in phase_parameters:
+                    logger.debug(
+                        "Phase %d: Global parameter '%s' overriding existing phase parameter",
+                        phase_idx,
+                        param_name,
+                    )
+
+                # Store in phase parameters (same pattern as single-phase)
+                phase_parameters[param_name] = param_value
+                logger.debug(
+                    "Phase %d: Injected global parameter '%s' = %s",
+                    phase_idx,
+                    param_name,
+                    param_value,
+                )
+
+            logger.debug(
+                "Phase %d: Successfully injected %d global parameters",
+                phase_idx,
+                len(problem.global_parameters),
+            )
+
+        except Exception as e:
+            raise ConfigurationError(
+                f"Failed to inject global parameters into phase {phase_idx}: {e}",
+                "Multi-phase parameter injection error",
+            ) from e
+
+    logger.debug("Global parameter injection completed for all phases")
 
 
 def _validate_individual_phase_for_solving(phase_problem: Any, phase_idx: int) -> None:
