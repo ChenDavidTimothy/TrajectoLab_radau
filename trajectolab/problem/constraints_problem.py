@@ -130,6 +130,8 @@ def get_phase_path_constraints_function(
         states_vec: ca.MX,
         controls_vec: ca.MX,
         time: ca.MX,
+        static_parameters_vec: ca.MX | None = None,
+        static_parameter_symbols: list[ca.MX] | None = None,
     ) -> list[Constraint]:
         """Apply path constraints at a single collocation point."""
         result: list[Constraint] = []
@@ -148,6 +150,14 @@ def get_phase_path_constraints_function(
         # Map time symbol to current time
         if phase_def.sym_time is not None:
             subs_map[phase_def.sym_time] = time
+
+        # Map static parameter symbols to current parameter values
+        if static_parameters_vec is not None and static_parameter_symbols is not None:
+            for i, param_sym in enumerate(static_parameter_symbols):
+                if len(static_parameter_symbols) == 1:
+                    subs_map[param_sym] = static_parameters_vec
+                else:
+                    subs_map[param_sym] = static_parameters_vec[i]
 
         # Process symbolic path constraints
         for expr in phase_def.path_constraints:
@@ -266,7 +276,9 @@ def get_cross_phase_event_constraints_function(
         if static_parameters_vec is not None:
             static_param_syms = multiphase_state.static_parameters.get_ordered_parameter_symbols()
             for i, param_sym in enumerate(static_param_syms):
-                if i < static_parameters_vec.shape[0]:
+                if len(static_param_syms) == 1:
+                    subs_map[param_sym] = static_parameters_vec
+                else:
                     subs_map[param_sym] = static_parameters_vec[i]
 
         # Process cross-phase constraints

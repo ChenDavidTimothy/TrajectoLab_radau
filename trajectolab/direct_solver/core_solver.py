@@ -116,7 +116,9 @@ def _process_all_phases(
             continue
 
         phase_vars = variables.phase_variables[phase_id]
-        _process_single_phase(opti, phase_vars, metadata, problem, phase_id)
+        _process_single_phase(
+            opti, phase_vars, metadata, problem, phase_id, variables.static_parameters
+        )
 
 
 def _process_single_phase(
@@ -125,6 +127,7 @@ def _process_single_phase(
     metadata: MultiPhaseMetadataBundle,
     problem: ProblemProtocol,
     phase_id: PhaseID,
+    static_parameters_vec: ca.MX | None = None,
 ) -> None:
     """Process a single phase to set up constraints and integrals."""
 
@@ -139,6 +142,11 @@ def _process_single_phase(
     path_constraints_function = problem.get_phase_path_constraints_function(phase_id)
     integral_integrand_function = problem.get_phase_integrand_function(phase_id)
     global_mesh_nodes = phase_def.global_normalized_mesh_nodes
+
+    # Get static parameter symbols for substitution
+    static_parameter_symbols = None
+    if static_parameters_vec is not None:
+        static_parameter_symbols = problem._static_parameters.get_ordered_parameter_symbols()
 
     # Data integrity validation
     if len(global_mesh_nodes) != num_mesh_intervals + 1:
@@ -214,6 +222,9 @@ def _process_single_phase(
                     phase_vars.initial_time,
                     phase_vars.terminal_time,
                     path_constraints_function,
+                    problem,
+                    static_parameters_vec,
+                    static_parameter_symbols,
                 )
 
             # Set up integrals if they exist

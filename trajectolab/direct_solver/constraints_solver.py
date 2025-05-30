@@ -114,6 +114,8 @@ def apply_phase_path_constraints(
     terminal_time_variable: ca.MX,
     path_constraints_function: Callable[..., list[Constraint]],
     problem: ProblemProtocol | None = None,
+    static_parameters_vec: ca.MX | None = None,
+    static_parameter_symbols: list[ca.MX] | None = None,
 ) -> None:
     """Apply path constraints for a single mesh interval within a phase."""
     num_colloc_nodes = len(basis_components.collocation_nodes)
@@ -146,6 +148,8 @@ def apply_phase_path_constraints(
             state_at_colloc,
             control_at_colloc,
             physical_time_at_colloc,
+            static_parameters_vec,
+            static_parameter_symbols,
         )
 
         constraints_to_apply = (
