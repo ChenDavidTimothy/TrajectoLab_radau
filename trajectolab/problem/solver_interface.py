@@ -188,17 +188,25 @@ def get_multiphase_objective_function(
         """Evaluate multiphase objective with phase endpoint data."""
         inputs = []
 
-        # Add phase inputs in sorted order
+        # In unified_multiphase_objective function:
         for phase_id in sorted(multiphase_state.phases.keys()):
             if phase_id in phase_endpoint_data:
                 data = phase_endpoint_data[phase_id]
+                phase_def = multiphase_state.phases[phase_id]  # Get phase definition
+
+                q_val = (
+                    data["q"]
+                    if data["q"] is not None
+                    else ca.DM.zeros(max(1, phase_def.num_integrals), 1)
+                )
+
                 inputs.extend(
                     [
                         data["t0"],
                         data["tf"],
                         data["x0"],
                         data["xf"],
-                        data.get("q", ca.DM.zeros(1, 1)),  # type: ignore[arg-type]
+                        q_val,  # Use the corrected value
                     ]
                 )
             else:

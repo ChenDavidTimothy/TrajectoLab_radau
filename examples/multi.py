@@ -64,9 +64,6 @@ with problem.phase(1) as treatment:
         {p1: -xi * p1 * ca.log(p1 / q1), q1: q1 * (b - (mu + d * p1 ** (2 / 3) + G * a)), y1: a}
     )
 
-    # Additional path constraint: cumulative treatment limit
-    treatment.subject_to(y1 <= A)
-
     # Mesh for treatment phase - refined for complex dynamics
     treatment.set_mesh([10, 10, 10], [-1.0, -1 / 3, 1 / 3, 1.0])
 
@@ -184,21 +181,10 @@ if solution.success:
     solution.plot(phase_id=2, figsize=(12, 10))  # Recovery phase
 
     print("\n" + "=" * 70)
-    print("SUCCESS: Two-phase tumor treatment optimization completed!")
-    print("- Phase 1: Optimal treatment strategy with antiangiogenic therapy")
-    print("- Phase 2: Recovery dynamics without treatment")
-    print("- Cross-phase state continuity maintained")
-    print("- Objective: Minimized final endothelial cell population")
     print("- Comparison with reference optimal value J* = 7571.67158")
     print("=" * 70)
 
 else:
-    print(f"\nTumor treatment optimization failed: {solution.message}")
-    print("This might indicate:")
-    print("- Complex nonlinear dynamics require better initial guess")
-    print("- Tighter solver tolerances needed for this problem")
-    print("- Constraint feasibility issues with tumor model")
-
     # Print problem structure for debugging
     print("\nProblem Structure:")
     print(f"  Phases: {solution.get_phase_ids()}")
