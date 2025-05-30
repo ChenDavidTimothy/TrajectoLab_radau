@@ -10,7 +10,6 @@ import casadi as ca
 
 from ..tl_types import (
     Constraint,
-    ProblemParameters,
 )
 from .state import (
     ConstraintState,
@@ -142,7 +141,6 @@ def get_path_constraints_function(
         states_vec: ca.MX,
         controls_vec: ca.MX,
         time: ca.MX,
-        params: ProblemParameters,
     ) -> list[Constraint]:
         """Apply path constraints at a single collocation point."""
         result: list[Constraint] = []
@@ -226,7 +224,6 @@ def get_event_constraints_function(
         x0_vec: ca.MX,
         xf_vec: ca.MX,
         q: ca.MX | None,
-        params: ProblemParameters,
     ) -> list[Constraint]:
         result: list[Constraint] = []
 

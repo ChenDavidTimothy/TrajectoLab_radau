@@ -221,17 +221,6 @@ def create_control_variable(
     return sym_var
 
 
-def create_parameter_variable(
-    state: VariableState,
-    name: str,
-    value: Any,
-) -> ca.MX:
-    """Create a parameter variable."""
-    sym_var = ca.MX.sym(name, 1)  # type: ignore[arg-type]
-    state.parameters[name] = value
-    return sym_var
-
-
 def set_dynamics(
     state: VariableState, dynamics_dict: dict[ca.MX | StateVariableImpl, ca.MX | float | int]
 ) -> None:

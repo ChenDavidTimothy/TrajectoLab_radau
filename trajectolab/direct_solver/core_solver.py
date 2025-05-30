@@ -159,7 +159,6 @@ def _process_mesh_intervals(
                 variables.initial_time,
                 variables.terminal_time,
                 dynamics_function,
-                problem._parameters,
                 problem,
             )
 
@@ -175,7 +174,6 @@ def _process_mesh_intervals(
                     variables.initial_time,
                     variables.terminal_time,
                     path_constraints_function,
-                    problem._parameters,
                 )
 
             # Set up integrals if they exist
@@ -190,7 +188,6 @@ def _process_mesh_intervals(
                     variables.initial_time,
                     variables.terminal_time,
                     integral_integrand_function,
-                    problem._parameters,
                     num_integrals,
                     accumulated_integral_expressions,
                 )
@@ -235,7 +232,6 @@ def _setup_objective_and_event_constraints(
             initial_state,
             terminal_state,
             variables.integral_variables,
-            problem._parameters,
         )
 
         opti.minimize(objective_value)
@@ -296,7 +292,6 @@ def _configure_solver_and_store_references(
         initial_state,
         terminal_state,
         variables.integral_variables,
-        problem._parameters,
     )
     opti.symbolic_objective_function_reference = objective_expression
 

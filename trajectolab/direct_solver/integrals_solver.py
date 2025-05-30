@@ -9,7 +9,6 @@ import casadi as ca
 from ..radau import RadauBasisComponents
 from ..tl_types import (
     FloatArray,
-    ProblemParameters,
 )
 
 
@@ -23,7 +22,6 @@ def setup_integrals(
     initial_time_variable: ca.MX,
     terminal_time_variable: ca.MX,
     integral_integrand_function: Callable[..., ca.MX],
-    problem_parameters: ProblemParameters,
     num_integrals: int,
     accumulated_integral_expressions: list[ca.MX],
 ) -> None:
@@ -40,7 +38,6 @@ def setup_integrals(
         initial_time_variable: Initial time variable
         terminal_time_variable: Terminal time variable
         integral_integrand_function: Integrand function
-        problem_parameters: Problem parameters
         num_integrals: Number of integrals
         accumulated_integral_expressions: List to accumulate integral expressions
 
@@ -84,11 +81,7 @@ def setup_integrals(
             # Calculate integrand and add to quadrature sum
             weight: float = quad_weights[i_colloc]
             integrand_value: ca.MX = integral_integrand_function(
-                state_at_colloc,
-                control_at_colloc,
-                physical_time_at_colloc,
-                integral_index,
-                problem_parameters,
+                state_at_colloc, control_at_colloc, physical_time_at_colloc, integral_index
             )
             quad_sum += weight * integrand_value
 

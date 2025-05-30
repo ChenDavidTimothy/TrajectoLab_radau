@@ -11,7 +11,6 @@ from trajectolab.radau import RadauBasisComponents
 from trajectolab.tl_types import (
     Constraint,
     FloatArray,
-    ProblemParameters,
     ProblemProtocol,
 )
 
@@ -36,7 +35,6 @@ def apply_collocation_constraints(
     initial_time_variable: ca.MX,
     terminal_time_variable: ca.MX,
     dynamics_function: Callable[..., list[ca.MX]],
-    problem_parameters: ProblemParameters,
     problem: ProblemProtocol | None = None,
 ) -> None:
     """Apply collocation constraints for a single mesh interval using differential form."""
@@ -64,9 +62,6 @@ def apply_collocation_constraints(
         (terminal_time_variable - initial_time_variable) * global_segment_length / 4.0
     )
 
-    # Prepare parameters to pass to dynamics function
-    dynamics_params = dict(problem_parameters)
-
     # Apply constraints at each collocation point
     for i_colloc in range(num_colloc_nodes):
         state_at_colloc: ca.MX = state_at_nodes[:, i_colloc]
@@ -88,7 +83,7 @@ def apply_collocation_constraints(
 
         # Get dynamics
         state_derivative_rhs: list[ca.MX] | ca.MX | Sequence[ca.MX] = dynamics_function(
-            state_at_colloc, control_at_colloc, physical_time_at_colloc, dynamics_params
+            state_at_colloc, control_at_colloc, physical_time_at_colloc
         )
 
         # Validate and format dynamics output
@@ -114,7 +109,6 @@ def apply_path_constraints(
     initial_time_variable: ca.MX,
     terminal_time_variable: ca.MX,
     path_constraints_function: Callable[..., list[Constraint]],
-    problem_parameters: ProblemParameters,
     problem: ProblemProtocol | None = None,
 ) -> None:
     """Apply path constraints for a single mesh interval."""
@@ -124,9 +118,6 @@ def apply_path_constraints(
         global_normalized_mesh_nodes[mesh_interval_index + 1]
         - global_normalized_mesh_nodes[mesh_interval_index]
     )
-
-    # Prepare parameters to pass to path constraints function
-    constraint_params = dict(problem_parameters)
 
     for i_colloc in range(num_colloc_nodes):
         state_at_colloc: ca.MX = state_at_nodes[:, i_colloc]
@@ -151,7 +142,6 @@ def apply_path_constraints(
             state_at_colloc,
             control_at_colloc,
             physical_time_at_colloc,
-            constraint_params,
         )
 
         constraints_to_apply = (
@@ -184,7 +174,6 @@ def apply_event_constraints(
         initial_state,
         terminal_state,
         integral_variables,
-        problem._parameters,
     )
 
     event_constraints_to_apply = (

@@ -202,7 +202,6 @@ def h_reduce_intervals(
     # Get variable counts from unified storage
     num_states, _ = problem.get_variable_counts()
     casadi_dynamics_function = cast(ca.Function, problem.get_dynamics_function())
-    problem_parameters = problem._parameters
 
     if solution.raw_solution is None:
         logger.debug("h-reduction failed: Raw solution missing")
@@ -266,7 +265,6 @@ def h_reduce_intervals(
             state_clipped,
             u_val,
             t_actual,
-            problem_parameters,
         )
         return cast(FloatArray, scaling_k * f_rhs_np)
 
@@ -280,9 +278,7 @@ def h_reduce_intervals(
         t_actual = alpha * global_tau + alpha_0
 
         # Use consolidated conversion function
-        f_rhs_np = convert_casadi_to_numpy(
-            casadi_dynamics_function, state_clipped, u_val, t_actual, problem_parameters
-        )
+        f_rhs_np = convert_casadi_to_numpy(casadi_dynamics_function, state_clipped, u_val, t_actual)
         return cast(FloatArray, scaling_kp1 * f_rhs_np)
 
     # Get state values at interval endpoints - ORCHESTRATION SETUP

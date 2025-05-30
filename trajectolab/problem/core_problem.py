@@ -72,11 +72,6 @@ class Problem:
     # ========================================================================
 
     @property
-    def _parameters(self) -> dict[str, Any]:
-        """Internal parameter storage."""
-        return self._variable_state.parameters
-
-    @property
     def _sym_time(self) -> ca.MX | None:
         """Internal time symbol."""
         return self._variable_state.sym_time
@@ -340,31 +335,6 @@ class Problem:
         logger.debug("Control variable created: name='%s', boundary=%s", name, boundary)
 
         return control_var
-
-    def parameter(self, name: str, value: Any) -> ca.MX:
-        """
-        Define a parameter variable with a fixed value.
-
-        Parameters are constants that can be used in dynamics, constraints, and
-        the objective function. They do not change during optimization.
-
-        Args:
-            name: Parameter name (must be unique)
-            value: Parameter value (numeric)
-
-        Returns:
-            CasADi symbolic variable for use in expressions
-
-        Example:
-            >>> g = problem.parameter("gravity", 9.81)
-            >>> mass = problem.parameter("vehicle_mass", 1000.0)
-        """
-        param_var = variables_problem.create_parameter_variable(self._variable_state, name, value)
-
-        # Log parameter creation (DEBUG)
-        logger.debug("Parameter created: name='%s', value=%s", name, value)
-
-        return param_var
 
     def dynamics(
         self,

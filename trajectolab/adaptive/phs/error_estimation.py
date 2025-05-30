@@ -227,7 +227,6 @@ def simulate_dynamics_for_error_estimation(
     # Get variable counts from unified storage - ORCHESTRATION SETUP
     num_states, num_controls = problem.get_variable_counts()
     casadi_dynamics_function = problem.get_dynamics_function()
-    problem_parameters = problem._parameters
 
     # Validate time variables - ORCHESTRATION SETUP
     if solution.initial_time_variable is None or solution.terminal_time_variable is None:
@@ -270,7 +269,7 @@ def simulate_dynamics_for_error_estimation(
 
         # Get dynamics result as list[ca.MX] from protocol
         dynamics_result = casadi_dynamics_function(
-            ca.MX(state), ca.MX(control), ca.MX(physical_time), problem_parameters
+            ca.MX(state), ca.MX(control), ca.MX(physical_time)
         )
 
         # Convert list[ca.MX] to numpy - protocol guarantees this is a list

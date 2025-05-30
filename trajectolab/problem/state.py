@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import threading
 from dataclasses import dataclass, field
-from typing import Any
 
 import casadi as ca
 
@@ -99,9 +98,6 @@ class VariableState:
     _state_names: list[str] = field(default_factory=list)
     _control_names: list[str] = field(default_factory=list)
     _ordering_lock: threading.Lock = field(default_factory=threading.Lock)
-
-    # Parameters (simple dict is sufficient)
-    parameters: dict[str, Any] = field(default_factory=dict)
 
     # Symbolic time variables
     sym_time: ca.MX | None = None

@@ -12,7 +12,6 @@ import casadi as ca
 
 from ..tl_types import (
     Constraint,
-    ProblemParameters,
 )
 from ..utils.expression_cache import (
     create_cache_key_from_variable_state,
@@ -37,11 +36,6 @@ def get_dynamics_function(variable_state: VariableState) -> Callable[..., list[c
         states_vec = ca.vertcat(*state_syms) if state_syms else ca.MX()
         controls_vec = ca.vertcat(*control_syms) if control_syms else ca.MX()
         time = variable_state.sym_time if variable_state.sym_time is not None else ca.MX.sym("t", 1)  # type: ignore[arg-type]
-        param_syms = (
-            ca.vertcat(*variable_state.parameters.keys())
-            if variable_state.parameters
-            else ca.MX.sym("p", 0)  # type: ignore[arg-type]
-        )
 
         dynamics_expr = []
         for state_sym in state_syms:
@@ -52,7 +46,7 @@ def get_dynamics_function(variable_state: VariableState) -> Callable[..., list[c
                 dynamics_expr.append(ca.MX(0))
 
         dynamics_vec = ca.vertcat(*dynamics_expr) if dynamics_expr else ca.MX()
-        return ca.Function("dynamics", [states_vec, controls_vec, time, param_syms], [dynamics_vec])
+        return ca.Function("dynamics", [states_vec, controls_vec, time], [dynamics_vec])
 
     dynamics_func = get_global_expression_cache().get_dynamics_function(
         cache_key, build_dynamics_function
@@ -62,18 +56,8 @@ def get_dynamics_function(variable_state: VariableState) -> Callable[..., list[c
         states_vec: ca.MX,
         controls_vec: ca.MX,
         time: ca.MX,
-        params: ProblemParameters,
     ) -> list[ca.MX]:
-        param_values: list[float] = []
-        for name in variable_state.parameters:
-            value = params.get(name, 0.0)
-            try:
-                param_values.append(float(value))
-            except (TypeError, ValueError):
-                param_values.append(0.0)
-
-        param_vec = ca.DM(param_values) if param_values else ca.DM()
-        result = dynamics_func(states_vec, controls_vec, time, param_vec)
+        result = dynamics_func(states_vec, controls_vec, time)
         dynamics_output = result[0] if isinstance(result, list | tuple) else result
 
         if dynamics_output is None:
@@ -120,11 +104,6 @@ def get_objective_function(variable_state: VariableState) -> Callable[..., ca.MX
             if variable_state.integral_symbols
             else ca.MX.sym("q", 1)  # type: ignore[arg-type]
         )
-        param_syms = (
-            ca.vertcat(*variable_state.parameters.keys())
-            if variable_state.parameters
-            else ca.MX.sym("p", 0)  # type: ignore[arg-type]
-        )
 
         objective_expr = variable_state.objective_expression
         old_syms = []
@@ -156,7 +135,7 @@ def get_objective_function(variable_state: VariableState) -> Callable[..., ca.MX
 
         return ca.Function(
             "objective",
-            [t0, tf, x0_vec, xf_vec, q, param_syms],
+            [t0, tf, x0_vec, xf_vec, q],
             [objective_expr],
         )
 
@@ -170,20 +149,10 @@ def get_objective_function(variable_state: VariableState) -> Callable[..., ca.MX
         x0_vec: ca.MX,
         xf_vec: ca.MX,
         q: ca.MX | None,
-        params: ProblemParameters,
     ) -> ca.MX:
-        param_values = []
-        for name in variable_state.parameters:
-            param_val = params.get(name, 0.0)
-            try:
-                param_values.append(float(param_val))
-            except (TypeError, ValueError):
-                param_values.append(0.0)
-
-        param_vec = ca.DM(param_values) if param_values else ca.DM()
         q_val = q if q is not None else ca.DM.zeros(len(variable_state.integral_symbols), 1)  # type: ignore[arg-type]
 
-        result = obj_func(t0, tf, x0_vec, xf_vec, q_val, param_vec)
+        result = obj_func(t0, tf, x0_vec, xf_vec, q_val)
         obj_output = result[0] if isinstance(result, list | tuple) else result
         return cast(ca.MX, obj_output)
 
@@ -207,16 +176,11 @@ def get_integrand_function(variable_state: VariableState) -> Callable[..., ca.MX
         states_vec = ca.vertcat(*state_syms) if state_syms else ca.MX()
         controls_vec = ca.vertcat(*control_syms) if control_syms else ca.MX()
         time = variable_state.sym_time if variable_state.sym_time is not None else ca.MX.sym("t", 1)  # type: ignore[arg-type]
-        param_syms = (
-            ca.vertcat(*variable_state.parameters.keys())
-            if variable_state.parameters
-            else ca.MX.sym("p", 0)  # type: ignore[arg-type]
-        )
 
         integrand_funcs = []
         for expr in variable_state.integral_expressions:
             integrand_funcs.append(
-                ca.Function("integrand", [states_vec, controls_vec, time, param_syms], [expr])
+                ca.Function("integrand", [states_vec, controls_vec, time], [expr])
             )
 
         return integrand_funcs
@@ -230,17 +194,11 @@ def get_integrand_function(variable_state: VariableState) -> Callable[..., ca.MX
         controls_vec: ca.MX,
         time: ca.MX,
         integral_idx: int,
-        params: ProblemParameters,
     ) -> ca.MX:
         if integral_idx >= len(integrand_funcs):
             return ca.MX(0.0)
 
-        param_values = []
-        for name in variable_state.parameters:
-            param_values.append(params.get(name, 0.0))
-
-        param_vec = ca.DM(param_values) if param_values else ca.DM()
-        result = integrand_funcs[integral_idx](states_vec, controls_vec, time, param_vec)
+        result = integrand_funcs[integral_idx](states_vec, controls_vec, time)
         integrand_output = result[0] if isinstance(result, list | tuple) else result
         return cast(ca.MX, integrand_output)
 

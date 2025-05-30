@@ -34,8 +34,6 @@ Supported input types:
 - None: No constraint specified
 """
 
-ProblemParameters: TypeAlias = dict[str, float | int | str]
-
 
 # --- EXTERNAL INTERFACE PROTOCOLS (Required) ---
 class ODESolverResult(Protocol):
@@ -55,7 +53,6 @@ class ProblemProtocol(Protocol):
 
     # Essential solver properties (RESTORED - these are actually needed)
     _num_integrals: int
-    _parameters: ProblemParameters
     initial_guess: Any
     solver_options: dict[str, object]
 

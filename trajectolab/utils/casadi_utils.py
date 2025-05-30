@@ -9,7 +9,7 @@ import casadi as ca
 import numpy as np
 
 from trajectolab.exceptions import DataIntegrityError
-from trajectolab.tl_types import FloatArray, ProblemParameters
+from trajectolab.tl_types import FloatArray
 
 
 logger = logging.getLogger(__name__)
@@ -24,7 +24,6 @@ def convert_casadi_to_numpy(
     state: FloatArray,
     control: FloatArray,
     time: float,
-    params: ProblemParameters,
 ) -> FloatArray:
     """
     Convert CasADi dynamics function call to NumPy arrays with enhanced validation.
@@ -80,7 +79,7 @@ def convert_casadi_to_numpy(
         time_dm = ca.DM([float(time)])
 
         # Call dynamics
-        result_casadi = casadi_dynamics_func(state_dm, control_dm, time_dm, params)
+        result_casadi = casadi_dynamics_func(state_dm, control_dm, time_dm)
 
         # Convert back to NumPy
         if isinstance(result_casadi, ca.DM):

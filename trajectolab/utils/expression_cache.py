@@ -18,7 +18,6 @@ class ExpressionCacheKey:
     expression_type: str
     state_names: tuple[str, ...]
     control_names: tuple[str, ...]
-    parameter_names: tuple[str, ...]
     num_integrals: int
     expression_hash: str
 
@@ -28,7 +27,6 @@ class ExpressionCacheKey:
             self.expression_type,
             self.state_names,
             self.control_names,
-            self.parameter_names,
             self.num_integrals,
             self.expression_hash,
         )
@@ -100,19 +98,17 @@ def create_cache_key_from_variable_state(
     """Create cache key from variable state using unified storage."""
     state_names = tuple(variable_state.get_ordered_state_names())
     control_names = tuple(variable_state.get_ordered_control_names())
-    parameter_names = tuple(sorted(variable_state.parameters.keys()))
 
     # Create expression hash if not provided
     if expression_hash is None:
         # Use variable structure as hash
-        hash_data = (state_names, control_names, parameter_names, variable_state.num_integrals)
+        hash_data = (state_names, control_names, variable_state.num_integrals)
         expression_hash = hashlib.sha256(str(hash_data).encode()).hexdigest()[:16]
 
     return ExpressionCacheKey(
         expression_type=expression_type,
         state_names=state_names,
         control_names=control_names,
-        parameter_names=parameter_names,
         num_integrals=variable_state.num_integrals,
         expression_hash=expression_hash,
     )
