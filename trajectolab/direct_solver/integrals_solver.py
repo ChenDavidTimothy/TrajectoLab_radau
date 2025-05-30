@@ -1,5 +1,6 @@
+# trajectolab/direct_solver/integrals_solver.py
 """
-Integral constraint setup using quadrature rules for the direct solver.
+Integral constraint setup using quadrature rules for multiphase direct solver.
 """
 
 from collections.abc import Callable
@@ -9,11 +10,13 @@ import casadi as ca
 from ..radau import RadauBasisComponents
 from ..tl_types import (
     FloatArray,
+    PhaseID,
 )
 
 
-def setup_integrals(
+def setup_phase_integrals(
     opti: ca.Opti,
+    phase_id: PhaseID,
     mesh_interval_index: int,
     state_at_nodes: ca.MX,
     control_variables: ca.MX,
@@ -26,19 +29,20 @@ def setup_integrals(
     accumulated_integral_expressions: list[ca.MX],
 ) -> None:
     """
-    Set up integral calculations for a single mesh interval using quadrature.
+    Set up integral calculations for a single mesh interval within a phase.
 
     Args:
         opti: CasADi optimization object
-        mesh_interval_index: Index of mesh interval
+        phase_id: Phase identifier
+        mesh_interval_index: Index of mesh interval within phase
         state_at_nodes: State variables at all nodes in interval
         control_variables: Control variables for interval
         basis_components: Radau basis components
-        global_normalized_mesh_nodes: Global mesh nodes
-        initial_time_variable: Initial time variable
-        terminal_time_variable: Terminal time variable
-        integral_integrand_function: Integrand function
-        num_integrals: Number of integrals
+        global_normalized_mesh_nodes: Global mesh nodes for this phase
+        initial_time_variable: Initial time variable for this phase
+        terminal_time_variable: Terminal time variable for this phase
+        integral_integrand_function: Integrand function for this phase
+        num_integrals: Number of integrals for this phase
         accumulated_integral_expressions: List to accumulate integral expressions
 
     Note:
@@ -88,20 +92,22 @@ def setup_integrals(
         accumulated_integral_expressions[integral_index] += tau_to_time_scaling * quad_sum
 
 
-def apply_integral_constraints(
+def apply_phase_integral_constraints(
     opti: ca.Opti,
     integral_variables: ca.MX,
     accumulated_integral_expressions: list[ca.MX],
     num_integrals: int,
+    phase_id: PhaseID,
 ) -> None:
     """
-    Apply integral constraints to the optimization problem.
+    Apply integral constraints for a specific phase.
 
     Args:
         opti: CasADi optimization object
-        integral_variables: Integral decision variables
-        accumulated_integral_expressions: Accumulated integral expressions
-        num_integrals: Number of integrals
+        integral_variables: Integral decision variables for this phase
+        accumulated_integral_expressions: Accumulated integral expressions for this phase
+        num_integrals: Number of integrals for this phase
+        phase_id: Phase identifier for error messages
 
     Note:
         Constrains integral variables to equal the accumulated quadrature sums.

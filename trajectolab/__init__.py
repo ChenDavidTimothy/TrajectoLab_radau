@@ -1,8 +1,8 @@
 # trajectolab/__init__.py
 """
-TrajectoLab: A Python framework for optimal trajectory generation
+TrajectoLab: A Python framework for multiphase optimal trajectory generation
 
-This package provides a unified interface for solving optimal control problems
+This package provides a unified interface for solving multiphase optimal control problems
 using the Radau Pseudospectral Method for direct collocation.
 
 Logging:
@@ -38,7 +38,7 @@ __all__ = [
     "solve_fixed_mesh",
 ]
 
-__version__ = "0.2.1"
+__version__ = "0.3.0"  # Updated for multiphase support
 
 # PRODUCTION LOGGING: Silent by default, user controls everything
 logging.getLogger(__name__).addHandler(logging.NullHandler())

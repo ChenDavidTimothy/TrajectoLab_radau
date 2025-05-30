@@ -1,24 +1,23 @@
+# trajectolab/solver.py
 """
-Main solver interface for optimal control problems.
+Main solver interface for multiphase optimal control problems.
 
 This module provides the primary solving functions that users call to solve
-their optimal control problems using either fixed or adaptive mesh strategies.
+their multiphase optimal control problems using either fixed or adaptive mesh strategies.
 """
 
 import logging
 from typing import cast
 
-import numpy as np
-
-from trajectolab.direct_solver import solve_single_phase_radau_collocation
+from trajectolab.direct_solver import solve_multiphase_radau_collocation
 from trajectolab.input_validation import (
     validate_adaptive_solver_parameters,
-    validate_problem_ready_for_solving,
+    validate_multiphase_problem_ready_for_solving,
 )
 from trajectolab.problem import Problem
 from trajectolab.solution import Solution
 from trajectolab.tl_types import (
-    InitialGuess,
+    MultiPhaseInitialGuess,
     ODESolverCallable,
     OptimalControlSolution,
     ProblemProtocol,
@@ -42,14 +41,15 @@ def solve_fixed_mesh(
     nlp_options: dict[str, object] | None = None,
 ) -> Solution:
     """
-    Solve an optimal control problem using a fixed pseudospectral mesh.
+    Solve a multiphase optimal control problem using fixed pseudospectral meshes.
 
-    This function solves the problem using the mesh configuration specified
-    in problem.set_mesh(). The mesh remains fixed during optimization, making
-    this approach faster but potentially less accurate than adaptive methods.
+    This function solves the problem using the mesh configurations specified
+    for each phase in problem.phase(p).set_mesh(). The meshes remain fixed during
+    optimization, making this approach faster but potentially less accurate than
+    adaptive methods.
 
     Args:
-        problem: Problem instance with configured mesh, dynamics, and objective
+        problem: Multiphase Problem instance with configured meshes, dynamics, and objective
         nlp_options: Optional IPOPT solver options. Common options include:
             - "ipopt.max_iter": Maximum iterations (default: 3000)
             - "ipopt.tol": Convergence tolerance (default: 1e-8)
@@ -66,57 +66,69 @@ def solve_fixed_mesh(
         >>> import trajectolab as tl
         >>> import numpy as np
         >>>
-        >>> problem = tl.Problem("Minimum Time")
-        >>> t = problem.time(initial=0.0)
-        >>> x = problem.state("position", initial=0.0, final=1.0)
-        >>> u = problem.control("thrust", boundary=(-1.0, 1.0))
-        >>> problem.dynamics({x: u})
-        >>> problem.minimize(t.final)
-        >>> problem.set_mesh([10], np.array([-1.0, 1.0]))
+        >>> problem = tl.Problem("Multiphase Mission")
+        >>>
+        >>> # Phase 1: Ascent
+        >>> with problem.phase(1) as ascent:
+        >>>     t1 = ascent.time(initial=0.0, final=(100, 200))
+        >>>     x1 = ascent.state("position", initial=0.0)
+        >>>     u1 = ascent.control("thrust", boundary=(0, 1))
+        >>>     ascent.dynamics({x1: u1})
+        >>>     ascent.set_mesh([10], np.array([-1.0, 1.0]))
+        >>>
+        >>> # Phase 2: Coast
+        >>> with problem.phase(2) as coast:
+        >>>     t2 = coast.time(initial=t1.final)
+        >>>     x2 = coast.state("position", initial=x1.final)
+        >>>     coast.dynamics({x2: 0})
+        >>>     coast.set_mesh([8], np.array([-1.0, 1.0]))
+        >>>
+        >>> # Cross-phase constraints and objective
+        >>> problem.subject_to(x1.final == x2.initial)
+        >>> problem.minimize(t2.final)
         >>>
         >>> solution = tl.solve_fixed_mesh(problem)
         >>> if solution.success:
-        ...     print(f"Optimal time: {solution.final_time:.3f}")
+        ...     print(f"Mission time: {solution.get_phase_final_time(2):.3f}")
         ...     solution.plot()
     """
 
-    # Log major operation start (INFO - user cares about this)
-    logger.info("Starting fixed-mesh solve: problem='%s'", problem.name)
+    # Log major operation start
+    logger.info("Starting multiphase fixed-mesh solve: problem='%s'", problem.name)
 
-    # Log problem dimensions (DEBUG - developer info)
+    # Log problem dimensions
     if logger.isEnabledFor(logging.DEBUG):
-        num_states, num_controls = problem.get_variable_counts()
-        num_intervals = (
-            len(problem.collocation_points_per_interval) if problem._mesh_configured else 0
-        )
+        phase_ids = problem.get_phase_ids()
+        total_states, total_controls, num_static_params = problem.get_total_variable_counts()
         logger.debug(
-            "Problem dimensions: states=%d, controls=%d, intervals=%d",
-            num_states,
-            num_controls,
-            num_intervals,
+            "Multiphase problem dimensions: phases=%d, total_states=%d, total_controls=%d, static_params=%d",
+            len(phase_ids),
+            total_states,
+            total_controls,
+            num_static_params,
         )
 
     # Comprehensive validation
-    validate_problem_ready_for_solving(cast(ProblemProtocol, problem))
+    validate_multiphase_problem_ready_for_solving(cast(ProblemProtocol, problem))
 
     # Set solver options
     problem.solver_options = nlp_options or DEFAULT_NLP_OPTIONS
 
-    # Log solver configuration (DEBUG)
+    # Log solver configuration
     logger.debug("NLP solver options: %s", problem.solver_options)
 
     # Convert to protocol and solve
     protocol_problem = cast(ProblemProtocol, problem)
-    solution_data: OptimalControlSolution = solve_single_phase_radau_collocation(protocol_problem)
+    solution_data: OptimalControlSolution = solve_multiphase_radau_collocation(protocol_problem)
 
-    # Log solution status (INFO - user cares about success/failure)
+    # Log solution status
     if solution_data.success:
         logger.info(
-            "Fixed-mesh solve completed successfully: objective=%.6e",
+            "Multiphase fixed-mesh solve completed successfully: objective=%.6e",
             solution_data.objective or 0.0,
         )
     else:
-        logger.warning("Fixed-mesh solve failed: %s", solution_data.message)
+        logger.warning("Multiphase fixed-mesh solve failed: %s", solution_data.message)
 
     return Solution(solution_data, protocol_problem)
 
@@ -133,17 +145,18 @@ def solve_adaptive(
     num_error_sim_points: int = 50,
     ode_solver: ODESolverCallable | None = None,
     nlp_options: dict[str, object] | None = None,
-    initial_guess: InitialGuess | None = None,
+    initial_guess: MultiPhaseInitialGuess | None = None,
 ) -> Solution:
     """
-    Solve an optimal control problem using adaptive mesh refinement.
+    Solve a multiphase optimal control problem using adaptive mesh refinement.
 
-    This function automatically refines the mesh during optimization to achieve
-    a specified error tolerance. It uses the PHS (p-refinement, h-refinement,
-    s-refinement) algorithm to adaptively adjust polynomial degrees and mesh spacing.
+    This function automatically refines the mesh for each phase during optimization
+    to achieve a specified error tolerance. It uses the PHS (p-refinement, h-refinement,
+    s-refinement) algorithm to adaptively adjust polynomial degrees and mesh spacing
+    for each phase independently.
 
     Args:
-        problem: Problem instance with initial mesh configuration
+        problem: Multiphase Problem instance with initial mesh configurations for each phase
         error_tolerance: Target relative error tolerance (default: 1e-6)
         max_iterations: Maximum refinement iterations (default: 10)
         min_polynomial_degree: Minimum polynomial degree per interval (default: 3)
@@ -157,8 +170,8 @@ def solve_adaptive(
         initial_guess: Initial guess for first iteration (overrides problem guess)
 
     Returns:
-        Solution object with final refined mesh and high-accuracy results.
-        The solution contains the final mesh configuration used.
+        Solution object with final refined meshes and high-accuracy results.
+        The solution contains the final mesh configuration used for each phase.
 
     Raises:
         trajectolab.ConfigurationError: If problem is not properly configured or parameters are invalid
@@ -167,9 +180,17 @@ def solve_adaptive(
         >>> import trajectolab as tl
         >>> import numpy as np
         >>>
-        >>> problem = tl.Problem("High Precision")
-        >>> # ... define problem ...
-        >>> problem.set_mesh([5], np.array([-1.0, 1.0]))  # Initial mesh
+        >>> problem = tl.Problem("High Precision Multiphase")
+        >>> # ... define multiphase problem ...
+        >>>
+        >>> # Set initial meshes for each phase
+        >>> with problem.phase(1) as phase1:
+        >>>     # ... define phase 1 ...
+        >>>     phase1.set_mesh([5], np.array([-1.0, 1.0]))
+        >>>
+        >>> with problem.phase(2) as phase2:
+        >>>     # ... define phase 2 ...
+        >>>     phase2.set_mesh([5], np.array([-1.0, 1.0]))
         >>>
         >>> solution = tl.solve_adaptive(
         ...     problem,
@@ -178,25 +199,27 @@ def solve_adaptive(
         ... )
         >>>
         >>> if solution.success:
-        ...     print(f"Converged with {len(solution.mesh_intervals)} intervals")
-        ...     print(f"Final polynomial degrees: {solution.mesh_intervals}")
+        ...     print(f"Final meshes:")
+        ...     for phase_id in problem.get_phase_ids():
+        ...         intervals = solution.get_phase_mesh_intervals(phase_id)
+        ...         print(f"  Phase {phase_id}: {len(intervals)} intervals")
         ...     solution.plot()
 
     Note:
         Adaptive solving typically takes longer than fixed mesh but provides
-        higher accuracy and automatic mesh optimization. The initial mesh
-        specified in problem.set_mesh() is used as the starting point.
+        higher accuracy and automatic mesh optimization for each phase. The initial
+        meshes specified in each phase.set_mesh() are used as starting points.
     """
 
-    # Log major operation start with key parameters (INFO - user cares)
+    # Log major operation start with key parameters
     logger.info(
-        "Starting adaptive solve: problem='%s', tolerance=%.1e, max_iter=%d",
+        "Starting multiphase adaptive solve: problem='%s', tolerance=%.1e, max_iter=%d",
         problem.name,
         error_tolerance,
         max_iterations,
     )
 
-    # Log detailed parameters (DEBUG - developer info)
+    # Log detailed parameters
     logger.debug(
         "Adaptive parameters: poly_degree=[%d,%d], ode_tol=%.1e, sim_points=%d",
         min_polynomial_degree,
@@ -209,7 +232,7 @@ def solve_adaptive(
     validate_adaptive_solver_parameters(
         error_tolerance, max_iterations, min_polynomial_degree, max_polynomial_degree
     )
-    validate_problem_ready_for_solving(cast(ProblemProtocol, problem))
+    validate_multiphase_problem_ready_for_solving(cast(ProblemProtocol, problem))
 
     # Set default ODE solver if not provided
     if ode_solver is None:
@@ -218,26 +241,35 @@ def solve_adaptive(
         ode_solver = solve_ivp
         logger.debug("Using default ODE solver: scipy.integrate.solve_ivp")
 
-    # Extract initial mesh configuration
-    initial_polynomial_degrees = problem.collocation_points_per_interval
-    initial_mesh_points = problem.global_normalized_mesh_nodes
-
-    # Log initial mesh (DEBUG)
-    points_count = len(initial_mesh_points) if initial_mesh_points is not None else 0
-    logger.debug("Initial mesh: degrees=%s, points=%d", initial_polynomial_degrees, points_count)
-
     # Set solver options
     problem.solver_options = nlp_options or DEFAULT_NLP_OPTIONS
     protocol_problem = cast(ProblemProtocol, problem)
-    initial_guess = problem.initial_guess
 
-    # Call adaptive algorithm
-    from trajectolab.adaptive.phs.algorithm import solve_phs_adaptive_internal
+    # Use provided initial guess or problem's guess
+    if initial_guess is not None:
+        protocol_problem.initial_guess = initial_guess
+    else:
+        initial_guess = problem.initial_guess
 
-    solution_data: OptimalControlSolution = solve_phs_adaptive_internal(
+    # Log initial mesh configurations
+    if logger.isEnabledFor(logging.DEBUG):
+        for phase_id in problem.get_phase_ids():
+            phase_def = problem._phases[phase_id]
+            if phase_def.mesh_configured:
+                logger.debug(
+                    "Phase %d initial mesh: degrees=%s, points=%d",
+                    phase_id,
+                    phase_def.collocation_points_per_interval,
+                    len(phase_def.global_normalized_mesh_nodes)
+                    if phase_def.global_normalized_mesh_nodes is not None
+                    else 0,
+                )
+
+    # Call multiphase adaptive algorithm
+    from trajectolab.adaptive.multiphase_phs.algorithm import solve_multiphase_phs_adaptive_internal
+
+    solution_data: OptimalControlSolution = solve_multiphase_phs_adaptive_internal(
         problem=protocol_problem,
-        initial_polynomial_degrees=initial_polynomial_degrees,
-        initial_mesh_points=np.array(initial_mesh_points, dtype=np.float64),
         error_tolerance=error_tolerance,
         max_iterations=max_iterations,
         min_polynomial_degree=min_polynomial_degree,
@@ -250,15 +282,17 @@ def solve_adaptive(
         initial_guess=initial_guess,
     )
 
-    # Log final result (INFO - user cares about convergence)
+    # Log final result
     if solution_data.success:
-        final_intervals = len(solution_data.num_collocation_nodes_per_interval)
+        total_intervals = sum(
+            len(intervals) for intervals in solution_data.phase_mesh_intervals.values()
+        )
         logger.info(
-            "Adaptive solve converged: objective=%.6e, final_intervals=%d",
+            "Multiphase adaptive solve converged: objective=%.6e, total_intervals=%d",
             solution_data.objective or 0.0,
-            final_intervals,
+            total_intervals,
         )
     else:
-        logger.warning("Adaptive solve failed: %s", solution_data.message)
+        logger.warning("Multiphase adaptive solve failed: %s", solution_data.message)
 
     return Solution(solution_data, protocol_problem)

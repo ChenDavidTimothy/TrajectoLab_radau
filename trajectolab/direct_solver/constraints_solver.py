@@ -1,5 +1,6 @@
+# trajectolab/direct_solver/constraints_solver.py
 """
-Constraint application functions for collocation, path, and event constraints.
+Constraint application functions for multiphase collocation, path, and event constraints.
 """
 
 from collections.abc import Callable, Sequence
@@ -11,6 +12,7 @@ from trajectolab.radau import RadauBasisComponents
 from trajectolab.tl_types import (
     Constraint,
     FloatArray,
+    PhaseID,
     ProblemProtocol,
 )
 
@@ -25,8 +27,9 @@ def apply_constraint(opti: ca.Opti, constraint: Constraint) -> None:
         opti.subject_to(constraint.val == constraint.equals)
 
 
-def apply_collocation_constraints(
+def apply_phase_collocation_constraints(
     opti: ca.Opti,
+    phase_id: PhaseID,
     mesh_interval_index: int,
     state_at_nodes: ca.MX,
     control_variables: ca.MX,
@@ -37,7 +40,7 @@ def apply_collocation_constraints(
     dynamics_function: Callable[..., list[ca.MX]],
     problem: ProblemProtocol | None = None,
 ) -> None:
-    """Apply collocation constraints for a single mesh interval using differential form."""
+    """Apply collocation constraints for a single mesh interval within a phase."""
     num_colloc_nodes = len(basis_components.collocation_nodes)
     colloc_nodes_tau = basis_components.collocation_nodes.flatten()
     diff_matrix: ca.DM = ca.DM(basis_components.differentiation_matrix)
@@ -99,8 +102,9 @@ def apply_collocation_constraints(
         )
 
 
-def apply_path_constraints(
+def apply_phase_path_constraints(
     opti: ca.Opti,
+    phase_id: PhaseID,
     mesh_interval_index: int,
     state_at_nodes: ca.MX,
     control_variables: ca.MX,
@@ -111,7 +115,7 @@ def apply_path_constraints(
     path_constraints_function: Callable[..., list[Constraint]],
     problem: ProblemProtocol | None = None,
 ) -> None:
-    """Apply path constraints for a single mesh interval."""
+    """Apply path constraints for a single mesh interval within a phase."""
     num_colloc_nodes = len(basis_components.collocation_nodes)
     colloc_nodes_tau = basis_components.collocation_nodes.flatten()
     global_segment_length = (
@@ -154,33 +158,29 @@ def apply_path_constraints(
             apply_constraint(opti, constraint)
 
 
-def apply_event_constraints(
+def apply_multiphase_cross_phase_event_constraints(
     opti: ca.Opti,
-    initial_time_variable: ca.MX,
-    terminal_time_variable: ca.MX,
-    initial_state: ca.MX,
-    terminal_state: ca.MX,
-    integral_variables: ca.MX | None,
+    phase_endpoint_data: dict[PhaseID, dict[str, ca.MX]],
+    static_parameters: ca.MX | None,
     problem: ProblemProtocol,
 ) -> None:
-    """Apply event constraints to the optimization problem."""
-    event_constraints_function = problem.get_event_constraints_function()
-    if event_constraints_function is None:
+    """Apply cross-phase event constraints to the multiphase optimization problem."""
+    cross_phase_constraints_function = problem.get_cross_phase_event_constraints_function()
+    if cross_phase_constraints_function is None:
         return
 
-    event_constraints_result: list[Constraint] | Constraint = event_constraints_function(
-        initial_time_variable,
-        terminal_time_variable,
-        initial_state,
-        terminal_state,
-        integral_variables,
+    cross_phase_constraints_result: list[Constraint] | Constraint = (
+        cross_phase_constraints_function(
+            phase_endpoint_data,
+            static_parameters,
+        )
     )
 
-    event_constraints_to_apply = (
-        event_constraints_result
-        if isinstance(event_constraints_result, list)
-        else [event_constraints_result]
+    constraints_to_apply = (
+        cross_phase_constraints_result
+        if isinstance(cross_phase_constraints_result, list)
+        else [cross_phase_constraints_result]
     )
 
-    for event_constraint in event_constraints_to_apply:
-        apply_constraint(opti, event_constraint)
+    for constraint in constraints_to_apply:
+        apply_constraint(opti, constraint)

@@ -1,5 +1,6 @@
+# trajectolab/problem/variables_problem.py
 """
-Variable creation and management functions for optimal control problem definition.
+Variable creation and management functions for multiphase optimal control problem definition.
 """
 
 from __future__ import annotations
@@ -8,7 +9,13 @@ from typing import Any, cast
 
 import casadi as ca
 
-from .state import ConstraintInput, VariableState, _BoundaryConstraint
+from .state import (
+    ConstraintInput,
+    MultiPhaseVariableState,
+    PhaseDefinition,
+    StaticParameterState,
+    _BoundaryConstraint,
+)
 
 
 def _extract_casadi_symbol(expr: Any) -> ca.MX:
@@ -139,15 +146,15 @@ class StateVariableImpl(_SymbolicVariableBase):
         return self._sym_final
 
 
-def create_time_variable(
-    state: VariableState,
+def create_phase_time_variable(
+    phase_def: PhaseDefinition,
     initial: ConstraintInput = 0.0,
     final: ConstraintInput = None,
 ) -> TimeVariableImpl:
-    """Create time variable with unified constraint specification."""
-    sym_time = ca.MX.sym("t", 1)  # type: ignore[arg-type]
-    sym_t0 = ca.MX.sym("t0", 1)  # type: ignore[arg-type]
-    sym_tf = ca.MX.sym("tf", 1)  # type: ignore[arg-type]
+    """Create time variable for a specific phase."""
+    sym_time = ca.MX.sym(f"t_p{phase_def.phase_id}", 1)  # type: ignore[arg-type]
+    sym_t0 = ca.MX.sym(f"t0_p{phase_def.phase_id}", 1)  # type: ignore[arg-type]
+    sym_tf = ca.MX.sym(f"tf_p{phase_def.phase_id}", 1)  # type: ignore[arg-type]
 
     if initial is None:
         initial = 0.0
@@ -156,37 +163,39 @@ def create_time_variable(
         t0_constraint = _BoundaryConstraint(initial)
         tf_constraint = _BoundaryConstraint(final)
     except (ValueError, TypeError) as e:
-        raise ValueError(f"Invalid time constraint: {e}") from e
+        raise ValueError(f"Invalid time constraint for phase {phase_def.phase_id}: {e}") from e
 
-    state.t0_constraint = t0_constraint
-    state.tf_constraint = tf_constraint
-    state.sym_time = sym_time
-    state.sym_time_initial = sym_t0
-    state.sym_time_final = sym_tf
+    phase_def.t0_constraint = t0_constraint
+    phase_def.tf_constraint = tf_constraint
+    phase_def.sym_time = sym_time
+    phase_def.sym_time_initial = sym_t0
+    phase_def.sym_time_final = sym_tf
 
     return TimeVariableImpl(sym_time, sym_t0, sym_tf)
 
 
-def create_state_variable(
-    state: VariableState,
+def create_phase_state_variable(
+    phase_def: PhaseDefinition,
     name: str,
     initial: ConstraintInput = None,
     final: ConstraintInput = None,
     boundary: ConstraintInput = None,
 ) -> StateVariableImpl:
-    """Create a state variable with unified constraint specification and initial/final properties."""
-    sym_var = ca.MX.sym(name, 1)  # type: ignore[arg-type]
-    sym_initial = ca.MX.sym(f"{name}_initial", 1)  # type: ignore[arg-type]
-    sym_final = ca.MX.sym(f"{name}_final", 1)  # type: ignore[arg-type]
+    """Create a state variable for a specific phase."""
+    sym_var = ca.MX.sym(f"{name}_p{phase_def.phase_id}", 1)  # type: ignore[arg-type]
+    sym_initial = ca.MX.sym(f"{name}_initial_p{phase_def.phase_id}", 1)  # type: ignore[arg-type]
+    sym_final = ca.MX.sym(f"{name}_final_p{phase_def.phase_id}", 1)  # type: ignore[arg-type]
 
     try:
         initial_constraint = _BoundaryConstraint(initial) if initial is not None else None
         final_constraint = _BoundaryConstraint(final) if final is not None else None
         boundary_constraint = _BoundaryConstraint(boundary) if boundary is not None else None
     except (ValueError, TypeError) as e:
-        raise ValueError(f"Invalid constraint for state '{name}': {e}") from e
+        raise ValueError(
+            f"Invalid constraint for state '{name}' in phase {phase_def.phase_id}: {e}"
+        ) from e
 
-    state.add_state(
+    phase_def.add_state(
         name=name,
         symbol=sym_var,
         initial_symbol=sym_initial,
@@ -199,20 +208,22 @@ def create_state_variable(
     return StateVariableImpl(sym_var, sym_initial, sym_final)
 
 
-def create_control_variable(
-    state: VariableState,
+def create_phase_control_variable(
+    phase_def: PhaseDefinition,
     name: str,
     boundary: ConstraintInput = None,
 ) -> ca.MX:
-    """Create a control variable with path constraint specification."""
-    sym_var = ca.MX.sym(name, 1)  # type: ignore[arg-type]
+    """Create a control variable for a specific phase."""
+    sym_var = ca.MX.sym(f"{name}_p{phase_def.phase_id}", 1)  # type: ignore[arg-type]
 
     try:
         boundary_constraint = _BoundaryConstraint(boundary) if boundary is not None else None
     except (ValueError, TypeError) as e:
-        raise ValueError(f"Invalid boundary constraint for control '{name}': {e}") from e
+        raise ValueError(
+            f"Invalid boundary constraint for control '{name}' in phase {phase_def.phase_id}: {e}"
+        ) from e
 
-    state.add_control(
+    phase_def.add_control(
         name=name,
         symbol=sym_var,
         boundary_constraint=boundary_constraint,
@@ -221,13 +232,35 @@ def create_control_variable(
     return sym_var
 
 
-def set_dynamics(
-    state: VariableState, dynamics_dict: dict[ca.MX | StateVariableImpl, ca.MX | float | int]
-) -> None:
-    """Set dynamics expressions with improved error handling."""
-    ordered_state_symbols = state.get_ordered_state_symbols()
+def create_static_parameter(
+    static_params: StaticParameterState,
+    name: str,
+    boundary: ConstraintInput = None,
+) -> ca.MX:
+    """Create a static parameter that spans across all phases."""
+    sym_var = ca.MX.sym(f"param_{name}", 1)  # type: ignore[arg-type]
 
-    # Validate that all keys are known state variables
+    try:
+        boundary_constraint = _BoundaryConstraint(boundary) if boundary is not None else None
+    except (ValueError, TypeError) as e:
+        raise ValueError(f"Invalid boundary constraint for parameter '{name}': {e}") from e
+
+    static_params.add_parameter(
+        name=name,
+        symbol=sym_var,
+        boundary_constraint=boundary_constraint,
+    )
+
+    return sym_var
+
+
+def set_phase_dynamics(
+    phase_def: PhaseDefinition, dynamics_dict: dict[ca.MX | StateVariableImpl, ca.MX | float | int]
+) -> None:
+    """Set dynamics expressions for a specific phase."""
+    ordered_state_symbols = phase_def.get_ordered_state_symbols()
+
+    # Validate that all keys are known state variables for this phase
     for state_sym in dynamics_dict.keys():
         found = False
         underlying_sym = _extract_casadi_symbol(state_sym)
@@ -238,21 +271,21 @@ def set_dynamics(
                 break
 
         if not found:
-            raise ValueError("Dynamics provided for undefined state variable")
+            raise ValueError(
+                f"Dynamics provided for undefined state variable in phase {phase_def.phase_id}"
+            )
 
-    # Convert expressions with better error handling
+    # Convert expressions
     converted_dict = {}
     for key, value in dynamics_dict.items():
         storage_key = _extract_casadi_symbol(key)
 
         try:
-            # Let CasADi handle the conversion
             if isinstance(value, ca.MX):
                 storage_value = value
             else:
                 storage_value = ca.MX(value)
         except Exception as e:
-            # Provide helpful error messages for common mistakes
             if callable(value):
                 raise ValueError(
                     f"Dynamics expression appears to be a function {value}. "
@@ -266,16 +299,15 @@ def set_dynamics(
 
         converted_dict[storage_key] = storage_value
 
-    state.dynamics_expressions = converted_dict
+    phase_def.dynamics_expressions = converted_dict
 
 
-def add_integral(state: VariableState, integrand_expr: ca.MX | float | int) -> ca.MX:
-    """Add an integral expression with improved error handling."""
-    integral_name = f"integral_{len(state.integral_expressions)}"
+def add_phase_integral(phase_def: PhaseDefinition, integrand_expr: ca.MX | float | int) -> ca.MX:
+    """Add an integral expression for a specific phase."""
+    integral_name = f"integral_{len(phase_def.integral_expressions)}_p{phase_def.phase_id}"
     integral_sym = ca.MX.sym(integral_name, 1)  # type: ignore[arg-type]
 
     try:
-        # Let CasADi handle the conversion
         if isinstance(integrand_expr, ca.MX):
             pure_expr = integrand_expr
         else:
@@ -292,17 +324,18 @@ def add_integral(state: VariableState, integrand_expr: ca.MX | float | int) -> c
                 f"Original error: {e}"
             ) from e
 
-    state.integral_expressions.append(pure_expr)
-    state.integral_symbols.append(integral_sym)
-    state.num_integrals = len(state.integral_expressions)
+    phase_def.integral_expressions.append(pure_expr)
+    phase_def.integral_symbols.append(integral_sym)
+    phase_def.num_integrals = len(phase_def.integral_expressions)
 
     return integral_sym
 
 
-def set_objective(state: VariableState, objective_expr: ca.MX | float | int) -> None:
-    """Set the objective expression with improved error handling."""
+def set_multiphase_objective(
+    multiphase_state: MultiPhaseVariableState, objective_expr: ca.MX | float | int
+) -> None:
+    """Set the multiphase objective expression."""
     try:
-        # Let CasADi handle the conversion
         if isinstance(objective_expr, ca.MX):
             pure_expr = objective_expr
         else:
@@ -319,4 +352,4 @@ def set_objective(state: VariableState, objective_expr: ca.MX | float | int) -> 
                 f"Original error: {e}"
             ) from e
 
-    state.objective_expression = pure_expr
+    multiphase_state.objective_expression = pure_expr

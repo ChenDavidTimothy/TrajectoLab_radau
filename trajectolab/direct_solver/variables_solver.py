@@ -1,5 +1,6 @@
+# trajectolab/direct_solver/variables_solver.py
 """
-Optimization variable setup and configuration for the direct solver.
+Optimization variable setup and configuration for the multiphase direct solver.
 """
 
 import casadi as ca
@@ -7,45 +8,77 @@ import casadi as ca
 from ..exceptions import DataIntegrityError
 from ..input_validation import (
     validate_casadi_optimization_object,
-    validate_mesh_interval_count,
 )
-from ..tl_types import ProblemProtocol
+from ..tl_types import PhaseID, ProblemProtocol
 from ..utils.constants import MINIMUM_TIME_INTERVAL
-from .types_solver import VariableReferences, _IntervalBundle
+from .types_solver import (
+    MultiPhaseVariableReferences,
+    PhaseVariableReferences,
+    _PhaseIntervalBundle,
+)
 
 
-def setup_optimization_variables(
+def setup_multiphase_optimization_variables(
     opti: ca.Opti,
     problem: ProblemProtocol,
-    num_mesh_intervals: int,
-) -> VariableReferences:
+) -> MultiPhaseVariableReferences:
     """
-    Set up all optimization variables for the problem.
+    Set up all optimization variables for multiphase problem following CGPOPS structure.
 
-    NOTE: Assumes comprehensive validation already done by validate_problem_ready_for_solving()
+    Creates unified NLP decision vector: z = [z^(1), z^(2), ..., z^(P), s_1, ..., s_n_s]
+    where each z^(p) = [Y^(p), U^(p), Q^(p), t_0^(p), t_f^(p)]
     """
-    # Only validate things not covered by comprehensive validation
-    validate_casadi_optimization_object(opti, "variable setup")
-    validate_mesh_interval_count(num_mesh_intervals, "mesh intervals")
+    validate_casadi_optimization_object(opti, "multiphase variable setup")
 
-    # Get variable counts (already validated)
-    num_states, num_controls = problem.get_variable_counts()
-    num_integrals = problem._num_integrals
+    multiphase_vars = MultiPhaseVariableReferences()
 
-    # Data integrity check (internal consistency, not user configuration)
-    if len(problem.collocation_points_per_interval) != num_mesh_intervals:
-        raise DataIntegrityError(
-            f"Collocation points count ({len(problem.collocation_points_per_interval)}) doesn't match mesh intervals ({num_mesh_intervals})",
-            "TrajectoLab mesh configuration inconsistency",
+    # Set up variables for each phase in order
+    phase_ids = problem.get_phase_ids()
+    for phase_id in phase_ids:
+        phase_vars = _setup_phase_optimization_variables(opti, problem, phase_id)
+        multiphase_vars.phase_variables[phase_id] = phase_vars
+
+    # Set up static parameters
+    total_states, total_controls, num_static_params = problem.get_total_variable_counts()
+    if num_static_params > 0:
+        multiphase_vars.static_parameters = _create_static_parameter_variables(
+            opti, num_static_params
         )
 
-    # Create optimization variables
-    initial_time, terminal_time = _create_time_variables(opti, problem)
-    state_at_mesh_nodes = _create_global_state_variables(opti, num_states, num_mesh_intervals)
-    control_variables = _create_control_variables(opti, problem, num_mesh_intervals)
-    integral_variables = _create_integral_variables(opti, num_integrals)
+    return multiphase_vars
 
-    return VariableReferences(
+
+def _setup_phase_optimization_variables(
+    opti: ca.Opti,
+    problem: ProblemProtocol,
+    phase_id: PhaseID,
+) -> PhaseVariableReferences:
+    """Set up optimization variables for a single phase."""
+    # Get phase information
+    num_states, num_controls = problem.get_phase_variable_counts(phase_id)
+
+    # Get phase mesh information (assuming this is available through problem protocol)
+    phase_def = problem._phases[phase_id]  # Access internal phase definition
+    num_mesh_intervals = len(phase_def.collocation_points_per_interval)
+    num_integrals = phase_def.num_integrals
+
+    # Data integrity check
+    if len(phase_def.collocation_points_per_interval) != num_mesh_intervals:
+        raise DataIntegrityError(
+            f"Phase {phase_id} collocation points count doesn't match mesh intervals",
+            "TrajectoLab phase mesh configuration inconsistency",
+        )
+
+    # Create phase optimization variables
+    initial_time, terminal_time = _create_phase_time_variables(opti, problem, phase_id)
+    state_at_mesh_nodes = _create_phase_global_state_variables(
+        opti, num_states, num_mesh_intervals, phase_id
+    )
+    control_variables = _create_phase_control_variables(opti, problem, phase_id, num_mesh_intervals)
+    integral_variables = _create_phase_integral_variables(opti, num_integrals, phase_id)
+
+    return PhaseVariableReferences(
+        phase_id=phase_id,
         initial_time=initial_time,
         terminal_time=terminal_time,
         state_at_mesh_nodes=state_at_mesh_nodes,
@@ -54,35 +87,33 @@ def setup_optimization_variables(
     )
 
 
-def setup_interval_state_variables(
+def setup_phase_interval_state_variables(
     opti: ca.Opti,
+    phase_id: PhaseID,
     mesh_interval_index: int,
     num_states: int,
     num_colloc_nodes: int,
     state_at_global_mesh_nodes: list[ca.MX],
-) -> _IntervalBundle:
+) -> _PhaseIntervalBundle:
     """
-    Set up state variables for a single mesh interval.
-
-    NOTE: Basic parameter validation assumed already done at entry point
+    Set up state variables for a single mesh interval within a phase.
     """
-    # Only validate specific context that wasn't covered by entry point validation
     if mesh_interval_index < 0:
         raise DataIntegrityError(
-            f"Mesh interval index cannot be negative: {mesh_interval_index}",
+            f"Phase {phase_id} mesh interval index cannot be negative: {mesh_interval_index}",
             "TrajectoLab interval setup error",
         )
 
-    # Data integrity checks (internal consistency)
+    # Data integrity checks
     if mesh_interval_index >= len(state_at_global_mesh_nodes):
         raise DataIntegrityError(
-            f"Mesh interval index {mesh_interval_index} exceeds available mesh nodes ({len(state_at_global_mesh_nodes)})",
+            f"Phase {phase_id} mesh interval index {mesh_interval_index} exceeds available mesh nodes ({len(state_at_global_mesh_nodes)})",
             "TrajectoLab interval setup inconsistency",
         )
 
     if (mesh_interval_index + 1) >= len(state_at_global_mesh_nodes):
         raise DataIntegrityError(
-            f"Terminal mesh node for interval {mesh_interval_index} not available",
+            f"Phase {phase_id} terminal mesh node for interval {mesh_interval_index} not available",
             "TrajectoLab interval setup inconsistency",
         )
 
@@ -100,7 +131,8 @@ def setup_interval_state_variables(
             interior_nodes_var = opti.variable(num_states, num_interior_nodes)
             if interior_nodes_var is None:
                 raise DataIntegrityError(
-                    "Failed to create interior_nodes_var", "CasADi variable creation failure"
+                    f"Failed to create interior_nodes_var for phase {phase_id}",
+                    "CasADi variable creation failure",
                 )
             for i in range(num_interior_nodes):
                 state_columns[i + 1] = interior_nodes_var[:, i]
@@ -115,46 +147,41 @@ def setup_interval_state_variables(
     return state_matrix, interior_nodes_var
 
 
-def _create_time_variables(opti: ca.Opti, problem: ProblemProtocol) -> tuple[ca.MX, ca.MX]:
-    """
-    Create time variables with bounds.
+def _create_phase_time_variables(
+    opti: ca.Opti, problem: ProblemProtocol, phase_id: PhaseID
+) -> tuple[ca.MX, ca.MX]:
+    """Create time variables for a specific phase with bounds."""
+    # Get phase time bounds
+    phase_def = problem._phases[phase_id]
+    t0_bounds = phase_def.t0_bounds
+    tf_bounds = phase_def.tf_bounds
 
-    NOTE: Time bounds validation assumed already done by validate_problem_ready_for_solving()
-    """
-    # Get time bounds (already validated)
-    t0_bounds = problem._t0_bounds
-    tf_bounds = problem._tf_bounds
-
-    # Create CasADi variables
+    # Create CasADi variables with phase-specific names
     initial_time_variable: ca.MX = opti.variable()
     terminal_time_variable: ca.MX = opti.variable()
 
-    # Data integrity check (CasADi interface)
     if initial_time_variable is None or terminal_time_variable is None:
         raise DataIntegrityError(
-            "Failed to create time variables", "CasADi variable creation failure"
+            f"Failed to create time variables for phase {phase_id}",
+            "CasADi variable creation failure",
         )
 
     # Apply initial time bounds
     if t0_bounds[0] == t0_bounds[1]:
-        # Fixed initial time
         opti.subject_to(initial_time_variable == t0_bounds[0])
     else:
-        # Range constraint for initial time
-        if t0_bounds[0] > -1e5:  # Not unbounded below
+        if t0_bounds[0] > -1e5:
             opti.subject_to(initial_time_variable >= t0_bounds[0])
-        if t0_bounds[1] < 1e5:  # Not unbounded above
+        if t0_bounds[1] < 1e5:
             opti.subject_to(initial_time_variable <= t0_bounds[1])
 
     # Apply final time bounds
     if tf_bounds[0] == tf_bounds[1]:
-        # Fixed final time
         opti.subject_to(terminal_time_variable == tf_bounds[0])
     else:
-        # Range constraint for final time
-        if tf_bounds[0] > -1e5:  # Not unbounded below
+        if tf_bounds[0] > -1e5:
             opti.subject_to(terminal_time_variable >= tf_bounds[0])
-        if tf_bounds[1] < 1e5:  # Not unbounded above
+        if tf_bounds[1] < 1e5:
             opti.subject_to(terminal_time_variable <= tf_bounds[1])
 
     # Always enforce minimum time interval
@@ -163,21 +190,16 @@ def _create_time_variables(opti: ca.Opti, problem: ProblemProtocol) -> tuple[ca.
     return initial_time_variable, terminal_time_variable
 
 
-def _create_global_state_variables(
-    opti: ca.Opti, num_states: int, num_mesh_intervals: int
+def _create_phase_global_state_variables(
+    opti: ca.Opti, num_states: int, num_mesh_intervals: int, phase_id: PhaseID
 ) -> list[ca.MX]:
-    """
-    Create state variables at global mesh nodes.
-
-    NOTE: Parameter validation assumed already done
-    """
-    # Create state variables at mesh nodes (num_intervals + 1 nodes)
+    """Create state variables at global mesh nodes for a specific phase."""
     state_variables = []
     for i in range(num_mesh_intervals + 1):
         state_var = opti.variable(num_states)
         if state_var is None:
             raise DataIntegrityError(
-                f"Failed to create state variable at mesh node {i}",
+                f"Failed to create state variable at mesh node {i} for phase {phase_id}",
                 "CasADi variable creation failure",
             )
         state_variables.append(state_var)
@@ -185,31 +207,28 @@ def _create_global_state_variables(
     return state_variables
 
 
-def _create_control_variables(
-    opti: ca.Opti, problem: ProblemProtocol, num_mesh_intervals: int
+def _create_phase_control_variables(
+    opti: ca.Opti, problem: ProblemProtocol, phase_id: PhaseID, num_mesh_intervals: int
 ) -> list[ca.MX]:
-    """
-    Create control variables for each interval.
+    """Create control variables for each interval in a specific phase."""
+    _, num_controls = problem.get_phase_variable_counts(phase_id)
+    phase_def = problem._phases[phase_id]
 
-    NOTE: Parameter validation assumed already done
-    """
-    _, num_controls = problem.get_variable_counts()
-
-    # Data integrity check (internal consistency)
-    if len(problem.collocation_points_per_interval) != num_mesh_intervals:
+    # Data integrity check
+    if len(phase_def.collocation_points_per_interval) != num_mesh_intervals:
         raise DataIntegrityError(
-            f"Collocation points configuration ({len(problem.collocation_points_per_interval)}) doesn't match mesh intervals ({num_mesh_intervals})",
+            f"Phase {phase_id} collocation points configuration doesn't match mesh intervals",
             "TrajectoLab mesh configuration inconsistency",
         )
 
     control_variables = []
     for k in range(num_mesh_intervals):
-        num_colloc_points = problem.collocation_points_per_interval[k]
+        num_colloc_points = phase_def.collocation_points_per_interval[k]
 
         control_var = opti.variable(num_controls, num_colloc_points)
         if control_var is None:
             raise DataIntegrityError(
-                f"Failed to create control variable for interval {k}",
+                f"Failed to create control variable for phase {phase_id} interval {k}",
                 "CasADi variable creation failure",
             )
         control_variables.append(control_var)
@@ -217,17 +236,28 @@ def _create_control_variables(
     return control_variables
 
 
-def _create_integral_variables(opti: ca.Opti, num_integrals: int) -> ca.MX | None:
-    """
-    Create integral variables if needed.
-
-    NOTE: Parameter validation assumed already done
-    """
+def _create_phase_integral_variables(
+    opti: ca.Opti, num_integrals: int, phase_id: PhaseID
+) -> ca.MX | None:
+    """Create integral variables for a specific phase if needed."""
     if num_integrals > 0:
         integral_var = opti.variable(num_integrals) if num_integrals > 1 else opti.variable()
         if integral_var is None:
             raise DataIntegrityError(
-                "Failed to create integral variables", "CasADi variable creation failure"
+                f"Failed to create integral variables for phase {phase_id}",
+                "CasADi variable creation failure",
             )
         return integral_var
     return None
+
+
+def _create_static_parameter_variables(opti: ca.Opti, num_static_params: int) -> ca.MX:
+    """Create static parameter variables that span all phases."""
+    static_params_var = (
+        opti.variable(num_static_params) if num_static_params > 1 else opti.variable()
+    )
+    if static_params_var is None:
+        raise DataIntegrityError(
+            "Failed to create static parameter variables", "CasADi variable creation failure"
+        )
+    return static_params_var

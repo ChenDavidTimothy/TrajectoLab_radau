@@ -1,5 +1,6 @@
+# trajectolab/problem/state.py
 """
-State management classes for variables, constraints, and mesh configuration.
+State management classes for multiphase variables, constraints, and mesh configuration.
 """
 
 from __future__ import annotations
@@ -11,7 +12,7 @@ import casadi as ca
 
 from ..exceptions import DataIntegrityError
 from ..input_validation import validate_constraint_input_format, validate_variable_name
-from ..tl_types import FloatArray
+from ..tl_types import FloatArray, PhaseID
 
 
 # Constraint input type definition
@@ -87,39 +88,44 @@ class _VariableInfo:
 
 
 @dataclass
-class VariableState:
-    """State for all variables and expressions - USES CENTRALIZED VALIDATION."""
+class PhaseDefinition:
+    """Complete definition of a single phase in multiphase optimal control problem."""
 
-    # UNIFIED STORAGE SYSTEM
-    _state_info: list[_VariableInfo] = field(default_factory=list)
-    _control_info: list[_VariableInfo] = field(default_factory=list)
-    _state_name_to_index: dict[str, int] = field(default_factory=dict)
-    _control_name_to_index: dict[str, int] = field(default_factory=dict)
-    _state_names: list[str] = field(default_factory=list)
-    _control_names: list[str] = field(default_factory=list)
-    _ordering_lock: threading.Lock = field(default_factory=threading.Lock)
+    phase_id: PhaseID
 
-    # Symbolic time variables
+    # Variable management
+    state_info: list[_VariableInfo] = field(default_factory=list)
+    control_info: list[_VariableInfo] = field(default_factory=list)
+    state_name_to_index: dict[str, int] = field(default_factory=dict)
+    control_name_to_index: dict[str, int] = field(default_factory=dict)
+    state_names: list[str] = field(default_factory=list)
+    control_names: list[str] = field(default_factory=list)
+
+    # Symbolic variables
     sym_time: ca.MX | None = None
     sym_time_initial: ca.MX | None = None
     sym_time_final: ca.MX | None = None
 
-    # Expressions
+    # Phase expressions
     dynamics_expressions: dict[ca.MX, ca.MX] = field(default_factory=dict)
-    objective_expression: ca.MX | None = None
+    path_constraints: list[ca.MX] = field(default_factory=list)
 
     # Integral tracking
     integral_expressions: list[ca.MX] = field(default_factory=list)
     integral_symbols: list[ca.MX] = field(default_factory=list)
     num_integrals: int = 0
 
-    # Time bounds (using unified constraint format)
+    # Time bounds
     t0_constraint: _BoundaryConstraint = field(default_factory=lambda: _BoundaryConstraint(0.0))
     tf_constraint: _BoundaryConstraint = field(default_factory=lambda: _BoundaryConstraint())
 
-    # ========================================================================
-    # UNIFIED VARIABLE MANAGEMENT - USES CENTRALIZED VALIDATION
-    # ========================================================================
+    # Mesh configuration
+    collocation_points_per_interval: list[int] = field(default_factory=list)
+    global_normalized_mesh_nodes: FloatArray | None = None
+    mesh_configured: bool = False
+
+    # Thread safety
+    _ordering_lock: threading.Lock = field(default_factory=threading.Lock)
 
     def add_state(
         self,
@@ -131,26 +137,24 @@ class VariableState:
         final_constraint: _BoundaryConstraint | None = None,
         boundary_constraint: _BoundaryConstraint | None = None,
     ) -> None:
-        """Add state variable to unified storage - USES CENTRALIZED VALIDATION."""
-        # CENTRALIZED VALIDATION - single call replaces scattered validation
+        """Add state variable to phase - USES CENTRALIZED VALIDATION."""
         validate_variable_name(name, "state")
 
-        # Data integrity check (not user configuration)
         if symbol is None:
             raise DataIntegrityError(
                 f"State symbol for '{name}' cannot be None", "TrajectoLab variable definition error"
             )
 
         with self._ordering_lock:
-            # Data integrity check (internal consistency)
-            if name in self._state_name_to_index:
+            if name in self.state_name_to_index:
                 raise DataIntegrityError(
-                    f"State '{name}' already exists", "TrajectoLab variable naming conflict"
+                    f"State '{name}' already exists in phase {self.phase_id}",
+                    "TrajectoLab variable naming conflict",
                 )
 
-            index = len(self._state_names)
-            self._state_name_to_index[name] = index
-            self._state_names.append(name)
+            index = len(self.state_names)
+            self.state_name_to_index[name] = index
+            self.state_names.append(name)
 
             try:
                 var_info = _VariableInfo(
@@ -161,11 +165,10 @@ class VariableState:
                     final_constraint=final_constraint,
                     boundary_constraint=boundary_constraint,
                 )
-                self._state_info.append(var_info)
+                self.state_info.append(var_info)
             except Exception as e:
-                # Clean up on failure
-                self._state_name_to_index.pop(name, None)
-                self._state_names.pop()
+                self.state_name_to_index.pop(name, None)
+                self.state_names.pop()
                 raise DataIntegrityError(
                     f"Failed to create state variable info for '{name}': {e}",
                     "TrajectoLab variable creation error",
@@ -177,11 +180,9 @@ class VariableState:
         symbol: ca.MX,
         boundary_constraint: _BoundaryConstraint | None = None,
     ) -> None:
-        """Add control variable to unified storage - USES CENTRALIZED VALIDATION."""
-        # CENTRALIZED VALIDATION - single call replaces scattered validation
+        """Add control variable to phase - USES CENTRALIZED VALIDATION."""
         validate_variable_name(name, "control")
 
-        # Data integrity check (not user configuration)
         if symbol is None:
             raise DataIntegrityError(
                 f"Control symbol for '{name}' cannot be None",
@@ -189,184 +190,104 @@ class VariableState:
             )
 
         with self._ordering_lock:
-            # Data integrity check (internal consistency)
-            if name in self._control_name_to_index:
+            if name in self.control_name_to_index:
                 raise DataIntegrityError(
-                    f"Control '{name}' already exists", "TrajectoLab variable naming conflict"
+                    f"Control '{name}' already exists in phase {self.phase_id}",
+                    "TrajectoLab variable naming conflict",
                 )
 
-            index = len(self._control_names)
-            self._control_name_to_index[name] = index
-            self._control_names.append(name)
+            index = len(self.control_names)
+            self.control_name_to_index[name] = index
+            self.control_names.append(name)
 
             try:
                 var_info = _VariableInfo(
                     symbol=symbol,
-                    initial_symbol=None,  # Controls don't have initial/final symbols
-                    final_symbol=None,  # Controls don't have initial/final symbols
-                    initial_constraint=None,  # Controls don't have initial constraints
-                    final_constraint=None,  # Controls don't have final constraints
+                    initial_symbol=None,
+                    final_symbol=None,
+                    initial_constraint=None,
+                    final_constraint=None,
                     boundary_constraint=boundary_constraint,
                 )
-                self._control_info.append(var_info)
+                self.control_info.append(var_info)
             except Exception as e:
-                # Clean up on failure
-                self._control_name_to_index.pop(name, None)
-                self._control_names.pop()
+                self.control_name_to_index.pop(name, None)
+                self.control_names.pop()
                 raise DataIntegrityError(
                     f"Failed to create control variable info for '{name}': {e}",
                     "TrajectoLab variable creation error",
                 ) from e
 
-    # ========================================================================
-    # EFFICIENT ACCESS METHODS - Data integrity validation only
-    # ========================================================================
+    def get_variable_counts(self) -> tuple[int, int]:
+        """Get (num_states, num_controls) with consistency validation."""
+        num_states = len(self.state_info)
+        num_controls = len(self.control_info)
+
+        if num_states != len(self.state_names):
+            raise DataIntegrityError(
+                f"Phase {self.phase_id} state count inconsistency: info={num_states}, names={len(self.state_names)}",
+                "TrajectoLab variable storage corruption",
+            )
+
+        if num_controls != len(self.control_names):
+            raise DataIntegrityError(
+                f"Phase {self.phase_id} control count inconsistency: info={num_controls}, names={len(self.control_names)}",
+                "TrajectoLab variable storage corruption",
+            )
+
+        return num_states, num_controls
 
     def get_ordered_state_symbols(self) -> list[ca.MX]:
         """Get state symbols in order - with data integrity validation."""
-        # Data integrity check (internal consistency)
-        if len(self._state_info) != len(self._state_names):
+        if len(self.state_info) != len(self.state_names):
             raise DataIntegrityError(
-                f"State info count ({len(self._state_info)}) doesn't match names count ({len(self._state_names)})",
+                f"Phase {self.phase_id} state info count ({len(self.state_info)}) doesn't match names count ({len(self.state_names)})",
                 "TrajectoLab variable storage inconsistency",
             )
 
-        return [info.symbol for info in self._state_info]
+        return [info.symbol for info in self.state_info]
+
+    def get_ordered_control_symbols(self) -> list[ca.MX]:
+        """Get control symbols in order - with data integrity validation."""
+        if len(self.control_info) != len(self.control_names):
+            raise DataIntegrityError(
+                f"Phase {self.phase_id} control info count ({len(self.control_info)}) doesn't match names count ({len(self.control_names)})",
+                "TrajectoLab variable storage inconsistency",
+            )
+
+        return [info.symbol for info in self.control_info]
 
     def get_ordered_state_initial_symbols(self) -> list[ca.MX]:
         """Get state initial symbols in order."""
-        # Data integrity check (internal consistency)
-        if len(self._state_info) != len(self._state_names):
-            raise DataIntegrityError(
-                f"State info count ({len(self._state_info)}) doesn't match names count ({len(self._state_names)})",
-                "TrajectoLab variable storage inconsistency",
-            )
-
         symbols = []
-        for info in self._state_info:
+        for info in self.state_info:
             if info.initial_symbol is None:
                 raise DataIntegrityError(
-                    "State initial symbol is None", "TrajectoLab state symbol corruption"
+                    f"Phase {self.phase_id} state initial symbol is None",
+                    "TrajectoLab state symbol corruption",
                 )
             symbols.append(info.initial_symbol)
         return symbols
 
     def get_ordered_state_final_symbols(self) -> list[ca.MX]:
         """Get state final symbols in order."""
-        # Data integrity check (internal consistency)
-        if len(self._state_info) != len(self._state_names):
-            raise DataIntegrityError(
-                f"State info count ({len(self._state_info)}) doesn't match names count ({len(self._state_names)})",
-                "TrajectoLab variable storage inconsistency",
-            )
-
         symbols = []
-        for info in self._state_info:
+        for info in self.state_info:
             if info.final_symbol is None:
                 raise DataIntegrityError(
-                    "State final symbol is None", "TrajectoLab state symbol corruption"
+                    f"Phase {self.phase_id} state final symbol is None",
+                    "TrajectoLab state symbol corruption",
                 )
             symbols.append(info.final_symbol)
         return symbols
 
-    def get_ordered_control_symbols(self) -> list[ca.MX]:
-        """Get control symbols in order - with data integrity validation."""
-        # Data integrity check (internal consistency)
-        if len(self._control_info) != len(self._control_names):
-            raise DataIntegrityError(
-                f"Control info count ({len(self._control_info)}) doesn't match names count ({len(self._control_names)})",
-                "TrajectoLab variable storage inconsistency",
-            )
-
-        return [info.symbol for info in self._control_info]
-
-    def get_ordered_state_names(self) -> list[str]:
-        """Get state names in order."""
-        return self._state_names.copy()
-
-    def get_ordered_control_names(self) -> list[str]:
-        """Get control names in order."""
-        return self._control_names.copy()
-
-    def get_variable_counts(self) -> tuple[int, int]:
-        """Get (num_states, num_controls) with consistency validation."""
-        num_states = len(self._state_info)
-        num_controls = len(self._control_info)
-
-        # Data integrity checks (internal consistency)
-        if num_states != len(self._state_names):
-            raise DataIntegrityError(
-                f"State count inconsistency: info={num_states}, names={len(self._state_names)}",
-                "TrajectoLab variable storage corruption",
-            )
-
-        if num_controls != len(self._control_names):
-            raise DataIntegrityError(
-                f"Control count inconsistency: info={num_controls}, names={len(self._control_names)}",
-                "TrajectoLab variable storage corruption",
-            )
-
-        return num_states, num_controls
-
-    # ========================================================================
-    # UNIFIED CONSTRAINT ACCESS METHODS - Data integrity validation only
-    # ========================================================================
-
-    def get_state_initial_constraints(self) -> list[_BoundaryConstraint | None]:
-        """Get initial state constraints in order with validation."""
-        # Data integrity check (internal consistency)
-        if len(self._state_info) != len(self._state_names):
-            raise DataIntegrityError(
-                "State constraint access failed due to storage inconsistency",
-                "TrajectoLab variable storage corruption",
-            )
-
-        return [info.initial_constraint for info in self._state_info]
-
-    def get_state_final_constraints(self) -> list[_BoundaryConstraint | None]:
-        """Get final state constraints in order with validation."""
-        # Data integrity check (internal consistency)
-        if len(self._state_info) != len(self._state_names):
-            raise DataIntegrityError(
-                "State constraint access failed due to storage inconsistency",
-                "TrajectoLab variable storage corruption",
-            )
-
-        return [info.final_constraint for info in self._state_info]
-
-    def get_state_boundary_constraints(self) -> list[_BoundaryConstraint | None]:
-        """Get boundary state constraints in order with validation."""
-        # Data integrity check (internal consistency)
-        if len(self._state_info) != len(self._state_names):
-            raise DataIntegrityError(
-                "State constraint access failed due to storage inconsistency",
-                "TrajectoLab variable storage corruption",
-            )
-
-        return [info.boundary_constraint for info in self._state_info]
-
-    def get_control_boundary_constraints(self) -> list[_BoundaryConstraint | None]:
-        """Get boundary control constraints in order with validation."""
-        # Data integrity check (internal consistency)
-        if len(self._control_info) != len(self._control_names):
-            raise DataIntegrityError(
-                "Control constraint access failed due to storage inconsistency",
-                "TrajectoLab variable storage corruption",
-            )
-
-        return [info.boundary_constraint for info in self._control_info]
-
-    # ========================================================================
-    # TIME BOUNDS ACCESS - Data integrity validation only
-    # ========================================================================
-
     @property
     def t0_bounds(self) -> tuple[float, float]:
         """Get time initial bounds as tuple for compatibility."""
-        # Data integrity check (internal consistency)
         if self.t0_constraint is None:
             raise DataIntegrityError(
-                "Initial time constraint is None", "TrajectoLab time bounds corruption"
+                f"Phase {self.phase_id} initial time constraint is None",
+                "TrajectoLab time bounds corruption",
             )
 
         if self.t0_constraint.equals is not None:
@@ -379,10 +300,10 @@ class VariableState:
     @property
     def tf_bounds(self) -> tuple[float, float]:
         """Get time final bounds as tuple for compatibility."""
-        # Data integrity check (internal consistency)
         if self.tf_constraint is None:
             raise DataIntegrityError(
-                "Final time constraint is None", "TrajectoLab time bounds corruption"
+                f"Phase {self.phase_id} final time constraint is None",
+                "TrajectoLab time bounds corruption",
             )
 
         if self.tf_constraint.equals is not None:
@@ -394,40 +315,93 @@ class VariableState:
 
 
 @dataclass
-class ConstraintState:
-    """State for constraints."""
+class StaticParameterState:
+    """State for static parameters that span across all phases."""
 
-    constraints: list[ca.MX] = field(default_factory=list)
+    parameter_info: list[_VariableInfo] = field(default_factory=list)
+    parameter_name_to_index: dict[str, int] = field(default_factory=dict)
+    parameter_names: list[str] = field(default_factory=list)
+    _ordering_lock: threading.Lock = field(default_factory=threading.Lock)
+
+    def add_parameter(
+        self,
+        name: str,
+        symbol: ca.MX,
+        boundary_constraint: _BoundaryConstraint | None = None,
+    ) -> None:
+        """Add static parameter - USES CENTRALIZED VALIDATION."""
+        validate_variable_name(name, "parameter")
+
+        if symbol is None:
+            raise DataIntegrityError(
+                f"Parameter symbol for '{name}' cannot be None",
+                "TrajectoLab variable definition error",
+            )
+
+        with self._ordering_lock:
+            if name in self.parameter_name_to_index:
+                raise DataIntegrityError(
+                    f"Parameter '{name}' already exists", "TrajectoLab variable naming conflict"
+                )
+
+            index = len(self.parameter_names)
+            self.parameter_name_to_index[name] = index
+            self.parameter_names.append(name)
+
+            try:
+                var_info = _VariableInfo(
+                    symbol=symbol,
+                    initial_symbol=None,
+                    final_symbol=None,
+                    initial_constraint=None,
+                    final_constraint=None,
+                    boundary_constraint=boundary_constraint,
+                )
+                self.parameter_info.append(var_info)
+            except Exception as e:
+                self.parameter_name_to_index.pop(name, None)
+                self.parameter_names.pop()
+                raise DataIntegrityError(
+                    f"Failed to create parameter variable info for '{name}': {e}",
+                    "TrajectoLab variable creation error",
+                ) from e
+
+    def get_parameter_count(self) -> int:
+        """Get number of static parameters."""
+        return len(self.parameter_info)
+
+    def get_ordered_parameter_symbols(self) -> list[ca.MX]:
+        """Get parameter symbols in order."""
+        return [info.symbol for info in self.parameter_info]
 
 
 @dataclass
-class MeshState:
-    """State for mesh configuration."""
+class MultiPhaseVariableState:
+    """Complete variable state for multiphase optimal control problems."""
 
-    collocation_points_per_interval: list[int] = field(default_factory=list)
-    global_normalized_mesh_nodes: FloatArray | None = None
-    configured: bool = False
+    phases: dict[PhaseID, PhaseDefinition] = field(default_factory=dict)
+    static_parameters: StaticParameterState = field(default_factory=StaticParameterState)
+    cross_phase_constraints: list[ca.MX] = field(default_factory=list)
+    objective_expression: ca.MX | None = None
 
-    def __post_init__(self) -> None:
-        """Validate mesh state after initialization - data integrity only."""
-        # Data integrity checks (internal consistency)
-        if not isinstance(self.collocation_points_per_interval, list):
+    def add_phase(self, phase_id: PhaseID) -> PhaseDefinition:
+        """Add new phase to multiphase problem."""
+        if phase_id in self.phases:
             raise DataIntegrityError(
-                f"Collocation points must be a list, got {type(self.collocation_points_per_interval)}",
-                "TrajectoLab mesh storage error",
+                f"Phase {phase_id} already exists", "TrajectoLab phase definition conflict"
             )
 
-        if self.global_normalized_mesh_nodes is not None:
-            import numpy as np
+        phase_def = PhaseDefinition(phase_id=phase_id)
+        self.phases[phase_id] = phase_def
+        return phase_def
 
-            from ..input_validation import validate_array_numerical_integrity
+    def get_phase_ids(self) -> list[PhaseID]:
+        """Get ordered list of phase IDs."""
+        return sorted(self.phases.keys())
 
-            if not isinstance(self.global_normalized_mesh_nodes, np.ndarray):
-                raise DataIntegrityError(
-                    f"Mesh nodes must be numpy array, got {type(self.global_normalized_mesh_nodes)}",
-                    "TrajectoLab mesh storage error",
-                )
-
-            validate_array_numerical_integrity(
-                self.global_normalized_mesh_nodes, "Mesh nodes", "mesh data storage validation"
-            )
+    def get_total_variable_counts(self) -> tuple[int, int, int]:
+        """Get (total_states, total_controls, num_static_params) across all phases."""
+        total_states = sum(len(phase.state_info) for phase in self.phases.values())
+        total_controls = sum(len(phase.control_info) for phase in self.phases.values())
+        num_static_params = self.static_parameters.get_parameter_count()
+        return total_states, total_controls, num_static_params

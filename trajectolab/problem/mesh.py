@@ -1,5 +1,6 @@
+# trajectolab/problem/mesh.py
 """
-Mesh configuration and validation for pseudospectral discretization.
+Mesh configuration and validation for multiphase pseudospectral discretization.
 """
 
 import logging
@@ -7,20 +8,20 @@ import logging
 import numpy as np
 
 from ..tl_types import NumericArrayLike
-from .state import MeshState
+from .state import PhaseDefinition
 
 
 # Library logger
 logger = logging.getLogger(__name__)
 
 
-def configure_mesh(
-    state: MeshState,
+def configure_phase_mesh(
+    phase_def: PhaseDefinition,
     polynomial_degrees: list[int],
     mesh_points: NumericArrayLike,
 ) -> None:
     """
-    Configure the mesh structure.
+    Configure the mesh structure for a specific phase.
     """
 
     # Convert to numpy array if needed
@@ -31,26 +32,30 @@ def configure_mesh(
 
     # Log mesh configuration (DEBUG)
     logger.debug(
-        "Configuring mesh: %d degrees, %d points", len(polynomial_degrees), len(mesh_array)
+        "Configuring mesh for phase %d: %d degrees, %d points",
+        phase_def.phase_id,
+        len(polynomial_degrees),
+        len(mesh_array),
     )
 
     # Set mesh configuration - validation done at entry point
-    state.collocation_points_per_interval = polynomial_degrees
-    state.global_normalized_mesh_nodes = mesh_array
-    state.configured = True
+    phase_def.collocation_points_per_interval = polynomial_degrees
+    phase_def.global_normalized_mesh_nodes = mesh_array
+    phase_def.mesh_configured = True
 
     # Log successful configuration (DEBUG - details)
     logger.debug(
-        "Mesh configuration complete: intervals=%d, total_nodes=%d",
+        "Mesh configuration complete for phase %d: intervals=%d, total_nodes=%d",
+        phase_def.phase_id,
         len(polynomial_degrees),
         len(mesh_array),
     )
 
 
-def clear_mesh(state: MeshState) -> None:
-    """Clear mesh configuration."""
-    logger.debug("Clearing mesh configuration")
+def clear_phase_mesh(phase_def: PhaseDefinition) -> None:
+    """Clear mesh configuration for a specific phase."""
+    logger.debug("Clearing mesh configuration for phase %d", phase_def.phase_id)
 
-    state.collocation_points_per_interval = []
-    state.global_normalized_mesh_nodes = None
-    state.configured = False
+    phase_def.collocation_points_per_interval = []
+    phase_def.global_normalized_mesh_nodes = None
+    phase_def.mesh_configured = False

@@ -1,20 +1,19 @@
+# trajectolab/solution.py
 """
-Solution interface for optimal control problem results.
+Solution interface for multiphase optimal control problem results.
 
 This module provides the Solution class that wraps optimization results
 in a user-friendly interface with plotting capabilities and trajectory access.
 """
 
 import logging
-from typing import TypeAlias, cast
+from typing import TypeAlias
 
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.axes import Axes as MplAxes
 from matplotlib.figure import Figure as MplFigure
-from matplotlib.lines import Line2D
 
-from .tl_types import FloatArray, OptimalControlSolution, ProblemProtocol
+from .tl_types import FloatArray, OptimalControlSolution, PhaseID, ProblemProtocol
 
 
 logger = logging.getLogger(__name__)
@@ -23,75 +22,122 @@ _TrajectoryTuple: TypeAlias = tuple[FloatArray, FloatArray]
 
 
 class Solution:
-    """User-friendly interface for optimal control problem solutions."""
+    """User-friendly interface for multiphase optimal control problem solutions."""
 
     # Type hints for key attributes to ensure proper type inference
     success: bool
     objective: float  # Always a float - NaN for failed solutions
-    initial_time: float  # Always a float - NaN for failed solutions
-    final_time: float  # Always a float - NaN for failed solutions
 
     def __init__(
         self, raw_solution: OptimalControlSolution | None, problem: ProblemProtocol | None
     ) -> None:
-        """Initialize solution wrapper from raw optimization results."""
+        """Initialize solution wrapper from raw multiphase optimization results."""
         if raw_solution is not None:
             self.success = raw_solution.success
             self.message = raw_solution.message
 
-            # Ensure time values are always floats (NaN if missing/invalid)
-            self.initial_time = (
-                raw_solution.initial_time_variable
-                if raw_solution.initial_time_variable is not None
-                else float("nan")
-            )
-            self.final_time = (
-                raw_solution.terminal_time_variable
-                if raw_solution.terminal_time_variable is not None
-                else float("nan")
-            )
-
+            # Core solution data
             self.objective = (
                 raw_solution.objective if raw_solution.objective is not None else float("nan")
             )
-            self.integrals = raw_solution.integrals
-            self.time_states = raw_solution.time_states
-            self.states = raw_solution.states
-            self.time_controls = raw_solution.time_controls
-            self.controls = raw_solution.controls
+
+            # Multiphase solution data
+            self.phase_initial_times = raw_solution.phase_initial_times
+            self.phase_terminal_times = raw_solution.phase_terminal_times
+            self.phase_time_states = raw_solution.phase_time_states
+            self.phase_states = raw_solution.phase_states
+            self.phase_time_controls = raw_solution.phase_time_controls
+            self.phase_controls = raw_solution.phase_controls
+            self.phase_integrals = raw_solution.phase_integrals
+            self.static_parameters = raw_solution.static_parameters
+
+            # Raw solver data
             self.raw_solution = raw_solution.raw_solution
             self.opti = raw_solution.opti_object
-            self.mesh_intervals = raw_solution.num_collocation_nodes_per_interval
-            self.mesh_nodes = raw_solution.global_normalized_mesh_nodes
+
+            # Mesh information per phase
+            self.phase_mesh_intervals = raw_solution.phase_mesh_intervals
+            self.phase_mesh_nodes = raw_solution.phase_mesh_nodes
+
+            # Per-interval solution data per phase
+            self.phase_solved_state_trajectories_per_interval = (
+                raw_solution.phase_solved_state_trajectories_per_interval
+            )
+            self.phase_solved_control_trajectories_per_interval = (
+                raw_solution.phase_solved_control_trajectories_per_interval
+            )
         else:
             self.success = False
-            self.message = "No solution"
-            self.initial_time = float("nan")
-            self.final_time = float("nan")
+            self.message = "No multiphase solution"
             self.objective = float("nan")
-            self.integrals = None
-            self.time_states = np.array([], dtype=np.float64)
-            self.states = []
-            self.time_controls = np.array([], dtype=np.float64)
-            self.controls = []
+
+            # Initialize empty multiphase data
+            self.phase_initial_times = {}
+            self.phase_terminal_times = {}
+            self.phase_time_states = {}
+            self.phase_states = {}
+            self.phase_time_controls = {}
+            self.phase_controls = {}
+            self.phase_integrals = {}
+            self.static_parameters = None
+
             self.raw_solution = None
             self.opti = None
-            self.mesh_intervals = []
-            self.mesh_nodes = None
+            self.phase_mesh_intervals = {}
+            self.phase_mesh_nodes = {}
+            self.phase_solved_state_trajectories_per_interval = {}
+            self.phase_solved_control_trajectories_per_interval = {}
 
         if problem is not None:
-            self._state_names = problem.get_ordered_state_names()
-            self._control_names = problem.get_ordered_control_names()
+            self._problem = problem
+            # Store phase-specific variable names
+            self._phase_state_names = {}
+            self._phase_control_names = {}
+            for phase_id in problem.get_phase_ids():
+                self._phase_state_names[phase_id] = problem.get_phase_ordered_state_names(phase_id)
+                self._phase_control_names[phase_id] = problem.get_phase_ordered_control_names(
+                    phase_id
+                )
         else:
-            self._state_names = []
-            self._control_names = []
+            self._problem = None
+            self._phase_state_names = {}
+            self._phase_control_names = {}
 
-    def __getitem__(self, key: str) -> FloatArray:
+    def get_phase_ids(self) -> list[PhaseID]:
+        """Get list of phase IDs in the solution."""
+        return sorted(self.phase_initial_times.keys())
+
+    def get_phase_initial_time(self, phase_id: PhaseID) -> float:
+        """Get initial time for a specific phase."""
+        if phase_id not in self.phase_initial_times:
+            raise ValueError(f"Phase {phase_id} not found in solution")
+        return self.phase_initial_times[phase_id]
+
+    def get_phase_final_time(self, phase_id: PhaseID) -> float:
+        """Get final time for a specific phase."""
+        if phase_id not in self.phase_terminal_times:
+            raise ValueError(f"Phase {phase_id} not found in solution")
+        return self.phase_terminal_times[phase_id]
+
+    def get_phase_duration(self, phase_id: PhaseID) -> float:
+        """Get duration of a specific phase."""
+        return self.get_phase_final_time(phase_id) - self.get_phase_initial_time(phase_id)
+
+    def get_total_mission_time(self) -> float:
+        """Get total mission time across all phases."""
+        if not self.phase_initial_times or not self.phase_terminal_times:
+            return float("nan")
+
+        earliest_start = min(self.phase_initial_times.values())
+        latest_end = max(self.phase_terminal_times.values())
+        return latest_end - earliest_start
+
+    def __getitem__(self, key: str | tuple[PhaseID, str]) -> FloatArray:
         """
         Dictionary-style access to solution variables and time arrays.
 
         Args:
-            key: Variable name, "time_states", or "time_controls"
+            key: Either a variable name (searches all phases) or (phase_id, variable_name) tuple
 
         Returns:
             FloatArray containing the requested data
@@ -100,41 +146,91 @@ class Solution:
             KeyError: If the variable name is not found
 
         Examples:
-            >>> altitude_data = solution["altitude"]
-            >>> thrust_data = solution["thrust"]
-            >>> time_states = solution["time_states"]
-            >>> time_controls = solution["time_controls"]
+            >>> # Access by variable name (searches all phases)
+            >>> altitude_data = solution["altitude"]  # Returns first phase with "altitude"
+            >>>
+            >>> # Access by phase and variable name
+            >>> altitude_phase1 = solution[(1, "altitude")]
+            >>> thrust_phase2 = solution[(2, "thrust")]
+            >>>
+            >>> # Access time arrays
+            >>> time_states_p1 = solution[(1, "time_states")]
+            >>> time_controls_p2 = solution[(2, "time_controls")]
         """
         if not self.success:
             logger.warning("Cannot access variable '%s': Solution not successful", key)
             return np.array([], dtype=np.float64)
 
-        # Handle time arrays
-        if key == "time_states":
-            return self.time_states
-        elif key == "time_controls":
-            return self.time_controls
+        # Handle tuple access: (phase_id, variable_name)
+        if isinstance(key, tuple):
+            if len(key) != 2:
+                raise KeyError("Tuple key must have exactly 2 elements: (phase_id, variable_name)")
 
-        # Handle state variables
-        if key in self._state_names:
-            var_index = self._state_names.index(key)
-            return self.states[var_index]
+            phase_id, var_name = key
 
-        # Handle control variables
-        if key in self._control_names:
-            var_index = self._control_names.index(key)
-            return self.controls[var_index]
+            if phase_id not in self.get_phase_ids():
+                raise KeyError(f"Phase {phase_id} not found in solution")
 
-        # Variable not found
-        available_vars = self._state_names + self._control_names + ["time_states", "time_controls"]
-        raise KeyError(f"Variable '{key}' not found. Available variables: {available_vars}")
+            # Handle time arrays
+            if var_name == "time_states":
+                return self.phase_time_states.get(phase_id, np.array([], dtype=np.float64))
+            elif var_name == "time_controls":
+                return self.phase_time_controls.get(phase_id, np.array([], dtype=np.float64))
 
-    def __contains__(self, key: str) -> bool:
+            # Handle state variables
+            if (
+                phase_id in self._phase_state_names
+                and var_name in self._phase_state_names[phase_id]
+            ):
+                var_index = self._phase_state_names[phase_id].index(var_name)
+                if phase_id in self.phase_states and var_index < len(self.phase_states[phase_id]):
+                    return self.phase_states[phase_id][var_index]
+
+            # Handle control variables
+            if (
+                phase_id in self._phase_control_names
+                and var_name in self._phase_control_names[phase_id]
+            ):
+                var_index = self._phase_control_names[phase_id].index(var_name)
+                if phase_id in self.phase_controls and var_index < len(
+                    self.phase_controls[phase_id]
+                ):
+                    return self.phase_controls[phase_id][var_index]
+
+            raise KeyError(f"Variable '{var_name}' not found in phase {phase_id}")
+
+        # Handle string access: search all phases for variable name
+        elif isinstance(key, str):
+            # Search for variable in all phases
+            for phase_id in self.get_phase_ids():
+                try:
+                    return self[(phase_id, key)]
+                except KeyError:
+                    continue
+
+            # Variable not found in any phase
+            all_vars = []
+            for phase_id in self.get_phase_ids():
+                phase_vars = (
+                    self._phase_state_names.get(phase_id, [])
+                    + self._phase_control_names.get(phase_id, [])
+                    + ["time_states", "time_controls"]
+                )
+                all_vars.extend([f"({phase_id}, '{var}')" for var in phase_vars])
+
+            raise KeyError(f"Variable '{key}' not found in any phase. Available: {all_vars}")
+
+        else:
+            raise KeyError(
+                f"Invalid key type: {type(key)}. Use string or (phase_id, variable_name) tuple"
+            )
+
+    def __contains__(self, key: str | tuple[PhaseID, str]) -> bool:
         """
         Check if a variable exists in the solution.
 
         Args:
-            key: Variable name to check
+            key: Either a variable name or (phase_id, variable_name) tuple
 
         Returns:
             True if variable exists, False otherwise
@@ -142,235 +238,258 @@ class Solution:
         Examples:
             >>> if "altitude" in solution:
             ...     altitude = solution["altitude"]
+            >>> if (1, "altitude") in solution:
+            ...     altitude_p1 = solution[(1, "altitude")]
         """
-        if key in ["time_states", "time_controls"]:
+        try:
+            self[key]
             return True
-        return key in self._state_names or key in self._control_names
+        except KeyError:
+            return False
 
     @property
-    def state_names(self) -> list[str]:
-        """Get list of available state variable names."""
-        return self._state_names.copy()
+    def phase_state_names(self) -> dict[PhaseID, list[str]]:
+        """Get dictionary mapping phase IDs to state variable names."""
+        return {phase_id: names.copy() for phase_id, names in self._phase_state_names.items()}
 
     @property
-    def control_names(self) -> list[str]:
-        """Get list of available control variable names."""
-        return self._control_names.copy()
+    def phase_control_names(self) -> dict[PhaseID, list[str]]:
+        """Get dictionary mapping phase IDs to control variable names."""
+        return {phase_id: names.copy() for phase_id, names in self._phase_control_names.items()}
 
     @property
-    def variable_names(self) -> list[str]:
-        """Get list of all available variable names including time arrays."""
-        return self._state_names + self._control_names + ["time_states", "time_controls"]
+    def all_variable_names(self) -> list[str]:
+        """Get list of all unique variable names across all phases."""
+        all_vars = set()
+        for phase_id in self.get_phase_ids():
+            all_vars.update(self._phase_state_names.get(phase_id, []))
+            all_vars.update(self._phase_control_names.get(phase_id, []))
+        return sorted(all_vars)
 
-    def plot(self, *variable_names: str, figsize: tuple[float, float] = (10.0, 8.0)) -> None:
+    def plot(
+        self,
+        phase_id: PhaseID | None = None,
+        *variable_names: str,
+        figsize: tuple[float, float] = (12.0, 8.0),
+        show_phase_boundaries: bool = True,
+    ) -> None:
         """
-        Plot trajectories with smart layout and windowing.
+        Plot multiphase trajectories with smart layout and phase visualization.
 
         Args:
-            *variable_names: Optional specific variable names to plot. If none provided,
-                all states and controls are plotted in separate windows.
+            phase_id: Specific phase to plot (None plots all phases)
+            *variable_names: Optional specific variable names to plot
             figsize: Figure size for each window
-
-        Raises:
-            ValueError: If attempting to plot time arrays directly or unknown variables
+            show_phase_boundaries: Whether to show vertical lines at phase boundaries
 
         Examples:
-            >>> solution.plot()  # Separate windows for states and controls
-            >>> solution.plot("position", "velocity")  # Specific variables in one window
-            >>> solution.plot("thrust", "altitude")  # Mixed state/control variables
-
-        Note:
-            - States and controls are automatically separated into different windows when no
-              specific variables are requested
-            - Smart layout uses optimal subplot arrangements (up to 3x3 per window)
-            - Additional windows are created when more than 9 variables per type
+            >>> solution.plot()  # Plot all phases, separate windows for states/controls
+            >>> solution.plot(1)  # Plot only phase 1
+            >>> solution.plot(phase_id=None, "position", "velocity")  # Specific variables, all phases
+            >>> solution.plot(1, "thrust")  # Specific variable for specific phase
         """
         if not self.success:
             logger.warning("Cannot plot: Solution not successful")
             return
 
-        # Validate requested variables
-        if variable_names:
-            self._validate_plot_variables(list(variable_names))
-            # Plot specific variables in organized windows
-            self._plot_specific_variables(list(variable_names), figsize)
+        if phase_id is not None:
+            # Plot specific phase
+            if phase_id not in self.get_phase_ids():
+                raise ValueError(f"Phase {phase_id} not found in solution")
+            self._plot_single_phase(phase_id, variable_names, figsize)
         else:
-            # Default behavior: separate windows for states and controls
-            self._plot_default_layout(figsize)
+            # Plot all phases
+            if variable_names:
+                self._plot_multiphase_variables(variable_names, figsize, show_phase_boundaries)
+            else:
+                self._plot_multiphase_default(figsize, show_phase_boundaries)
 
-    def _validate_plot_variables(self, variable_names: list[str]) -> None:
-        """
-        Validate variables for plotting.
+    def _plot_single_phase(
+        self, phase_id: PhaseID, variable_names: tuple[str, ...], figsize: tuple[float, float]
+    ) -> None:
+        """Plot trajectories for a single phase."""
+        phase_state_names = self._phase_state_names.get(phase_id, [])
+        phase_control_names = self._phase_control_names.get(phase_id, [])
 
-        Args:
-            variable_names: List of variable names to validate
-
-        Raises:
-            ValueError: If time arrays or unknown variables are requested
-        """
-        # Check for time array plotting attempts
-        time_arrays = [name for name in variable_names if name in ["time_states", "time_controls"]]
-        if time_arrays:
-            raise ValueError(
-                f"Cannot plot time arrays directly: {time_arrays}. "
-                "Time arrays are automatically used as x-axis for trajectory plots."
+        if variable_names:
+            # Plot specific variables
+            self._create_variable_plot(
+                f"Phase {phase_id} Variables", [(phase_id, var) for var in variable_names], figsize
             )
+        else:
+            # Plot all variables for this phase
+            figures_created = []
 
-        # Check for unknown variables
-        unknown_vars = [name for name in variable_names if name not in self]
-        if unknown_vars:
-            available_vars = self._state_names + self._control_names
-            raise ValueError(
-                f"Unknown variables: {unknown_vars}. Available variables: {available_vars}"
-            )
+            if phase_state_names:
+                fig = self._create_variable_plot(
+                    f"Phase {phase_id} States",
+                    [(phase_id, var) for var in phase_state_names],
+                    figsize,
+                    show_immediately=False,
+                )
+                figures_created.append(fig)
 
-    def _plot_default_layout(self, figsize: tuple[float, float]) -> None:
+            if phase_control_names:
+                fig = self._create_variable_plot(
+                    f"Phase {phase_id} Controls",
+                    [(phase_id, var) for var in phase_control_names],
+                    figsize,
+                    show_immediately=False,
+                )
+                figures_created.append(fig)
+
+            # Show all figures
+            for fig in figures_created:
+                plt.figure(fig.number)
+                plt.show(block=False)
+
+            if figures_created:
+                plt.figure(figures_created[-1].number)
+                plt.show()
+
+    def _plot_multiphase_variables(
+        self,
+        variable_names: tuple[str, ...],
+        figsize: tuple[float, float],
+        show_phase_boundaries: bool,
+    ) -> None:
+        """Plot specific variables across all phases."""
+        # Find which phases have each variable
+        phase_var_pairs = []
+        for var_name in variable_names:
+            for phase_id in self.get_phase_ids():
+                if (phase_id, var_name) in self:
+                    phase_var_pairs.append((phase_id, var_name))
+
+        if not phase_var_pairs:
+            logger.warning("None of the requested variables found in any phase")
+            return
+
+        self._create_multiphase_variable_plot(
+            "Multiphase Variables", phase_var_pairs, figsize, show_phase_boundaries
+        )
+
+    def _plot_multiphase_default(
+        self, figsize: tuple[float, float], show_phase_boundaries: bool
+    ) -> None:
         """Plot all variables with states and controls in separate windows."""
         figures_created = []
 
-        if self._state_names:
-            figures_created.extend(
-                self._create_variable_windows(
-                    self._state_names, "States", "state", figsize, show_immediately=False
+        # Collect all unique state variables across phases
+        all_state_vars = set()
+        all_control_vars = set()
+
+        for phase_id in self.get_phase_ids():
+            all_state_vars.update(self._phase_state_names.get(phase_id, []))
+            all_control_vars.update(self._phase_control_names.get(phase_id, []))
+
+        # Plot states
+        if all_state_vars:
+            state_pairs = []
+            for var_name in sorted(all_state_vars):
+                for phase_id in self.get_phase_ids():
+                    if (phase_id, var_name) in self:
+                        state_pairs.append((phase_id, var_name))
+
+            if state_pairs:
+                fig = self._create_multiphase_variable_plot(
+                    "Multiphase States",
+                    state_pairs,
+                    figsize,
+                    show_phase_boundaries,
+                    show_immediately=False,
                 )
-            )
+                figures_created.append(fig)
 
-        if self._control_names:
-            figures_created.extend(
-                self._create_variable_windows(
-                    self._control_names, "Controls", "control", figsize, show_immediately=False
+        # Plot controls
+        if all_control_vars:
+            control_pairs = []
+            for var_name in sorted(all_control_vars):
+                for phase_id in self.get_phase_ids():
+                    if (phase_id, var_name) in self:
+                        control_pairs.append((phase_id, var_name))
+
+            if control_pairs:
+                fig = self._create_multiphase_variable_plot(
+                    "Multiphase Controls",
+                    control_pairs,
+                    figsize,
+                    show_phase_boundaries,
+                    show_immediately=False,
                 )
-            )
+                figures_created.append(fig)
 
-        if not self._state_names and not self._control_names:
-            logger.info("No variables to plot")
-            return
-
-        # Show all figures simultaneously
+        # Show all figures
         for fig in figures_created:
             plt.figure(fig.number)
             plt.show(block=False)
 
-        # Make the last figure blocking so program doesn't exit immediately in scripts
         if figures_created:
             plt.figure(figures_created[-1].number)
             plt.show()
 
-    def _plot_specific_variables(
-        self, variable_names: list[str], figsize: tuple[float, float]
-    ) -> None:
-        """Plot specific requested variables in organized windows."""
-        self._create_variable_windows(
-            variable_names, "Variables", "mixed", figsize, show_immediately=True
-        )
-        # For specific variables, show immediately since there's typically only one window
-
-    def _create_variable_windows(
+    def _create_variable_plot(
         self,
-        variables: list[str],
-        window_title: str,
-        var_type: str,
-        figsize: tuple[float, float],
-        show_immediately: bool = True,
-    ) -> list[MplFigure]:
-        """
-        Create optimally-laid-out windows for variable groups.
-
-        Args:
-            variables: List of variable names to plot
-            window_title: Base title for windows
-            var_type: Type of variables ("state", "control", or "mixed")
-            figsize: Figure size for each window
-            show_immediately: Whether to show figures immediately or return them for later display
-
-        Returns:
-            List of created figures
-        """
-        max_plots_per_window = 9  # 3x3 grid maximum
-        num_variables = len(variables)
-
-        if num_variables == 0:
-            return []
-
-        figures_created = []
-
-        # Create windows for groups of variables
-        window_count = 1
-        for start_idx in range(0, num_variables, max_plots_per_window):
-            end_idx = min(start_idx + max_plots_per_window, num_variables)
-            window_variables = variables[start_idx:end_idx]
-
-            # Determine window title
-            if num_variables <= max_plots_per_window:
-                title = window_title
-            else:
-                title = f"{window_title} ({window_count})"
-
-            fig = self._create_single_window(
-                window_variables, title, var_type, figsize, show_immediately
-            )
-            figures_created.append(fig)
-            window_count += 1
-
-        return figures_created
-
-    def _create_single_window(
-        self,
-        variables: list[str],
         title: str,
-        var_type: str,
+        phase_var_pairs: list[tuple[PhaseID, str]],
         figsize: tuple[float, float],
         show_immediately: bool = True,
     ) -> MplFigure:
-        """
-        Create a single window with optimal subplot layout.
-
-        Args:
-            variables: Variables to plot in this window
-            title: Window title
-            var_type: Variable type for determining plot style
-            figsize: Figure size
-            show_immediately: Whether to show the figure immediately
-
-        Returns:
-            Created matplotlib figure
-        """
-        num_plots = len(variables)
-        if num_plots == 0:
+        """Create a plot for specific phase-variable pairs."""
+        if not phase_var_pairs:
             return plt.figure()
 
-        # Determine optimal layout
-        rows, cols = self._determine_subplot_layout(num_plots)
+        # Group by variable name for subplots
+        var_groups = {}
+        for phase_id, var_name in phase_var_pairs:
+            if var_name not in var_groups:
+                var_groups[var_name] = []
+            var_groups[var_name].append(phase_id)
 
-        # Create figure and subplots
-        fig, axes = plt.subplots(rows, cols, figsize=figsize, sharex=True)
+        num_vars = len(var_groups)
+        if num_vars == 0:
+            return plt.figure()
+
+        # Determine layout
+        rows, cols = self._determine_subplot_layout(num_vars)
+        fig, axes = plt.subplots(rows, cols, figsize=figsize, sharex=False)
         fig.suptitle(title)
 
-        # Handle single subplot case
-        if num_plots == 1:
+        if num_vars == 1:
             axes = [axes]
         elif isinstance(axes, np.ndarray):
             axes = axes.flatten()
 
-        # Get colors for mesh intervals
-        colors = self._get_interval_colors()
-
         # Plot each variable
-        for i, var_name in enumerate(variables):
-            self._plot_single_variable(axes[i], var_name, self._get_variable_type(var_name), colors)
+        for i, (var_name, phase_ids) in enumerate(var_groups.items()):
+            ax = axes[i]
+
+            for phase_id in phase_ids:
+                try:
+                    time_data = self[
+                        (
+                            phase_id,
+                            "time_states"
+                            if self._is_state_variable(phase_id, var_name)
+                            else "time_controls",
+                        )
+                    ]
+                    var_data = self[(phase_id, var_name)]
+
+                    if len(time_data) > 0 and len(var_data) > 0:
+                        ax.plot(time_data, var_data, label=f"Phase {phase_id}", linewidth=1.5)
+
+                except KeyError:
+                    continue
+
+            ax.set_ylabel(var_name)
+            ax.set_xlabel("Time")
+            ax.grid(True, alpha=0.3)
+            ax.legend()
 
         # Hide unused subplots
-        for i in range(num_plots, len(axes)):
+        for i in range(num_vars, len(axes)):
             axes[i].set_visible(False)
-
-        # Set x-label on bottom plots
-        bottom_row_start = (rows - 1) * cols
-        for i in range(bottom_row_start, min(bottom_row_start + cols, num_plots)):
-            axes[i].set_xlabel("Time")
-
-        # Add mesh legend if applicable
-        if colors is not None and len(colors) > 0:
-            self._add_mesh_legend(fig, colors)
 
         plt.tight_layout()
 
@@ -379,16 +498,43 @@ class Solution:
 
         return fig
 
+    def _create_multiphase_variable_plot(
+        self,
+        title: str,
+        phase_var_pairs: list[tuple[PhaseID, str]],
+        figsize: tuple[float, float],
+        show_phase_boundaries: bool,
+        show_immediately: bool = True,
+    ) -> MplFigure:
+        """Create a multiphase plot with phase boundaries."""
+        fig = self._create_variable_plot(title, phase_var_pairs, figsize, show_immediately=False)
+
+        if show_phase_boundaries and len(self.get_phase_ids()) > 1:
+            # Add phase boundary lines
+            for ax in fig.get_axes():
+                if ax.get_visible():
+                    for phase_id in self.get_phase_ids()[:-1]:  # Exclude last phase
+                        final_time = self.get_phase_final_time(phase_id)
+                        ax.axvline(
+                            final_time,
+                            color="red",
+                            linestyle="--",
+                            alpha=0.7,
+                            label="Phase Boundary" if phase_id == self.get_phase_ids()[0] else "",
+                        )
+
+                    # Update legend if phase boundaries were added
+                    handles, labels = ax.get_legend_handles_labels()
+                    if "Phase Boundary" in labels:
+                        ax.legend()
+
+        if show_immediately:
+            plt.show()
+
+        return fig
+
     def _determine_subplot_layout(self, num_plots: int) -> tuple[int, int]:
-        """
-        Determine optimal (rows, cols) layout for given number of plots.
-
-        Args:
-            num_plots: Number of plots to arrange
-
-        Returns:
-            Tuple of (rows, columns) for optimal layout
-        """
+        """Determine optimal (rows, cols) layout for given number of plots."""
         if num_plots == 1:
             return (1, 1)
         elif num_plots == 2:
@@ -402,193 +548,39 @@ class Solution:
         elif num_plots in [7, 8, 9]:
             return (3, 3)
         else:
-            # Fallback for edge cases (shouldn't occur with max 9 per window)
             rows = int(np.ceil(np.sqrt(num_plots)))
             cols = int(np.ceil(num_plots / rows))
             return (rows, cols)
 
-    def _get_variable_type(self, var_name: str) -> str:
-        """
-        Determine if variable is state or control.
-
-        Args:
-            var_name: Variable name
-
-        Returns:
-            "state" or "control"
-        """
-        if var_name in self._state_names:
-            return "state"
-        elif var_name in self._control_names:
-            return "control"
-        else:
-            # Fallback (shouldn't occur after validation)
-            return "state"
-
-    def _plot_single_variable(
-        self, ax: MplAxes, name: str, var_type: str, colors: list | np.ndarray | None
-    ) -> None:
-        """Plot single variable with correct mathematical representation."""
-        if name not in self:
-            logger.warning("Variable '%s' not found for plotting", name)
-            return
-
-        # Get time and values using dictionary access
-        if var_type == "state":
-            time_array = self["time_states"]
-            values_array = self[name]
-        else:
-            time_array = self["time_controls"]
-            values_array = self[name]
-
-        if time_array.size == 0:
-            return
-
-        if var_type == "control":
-            self._plot_control_step_function(ax, time_array, values_array, colors)
-        else:
-            self._plot_state_linear(ax, time_array, values_array, colors)
-
-        ax.set_ylabel(name)
-        ax.grid(True, alpha=0.3)
-
-    def _plot_control_step_function(
-        self,
-        ax: MplAxes,
-        time_array: FloatArray,
-        values_array: FloatArray,
-        colors: list | np.ndarray | None,
-    ) -> None:
-        """Plot control trajectory as step function (piecewise constant)."""
-        if len(time_array) == 0:
-            return
-
-        extended_times = np.copy(time_array)
-        extended_values = np.copy(values_array)
-
-        if len(time_array) > 0:
-            if not np.isnan(self.final_time) and self.final_time > time_array[-1]:
-                extended_times = np.append(extended_times, self.final_time)
-                extended_values = np.append(extended_values, values_array[-1])
-            elif len(time_array) > 1:
-                dt = time_array[-1] - time_array[-2]
-                extended_times = np.append(extended_times, time_array[-1] + dt * 0.1)
-                extended_values = np.append(extended_values, values_array[-1])
-            else:
-                extended_times = np.append(extended_times, time_array[-1] + 1.0)
-                extended_values = np.append(extended_values, values_array[-1])
-
-        if colors is None or len(colors) == 0:
-            ax.step(extended_times, extended_values, where="post", color="b", linewidth=1.5)
-            ax.plot(time_array, values_array, "bo", markersize=4)
-        else:
-            intervals = self._get_mesh_intervals()
-            if len(intervals) > 0:
-                for k, (t_start, t_end) in enumerate(intervals):
-                    mask = (time_array >= t_start - 1e-10) & (time_array <= t_end + 1e-10)
-                    if np.any(mask):
-                        interval_times = time_array[mask]
-                        interval_values = values_array[mask]
-
-                        if len(interval_times) > 0 and interval_times[-1] < t_end - 1e-10:
-                            interval_times = np.append(interval_times, t_end)
-                            interval_values = np.append(interval_values, interval_values[-1])
-
-                        color = colors[k % len(colors)]
-                        ax.step(
-                            interval_times,
-                            interval_values,
-                            where="post",
-                            color=color,
-                            linewidth=1.5,
-                        )
-                        ax.plot(
-                            time_array[mask], values_array[mask], "o", color=color, markersize=4
-                        )
-            else:
-                ax.step(extended_times, extended_values, where="post", color="b", linewidth=1.5)
-                ax.plot(time_array, values_array, "bo", markersize=4)
-
-    def _plot_state_linear(
-        self,
-        ax: MplAxes,
-        time_array: FloatArray,
-        values_array: FloatArray,
-        colors: list | np.ndarray | None,
-    ) -> None:
-        """Plot state trajectory with linear interpolation (smooth curves)."""
-        if len(time_array) == 0:
-            return
-
-        if colors is None or len(colors) == 0:
-            ax.plot(time_array, values_array, "b.-", linewidth=1.5, markersize=3)
-        else:
-            intervals = self._get_mesh_intervals()
-            if len(intervals) > 0:
-                for k, (t_start, t_end) in enumerate(intervals):
-                    mask = (time_array >= t_start - 1e-10) & (time_array <= t_end + 1e-10)
-                    if np.any(mask):
-                        ax.plot(
-                            time_array[mask],
-                            values_array[mask],
-                            color=colors[k % len(colors)],
-                            marker=".",
-                            linestyle="-",
-                            linewidth=1.5,
-                            markersize=7,
-                        )
-            else:
-                ax.plot(time_array, values_array, "b.-", linewidth=1.5, markersize=3)
-
-    def _get_interval_colors(self) -> FloatArray | None:
-        """Get colors for mesh intervals."""
-        if self.mesh_nodes is None or len(self.mesh_nodes) <= 1:
-            return None
-
-        num_intervals = len(self.mesh_nodes) - 1
-        colormap = plt.get_cmap("viridis")
-        color_values = np.linspace(0, 1, num_intervals, dtype=np.float64)
-        colors = colormap(color_values)
-        return cast(FloatArray, colors)
-
-    def _get_mesh_intervals(self) -> list[tuple[float, float]]:
-        """Get mesh interval boundaries in physical time."""
-        if self.mesh_nodes is None or np.isnan(self.initial_time) or np.isnan(self.final_time):
-            return []
-
-        alpha = (self.final_time - self.initial_time) / 2.0
-        alpha_0 = (self.final_time + self.initial_time) / 2.0
-        mesh_phys = alpha * self.mesh_nodes + alpha_0
-
-        return [(mesh_phys[i], mesh_phys[i + 1]) for i in range(len(mesh_phys) - 1)]
-
-    def _add_mesh_legend(self, fig: MplFigure, colors: np.ndarray) -> None:
-        """Add mesh interval legend."""
-        if not self.mesh_intervals:
-            return
-
-        handles = [
-            Line2D([0], [0], color=colors[k % len(colors)], lw=2)
-            for k in range(len(self.mesh_intervals))
-        ]
-        labels = [
-            f"Interval {k} (N={self.mesh_intervals[k]})" for k in range(len(self.mesh_intervals))
-        ]
-
-        fig.legend(handles, labels, loc="upper right", title="Mesh Intervals")
+    def _is_state_variable(self, phase_id: PhaseID, var_name: str) -> bool:
+        """Check if a variable is a state variable in the given phase."""
+        return phase_id in self._phase_state_names and var_name in self._phase_state_names[phase_id]
 
     def summary(self) -> None:
-        """Print a summary of the solution results."""
-        print(f"Solution Status: {'Success' if self.success else 'Failed'}")
+        """Print a summary of the multiphase solution results."""
+        print(f"Multiphase Solution Status: {'Success' if self.success else 'Failed'}")
+
         if self.success:
             print(f"  Objective: {self.objective}")
-            if not np.isnan(self.initial_time) and not np.isnan(self.final_time):
-                print(f"  Time: {self.initial_time} → {self.final_time}")
-            elif not np.isnan(self.final_time):
-                print(f"  Final Time: {self.final_time}")
-            print(f"  States: {len(self._state_names)} {self._state_names}")
-            print(f"  Controls: {len(self._control_names)} {self._control_names}")
-            if self.mesh_nodes is not None:
-                print(f"  Mesh intervals: {len(self.mesh_nodes) - 1}")
+            print(f"  Total Mission Time: {self.get_total_mission_time():.6f}")
+            print(f"  Number of Phases: {len(self.get_phase_ids())}")
+
+            for phase_id in self.get_phase_ids():
+                print(f"  Phase {phase_id}:")
+                print(
+                    f"    Time: {self.get_phase_initial_time(phase_id):.6f} → {self.get_phase_final_time(phase_id):.6f}"
+                )
+                print(f"    Duration: {self.get_phase_duration(phase_id):.6f}")
+                print(
+                    f"    States: {len(self._phase_state_names.get(phase_id, []))} {self._phase_state_names.get(phase_id, [])}"
+                )
+                print(
+                    f"    Controls: {len(self._phase_control_names.get(phase_id, []))} {self._phase_control_names.get(phase_id, [])}"
+                )
+                if phase_id in self.phase_mesh_intervals:
+                    print(f"    Mesh intervals: {len(self.phase_mesh_intervals[phase_id])}")
+
+            if self.static_parameters is not None:
+                print(f"  Static Parameters: {len(self.static_parameters)}")
         else:
             print(f"  Message: {self.message}")

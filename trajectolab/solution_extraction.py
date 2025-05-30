@@ -1,5 +1,6 @@
+# trajectolab/solution_extraction.py
 """
-Solution data extraction and formatting from raw CasADi optimization results.
+Solution data extraction and formatting from raw CasADi multiphase optimization results.
 """
 
 import logging
@@ -11,6 +12,7 @@ from .exceptions import DataIntegrityError, SolutionExtractionError
 from .tl_types import (
     FloatArray,
     OptimalControlSolution,
+    PhaseID,
     ProblemProtocol,
 )
 
@@ -18,22 +20,31 @@ from .tl_types import (
 logger = logging.getLogger(__name__)
 
 
-def extract_integral_values(
-    casadi_solution_object: ca.OptiSol | None, opti_object: ca.Opti, num_integrals: int
+def extract_multiphase_integral_values(
+    casadi_solution_object: ca.OptiSol | None,
+    opti_object: ca.Opti,
+    phase_id: PhaseID,
+    num_integrals: int,
 ) -> float | FloatArray | None:
-    """
-    Extract integral values from the CasADi solution with enhanced error handling.
-    """
+    """Extract integral values for a specific phase from the CasADi solution."""
     if (
         num_integrals == 0
-        or not hasattr(opti_object, "integral_variables_object_reference")
-        or opti_object.integral_variables_object_reference is None
+        or not hasattr(opti_object, "multiphase_variables_reference")
+        or opti_object.multiphase_variables_reference is None
         or casadi_solution_object is None
     ):
         return None
 
     try:
-        raw_value = casadi_solution_object.value(opti_object.integral_variables_object_reference)
+        variables = opti_object.multiphase_variables_reference
+        if phase_id not in variables.phase_variables:
+            return None
+
+        phase_vars = variables.phase_variables[phase_id]
+        if phase_vars.integral_variables is None:
+            return None
+
+        raw_value = casadi_solution_object.value(phase_vars.integral_variables)
 
         if isinstance(raw_value, ca.DM):
             np_array_value = np.asarray(raw_value.toarray())
@@ -43,25 +54,25 @@ def extract_integral_values(
                     # Critical: Check for NaN/Inf in TrajectoLab's result
                     if np.isnan(result) or np.isinf(result):
                         raise DataIntegrityError(
-                            f"Integral value is invalid: {result}",
+                            f"Phase {phase_id} integral value is invalid: {result}",
                             "Numerical corruption in integral extraction",
                         )
                     return result
                 else:
                     logger.warning(
-                        f"For num_integrals=1, unexpected array shape {np_array_value.shape}"
+                        f"Phase {phase_id}: For num_integrals=1, unexpected array shape {np_array_value.shape}"
                     )
                     if np_array_value.size > 0:
                         return float(np_array_value.flatten()[0])
                     else:
-                        logger.warning("Empty integral value array")
+                        logger.warning(f"Phase {phase_id}: Empty integral value array")
                         return np.nan
             else:
                 result_array = np_array_value.flatten().astype(np.float64)
                 # Critical: Check for NaN/Inf in TrajectoLab's result
                 if np.any(np.isnan(result_array)) or np.any(np.isinf(result_array)):
                     raise DataIntegrityError(
-                        "Integral array contains NaN or Inf values",
+                        f"Phase {phase_id} integral array contains NaN or Inf values",
                         "Numerical corruption in integral extraction",
                     )
                 return result_array
@@ -71,17 +82,19 @@ def extract_integral_values(
                 result = float(raw_value)
                 if np.isnan(result) or np.isinf(result):
                     raise DataIntegrityError(
-                        f"Integral value is invalid: {result}",
+                        f"Phase {phase_id} integral value is invalid: {result}",
                         "Numerical corruption in integral extraction",
                     )
                 return result
             else:
                 logger.warning(
-                    f"Expected array for {num_integrals} integrals, got scalar {raw_value}"
+                    f"Phase {phase_id}: Expected array for {num_integrals} integrals, got scalar {raw_value}"
                 )
                 return np.full(num_integrals, np.nan, dtype=np.float64)
         else:
-            logger.warning(f"Unexpected CasADi value type: {type(raw_value)}, value: {raw_value}")
+            logger.warning(
+                f"Phase {phase_id}: Unexpected CasADi value type: {type(raw_value)}, value: {raw_value}"
+            )
             if num_integrals > 1:
                 return np.full(num_integrals, np.nan, dtype=np.float64)
             elif num_integrals == 1:
@@ -91,7 +104,7 @@ def extract_integral_values(
     except Exception as e:
         if isinstance(e, DataIntegrityError):
             raise  # Re-raise TrajectoLab-specific errors
-        logger.warning(f"Could not extract integral values: {e}")
+        logger.warning(f"Could not extract integral values for phase {phase_id}: {e}")
         if num_integrals > 1:
             return np.full(num_integrals, np.nan, dtype=np.float64)
         elif num_integrals == 1:
@@ -99,10 +112,10 @@ def extract_integral_values(
         return None
 
 
-def process_trajectory_points(
+def process_phase_trajectory_points(
+    phase_id: PhaseID,
     mesh_interval_index: int,
     casadi_solution_object: ca.OptiSol,
-    opti_object: ca.Opti,
     variables_list: list[ca.MX],
     local_tau_nodes: list[FloatArray],
     global_normalized_mesh_nodes: FloatArray,
@@ -114,13 +127,11 @@ def process_trajectory_points(
     num_variables: int,
     is_state: bool = True,
 ) -> float:
-    """
-    Process trajectory points for a single mesh interval with enhanced validation.
-    """
+    """Process trajectory points for a single mesh interval within a phase."""
     # Guard clause: Validate inputs
     if mesh_interval_index >= len(variables_list) or mesh_interval_index >= len(local_tau_nodes):
         raise SolutionExtractionError(
-            f"Variable list or tau nodes incomplete for interval {mesh_interval_index}",
+            f"Phase {phase_id}: Variable list or tau nodes incomplete for interval {mesh_interval_index}",
             "Solution data structure inconsistency",
         )
 
@@ -131,7 +142,7 @@ def process_trajectory_points(
         solved_values = casadi_solution_object.value(current_interval_variables)
     except Exception as e:
         raise SolutionExtractionError(
-            f"Failed to extract values for interval {mesh_interval_index}: {e}",
+            f"Failed to extract values for phase {phase_id} interval {mesh_interval_index}: {e}",
             "CasADi value extraction error",
         ) from e
 
@@ -142,7 +153,7 @@ def process_trajectory_points(
     # Critical: Check for NaN/Inf in solution values
     if np.any(np.isnan(solved_values)) or np.any(np.isinf(solved_values)):
         raise DataIntegrityError(
-            f"Solution values for interval {mesh_interval_index} contain NaN or Inf",
+            f"Phase {phase_id} solution values for interval {mesh_interval_index} contain NaN or Inf",
             "Numerical corruption in solution data",
         )
 
@@ -184,7 +195,7 @@ def process_trajectory_points(
                 # Critical: Check individual values
                 if np.isnan(value) or np.isinf(value):
                     raise DataIntegrityError(
-                        f"Invalid trajectory value at interval {mesh_interval_index}, node {node_index}: {value}",
+                        f"Phase {phase_id} invalid trajectory value at interval {mesh_interval_index}, node {node_index}: {value}",
                         "Numerical corruption in trajectory data",
                     )
                 trajectory_values_lists[var_index].append(value)
@@ -193,172 +204,208 @@ def process_trajectory_points(
     return last_added_point
 
 
-def extract_and_format_solution(
+def extract_and_format_multiphase_solution(
     casadi_solution_object: ca.OptiSol | None,
     casadi_optimization_problem_object: ca.Opti,
     problem: ProblemProtocol,
-    num_collocation_nodes_per_interval: list[int],
-    global_normalized_mesh_nodes: FloatArray,
 ) -> OptimalControlSolution:
-    """
-    Extract and format the solution from CasADi optimization result with enhanced error handling.
-    """
+    """Extract and format the solution from multiphase CasADi optimization result."""
     solution = OptimalControlSolution()
     solution.opti_object = casadi_optimization_problem_object
-    solution.num_collocation_nodes_per_interval = list(num_collocation_nodes_per_interval)
-    solution.global_normalized_mesh_nodes = global_normalized_mesh_nodes.copy()
 
     if casadi_solution_object is None:
         solution.success = False
-        solution.message = "Solver did not find a solution or was not run."
+        solution.message = "Multiphase solver did not find a solution or was not run."
         return solution
 
-    num_mesh_intervals: int = len(num_collocation_nodes_per_interval)
-    num_states, num_controls = problem.get_variable_counts()
-    num_integrals: int = problem._num_integrals
+    # Get multiphase structure
+    phase_ids = problem.get_phase_ids()
+    total_states, total_controls, num_static_params = problem.get_total_variable_counts()
+
+    if not hasattr(casadi_optimization_problem_object, "multiphase_variables_reference"):
+        solution.success = False
+        solution.message = "Missing multiphase variables reference in optimization object."
+        return solution
+
+    variables = casadi_optimization_problem_object.multiphase_variables_reference
+    metadata = casadi_optimization_problem_object.multiphase_metadata_reference
 
     # Critical: Extract core solution values with validation
     try:
-        initial_time = float(
-            casadi_solution_object.value(
-                casadi_optimization_problem_object.initial_time_variable_reference
-            )
-        )
-        terminal_time = float(
-            casadi_solution_object.value(
-                casadi_optimization_problem_object.terminal_time_variable_reference
-            )
-        )
+        # Extract objective
         objective = float(
             casadi_solution_object.value(
-                casadi_optimization_problem_object.symbolic_objective_function_reference
+                casadi_optimization_problem_object.multiphase_objective_expression_reference
             )
         )
 
-        # Critical: Validate extracted core values
-        if np.isnan(initial_time) or np.isinf(initial_time):
-            raise DataIntegrityError(
-                f"Invalid initial time: {initial_time}", "Core solution corruption"
-            )
-        if np.isnan(terminal_time) or np.isinf(terminal_time):
-            raise DataIntegrityError(
-                f"Invalid terminal time: {terminal_time}", "Core solution corruption"
-            )
+        # Critical: Validate objective
         if np.isnan(objective) or np.isinf(objective):
             raise DataIntegrityError(
-                f"Invalid objective value: {objective}", "Core solution corruption"
+                f"Invalid multiphase objective value: {objective}", "Core solution corruption"
             )
 
-        solution.initial_time_variable = initial_time
-        solution.terminal_time_variable = terminal_time
         solution.objective = objective
 
     except Exception as e:
         if isinstance(e, DataIntegrityError):
             raise  # Re-raise TrajectoLab-specific errors
         solution.success = False
-        solution.message = f"Failed to extract core solution values: {e}"
+        solution.message = f"Failed to extract core multiphase solution values: {e}"
         solution.raw_solution = casadi_solution_object
         raise SolutionExtractionError(
-            f"Critical failure in core value extraction: {e}", "Core solution processing error"
+            f"Critical failure in multiphase core value extraction: {e}",
+            "Core solution processing error",
         ) from e
 
-    # Extract integral values with validation
-    solution.integrals = extract_integral_values(
-        casadi_solution_object, casadi_optimization_problem_object, num_integrals
-    )
+    # Extract static parameters
+    if num_static_params > 0 and variables.static_parameters is not None:
+        try:
+            static_params_raw = casadi_solution_object.value(variables.static_parameters)
+            if isinstance(static_params_raw, ca.DM):
+                static_params_array = np.asarray(static_params_raw.toarray()).flatten()
+            else:
+                static_params_array = np.array(static_params_raw).flatten()
 
-    # Extract state trajectories with enhanced error handling
-    state_trajectory_times: list[float] = []
-    state_trajectory_values: list[list[float]] = [[] for _ in range(num_states)]
-    last_time_point_added_to_state_trajectory: float = -np.inf
-
-    try:
-        for mesh_idx in range(num_mesh_intervals):
-            if not hasattr(
-                casadi_optimization_problem_object,
-                "state_at_local_approximation_nodes_all_intervals_variables",
-            ) or not hasattr(
-                casadi_optimization_problem_object, "metadata_local_state_approximation_nodes_tau"
-            ):
-                raise SolutionExtractionError(
-                    "Missing state trajectory attributes in optimization object",
-                    "Internal solution structure error",
+            # Validate static parameters
+            if np.any(np.isnan(static_params_array)) or np.any(np.isinf(static_params_array)):
+                raise DataIntegrityError(
+                    "Static parameters contain NaN or Inf values",
+                    "Numerical corruption in static parameters",
                 )
 
-            last_time_point_added_to_state_trajectory = process_trajectory_points(
-                mesh_idx,
-                casadi_solution_object,
-                casadi_optimization_problem_object,
-                casadi_optimization_problem_object.state_at_local_approximation_nodes_all_intervals_variables,
-                casadi_optimization_problem_object.metadata_local_state_approximation_nodes_tau,
-                global_normalized_mesh_nodes,
-                solution.initial_time_variable,
-                solution.terminal_time_variable,
-                last_time_point_added_to_state_trajectory,
-                state_trajectory_times,
-                state_trajectory_values,
-                num_states,
-                is_state=True,
-            )
-    except Exception as e:
-        if isinstance(e, SolutionExtractionError | DataIntegrityError):
-            raise  # Re-raise TrajectoLab-specific errors
-        raise SolutionExtractionError(
-            f"Failed to extract state trajectories: {e}", "State trajectory processing error"
-        ) from e
+            solution.static_parameters = static_params_array.astype(np.float64)
+        except Exception as e:
+            if isinstance(e, DataIntegrityError):
+                raise
+            logger.warning(f"Failed to extract static parameters: {e}")
+            solution.static_parameters = None
 
-    # Extract control trajectories with enhanced error handling
-    control_trajectory_times: list[float] = []
-    control_trajectory_values: list[list[float]] = [[] for _ in range(num_controls)]
-    last_time_point_added_to_control_trajectory: float = -np.inf
+    # Extract solution for each phase
+    for phase_id in phase_ids:
+        if phase_id not in variables.phase_variables:
+            continue
 
-    try:
-        for mesh_idx in range(num_mesh_intervals):
-            if not hasattr(
-                casadi_optimization_problem_object,
-                "control_at_local_collocation_nodes_all_intervals_variables",
-            ) or not hasattr(
-                casadi_optimization_problem_object, "metadata_local_collocation_nodes_tau"
-            ):
-                raise SolutionExtractionError(
-                    "Missing control trajectory attributes in optimization object",
-                    "Internal solution structure error",
+        phase_vars = variables.phase_variables[phase_id]
+        phase_def = problem._phases[phase_id]
+        num_states, num_controls = problem.get_phase_variable_counts(phase_id)
+        num_mesh_intervals = len(phase_def.collocation_points_per_interval)
+        num_integrals = phase_def.num_integrals
+
+        try:
+            # Extract phase times
+            initial_time = float(casadi_solution_object.value(phase_vars.initial_time))
+            terminal_time = float(casadi_solution_object.value(phase_vars.terminal_time))
+
+            # Validate phase times
+            if np.isnan(initial_time) or np.isinf(initial_time):
+                raise DataIntegrityError(
+                    f"Phase {phase_id} invalid initial time: {initial_time}",
+                    "Core solution corruption",
+                )
+            if np.isnan(terminal_time) or np.isinf(terminal_time):
+                raise DataIntegrityError(
+                    f"Phase {phase_id} invalid terminal time: {terminal_time}",
+                    "Core solution corruption",
                 )
 
-            last_time_point_added_to_control_trajectory = process_trajectory_points(
-                mesh_idx,
-                casadi_solution_object,
-                casadi_optimization_problem_object,
-                casadi_optimization_problem_object.control_at_local_collocation_nodes_all_intervals_variables,
-                casadi_optimization_problem_object.metadata_local_collocation_nodes_tau,
-                global_normalized_mesh_nodes,
-                solution.initial_time_variable,
-                solution.terminal_time_variable,
-                last_time_point_added_to_control_trajectory,
-                control_trajectory_times,
-                control_trajectory_values,
-                num_controls,
-                is_state=False,
-            )
-    except Exception as e:
-        if isinstance(e, SolutionExtractionError | DataIntegrityError):
-            raise  # Re-raise TrajectoLab-specific errors
-        raise SolutionExtractionError(
-            f"Failed to extract control trajectories: {e}", "Control trajectory processing error"
-        ) from e
+            solution.phase_initial_times[phase_id] = initial_time
+            solution.phase_terminal_times[phase_id] = terminal_time
 
-    # Extract per-interval trajectories with validation
-    try:
-        if hasattr(
-            casadi_optimization_problem_object,
-            "state_at_local_approximation_nodes_all_intervals_variables",
-        ):
-            solution.solved_state_trajectories_per_interval = []
+        except Exception as e:
+            if isinstance(e, DataIntegrityError):
+                raise
+            logger.error(f"Failed to extract phase {phase_id} times: {e}")
+            solution.phase_initial_times[phase_id] = float("nan")
+            solution.phase_terminal_times[phase_id] = float("nan")
+            continue
+
+        # Extract phase integrals
+        solution.phase_integrals[phase_id] = extract_multiphase_integral_values(
+            casadi_solution_object, casadi_optimization_problem_object, phase_id, num_integrals
+        )
+
+        # Extract phase state trajectories
+        state_trajectory_times: list[float] = []
+        state_trajectory_values: list[list[float]] = [[] for _ in range(num_states)]
+        last_time_point_added_to_state_trajectory: float = -np.inf
+
+        try:
             for mesh_idx in range(num_mesh_intervals):
-                state_vars = casadi_optimization_problem_object.state_at_local_approximation_nodes_all_intervals_variables[
-                    mesh_idx
-                ]
+                last_time_point_added_to_state_trajectory = process_phase_trajectory_points(
+                    phase_id,
+                    mesh_idx,
+                    casadi_solution_object,
+                    phase_vars.state_matrices,
+                    metadata.phase_local_state_tau[phase_id],
+                    metadata.phase_global_mesh_nodes[phase_id],
+                    initial_time,
+                    terminal_time,
+                    last_time_point_added_to_state_trajectory,
+                    state_trajectory_times,
+                    state_trajectory_values,
+                    num_states,
+                    is_state=True,
+                )
+        except Exception as e:
+            if isinstance(e, SolutionExtractionError | DataIntegrityError):
+                raise
+            raise SolutionExtractionError(
+                f"Failed to extract phase {phase_id} state trajectories: {e}",
+                "State trajectory processing error",
+            ) from e
+
+        solution.phase_time_states[phase_id] = np.array(state_trajectory_times, dtype=np.float64)
+        solution.phase_states[phase_id] = [
+            np.array(s_traj, dtype=np.float64) for s_traj in state_trajectory_values
+        ]
+
+        # Extract phase control trajectories
+        control_trajectory_times: list[float] = []
+        control_trajectory_values: list[list[float]] = [[] for _ in range(num_controls)]
+        last_time_point_added_to_control_trajectory: float = -np.inf
+
+        try:
+            for mesh_idx in range(num_mesh_intervals):
+                last_time_point_added_to_control_trajectory = process_phase_trajectory_points(
+                    phase_id,
+                    mesh_idx,
+                    casadi_solution_object,
+                    phase_vars.control_variables,
+                    metadata.phase_local_control_tau[phase_id],
+                    metadata.phase_global_mesh_nodes[phase_id],
+                    initial_time,
+                    terminal_time,
+                    last_time_point_added_to_control_trajectory,
+                    control_trajectory_times,
+                    control_trajectory_values,
+                    num_controls,
+                    is_state=False,
+                )
+        except Exception as e:
+            if isinstance(e, SolutionExtractionError | DataIntegrityError):
+                raise
+            raise SolutionExtractionError(
+                f"Failed to extract phase {phase_id} control trajectories: {e}",
+                "Control trajectory processing error",
+            ) from e
+
+        solution.phase_time_controls[phase_id] = np.array(
+            control_trajectory_times, dtype=np.float64
+        )
+        solution.phase_controls[phase_id] = [
+            np.array(c_traj, dtype=np.float64) for c_traj in control_trajectory_values
+        ]
+
+        # Store mesh information for this phase
+        solution.phase_mesh_intervals[phase_id] = phase_def.collocation_points_per_interval.copy()
+        solution.phase_mesh_nodes[phase_id] = metadata.phase_global_mesh_nodes[phase_id].copy()
+
+        # Extract per-interval trajectories for this phase
+        try:
+            solution.phase_solved_state_trajectories_per_interval[phase_id] = []
+            for mesh_idx in range(num_mesh_intervals):
+                state_vars = phase_vars.state_matrices[mesh_idx]
                 state_vals = casadi_solution_object.value(state_vars)
 
                 # Ensure proper dimensionality
@@ -370,7 +417,7 @@ def extract_and_format_solution(
                 # Critical: Validate extracted state values
                 if np.any(np.isnan(state_vals)) or np.any(np.isinf(state_vals)):
                     raise DataIntegrityError(
-                        f"State values for interval {mesh_idx} contain NaN or Inf",
+                        f"Phase {phase_id} state values for interval {mesh_idx} contain NaN or Inf",
                         "Per-interval state data corruption",
                     )
 
@@ -378,65 +425,55 @@ def extract_and_format_solution(
                 if num_states == 1 and state_vals.ndim == 1:
                     state_vals = state_vals.reshape(1, -1)
                 elif num_states > 1 and state_vals.ndim == 1:
-                    # Handle case where CasADi returns a flattened array
                     num_points = len(state_vals) // num_states
                     if num_points * num_states == len(state_vals):
                         state_vals = state_vals.reshape(num_states, num_points)
 
-                solution.solved_state_trajectories_per_interval.append(state_vals)
+                solution.phase_solved_state_trajectories_per_interval[phase_id].append(state_vals)
 
-        if (
-            hasattr(
-                casadi_optimization_problem_object,
-                "control_at_local_collocation_nodes_all_intervals_variables",
-            )
-            and num_controls > 0
-        ):
-            solution.solved_control_trajectories_per_interval = []
-            for mesh_idx in range(num_mesh_intervals):
-                control_vars = casadi_optimization_problem_object.control_at_local_collocation_nodes_all_intervals_variables[
-                    mesh_idx
-                ]
-                control_vals = casadi_solution_object.value(control_vars)
+            # Extract per-interval control trajectories for this phase
+            if num_controls > 0:
+                solution.phase_solved_control_trajectories_per_interval[phase_id] = []
+                for mesh_idx in range(num_mesh_intervals):
+                    control_vars = phase_vars.control_variables[mesh_idx]
+                    control_vals = casadi_solution_object.value(control_vars)
 
-                # Ensure proper dimensionality
-                if isinstance(control_vals, ca.DM | ca.MX):
-                    control_vals = np.array(control_vals.full())
-                else:
-                    control_vals = np.array(control_vals)
+                    # Ensure proper dimensionality
+                    if isinstance(control_vals, ca.DM | ca.MX):
+                        control_vals = np.array(control_vals.full())
+                    else:
+                        control_vals = np.array(control_vals)
 
-                # Critical: Validate extracted control values
-                if np.any(np.isnan(control_vals)) or np.any(np.isinf(control_vals)):
-                    raise DataIntegrityError(
-                        f"Control values for interval {mesh_idx} contain NaN or Inf",
-                        "Per-interval control data corruption",
+                    # Critical: Validate extracted control values
+                    if np.any(np.isnan(control_vals)) or np.any(np.isinf(control_vals)):
+                        raise DataIntegrityError(
+                            f"Phase {phase_id} control values for interval {mesh_idx} contain NaN or Inf",
+                            "Per-interval control data corruption",
+                        )
+
+                    # Ensure it's 2D for consistent processing
+                    if num_controls == 1 and control_vals.ndim == 1:
+                        control_vals = control_vals.reshape(1, -1)
+                    elif num_controls > 1 and control_vals.ndim == 1:
+                        num_points = len(control_vals) // num_controls
+                        if num_points * num_controls == len(control_vals):
+                            control_vals = control_vals.reshape(num_controls, num_points)
+
+                    solution.phase_solved_control_trajectories_per_interval[phase_id].append(
+                        control_vals
                     )
 
-                # Ensure it's 2D for consistent processing
-                if num_controls == 1 and control_vals.ndim == 1:
-                    control_vals = control_vals.reshape(1, -1)
-                elif num_controls > 1 and control_vals.ndim == 1:
-                    # Handle case where CasADi returns a flattened array
-                    num_points = len(control_vals) // num_controls
-                    if num_points * num_controls == len(control_vals):
-                        control_vals = control_vals.reshape(num_controls, num_points)
-
-                solution.solved_control_trajectories_per_interval.append(control_vals)
-    except Exception as e:
-        if isinstance(e, DataIntegrityError):
-            raise  # Re-raise TrajectoLab-specific errors
-        raise SolutionExtractionError(
-            f"Failed to extract per-interval trajectories: {e}",
-            "Per-interval trajectory processing error",
-        ) from e
+        except Exception as e:
+            if isinstance(e, DataIntegrityError):
+                raise
+            raise SolutionExtractionError(
+                f"Failed to extract per-interval trajectories for phase {phase_id}: {e}",
+                "Per-interval trajectory processing error",
+            ) from e
 
     # Finalize solution
     solution.success = True
-    solution.message = "NLP solved successfully."
-    solution.time_states = np.array(state_trajectory_times, dtype=np.float64)
-    solution.states = [np.array(s_traj, dtype=np.float64) for s_traj in state_trajectory_values]
-    solution.time_controls = np.array(control_trajectory_times, dtype=np.float64)
-    solution.controls = [np.array(c_traj, dtype=np.float64) for c_traj in control_trajectory_values]
+    solution.message = "Multiphase NLP solved successfully."
     solution.raw_solution = casadi_solution_object
 
     return solution

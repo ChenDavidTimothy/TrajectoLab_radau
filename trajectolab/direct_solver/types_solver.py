@@ -1,5 +1,6 @@
+# trajectolab/direct_solver/types_solver.py
 """
-Type definitions and data structure containers for the direct solver.
+Type definitions and data structure containers for the multiphase direct solver.
 """
 
 from __future__ import annotations
@@ -9,13 +10,11 @@ from typing import TypeAlias
 
 import casadi as ca
 
-from ..tl_types import (
-    FloatArray,
-)
+from ..tl_types import FloatArray, PhaseID
 
 
-# Internal type aliases
-_VariableBundle: TypeAlias = tuple[
+# Internal type aliases for multiphase solver
+_PhaseVariableBundle: TypeAlias = tuple[
     ca.MX,  # initial_time
     ca.MX,  # terminal_time
     list[ca.MX],  # state_at_mesh_nodes
@@ -23,13 +22,14 @@ _VariableBundle: TypeAlias = tuple[
     ca.MX | None,  # integral_variables
 ]
 
-_IntervalBundle: TypeAlias = tuple[ca.MX, ca.MX | None]  # state_matrix, interior_nodes
+_PhaseIntervalBundle: TypeAlias = tuple[ca.MX, ca.MX | None]  # state_matrix, interior_nodes
 
 
 @dataclass
-class VariableReferences:
-    """Container for optimization variable references."""
+class PhaseVariableReferences:
+    """Container for optimization variable references for a single phase."""
 
+    phase_id: PhaseID
     initial_time: ca.MX
     terminal_time: ca.MX
     state_at_mesh_nodes: list[ca.MX]
@@ -40,10 +40,21 @@ class VariableReferences:
 
 
 @dataclass
-class MetadataBundle:
-    """Container for solver metadata."""
+class MultiPhaseVariableReferences:
+    """Container for optimization variable references for multiphase problems."""
 
-    local_state_tau: list[FloatArray] = field(default_factory=list)
-    local_control_tau: list[FloatArray] = field(default_factory=list)
-    global_mesh_nodes: FloatArray = field(default_factory=lambda: FloatArray([]))
+    phase_variables: dict[PhaseID, PhaseVariableReferences] = field(default_factory=dict)
+    static_parameters: ca.MX | None = None
+
+
+@dataclass
+class MultiPhaseMetadataBundle:
+    """Container for multiphase solver metadata."""
+
+    # Per-phase metadata
+    phase_local_state_tau: dict[PhaseID, list[FloatArray]] = field(default_factory=dict)
+    phase_local_control_tau: dict[PhaseID, list[FloatArray]] = field(default_factory=dict)
+    phase_global_mesh_nodes: dict[PhaseID, FloatArray] = field(default_factory=dict)
+
+    # Global objective expression
     objective_expression: ca.MX | None = None

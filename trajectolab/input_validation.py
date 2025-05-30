@@ -1,5 +1,6 @@
+# trajectolab/input_validation.py
 """
-Centralized input validation for all user configuration parameters.
+Centralized input validation for all multiphase user configuration parameters.
 """
 
 import logging
@@ -11,89 +12,227 @@ import casadi as ca
 import numpy as np
 
 from .exceptions import ConfigurationError, DataIntegrityError
-from .tl_types import FloatArray, InitialGuess, ProblemProtocol
-from .utils.constants import MESH_TOLERANCE, MINIMUM_TIME_INTERVAL, ZERO_TOLERANCE
+from .tl_types import FloatArray, MultiPhaseInitialGuess, PhaseID, ProblemProtocol
+from .utils.constants import MESH_TOLERANCE, ZERO_TOLERANCE
 
 
 logger = logging.getLogger(__name__)
 T = TypeVar("T")
 
 
-def validate_problem_ready_for_solving(problem: ProblemProtocol) -> None:
+def validate_multiphase_problem_ready_for_solving(problem: ProblemProtocol) -> None:
     """
-    COMPREHENSIVE validation that problem is properly configured for solving.
+    COMPREHENSIVE validation that multiphase problem is properly configured for solving.
     This should be called at ALL solver entry points.
     """
-    # Validate basic problem structure
-    validate_problem_basic_structure(problem)
+    # Validate basic multiphase problem structure
+    validate_multiphase_problem_basic_structure(problem)
 
-    # Validate mesh configuration
-    if not hasattr(problem, "_mesh_configured") or not problem._mesh_configured:
+    # Validate each phase
+    phase_ids = problem.get_phase_ids()
+    if not phase_ids:
         raise ConfigurationError(
-            "Problem mesh must be configured before solving",
-            "Call problem.set_mesh(polynomial_degrees, mesh_points) first",
+            "Problem must have at least one phase defined",
+            "Use problem.phase(phase_id) to define phases",
         )
 
-    # Validate mesh details
-    validate_mesh_configuration(
-        problem.collocation_points_per_interval,
-        problem.global_normalized_mesh_nodes,
-        len(problem.collocation_points_per_interval),
+    for phase_id in phase_ids:
+        validate_phase_configuration(problem, phase_id)
+
+    # Validate multiphase problem completeness
+    validate_multiphase_problem_completeness(problem)
+
+    # Validate multiphase initial guess if present
+    if problem.initial_guess is not None:
+        validate_multiphase_initial_guess_structure(problem.initial_guess, problem)
+
+
+def validate_multiphase_problem_basic_structure(problem: ProblemProtocol) -> None:
+    """Validate basic multiphase problem structure and dimensions."""
+    if not hasattr(problem, "get_phase_ids"):
+        raise ConfigurationError(
+            "Problem object missing required multiphase methods",
+            "Internal multiphase problem structure error",
+        )
+
+    if not hasattr(problem, "_phases") or not problem._phases:
+        raise ConfigurationError(
+            "Problem must have at least one phase defined",
+            "Use problem.phase(phase_id) to define phases",
+        )
+
+    total_states, total_controls, num_static_params = problem.get_total_variable_counts()
+    validate_problem_dimensions(
+        total_states, total_controls, num_static_params, "multiphase problem"
     )
 
-    # Validate problem completeness
-    validate_problem_completeness(problem)
 
-    # Validate initial guess if present
-    if problem.initial_guess is not None:
-        num_states, num_controls = problem.get_variable_counts()
-        validate_initial_guess_structure(
-            problem.initial_guess,
-            num_states,
-            num_controls,
-            problem._num_integrals,
-            problem.collocation_points_per_interval,
-        )
-
-
-def validate_problem_basic_structure(problem: ProblemProtocol) -> None:
-    """Validate basic problem structure and dimensions."""
-    if not hasattr(problem, "get_variable_counts"):
+def validate_phase_configuration(problem: ProblemProtocol, phase_id: PhaseID) -> None:
+    """Validate configuration for a specific phase."""
+    # Check phase exists
+    if phase_id not in problem._phases:
         raise ConfigurationError(
-            "Problem object missing required methods", "Internal problem structure error"
+            f"Phase {phase_id} not found in problem",
+            "Phase configuration error",
         )
 
-    num_states, num_controls = problem.get_variable_counts()
-    num_integrals = getattr(problem, "_num_integrals", 0)
+    phase_def = problem._phases[phase_id]
 
-    validate_problem_dimensions(num_states, num_controls, num_integrals)
-
-
-def validate_problem_completeness(problem: ProblemProtocol) -> None:
-    """Validate that problem has all required components defined."""
-    # Must have dynamics
-    if not hasattr(problem, "_dynamics_expressions") or not problem._dynamics_expressions:
+    # Check mesh configuration
+    if not phase_def.mesh_configured:
         raise ConfigurationError(
-            "Problem dynamics must be defined before solving",
-            "Call problem.dynamics({state: expression, ...}) first",
+            f"Phase {phase_id} mesh must be configured before solving",
+            f"Call phase.set_mesh(polynomial_degrees, mesh_points) for phase {phase_id}",
         )
 
+    # Validate mesh details for this phase
+    validate_mesh_configuration(
+        phase_def.collocation_points_per_interval,
+        phase_def.global_normalized_mesh_nodes,
+        len(phase_def.collocation_points_per_interval),
+    )
+
+    # Check dynamics
+    if not phase_def.dynamics_expressions:
+        raise ConfigurationError(
+            f"Phase {phase_id} must have dynamics defined before solving",
+            f"Call phase.dynamics({{state: expression, ...}}) for phase {phase_id}",
+        )
+
+    # Check variables
+    num_states, num_controls = phase_def.get_variable_counts()
+    if num_states == 0:
+        raise ConfigurationError(
+            f"Phase {phase_id} must have at least one state variable",
+            f"Define variables using phase.state() for phase {phase_id}",
+        )
+
+
+def validate_multiphase_problem_completeness(problem: ProblemProtocol) -> None:
+    """Validate that multiphase problem has all required components defined."""
     # Must have objective
-    if not hasattr(problem, "_objective_expression") or problem._objective_expression is None:
+    if (
+        not hasattr(problem, "_multiphase_state")
+        or problem._multiphase_state.objective_expression is None
+    ):
         raise ConfigurationError(
-            "Problem objective must be defined before solving",
-            "Call problem.minimize(expression) first",
+            "Multiphase problem must have objective function defined before solving",
+            "Call problem.minimize(expression) to define multiphase objective",
         )
 
-    # Must have at least one variable
-    num_states, num_controls = problem.get_variable_counts()
-    if num_states == 0 and num_controls == 0:
-        raise ConfigurationError(
-            "Problem must have at least one state or control variable",
-            "Define variables using problem.state() or problem.control()",
-        )
+    logger.debug("Multiphase configuration validated: %d phases", len(problem.get_phase_ids()))
 
 
+def validate_multiphase_initial_guess_structure(
+    initial_guess: MultiPhaseInitialGuess,
+    problem: ProblemProtocol,
+) -> None:
+    """COMPREHENSIVE multiphase initial guess validation - CENTRALIZED."""
+    phase_ids = problem.get_phase_ids()
+
+    # Validate phase states
+    if initial_guess.phase_states is not None:
+        for phase_id, states_list in initial_guess.phase_states.items():
+            if phase_id not in phase_ids:
+                raise ConfigurationError(
+                    f"Initial guess provided for undefined phase {phase_id}",
+                    "Phase initial guess error",
+                )
+
+            phase_def = problem._phases[phase_id]
+            if not phase_def.mesh_configured:
+                raise ConfigurationError(
+                    f"Cannot validate initial guess for phase {phase_id}: mesh not configured",
+                    "Configure phase mesh before setting initial guess",
+                )
+
+            num_states, _ = phase_def.get_variable_counts()
+            num_intervals = len(phase_def.collocation_points_per_interval)
+
+            expected_shapes = [
+                (num_states, N + 1) for N in phase_def.collocation_points_per_interval
+            ]
+            validate_interval_trajectory_consistency(
+                states_list, num_intervals, expected_shapes, f"phase {phase_id} state"
+            )
+
+    # Validate phase controls
+    if initial_guess.phase_controls is not None:
+        for phase_id, controls_list in initial_guess.phase_controls.items():
+            if phase_id not in phase_ids:
+                raise ConfigurationError(
+                    f"Initial guess provided for undefined phase {phase_id}",
+                    "Phase initial guess error",
+                )
+
+            phase_def = problem._phases[phase_id]
+            if not phase_def.mesh_configured:
+                raise ConfigurationError(
+                    f"Cannot validate initial guess for phase {phase_id}: mesh not configured",
+                    "Configure phase mesh before setting initial guess",
+                )
+
+            _, num_controls = phase_def.get_variable_counts()
+            num_intervals = len(phase_def.collocation_points_per_interval)
+
+            expected_shapes = [(num_controls, N) for N in phase_def.collocation_points_per_interval]
+            validate_interval_trajectory_consistency(
+                controls_list, num_intervals, expected_shapes, f"phase {phase_id} control"
+            )
+
+    # Validate phase integrals
+    if initial_guess.phase_integrals is not None:
+        for phase_id, integrals in initial_guess.phase_integrals.items():
+            if phase_id not in phase_ids:
+                raise ConfigurationError(
+                    f"Initial guess provided for undefined phase {phase_id}",
+                    "Phase initial guess error",
+                )
+
+            phase_def = problem._phases[phase_id]
+            validate_integral_values(integrals, phase_def.num_integrals)
+
+    # Validate static parameters
+    if initial_guess.static_parameters is not None:
+        _, _, num_static_params = problem.get_total_variable_counts()
+        if num_static_params == 0:
+            raise ValueError(
+                "Static parameters guess provided but problem has no static parameters"
+            )
+
+        params_array = np.array(initial_guess.static_parameters)
+        if params_array.size != num_static_params:
+            raise ValueError(
+                f"Static parameters guess must have {num_static_params} elements, "
+                f"got {params_array.size}"
+            )
+
+    # Validate time values
+    if initial_guess.phase_initial_times is not None:
+        for phase_id, t0 in initial_guess.phase_initial_times.items():
+            validate_array_numerical_integrity(
+                np.array([t0]), f"Phase {phase_id} initial time", "time validation"
+            )
+
+    if initial_guess.phase_terminal_times is not None:
+        for phase_id, tf in initial_guess.phase_terminal_times.items():
+            validate_array_numerical_integrity(
+                np.array([tf]), f"Phase {phase_id} terminal time", "time validation"
+            )
+
+        # Check time ordering within phases
+        if initial_guess.phase_initial_times is not None:
+            for phase_id in initial_guess.phase_terminal_times:
+                if phase_id in initial_guess.phase_initial_times:
+                    t0 = initial_guess.phase_initial_times[phase_id]
+                    tf = initial_guess.phase_terminal_times[phase_id]
+                    if tf <= t0:
+                        raise DataIntegrityError(
+                            f"Phase {phase_id} terminal time ({tf}) must be greater than initial time ({t0})"
+                        )
+
+
+# Re-export existing validation functions with updated signatures where needed
 def validate_polynomial_degree(degree: int, context: str = "polynomial degree") -> None:
     """Validate polynomial degree specification - CENTRALIZED."""
     if not isinstance(degree, int):
@@ -293,56 +432,6 @@ def validate_dynamics_output(
     return result
 
 
-def validate_initial_guess_structure(
-    initial_guess: InitialGuess,
-    num_states: int,
-    num_controls: int,
-    num_integrals: int,
-    polynomial_degrees: list[int],
-) -> None:
-    """COMPREHENSIVE initial guess validation - CENTRALIZED."""
-    # Guard clause: Essential configuration must be present
-    if not polynomial_degrees:
-        raise ConfigurationError(
-            "Cannot validate initial guess: polynomial degrees not configured",
-            "Call problem.set_mesh() before validation",
-        )
-
-    num_intervals = len(polynomial_degrees)
-
-    # Validate time values
-    validate_time_values(initial_guess.initial_time_variable, initial_guess.terminal_time_variable)
-
-    # Validate integrals
-    validate_integral_values(initial_guess.integrals, num_integrals)
-
-    # Critical state trajectory validation
-    if initial_guess.states is not None:
-        expected_state_shapes = [(num_states, N + 1) for N in polynomial_degrees]
-        validate_interval_trajectory_consistency(
-            initial_guess.states, num_intervals, expected_state_shapes, "state"
-        )
-
-        if len(initial_guess.states) != num_intervals:
-            raise DataIntegrityError(
-                f"State trajectories count ({len(initial_guess.states)}) doesn't match intervals ({num_intervals})",
-                "Initial guess structure inconsistency",
-            )
-
-    # Critical control trajectory validation
-    if initial_guess.controls is not None:
-        expected_control_shapes = [(num_controls, N) for N in polynomial_degrees]
-        validate_interval_trajectory_consistency(
-            initial_guess.controls, num_intervals, expected_control_shapes, "control"
-        )
-
-        if len(initial_guess.controls) != num_intervals:
-            raise DataIntegrityError(
-                f"Control trajectories count ({len(initial_guess.controls)}) doesn't match intervals ({num_intervals})",
-                "Initial guess structure inconsistency",
-            )
-
-
 def validate_mesh_configuration(
     polynomial_degrees: list[int],
     mesh_points: FloatArray,
@@ -384,30 +473,6 @@ def validate_mesh_configuration(
         raise ConfigurationError(
             f"Mesh points must be strictly increasing with minimum spacing of {MESH_TOLERANCE}, found minimum difference of {np.min(mesh_diffs)}",
             "Invalid mesh spacing",
-        )
-
-
-def validate_time_bounds(
-    t0_bounds: tuple[float, float],
-    tf_bounds: tuple[float, float],
-) -> None:
-    """Validate time bound constraints with fail-fast."""
-    # Guard clause: Check bound ordering
-    if t0_bounds[0] > t0_bounds[1]:
-        raise ConfigurationError(
-            f"Initial time bounds are invalid: {t0_bounds}", "Lower bound cannot exceed upper bound"
-        )
-    if tf_bounds[0] > tf_bounds[1]:
-        raise ConfigurationError(
-            f"Final time bounds are invalid: {tf_bounds}", "Lower bound cannot exceed upper bound"
-        )
-
-    # Check if valid time duration is possible
-    max_possible_duration = tf_bounds[1] - t0_bounds[0]
-    if max_possible_duration < MINIMUM_TIME_INTERVAL:
-        raise ConfigurationError(
-            f"Maximum possible time duration ({max_possible_duration}) is below minimum ({MINIMUM_TIME_INTERVAL})",
-            f"Time bounds: t0 ∈ {t0_bounds}, tf ∈ {tf_bounds}",
         )
 
 
@@ -548,26 +613,6 @@ def validate_integral_values(integrals: float | FloatArray | None, num_integrals
                 f"Integral guess must have exactly {num_integrals} elements, got {integrals_array.size}"
             )
         validate_array_numerical_integrity(integrals_array, "Integrals")
-
-
-def validate_time_values(initial_time: float | None, terminal_time: float | None) -> None:
-    """Validate actual time values (not bounds)."""
-    if initial_time is not None:
-        validate_array_numerical_integrity(
-            np.array([initial_time]), "Initial time", "time validation"
-        )
-
-    if terminal_time is not None:
-        validate_array_numerical_integrity(
-            np.array([terminal_time]), "Terminal time", "time validation"
-        )
-
-    # Check time ordering if both are present
-    if initial_time is not None and terminal_time is not None:
-        if terminal_time <= initial_time:
-            raise DataIntegrityError(
-                f"Terminal time ({terminal_time}) must be greater than initial time ({initial_time})"
-            )
 
 
 def validate_interval_length(

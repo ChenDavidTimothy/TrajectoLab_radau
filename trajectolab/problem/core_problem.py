@@ -1,33 +1,133 @@
+# trajectolab/problem/core_problem.py
 """
-Core problem definition for optimal control problems.
+Core multiphase problem definition for optimal control problems.
 
 This module provides the main Problem class that users interact with to define
-optimal control problems using TrajectoLab's unified constraint API.
+multiphase optimal control problems using TrajectoLab's unified constraint API.
 """
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Generator, Sequence
+from contextlib import contextmanager
 from typing import Any
 
 import casadi as ca
 
-from ..tl_types import FloatArray, NumericArrayLike
+from ..tl_types import FloatArray, NumericArrayLike, PhaseID
 from . import constraints_problem, initial_guess_problem, mesh, solver_interface, variables_problem
-from .state import ConstraintInput, ConstraintState, MeshState, VariableState
-from .variables_problem import StateVariableImpl
+from .state import ConstraintInput, MultiPhaseVariableState, PhaseDefinition
+from .variables_problem import StateVariableImpl, TimeVariableImpl
 
 
 # Library logger - no handler configuration
 logger = logging.getLogger(__name__)
 
 
+class PhaseContext:
+    """Context manager for phase-specific variable definition."""
+
+    def __init__(self, problem: "Problem", phase_id: PhaseID) -> None:
+        self.problem = problem
+        self.phase_id = phase_id
+        self._phase_def: PhaseDefinition | None = None
+
+    def __enter__(self) -> "PhaseContext":
+        # Set current phase context
+        self.problem._current_phase_id = self.phase_id
+        if self.phase_id not in self.problem._multiphase_state.phases:
+            self._phase_def = self.problem._multiphase_state.add_phase(self.phase_id)
+        else:
+            self._phase_def = self.problem._multiphase_state.phases[self.phase_id]
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        # Clear current phase context
+        self.problem._current_phase_id = None
+
+    def time(
+        self,
+        initial: ConstraintInput = 0.0,
+        final: ConstraintInput = None,
+    ) -> TimeVariableImpl:
+        """Define time variable for this phase."""
+        if self._phase_def is None:
+            raise RuntimeError("Phase context not properly initialized")
+        return variables_problem.create_phase_time_variable(self._phase_def, initial, final)
+
+    def state(
+        self,
+        name: str,
+        initial: ConstraintInput = None,
+        final: ConstraintInput = None,
+        boundary: ConstraintInput = None,
+    ) -> StateVariableImpl:
+        """Define state variable for this phase."""
+        if self._phase_def is None:
+            raise RuntimeError("Phase context not properly initialized")
+        return variables_problem.create_phase_state_variable(
+            self._phase_def, name, initial, final, boundary
+        )
+
+    def control(
+        self,
+        name: str,
+        boundary: ConstraintInput = None,
+    ) -> ca.MX:
+        """Define control variable for this phase."""
+        if self._phase_def is None:
+            raise RuntimeError("Phase context not properly initialized")
+        return variables_problem.create_phase_control_variable(self._phase_def, name, boundary)
+
+    def dynamics(
+        self,
+        dynamics_dict: dict[ca.MX | StateVariableImpl, ca.MX | float | int | StateVariableImpl],
+    ) -> None:
+        """Define dynamics for this phase."""
+        if self._phase_def is None:
+            raise RuntimeError("Phase context not properly initialized")
+        variables_problem.set_phase_dynamics(self._phase_def, dynamics_dict)
+
+        # Log dynamics definition
+        logger.info(
+            "Dynamics defined for phase %d with %d state variables",
+            self.phase_id,
+            len(dynamics_dict),
+        )
+
+    def add_integral(self, integrand_expr: ca.MX | float | int) -> ca.MX:
+        """Add integral expression for this phase."""
+        if self._phase_def is None:
+            raise RuntimeError("Phase context not properly initialized")
+        return variables_problem.add_phase_integral(self._phase_def, integrand_expr)
+
+    def subject_to(self, constraint_expr: ca.MX | float | int) -> None:
+        """Add path constraint for this phase."""
+        if self._phase_def is None:
+            raise RuntimeError("Phase context not properly initialized")
+        constraints_problem.add_phase_path_constraint(self._phase_def, constraint_expr)
+
+        logger.debug("Path constraint added to phase %d", self.phase_id)
+
+    def set_mesh(self, polynomial_degrees: list[int], mesh_points: NumericArrayLike) -> None:
+        """Configure mesh for this phase."""
+        if self._phase_def is None:
+            raise RuntimeError("Phase context not properly initialized")
+
+        logger.info(
+            "Setting mesh for phase %d: %d intervals", self.phase_id, len(polynomial_degrees)
+        )
+        mesh.configure_phase_mesh(self._phase_def, polynomial_degrees, mesh_points)
+        logger.info(
+            "Mesh configured for phase %d: %d intervals", self.phase_id, len(polynomial_degrees)
+        )
+
+
 class Problem:
     """
-    Main class for defining optimal control problems.
+    Main class for defining multiphase optimal control problems.
 
-    The Problem class provides a unified interface for defining optimal control problems
-    using symbolic variables, constraints, and dynamics. It supports the complete
-    workflow from problem definition to solution.
+    The Problem class provides a unified interface for defining multiphase optimal control
+    problems using symbolic variables, constraints, and dynamics following the CGPOPS structure.
 
     Args:
         name: A descriptive name for the problem (used in logging and output)
@@ -36,110 +136,221 @@ class Problem:
         >>> import trajectolab as tl
         >>> import numpy as np
         >>>
-        >>> # Create problem
-        >>> problem = tl.Problem("Minimum Time")
+        >>> # Create multiphase problem
+        >>> problem = tl.Problem("Multiphase Mission")
         >>>
-        >>> # Define variables
-        >>> t = problem.time(initial=0.0)
-        >>> x = problem.state("position", initial=0.0, final=1.0)
-        >>> u = problem.control("thrust", boundary=(-1.0, 1.0))
+        >>> # Phase 1: Ascent
+        >>> with problem.phase(1) as ascent:
+        >>>     t1 = ascent.time(initial=0.0, final=(100, 200))
+        >>>     h1 = ascent.state("altitude", initial=0.0)
+        >>>     v1 = ascent.state("velocity", initial=0.0)
+        >>>     u1 = ascent.control("thrust", boundary=(0, 1))
+        >>>     ascent.dynamics({h1: v1, v1: u1})
+        >>>     ascent.set_mesh([8, 8], [-1.0, 0.0, 1.0])
         >>>
-        >>> # Set dynamics and objective
-        >>> problem.dynamics({x: u})
-        >>> problem.minimize(t.final)
+        >>> # Phase 2: Coast
+        >>> with problem.phase(2) as coast:
+        >>>     t2 = coast.time(initial=t1.final)
+        >>>     h2 = coast.state("altitude", initial=h1.final)
+        >>>     v2 = coast.state("velocity", initial=v1.final)
+        >>>     coast.dynamics({h2: v2, v2: 0})
+        >>>     coast.set_mesh([5], [-1.0, 1.0])
         >>>
-        >>> # Configure and solve
-        >>> problem.set_mesh([10], np.array([-1.0, 1.0]))
-        >>> solution = tl.solve_fixed_mesh(problem)
+        >>> # Cross-phase constraints
+        >>> problem.subject_to(h1.final == h2.initial)
+        >>> problem.subject_to(v1.final == v2.initial)
+        >>>
+        >>> # Global objective
+        >>> fuel = ascent.add_integral(u1**2)
+        >>> problem.minimize(fuel + t2.final)
     """
 
-    def __init__(self, name: str = "Unnamed Problem") -> None:
-        """Initialize a new problem instance."""
+    def __init__(self, name: str = "Multiphase Problem") -> None:
+        """Initialize a new multiphase problem instance."""
         self.name = name
 
-        # Log problem creation (DEBUG - developer info)
-        logger.debug("Created problem: '%s'", name)
+        # Log problem creation
+        logger.debug("Created multiphase problem: '%s'", name)
 
-        # State containers
-        self._variable_state = VariableState()
-        self._constraint_state = ConstraintState()
-        self._mesh_state = MeshState()
-        self._initial_guess_container = [None]
+        # Multiphase state management
+        self._multiphase_state = MultiPhaseVariableState()
+        self._current_phase_id: PhaseID | None = None
+        self._initial_guess_container = [None]  # MultiPhaseInitialGuess container
         self.solver_options: dict[str, Any] = {}
 
     # ========================================================================
-    # UNIFIED PROPERTIES - Direct access to optimized storage
+    # MULTIPHASE API METHODS - Public Interface
+    # ========================================================================
+
+    @contextmanager
+    def phase(self, phase_id: PhaseID) -> Generator[PhaseContext, None, None]:
+        """
+        Create a phase context for defining phase-specific variables and constraints.
+
+        Args:
+            phase_id: Unique identifier for the phase
+
+        Returns:
+            PhaseContext object for phase-specific operations
+
+        Example:
+            >>> with problem.phase(1) as ascent:
+            >>>     x = ascent.state("position", initial=0.0)
+            >>>     u = ascent.control("thrust", boundary=(0, 1))
+            >>>     ascent.dynamics({x: u})
+        """
+        phase_context = PhaseContext(self, phase_id)
+        yield phase_context
+
+    def parameter(
+        self,
+        name: str,
+        boundary: ConstraintInput = None,
+    ) -> ca.MX:
+        """
+        Define a static parameter that spans across all phases.
+
+        Args:
+            name: Parameter name (must be unique)
+            boundary: Constraint specification for the parameter
+
+        Returns:
+            CasADi symbolic variable for use across all phases
+
+        Example:
+            >>> mass = problem.parameter("mass", boundary=(100, 1000))
+        """
+        param_var = variables_problem.create_static_parameter(
+            self._multiphase_state.static_parameters, name, boundary
+        )
+
+        logger.debug("Static parameter created: name='%s', boundary=%s", name, boundary)
+        return param_var
+
+    def minimize(self, objective_expr: ca.MX | float | int) -> None:
+        """
+        Define the multiphase objective function to minimize.
+
+        Args:
+            objective_expr: Symbolic expression to minimize.
+                Can depend on initial/final states from any phase, times,
+                integrals, and static parameters.
+
+        Example:
+            >>> # Single phase objective
+            >>> problem.minimize(t1.final)
+            >>>
+            >>> # Multi-phase objective with integrals
+            >>> fuel1 = phase1.add_integral(u1**2)
+            >>> fuel2 = phase2.add_integral(u2**2)
+            >>> problem.minimize(fuel1 + fuel2 + t2.final)
+        """
+        variables_problem.set_multiphase_objective(self._multiphase_state, objective_expr)
+
+        logger.info("Multiphase objective function defined")
+
+    def subject_to(self, constraint_expr: ca.MX | float | int) -> None:
+        """
+        Add a cross-phase constraint to the problem.
+
+        Cross-phase constraints link variables from different phases and are applied
+        as event constraints in the unified NLP formulation.
+
+        Args:
+            constraint_expr: Symbolic constraint expression.
+                Can reference variables from multiple phases using ==, <=, >= operators.
+
+        Example:
+            >>> # State continuity between phases
+            >>> problem.subject_to(x1.final == x2.initial)
+            >>> problem.subject_to(v1.final == v2.initial)
+            >>>
+            >>> # Time continuity
+            >>> problem.subject_to(t1.final == t2.initial)
+            >>>
+            >>> # Complex cross-phase constraints
+            >>> problem.subject_to(x1.final + x2.final <= 100)
+        """
+        constraints_problem.add_cross_phase_constraint(self._multiphase_state, constraint_expr)
+
+        logger.debug(
+            "Cross-phase constraint added: total=%d",
+            len(self._multiphase_state.cross_phase_constraints),
+        )
+
+    def set_initial_guess(
+        self,
+        phase_states: dict[PhaseID, Sequence[FloatArray]] | None = None,
+        phase_controls: dict[PhaseID, Sequence[FloatArray]] | None = None,
+        phase_initial_times: dict[PhaseID, float] | None = None,
+        phase_terminal_times: dict[PhaseID, float] | None = None,
+        phase_integrals: dict[PhaseID, float | FloatArray] | None = None,
+        static_parameters: FloatArray | None = None,
+    ) -> None:
+        """
+        Set initial guess for the multiphase optimization variables.
+
+        Args:
+            phase_states: Dictionary mapping phase_id to list of state trajectory arrays
+            phase_controls: Dictionary mapping phase_id to list of control trajectory arrays
+            phase_initial_times: Dictionary mapping phase_id to initial time guess
+            phase_terminal_times: Dictionary mapping phase_id to terminal time guess
+            phase_integrals: Dictionary mapping phase_id to integral values guess
+            static_parameters: Array of static parameter guesses
+
+        Example:
+            >>> # Set guess for multiple phases
+            >>> problem.set_initial_guess(
+            ...     phase_states={1: [state_guess_p1], 2: [state_guess_p2]},
+            ...     phase_controls={1: [control_guess_p1], 2: [control_guess_p2]},
+            ...     phase_terminal_times={1: 100.0, 2: 200.0},
+            ...     static_parameters=np.array([500.0])  # mass parameter
+            ... )
+        """
+        components = []
+        if phase_states is not None:
+            components.append(f"states({len(phase_states)} phases)")
+        if phase_controls is not None:
+            components.append(f"controls({len(phase_controls)} phases)")
+        if static_parameters is not None:
+            components.append(f"parameters({len(static_parameters)})")
+
+        logger.info("Setting multiphase initial guess: %s", ", ".join(components))
+
+        initial_guess_problem.set_multiphase_initial_guess(
+            self._initial_guess_container,
+            self._multiphase_state,
+            phase_states=phase_states,
+            phase_controls=phase_controls,
+            phase_initial_times=phase_initial_times,
+            phase_terminal_times=phase_terminal_times,
+            phase_integrals=phase_integrals,
+            static_parameters=static_parameters,
+        )
+
+    # ========================================================================
+    # PROTOCOL INTERFACE METHODS - Required by ProblemProtocol
     # ========================================================================
 
     @property
-    def _sym_time(self) -> ca.MX | None:
-        """Internal time symbol."""
-        return self._variable_state.sym_time
+    def _phases(self) -> dict[PhaseID, Any]:
+        """Internal phases access for protocol."""
+        return self._multiphase_state.phases
 
     @property
-    def _sym_time_initial(self) -> ca.MX | None:
-        """Internal initial time symbol."""
-        return self._variable_state.sym_time_initial
+    def _static_parameters(self) -> Any:
+        """Internal static parameters access for protocol."""
+        return self._multiphase_state.static_parameters
 
     @property
-    def _sym_time_final(self) -> ca.MX | None:
-        """Internal final time symbol."""
-        return self._variable_state.sym_time_final
+    def _cross_phase_constraints(self) -> list[ca.MX]:
+        """Internal cross-phase constraints access for protocol."""
+        return self._multiphase_state.cross_phase_constraints
 
     @property
-    def _t0_bounds(self) -> tuple[float, float]:
-        """Internal initial time bounds."""
-        return self._variable_state.t0_bounds
-
-    @property
-    def _tf_bounds(self) -> tuple[float, float]:
-        """Internal final time bounds."""
-        return self._variable_state.tf_bounds
-
-    @property
-    def _dynamics_expressions(self) -> dict[ca.MX, ca.MX]:
-        """Internal dynamics expressions storage."""
-        return self._variable_state.dynamics_expressions
-
-    @property
-    def _objective_expression(self) -> ca.MX | None:
-        """Internal objective expression storage."""
-        return self._variable_state.objective_expression
-
-    @property
-    def _constraints(self) -> list[ca.MX]:
-        """Internal constraint expressions storage."""
-        return self._constraint_state.constraints
-
-    @property
-    def _integral_expressions(self) -> list[ca.MX]:
-        """Internal integral expressions storage."""
-        return self._variable_state.integral_expressions
-
-    @property
-    def _integral_symbols(self) -> list[ca.MX]:
-        """Internal integral symbols storage."""
-        return self._variable_state.integral_symbols
-
-    @property
-    def _num_integrals(self) -> int:
-        """Internal integral count."""
-        return self._variable_state.num_integrals
-
-    @property
-    def collocation_points_per_interval(self) -> list[int]:
-        """Collocation points configuration for each mesh interval."""
-        return self._mesh_state.collocation_points_per_interval
-
-    @property
-    def global_normalized_mesh_nodes(self) -> FloatArray | None:
-        """Global normalized mesh node positions."""
-        return self._mesh_state.global_normalized_mesh_nodes
-
-    @property
-    def _mesh_configured(self) -> bool:
-        """Whether the mesh has been configured."""
-        return self._mesh_state.configured
+    def _num_phases(self) -> int:
+        """Internal number of phases for protocol."""
+        return len(self._multiphase_state.phases)
 
     @property
     def initial_guess(self):
@@ -151,505 +362,80 @@ class Problem:
         """Set the initial guess for the problem."""
         self._initial_guess_container[0] = value
 
-    # ========================================================================
-    # PROTOCOL INTERFACE METHODS - Required by ProblemProtocol
-    # ========================================================================
+    def get_phase_ids(self) -> list[PhaseID]:
+        """Return ordered list of phase IDs."""
+        return self._multiphase_state.get_phase_ids()
 
-    def get_variable_counts(self) -> tuple[int, int]:
-        """
-        Get the number of state and control variables.
+    def get_phase_variable_counts(self, phase_id: PhaseID) -> tuple[int, int]:
+        """Return (num_states, num_controls) for given phase."""
+        if phase_id not in self._multiphase_state.phases:
+            raise ValueError(f"Phase {phase_id} does not exist")
+        return self._multiphase_state.phases[phase_id].get_variable_counts()
 
-        Returns:
-            Tuple of (num_states, num_controls)
-        """
-        return self._variable_state.get_variable_counts()
+    def get_total_variable_counts(self) -> tuple[int, int, int]:
+        """Return (total_states, total_controls, num_static_params)."""
+        return self._multiphase_state.get_total_variable_counts()
 
-    def get_ordered_state_symbols(self) -> list[ca.MX]:
-        """Get state variable symbols in definition order."""
-        return self._variable_state.get_ordered_state_symbols()
+    def get_phase_ordered_state_names(self, phase_id: PhaseID) -> list[str]:
+        """Get state names for given phase in order."""
+        if phase_id not in self._multiphase_state.phases:
+            raise ValueError(f"Phase {phase_id} does not exist")
+        return self._multiphase_state.phases[phase_id].state_names.copy()
 
-    def get_ordered_control_symbols(self) -> list[ca.MX]:
-        """Get control variable symbols in definition order."""
-        return self._variable_state.get_ordered_control_symbols()
+    def get_phase_ordered_control_names(self, phase_id: PhaseID) -> list[str]:
+        """Get control names for given phase in order."""
+        if phase_id not in self._multiphase_state.phases:
+            raise ValueError(f"Phase {phase_id} does not exist")
+        return self._multiphase_state.phases[phase_id].control_names.copy()
 
-    def get_ordered_state_names(self) -> list[str]:
-        """Get state variable names in definition order."""
-        return self._variable_state.get_ordered_state_names()
+    def get_phase_dynamics_function(self, phase_id: PhaseID) -> Any:
+        """Get dynamics function for given phase."""
+        if phase_id not in self._multiphase_state.phases:
+            raise ValueError(f"Phase {phase_id} does not exist")
+        return solver_interface.get_phase_dynamics_function(self._multiphase_state.phases[phase_id])
 
-    def get_ordered_control_names(self) -> list[str]:
-        """Get control variable names in definition order."""
-        return self._variable_state.get_ordered_control_names()
+    def get_objective_function(self) -> Any:
+        """Get multiphase objective function."""
+        return solver_interface.get_multiphase_objective_function(self._multiphase_state)
 
-    def get_state_bounds(self) -> list[tuple[float | None, float | None]]:
-        """Get state variable bounds for compatibility."""
-        # Convert boundary constraints to bounds for compatibility
-        boundary_constraints = self._variable_state.get_state_boundary_constraints()
-        # Fix: Explicitly type the bounds list
-        bounds: list[tuple[float | None, float | None]] = []
-        for constraint in boundary_constraints:
-            if constraint is None or not constraint.has_constraint():
-                bounds.append((None, None))
-            elif constraint.equals is not None:
-                bounds.append((constraint.equals, constraint.equals))
-            else:
-                bounds.append((constraint.lower, constraint.upper))
-        return bounds
-
-    def get_control_bounds(self) -> list[tuple[float | None, float | None]]:
-        """Get control variable bounds for compatibility."""
-        # Convert boundary constraints to bounds for compatibility
-        boundary_constraints = self._variable_state.get_control_boundary_constraints()
-        # Fix: Explicitly type the bounds list
-        bounds: list[tuple[float | None, float | None]] = []
-        for constraint in boundary_constraints:
-            if constraint is None or not constraint.has_constraint():
-                bounds.append((None, None))
-            elif constraint.equals is not None:
-                bounds.append((constraint.equals, constraint.equals))
-            else:
-                bounds.append((constraint.lower, constraint.upper))
-        return bounds
-
-    # ========================================================================
-    # UNIFIED CONSTRAINT API METHODS - Public Interface
-    # ========================================================================
-
-    def time(
-        self,
-        initial: ConstraintInput = 0.0,
-        final: ConstraintInput = None,
-    ) -> variables_problem.TimeVariableImpl:
-        """
-        Define the time variable with constraint specification.
-
-        Args:
-            initial: Constraint on initial time. Can be:
-                - float/int: Fixed initial time (default: 0.0)
-                - tuple(lower, upper): Range constraint for t0
-                - None: Treated as fixed at 0.0
-            final: Constraint on final time. Can be:
-                - float/int: Fixed final time
-                - tuple(lower, upper): Range constraint for tf
-                - None: Fully free (subject to tf > t0 + epsilon)
-
-        Returns:
-            TimeVariableImpl object with .initial and .final properties
-
-        Example:
-            >>> t = problem.time(initial=0.0)              # t0 = 0, tf free
-            >>> t = problem.time(initial=0.0, final=10.0)  # Both fixed
-            >>> t = problem.time(final=(5.0, 15.0))        # tf ∈ [5, 15]
-        """
-        time_var = variables_problem.create_time_variable(self._variable_state, initial, final)
-
-        # Log time variable creation (DEBUG - developer info)
-        logger.debug("Time variable created: initial=%s, final=%s", initial, final)
-
-        return time_var
-
-    def state(
-        self,
-        name: str,
-        initial: ConstraintInput = None,
-        final: ConstraintInput = None,
-        boundary: ConstraintInput = None,
-    ) -> variables_problem.StateVariableImpl:
-        """
-        Define a state variable with constraint specification and initial/final properties.
-
-        Args:
-            name: Variable name (must be unique)
-            initial: Initial condition constraint (event constraint at t0):
-                - float/int: Fixed value at t0
-                - tuple(lower, upper): Range constraint at t0
-                - None: No initial constraint
-            final: Final condition constraint (event constraint at tf):
-                - float/int: Fixed value at tf
-                - tuple(lower, upper): Range constraint at tf
-                - None: No final constraint
-            boundary: Path constraint (applies throughout trajectory):
-                - float/int: Fixed value for entire trajectory
-                - tuple(lower, upper): Range constraint for entire trajectory
-                - None: No path constraint
-
-        Returns:
-            StateVariableImpl object with .initial and .final properties
-
-        Example:
-            >>> x = problem.state("position", initial=0.0, final=1.0)
-            >>> v = problem.state("velocity", boundary=(-10.0, 10.0))
-            >>> y = problem.state("height", initial=(0.0, 5.0))
-            >>>
-            >>> # Use in dynamics (current state)
-            >>> problem.dynamics({x: v, v: u})
-            >>>
-            >>> # Use in objective (endpoint values)
-            >>> problem.minimize(x.final**2 + 0.1 * x.initial)
-            >>>
-            >>> # Use in constraints (endpoint values)
-            >>> problem.subject_to(x.final >= x.initial + 5.0)
-        """
-        state_var = variables_problem.create_state_variable(
-            self._variable_state, name, initial, final, boundary
+    def get_phase_integrand_function(self, phase_id: PhaseID) -> Any:
+        """Get integrand function for given phase."""
+        if phase_id not in self._multiphase_state.phases:
+            raise ValueError(f"Phase {phase_id} does not exist")
+        return solver_interface.get_phase_integrand_function(
+            self._multiphase_state.phases[phase_id]
         )
 
-        # Log state variable creation (DEBUG - developer info)
+    def get_phase_path_constraints_function(self, phase_id: PhaseID) -> Any:
+        """Get path constraints function for given phase."""
+        if phase_id not in self._multiphase_state.phases:
+            raise ValueError(f"Phase {phase_id} does not exist")
+        return solver_interface.get_phase_path_constraints_function(
+            self._multiphase_state.phases[phase_id]
+        )
+
+    def get_cross_phase_event_constraints_function(self) -> Any:
+        """Get cross-phase event constraints function."""
+        return solver_interface.get_cross_phase_event_constraints_function(self._multiphase_state)
+
+    def validate_multiphase_configuration(self) -> None:
+        """Validate the multiphase problem configuration."""
+        # Validate that we have at least one phase
+        if not self._multiphase_state.phases:
+            raise ValueError("Problem must have at least one phase defined")
+
+        # Validate each phase
+        for phase_id, phase_def in self._multiphase_state.phases.items():
+            if not phase_def.dynamics_expressions:
+                raise ValueError(f"Phase {phase_id} must have dynamics defined")
+
+            if not phase_def.mesh_configured:
+                raise ValueError(f"Phase {phase_id} must have mesh configured")
+
+        # Validate objective
+        if self._multiphase_state.objective_expression is None:
+            raise ValueError("Problem must have objective function defined")
+
         logger.debug(
-            "State variable created: name='%s', initial=%s, final=%s, boundary=%s",
-            name,
-            initial,
-            final,
-            boundary,
-        )
-
-        return state_var
-
-    def control(
-        self,
-        name: str,
-        boundary: ConstraintInput = None,
-    ) -> ca.MX:
-        """
-        Define a control variable with path constraints.
-
-        Args:
-            name: Variable name (must be unique)
-            boundary: Path constraint (applies throughout trajectory):
-                - float/int: Fixed value for entire trajectory
-                - tuple(lower, upper): Range constraint for entire trajectory
-                - None: No path constraint (unbounded - not recommended)
-
-        Returns:
-            CasADi symbolic variable for use in dynamics and constraints
-
-        Example:
-            >>> u = problem.control("thrust", boundary=(-1.0, 1.0))
-            >>> throttle = problem.control("throttle", boundary=(0.0, 1.0))
-            >>> steering = problem.control("steering")  # Unbounded
-        """
-        control_var = variables_problem.create_control_variable(
-            self._variable_state, name, boundary
-        )
-
-        # Log control variable creation (DEBUG - developer info)
-        logger.debug("Control variable created: name='%s', boundary=%s", name, boundary)
-
-        return control_var
-
-    def dynamics(
-        self,
-        dynamics_dict: dict[ca.MX | StateVariableImpl, ca.MX | float | int | StateVariableImpl],
-    ) -> None:
-        """
-        Define the system dynamics as differential equations.
-
-        Specifies the time derivatives of all state variables as functions of
-        states, controls, time, and parameters.
-
-        Args:
-            dynamics_dict: Dictionary mapping each state variable to its time derivative.
-                Keys can be state variables created with problem.state() or their underlying symbols.
-                Values are symbolic expressions using states, controls, time, and parameters.
-
-        Example:
-            >>> x = problem.state("position")
-            >>> v = problem.state("velocity")
-            >>> u = problem.control("acceleration")
-            >>> problem.dynamics({
-            ...     x: v,           # dx/dt = v
-            ...     v: u            # dv/dt = u
-            ... })
-        """
-        converted_dynamics = {
-            key: (val._symbolic_var if isinstance(val, StateVariableImpl) else val)
-            for key, val in dynamics_dict.items()
-        }
-        variables_problem.set_dynamics(self._variable_state, converted_dynamics)
-
-        # Log dynamics definition (INFO - user cares about major setup)
-        logger.info("Dynamics defined for %d state variables", len(dynamics_dict))
-
-    def add_integral(self, integrand_expr: ca.MX | float | int) -> ca.MX:
-        """
-        Add an integral expression to be computed during solution.
-
-        Integrals are computed over the time interval and can be used in the
-        objective function or constraints. Common uses include energy consumption,
-        path length, or accumulated cost.
-
-        Args:
-            integrand_expr: Symbolic expression to integrate over time.
-                Can depend on states, controls, time, and parameters.
-
-        Returns:
-            Symbolic variable representing the integral value
-
-        Example:
-            >>> u = problem.control("thrust")
-            >>> energy = problem.add_integral(u**2)  # Energy consumption
-            >>> problem.minimize(energy)             # Minimize energy
-        """
-        integral_var = variables_problem.add_integral(self._variable_state, integrand_expr)
-
-        # Log integral addition (DEBUG)
-        logger.debug("Integral added: total_integrals=%d", self._variable_state.num_integrals)
-
-        return integral_var
-
-    def minimize(self, objective_expr: ca.MX | float | int) -> None:
-        """
-        Define the objective function to minimize.
-
-        Args:
-            objective_expr: Symbolic expression to minimize.
-                Can depend on initial/final states, initial/final time,
-                integrals, and parameters. Cannot depend on path variables.
-
-        Example:
-            >>> t = problem.time()
-            >>> problem.minimize(t.final)           # Minimum time
-            >>>
-            >>> energy = problem.add_integral(u**2)
-            >>> problem.minimize(energy)            # Minimum energy
-            >>>
-            >>> x = problem.state("position")
-            >>> problem.minimize(x.final**2)        # Minimize final position squared
-        """
-        variables_problem.set_objective(self._variable_state, objective_expr)
-
-        # Log objective definition (INFO - user cares about major setup)
-        logger.info("Objective function defined")
-
-    def subject_to(self, constraint_expr: ca.MX | float | int) -> None:
-        """
-        Add a constraint to the problem.
-
-        Constraints can be equality or inequality constraints that must be satisfied
-        during optimization. They can depend on states, controls, time, integrals,
-        and parameters.
-
-        Args:
-            constraint_expr: Symbolic constraint expression.
-                Use ==, <=, >= operators to create constraint expressions.
-
-        Example:
-            >>> x = problem.state("position")
-            >>> v = problem.state("velocity")
-            >>> problem.subject_to(x + v <= 10.0)     # Path constraint
-            >>> problem.subject_to(x.final == 5.0)    # Final condition
-        """
-        constraints_problem.add_constraint(self._constraint_state, constraint_expr)
-
-        # Log constraint addition (DEBUG)
-        logger.debug(
-            "Constraint added: total_constraints=%d", len(self._constraint_state.constraints)
-        )
-
-    def set_mesh(self, polynomial_degrees: list[int], mesh_points: NumericArrayLike) -> None:
-        """
-        Configure the pseudospectral mesh for discretization.
-
-        The mesh defines how the continuous optimal control problem is discretized
-        for numerical solution. Higher polynomial degrees and more intervals
-        generally provide higher accuracy but require more computation.
-
-        Args:
-            polynomial_degrees: List of polynomial degrees for each mesh interval.
-                Each degree must be >= 1. Common values are 3-10.
-            mesh_points: Mesh node locations in normalized domain [-1, 1].
-                Must start at -1.0 and end at 1.0, with strictly increasing values.
-                Length must be len(polynomial_degrees) + 1.
-
-        Example:
-            >>> # Single interval with degree 8
-            >>> problem.set_mesh([8], [-1.0, 1.0])
-            >>>
-            >>> # Three intervals with different degrees
-            >>> problem.set_mesh([5, 8, 5], [-1.0, -0.2, 0.3, 1.0])
-            >>>
-            >>> # Uniform spacing with numpy
-            >>> import numpy as np
-            >>> problem.set_mesh([6, 6, 6], np.linspace(-1, 1, 4))
-        """
-
-        # Log mesh configuration start (INFO - user cares about major setup)
-        logger.info(
-            "Setting mesh: %d intervals, degrees=%s", len(polynomial_degrees), polynomial_degrees
-        )
-
-        mesh.configure_mesh(self._mesh_state, polynomial_degrees, mesh_points)
-
-        # Log successful mesh configuration (INFO)
-        logger.info("Mesh configured successfully: %d intervals", len(polynomial_degrees))
-
-    def set_initial_guess(
-        self,
-        states: Sequence[FloatArray] | None = None,
-        controls: Sequence[FloatArray] | None = None,
-        initial_time: float | None = None,
-        terminal_time: float | None = None,
-        integrals: float | FloatArray | None = None,
-    ) -> None:
-        """
-        Set initial guess for the optimization variables.
-
-        Providing a good initial guess can significantly improve solver performance
-        and convergence. If no guess is provided, the solver will use default values.
-
-        Args:
-            states: List of state trajectory arrays, one per mesh interval.
-                Each array shape: (num_states, num_collocation_nodes + 1)
-            controls: List of control trajectory arrays, one per mesh interval.
-                Each array shape: (num_controls, num_collocation_nodes)
-            initial_time: Initial time guess (if time is free)
-            terminal_time: Terminal time guess (if time is free)
-            integrals: Integral values guess (scalar for single integral,
-                array for multiple integrals)
-
-        Note:
-            Array shapes depend on the mesh configuration. Call get_initial_guess_requirements()
-            to see the exact shapes needed.
-
-        Example:
-            >>> import numpy as np
-            >>> # For single interval with 5 collocation nodes
-            >>> state_guess = np.zeros((2, 6))    # 2 states, 6 nodes (5+1)
-            >>> control_guess = np.ones((1, 5))   # 1 control, 5 nodes
-            >>> problem.set_initial_guess([state_guess], [control_guess],
-            ...                          initial_time=0.0, terminal_time=10.0)
-        """
-
-        # Log initial guess setup (INFO - user cares about major setup)
-        components = []
-        if states is not None:
-            components.append(f"states({len(states)} intervals)")
-        if controls is not None:
-            components.append(f"controls({len(controls)} intervals)")
-        if initial_time is not None:
-            components.append("initial_time")
-        if terminal_time is not None:
-            components.append("terminal_time")
-        if integrals is not None:
-            components.append("integrals")
-
-        logger.info("Setting initial guess: %s", ", ".join(components))
-
-        initial_guess_problem.set_initial_guess(
-            self._initial_guess_container,
-            self._mesh_state,
-            self._variable_state,
-            states=states,
-            controls=controls,
-            initial_time=initial_time,
-            terminal_time=terminal_time,
-            integrals=integrals,
-        )
-
-        # Log validation status (DEBUG)
-        if self.can_validate_initial_guess():
-            try:
-                self.validate_initial_guess()
-                logger.debug("Initial guess validated successfully")
-            except Exception as e:
-                logger.debug("Initial guess validation deferred: %s", str(e))
-        else:
-            logger.debug("Initial guess validation deferred until mesh is configured")
-
-    def can_validate_initial_guess(self) -> bool:
-        """
-        Check if the current initial guess can be validated.
-
-        Returns:
-            True if mesh is configured and initial guess can be validated
-        """
-        return initial_guess_problem.can_validate_initial_guess(
-            self._mesh_state, self._variable_state
-        )
-
-    def get_initial_guess_requirements(self):
-        """
-        Get the required shapes and types for initial guess arrays.
-
-        Returns:
-            InitialGuessRequirements object describing the required array shapes
-            and whether time/integral guesses are needed.
-
-        Note:
-            The mesh must be configured before calling this method to get
-            specific shape requirements.
-
-        Example:
-            >>> problem.set_mesh([5, 8], [-1.0, 0.0, 1.0])
-            >>> req = problem.get_initial_guess_requirements()
-            >>> print(req)
-            Initial Guess Requirements:
-              States: 2 intervals
-                Interval 0: array of shape (2, 6)
-                Interval 1: array of shape (2, 9)
-              Controls: 2 intervals
-                Interval 0: array of shape (1, 5)
-                Interval 1: array of shape (1, 8)
-        """
-        requirements = initial_guess_problem.get_initial_guess_requirements(
-            self._mesh_state, self._variable_state
-        )
-
-        if not self._mesh_configured:
-            print("Note: Mesh must be configured to get specific shape requirements")
-
-        return requirements
-
-    def validate_initial_guess(self) -> None:
-        """
-        Validate the current initial guess against the mesh configuration.
-
-        Raises:
-            ValueError: If initial guess is invalid or mesh is not configured
-
-        Note:
-            This is called automatically when solving, but can be called manually
-            to check initial guess validity.
-        """
-        initial_guess_problem.validate_initial_guess(
-            self._initial_guess_container[0], self._mesh_state, self._variable_state
-        )
-
-    def get_solver_input_summary(self):
-        """
-        Get a summary of the current solver input configuration.
-
-        Returns:
-            SolverInputSummary object describing the current problem configuration
-            including mesh, initial guess status, and variable dimensions.
-        """
-        return initial_guess_problem.get_solver_input_summary(
-            self._initial_guess_container[0], self._mesh_state, self._variable_state
-        )
-
-    # ========================================================================
-    # SOLVER INTERFACE METHODS - Internal
-    # ========================================================================
-
-    def get_dynamics_function(self):
-        """Get dynamics function for internal solver interface."""
-        return solver_interface.get_dynamics_function(self._variable_state)
-
-    def get_objective_function(self):
-        """Get objective function for internal solver interface."""
-        return solver_interface.get_objective_function(self._variable_state)
-
-    def get_integrand_function(self):
-        """Get integrand function for internal solver interface."""
-        return solver_interface.get_integrand_function(self._variable_state)
-
-    def get_path_constraints_function(self):
-        """Get path constraints function for internal solver interface."""
-        return solver_interface.get_path_constraints_function_for_problem(
-            self._constraint_state, self._variable_state
-        )
-
-    def get_event_constraints_function(self):
-        """Get event constraints function for internal solver interface."""
-        return solver_interface.get_event_constraints_function_for_problem(
-            self._constraint_state, self._variable_state
+            "Multiphase configuration validated: %d phases", len(self._multiphase_state.phases)
         )

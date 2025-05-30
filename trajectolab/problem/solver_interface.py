@@ -1,5 +1,6 @@
+# trajectolab/problem/solver_interface.py
 """
-Interface conversion functions between problem definition and solver requirements.
+Interface conversion functions between multiphase problem definition and solver requirements.
 """
 
 from __future__ import annotations
@@ -10,43 +11,47 @@ from typing import cast
 
 import casadi as ca
 
-from ..tl_types import (
-    Constraint,
-)
+from ..tl_types import Constraint, PhaseID
 from ..utils.expression_cache import (
-    create_cache_key_from_variable_state,
+    create_cache_key_from_multiphase_state,
+    create_cache_key_from_phase_state,
     get_global_expression_cache,
 )
-from .constraints_problem import get_event_constraints_function, get_path_constraints_function
-from .state import ConstraintState, VariableState
+from .constraints_problem import (
+    get_cross_phase_event_constraints_function,
+    get_phase_path_constraints_function,
+)
+from .state import MultiPhaseVariableState, PhaseDefinition
 
 
-def get_dynamics_function(variable_state: VariableState) -> Callable[..., list[ca.MX]]:
-    """Get dynamics function for solver with expression caching and unified storage."""
-    dynamics_exprs = [str(expr) for expr in variable_state.dynamics_expressions.values()]
+def get_phase_dynamics_function(phase_def: PhaseDefinition) -> Callable[..., list[ca.MX]]:
+    """Get dynamics function for a specific phase with expression caching."""
+    dynamics_exprs = [str(expr) for expr in phase_def.dynamics_expressions.values()]
     expr_hash = hashlib.sha256("".join(sorted(dynamics_exprs)).encode()).hexdigest()[:16]
 
-    cache_key = create_cache_key_from_variable_state(variable_state, "dynamics", expr_hash)
+    cache_key = create_cache_key_from_phase_state(phase_def, "dynamics", expr_hash)
 
     def build_dynamics_function() -> ca.Function:
-        """Build CasADi dynamics function - expensive operation."""
-        state_syms = variable_state.get_ordered_state_symbols()
-        control_syms = variable_state.get_ordered_control_symbols()
+        """Build CasADi dynamics function for phase - expensive operation."""
+        state_syms = phase_def.get_ordered_state_symbols()
+        control_syms = phase_def.get_ordered_control_symbols()
 
         states_vec = ca.vertcat(*state_syms) if state_syms else ca.MX()
         controls_vec = ca.vertcat(*control_syms) if control_syms else ca.MX()
-        time = variable_state.sym_time if variable_state.sym_time is not None else ca.MX.sym("t", 1)  # type: ignore[arg-type]
+        time = phase_def.sym_time if phase_def.sym_time is not None else ca.MX.sym("t", 1)  # type: ignore[arg-type]
 
         dynamics_expr = []
         for state_sym in state_syms:
-            if state_sym in variable_state.dynamics_expressions:
-                expr = variable_state.dynamics_expressions[state_sym]
+            if state_sym in phase_def.dynamics_expressions:
+                expr = phase_def.dynamics_expressions[state_sym]
                 dynamics_expr.append(ca.MX(expr) if not isinstance(expr, ca.MX) else expr)
             else:
                 dynamics_expr.append(ca.MX(0))
 
         dynamics_vec = ca.vertcat(*dynamics_expr) if dynamics_expr else ca.MX()
-        return ca.Function("dynamics", [states_vec, controls_vec, time], [dynamics_vec])
+        return ca.Function(
+            f"dynamics_p{phase_def.phase_id}", [states_vec, controls_vec, time], [dynamics_vec]
+        )
 
     dynamics_func = get_global_expression_cache().get_dynamics_function(
         cache_key, build_dynamics_function
@@ -61,7 +66,7 @@ def get_dynamics_function(variable_state: VariableState) -> Callable[..., list[c
         dynamics_output = result[0] if isinstance(result, list | tuple) else result
 
         if dynamics_output is None:
-            raise ValueError("Dynamics function returned None")
+            raise ValueError(f"Phase {phase_def.phase_id} dynamics function returned None")
 
         num_states = int(dynamics_output.size1())
         result_list: list[ca.MX] = []
@@ -73,114 +78,185 @@ def get_dynamics_function(variable_state: VariableState) -> Callable[..., list[c
     return vectorized_dynamics
 
 
-def get_objective_function(variable_state: VariableState) -> Callable[..., ca.MX]:
-    """Get objective function for solver with expression caching and unified storage."""
-    if variable_state.objective_expression is None:
-        raise ValueError("Objective expression not defined")
+def get_multiphase_objective_function(
+    multiphase_state: MultiPhaseVariableState,
+) -> Callable[..., ca.MX]:
+    """Get multiphase objective function with expression caching."""
+    if multiphase_state.objective_expression is None:
+        raise ValueError("Multiphase objective expression not defined")
 
-    obj_hash = hashlib.sha256(str(variable_state.objective_expression).encode()).hexdigest()[:16]
-    cache_key = create_cache_key_from_variable_state(variable_state, "objective", obj_hash)
+    obj_hash = hashlib.sha256(str(multiphase_state.objective_expression).encode()).hexdigest()[:16]
+    cache_key = create_cache_key_from_multiphase_state(multiphase_state, "objective", obj_hash)
 
     def build_objective_function() -> ca.Function:
-        """Build CasADi objective function - expensive operation."""
-        state_syms = variable_state.get_ordered_state_symbols()
-        state_initial_syms = variable_state.get_ordered_state_initial_symbols()
-        state_final_syms = variable_state.get_ordered_state_final_symbols()
+        """Build CasADi multiphase objective function - expensive operation."""
+        # Collect all phase endpoint symbols
+        phase_inputs = []
+        phase_symbols_map = {}
 
-        t0 = (
-            variable_state.sym_time_initial
-            if variable_state.sym_time_initial is not None
-            else ca.MX.sym("t0", 1)  # type: ignore[arg-type]
-        )
-        tf = (
-            variable_state.sym_time_final
-            if variable_state.sym_time_final is not None
-            else ca.MX.sym("tf", 1)  # type: ignore[arg-type]
-        )
-        x0_vec = ca.vertcat(*[ca.MX.sym(f"x0_{i}", 1) for i in range(len(state_syms))])  # type: ignore[arg-type]
-        xf_vec = ca.vertcat(*[ca.MX.sym(f"xf_{i}", 1) for i in range(len(state_syms))])  # type: ignore[arg-type]
-        q = (
-            ca.vertcat(*variable_state.integral_symbols)
-            if variable_state.integral_symbols
-            else ca.MX.sym("q", 1)  # type: ignore[arg-type]
-        )
+        for phase_id in sorted(multiphase_state.phases.keys()):
+            phase_def = multiphase_state.phases[phase_id]
 
-        objective_expr = variable_state.objective_expression
-        old_syms = []
-        new_syms = []
+            # Time symbols
+            t0 = (
+                phase_def.sym_time_initial
+                if phase_def.sym_time_initial is not None
+                else ca.MX.sym(f"t0_p{phase_id}", 1)
+            )  # type: ignore[arg-type]
+            tf = (
+                phase_def.sym_time_final
+                if phase_def.sym_time_final is not None
+                else ca.MX.sym(f"tf_p{phase_id}", 1)
+            )  # type: ignore[arg-type]
 
-        for i, sym in enumerate(state_syms):
-            old_syms.append(sym)
-            if len(state_syms) == 1:
-                new_syms.append(xf_vec)
+            # State vectors
+            state_syms = phase_def.get_ordered_state_symbols()
+            state_initial_syms = phase_def.get_ordered_state_initial_symbols()
+            state_final_syms = phase_def.get_ordered_state_final_symbols()
+
+            x0_vec = ca.vertcat(
+                *[ca.MX.sym(f"x0_{i}_p{phase_id}", 1) for i in range(len(state_syms))]
+            )  # type: ignore[arg-type]
+            xf_vec = ca.vertcat(
+                *[ca.MX.sym(f"xf_{i}_p{phase_id}", 1) for i in range(len(state_syms))]
+            )  # type: ignore[arg-type]
+
+            # Integral vector
+            q_vec = (
+                ca.vertcat(
+                    *[ca.MX.sym(f"q_{i}_p{phase_id}", 1) for i in range(phase_def.num_integrals)]
+                )
+                if phase_def.num_integrals > 0
+                else ca.MX.sym(f"q_p{phase_id}", 1)
+            )  # type: ignore[arg-type]
+
+            phase_inputs.extend([t0, tf, x0_vec, xf_vec, q_vec])
+
+            # Build substitution map
+            phase_symbols_map[t0] = t0
+            phase_symbols_map[tf] = tf
+
+            for i, (state_sym, initial_sym, final_sym) in enumerate(
+                zip(state_syms, state_initial_syms, state_final_syms, strict=True)
+            ):
+                # Map state symbols to final values by default
+                if len(state_syms) == 1:
+                    phase_symbols_map[state_sym] = xf_vec
+                    phase_symbols_map[initial_sym] = x0_vec
+                    phase_symbols_map[final_sym] = xf_vec
+                else:
+                    phase_symbols_map[state_sym] = xf_vec[i]
+                    phase_symbols_map[initial_sym] = x0_vec[i]
+                    phase_symbols_map[final_sym] = xf_vec[i]
+
+            # Map integral symbols
+            for i, integral_sym in enumerate(phase_def.integral_symbols):
+                if phase_def.num_integrals == 1:
+                    phase_symbols_map[integral_sym] = q_vec
+                else:
+                    phase_symbols_map[integral_sym] = q_vec[i]
+
+        # Static parameters
+        static_param_syms = multiphase_state.static_parameters.get_ordered_parameter_symbols()
+        s_vec = (
+            ca.vertcat(*[ca.MX.sym(f"s_{i}", 1) for i in range(len(static_param_syms))])
+            if static_param_syms
+            else ca.MX.sym("s", 1)
+        )  # type: ignore[arg-type]
+
+        for i, param_sym in enumerate(static_param_syms):
+            if len(static_param_syms) == 1:
+                phase_symbols_map[param_sym] = s_vec
             else:
-                new_syms.append(xf_vec[i])
+                phase_symbols_map[param_sym] = s_vec[i]
 
-        for i, sym in enumerate(state_initial_syms):
-            old_syms.append(sym)
-            if len(state_syms) == 1:
-                new_syms.append(x0_vec)
-            else:
-                new_syms.append(x0_vec[i])
+        phase_inputs.append(s_vec)
 
-        for i, sym in enumerate(state_final_syms):
-            old_syms.append(sym)
-            if len(state_syms) == 1:
-                new_syms.append(xf_vec)
-            else:
-                new_syms.append(xf_vec[i])
+        # Substitute in objective expression
+        objective_expr = multiphase_state.objective_expression
+        if phase_symbols_map:
+            objective_expr = ca.substitute(
+                [objective_expr], list(phase_symbols_map.keys()), list(phase_symbols_map.values())
+            )[0]
 
-        if old_syms:
-            objective_expr = ca.substitute([objective_expr], old_syms, new_syms)[0]
-
-        return ca.Function(
-            "objective",
-            [t0, tf, x0_vec, xf_vec, q],
-            [objective_expr],
-        )
+        return ca.Function("multiphase_objective", phase_inputs, [objective_expr])
 
     obj_func = get_global_expression_cache().get_objective_function(
         cache_key, build_objective_function
     )
 
-    def unified_objective(
-        t0: ca.MX,
-        tf: ca.MX,
-        x0_vec: ca.MX,
-        xf_vec: ca.MX,
-        q: ca.MX | None,
+    def unified_multiphase_objective(
+        phase_endpoint_data: dict[PhaseID, dict[str, ca.MX]],
+        static_parameters_vec: ca.MX | None,
     ) -> ca.MX:
-        q_val = q if q is not None else ca.DM.zeros(len(variable_state.integral_symbols), 1)  # type: ignore[arg-type]
+        """Evaluate multiphase objective with phase endpoint data."""
+        inputs = []
 
-        result = obj_func(t0, tf, x0_vec, xf_vec, q_val)
+        # Add phase inputs in sorted order
+        for phase_id in sorted(multiphase_state.phases.keys()):
+            if phase_id in phase_endpoint_data:
+                data = phase_endpoint_data[phase_id]
+                inputs.extend(
+                    [
+                        data["t0"],
+                        data["tf"],
+                        data["x0"],
+                        data["xf"],
+                        data.get("q", ca.DM.zeros(1, 1)),
+                    ]
+                )
+            else:
+                # Use default zeros for missing phases
+                phase_def = multiphase_state.phases[phase_id]
+                num_states = len(phase_def.state_info)
+                inputs.extend(
+                    [
+                        ca.DM.zeros(1, 1),  # t0
+                        ca.DM.zeros(1, 1),  # tf
+                        ca.DM.zeros(num_states, 1),  # x0
+                        ca.DM.zeros(num_states, 1),  # xf
+                        ca.DM.zeros(max(1, phase_def.num_integrals), 1),  # q
+                    ]
+                )
+
+        # Add static parameters
+        if static_parameters_vec is not None:
+            inputs.append(static_parameters_vec)
+        else:
+            num_params = multiphase_state.static_parameters.get_parameter_count()
+            inputs.append(ca.DM.zeros(max(1, num_params), 1))
+
+        result = obj_func(*inputs)
         obj_output = result[0] if isinstance(result, list | tuple) else result
         return cast(ca.MX, obj_output)
 
-    return unified_objective
+    return unified_multiphase_objective
 
 
-def get_integrand_function(variable_state: VariableState) -> Callable[..., ca.MX] | None:
-    """Get integrand function for solver with expression caching and unified storage."""
-    if not variable_state.integral_expressions:
+def get_phase_integrand_function(phase_def: PhaseDefinition) -> Callable[..., ca.MX] | None:
+    """Get integrand function for a specific phase with expression caching."""
+    if not phase_def.integral_expressions:
         return None
 
-    integrand_exprs = [str(expr) for expr in variable_state.integral_expressions]
+    integrand_exprs = [str(expr) for expr in phase_def.integral_expressions]
     expr_hash = hashlib.sha256("".join(integrand_exprs).encode()).hexdigest()[:16]
-    cache_key = create_cache_key_from_variable_state(variable_state, "integrand", expr_hash)
+    cache_key = create_cache_key_from_phase_state(phase_def, "integrand", expr_hash)
 
     def build_integrand_functions() -> list[ca.Function]:
-        """Build CasADi integrand functions - expensive operation."""
-        state_syms = variable_state.get_ordered_state_symbols()
-        control_syms = variable_state.get_ordered_control_symbols()
+        """Build CasADi integrand functions for phase - expensive operation."""
+        state_syms = phase_def.get_ordered_state_symbols()
+        control_syms = phase_def.get_ordered_control_symbols()
 
         states_vec = ca.vertcat(*state_syms) if state_syms else ca.MX()
         controls_vec = ca.vertcat(*control_syms) if control_syms else ca.MX()
-        time = variable_state.sym_time if variable_state.sym_time is not None else ca.MX.sym("t", 1)  # type: ignore[arg-type]
+        time = phase_def.sym_time if phase_def.sym_time is not None else ca.MX.sym("t", 1)  # type: ignore[arg-type]
 
         integrand_funcs = []
-        for expr in variable_state.integral_expressions:
+        for i, expr in enumerate(phase_def.integral_expressions):
             integrand_funcs.append(
-                ca.Function("integrand", [states_vec, controls_vec, time], [expr])
+                ca.Function(
+                    f"integrand_{i}_p{phase_def.phase_id}", [states_vec, controls_vec, time], [expr]
+                )
             )
 
         return integrand_funcs
@@ -205,15 +281,15 @@ def get_integrand_function(variable_state: VariableState) -> Callable[..., ca.MX
     return vectorized_integrand
 
 
-def get_path_constraints_function_for_problem(
-    constraint_state: ConstraintState, variable_state: VariableState
+def get_phase_path_constraints_function(
+    phase_def: PhaseDefinition,
 ) -> Callable[..., list[Constraint]] | None:
-    """Get path constraints function for solver using unified storage."""
-    return get_path_constraints_function(constraint_state, variable_state)
+    """Get path constraints function for a specific phase."""
+    return get_phase_path_constraints_function(phase_def)
 
 
-def get_event_constraints_function_for_problem(
-    constraint_state: ConstraintState, variable_state: VariableState
+def get_cross_phase_event_constraints_function(
+    multiphase_state: MultiPhaseVariableState,
 ) -> Callable[..., list[Constraint]] | None:
-    """Get event constraints function for solver using unified storage."""
-    return get_event_constraints_function(constraint_state, variable_state)
+    """Get cross-phase event constraints function."""
+    return get_cross_phase_event_constraints_function(multiphase_state)

@@ -1,5 +1,6 @@
+# trajectolab/tl_types.py
 """
-Core type definitions for the TrajectoLab optimal control framework
+Core type definitions for the TrajectoLab multiphase optimal control framework
 """
 
 from __future__ import annotations
@@ -34,6 +35,9 @@ Supported input types:
 - None: No constraint specified
 """
 
+PhaseID: TypeAlias = int
+"""Phase identifier for multiphase problems."""
+
 
 # --- EXTERNAL INTERFACE PROTOCOLS (Required) ---
 class ODESolverResult(Protocol):
@@ -49,66 +53,60 @@ ODESolverCallable: TypeAlias = Callable[..., ODESolverResult]
 
 
 class ProblemProtocol(Protocol):
-    """Protocol defining the expected interface of a Problem object for solver."""
+    """Protocol defining the expected interface of a multiphase Problem object for solver."""
 
-    # Essential solver properties (RESTORED - these are actually needed)
-    _num_integrals: int
-    initial_guess: Any
-    solver_options: dict[str, object]
-
-    # Mesh properties (RESTORED - solver needs these)
-    _mesh_configured: bool
-    collocation_points_per_interval: list[int]
-    global_normalized_mesh_nodes: FloatArray
-
-    # Time bounds (RESTORED - solver needs these)
-    _t0_bounds: tuple[float, float]
-    _tf_bounds: tuple[float, float]
-
-    # Expression storage (RESTORED - validation needs these)
-    _dynamics_expressions: dict[ca.MX, ca.MX]
-    _objective_expression: ca.MX | None
+    # Essential multiphase properties
+    _phases: dict[PhaseID, Any]  # PhaseDefinition
+    _static_parameters: Any  # StaticParameterState
+    _cross_phase_constraints: list[ca.MX]
+    _num_phases: int
 
     # Essential solver methods
-    def get_variable_counts(self) -> tuple[int, int]:
-        """Return (num_states, num_controls)"""
+    def get_phase_ids(self) -> list[PhaseID]:
+        """Return ordered list of phase IDs"""
         ...
 
-    def get_ordered_state_names(self) -> list[str]:
-        """Get state names in order"""
+    def get_phase_variable_counts(self, phase_id: PhaseID) -> tuple[int, int]:
+        """Return (num_states, num_controls) for given phase"""
         ...
 
-    def get_ordered_control_names(self) -> list[str]:
-        """Get control names in order"""
+    def get_total_variable_counts(self) -> tuple[int, int, int]:
+        """Return (total_states, total_controls, num_static_params)"""
         ...
 
-    def get_dynamics_function(self) -> Callable[..., list[ca.MX]]:
-        """Get dynamics function for solver"""
+    def get_phase_ordered_state_names(self, phase_id: PhaseID) -> list[str]:
+        """Get state names for given phase in order"""
+        ...
+
+    def get_phase_ordered_control_names(self, phase_id: PhaseID) -> list[str]:
+        """Get control names for given phase in order"""
+        ...
+
+    def get_phase_dynamics_function(self, phase_id: PhaseID) -> Callable[..., list[ca.MX]]:
+        """Get dynamics function for given phase"""
         ...
 
     def get_objective_function(self) -> Callable[..., ca.MX]:
-        """Get objective function for solver"""
+        """Get multiphase objective function"""
         ...
 
-    def get_integrand_function(self) -> Callable[..., ca.MX] | None:
-        """Get integrand function for solver"""
+    def get_phase_integrand_function(self, phase_id: PhaseID) -> Callable[..., ca.MX] | None:
+        """Get integrand function for given phase"""
         ...
 
-    def get_path_constraints_function(self) -> Callable[..., list[Constraint]] | None:
-        """Get path constraints function for solver"""
+    def get_phase_path_constraints_function(
+        self, phase_id: PhaseID
+    ) -> Callable[..., list[Constraint]] | None:
+        """Get path constraints function for given phase"""
         ...
 
-    def get_event_constraints_function(self) -> Callable[..., list[Constraint]] | None:
-        """Get event constraints function for solver"""
+    def get_cross_phase_event_constraints_function(self) -> Callable[..., list[Constraint]] | None:
+        """Get cross-phase event constraints function"""
         ...
 
-    def validate_initial_guess(self) -> None:
-        """Validate the current initial guess"""
+    def validate_multiphase_configuration(self) -> None:
+        """Validate the multiphase problem configuration"""
         ...
-
-    def set_mesh(
-        self, polynomial_degrees: list[int], mesh_points: FloatArray | list[float]
-    ) -> None: ...
 
 
 # --- UNIFIED CONSTRAINT SYSTEM ---
@@ -147,44 +145,57 @@ class Constraint:
         return f"Constraint({' '.join(bounds)})"
 
 
-# --- DATA CONTAINERS ---
-class InitialGuess:
-    """Initial guess for the optimal control problem."""
+# --- MULTIPHASE DATA CONTAINERS ---
+class MultiPhaseInitialGuess:
+    """Initial guess for multiphase optimal control problems."""
 
     def __init__(
         self,
-        initial_time_variable: float | None = None,
-        terminal_time_variable: float | None = None,
-        states: list[FloatArray] | None = None,
-        controls: list[FloatArray] | None = None,
-        integrals: float | FloatArray | None = None,
+        phase_states: dict[PhaseID, list[FloatArray]] | None = None,
+        phase_controls: dict[PhaseID, list[FloatArray]] | None = None,
+        phase_initial_times: dict[PhaseID, float] | None = None,
+        phase_terminal_times: dict[PhaseID, float] | None = None,
+        phase_integrals: dict[PhaseID, float | FloatArray] | None = None,
+        static_parameters: FloatArray | None = None,
     ) -> None:
-        self.initial_time_variable = initial_time_variable
-        self.terminal_time_variable = terminal_time_variable
-        self.states = states
-        self.controls = controls
-        self.integrals = integrals
+        self.phase_states = phase_states or {}
+        self.phase_controls = phase_controls or {}
+        self.phase_initial_times = phase_initial_times or {}
+        self.phase_terminal_times = phase_terminal_times or {}
+        self.phase_integrals = phase_integrals or {}
+        self.static_parameters = static_parameters
 
 
 class OptimalControlSolution:
-    """Solution to an optimal control problem."""
+    """Solution to a multiphase optimal control problem."""
 
     def __init__(self) -> None:
         self.success: bool = False
         self.message: str = "Solver not run yet."
-        self.initial_time_variable: float | None = None
-        self.terminal_time_variable: float | None = None
         self.objective: float | None = None
-        self.integrals: float | FloatArray | None = None
-        self.time_states: FloatArray = np.array([], dtype=np.float64)
-        self.states: list[FloatArray] = []
-        self.time_controls: FloatArray = np.array([], dtype=np.float64)
-        self.controls: list[FloatArray] = []
+
+        # Multiphase solution data
+        self.phase_initial_times: dict[PhaseID, float] = {}
+        self.phase_terminal_times: dict[PhaseID, float] = {}
+        self.phase_time_states: dict[PhaseID, FloatArray] = {}
+        self.phase_states: dict[PhaseID, list[FloatArray]] = {}
+        self.phase_time_controls: dict[PhaseID, FloatArray] = {}
+        self.phase_controls: dict[PhaseID, list[FloatArray]] = {}
+        self.phase_integrals: dict[PhaseID, float | FloatArray] = {}
+        self.static_parameters: FloatArray | None = None
+
+        # Raw solver data
         self.raw_solution: ca.OptiSol | None = None
         self.opti_object: ca.Opti | None = None
-        self.num_collocation_nodes_per_interval: list[int] = []
-        self.global_normalized_mesh_nodes: FloatArray | None = None
-        self.num_collocation_nodes_list_at_solve_time: list[int] | None = None
-        self.global_mesh_nodes_at_solve_time: FloatArray | None = None
-        self.solved_state_trajectories_per_interval: list[FloatArray] | None = None
-        self.solved_control_trajectories_per_interval: list[FloatArray] | None = None
+
+        # Mesh information per phase
+        self.phase_mesh_intervals: dict[PhaseID, list[int]] = {}
+        self.phase_mesh_nodes: dict[PhaseID, FloatArray] = {}
+
+        # Per-interval solution data per phase
+        self.phase_solved_state_trajectories_per_interval: dict[PhaseID, list[FloatArray]] = {}
+        self.phase_solved_control_trajectories_per_interval: dict[PhaseID, list[FloatArray]] = {}
+
+
+# --- LEGACY COMPATIBILITY TYPES ---
+InitialGuess: TypeAlias = MultiPhaseInitialGuess  # For backward compatibility during transition
