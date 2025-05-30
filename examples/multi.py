@@ -54,10 +54,6 @@ with problem.phase(1) as ascent:
     fuel_rate1 = T1 / (Isp * g)
     fuel_used1 = ascent.add_integral(fuel_rate1)
 
-    # Path constraints for ascent phase
-    ascent.subject_to(h1 >= 0)  # Don't go underground
-    ascent.subject_to(m1 >= 100)  # Keep minimum mass
-
     # Mesh for ascent phase
     ascent.set_mesh([8, 8], [-1.0, 0.0, 1.0])
 
@@ -66,7 +62,7 @@ with problem.phase(2) as coast:
     print("Defining Phase 2: Coasting Flight")
 
     # Time for coast phase (T1 to some final time)
-    t2 = coast.time(initial=t1.final, final=(t1.final, t1.final))
+    t2 = coast.time(initial=t1.final, final=t1.final + 20.0)
 
     # States: altitude, velocity, mass (mass constant during coast)
     h2 = coast.state("altitude", initial=h1.final, boundary=(0.0, None))
@@ -88,9 +84,6 @@ with problem.phase(2) as coast:
     # No fuel consumption during coast
     fuel_used2 = coast.add_integral(0.0)  # Zero fuel consumption
 
-    # Path constraints for coast phase
-    coast.subject_to(h2 >= 0)  # Don't hit the ground
-
     # Mesh for coast phase
     coast.set_mesh([6, 6], [-1.0, 0.0, 1.0])
 
@@ -100,8 +93,6 @@ print("Defining Cross-Phase Constraints")
 # State continuity constraints (automatic through initial conditions above)
 # These are already enforced by setting initial conditions of phase 2 to final of phase 1
 
-# Time continuity constraint
-problem.subject_to(t1.final == t2.initial)
 
 # Additional mission constraints
 problem.subject_to(t2.final <= T_mission)  # Total mission time limit
@@ -149,12 +140,6 @@ for N in [6, 6]:
     coast_states_guess.append(np.vstack([h_vals, v_vals, m_vals]))
     coast_controls_guess.append(np.zeros((1, N)))  # No thrust
 
-problem.set_initial_guess(
-    phase_states={1: ascent_states_guess, 2: coast_states_guess},
-    phase_controls={1: ascent_controls_guess, 2: coast_controls_guess},
-    phase_terminal_times={1: 20.0, 2: 40.0},
-    static_parameters=np.array([60.0]),  # Total mission time guess
-)
 
 # Solve the multiphase problem
 print("Solving Multiphase Rocket Problem...")

@@ -418,7 +418,11 @@ class Problem:
         return get_cross_phase_event_constraints_function(self._multiphase_state)
 
     def validate_multiphase_configuration(self) -> None:
-        """Validate the multiphase problem configuration."""
+        """Validate the multiphase problem configuration with automatic symbolic processing."""
+        # First, process symbolic boundary constraints
+        self._process_symbolic_boundary_constraints()
+
+        # Then do existing validation
         # Validate that we have at least one phase
         if not self._multiphase_state.phases:
             raise ValueError("Problem must have at least one phase defined")
@@ -436,5 +440,67 @@ class Problem:
             raise ValueError("Problem must have objective function defined")
 
         logger.debug(
-            "Multiphase configuration validated: %d phases", len(self._multiphase_state.phases)
+            "Multiphase configuration validated: %d phases, %d cross-phase constraints",
+            len(self._multiphase_state.phases),
+            len(self._multiphase_state.cross_phase_constraints),
         )
+
+    def _process_symbolic_boundary_constraints(self) -> None:
+        """
+        Process symbolic boundary constraints and convert them to cross-phase event constraints.
+
+        This enables user-friendly API where t2.time(initial=t1.final) automatically
+        creates the appropriate cross-phase constraint.
+        """
+        logger.debug("Processing symbolic boundary constraints for automatic cross-phase linking")
+
+        for phase_id, phase_def in self._multiphase_state.phases.items():
+            # Process time constraints
+            if phase_def.t0_constraint.is_symbolic():
+                constraint_expr = (
+                    phase_def.sym_time_initial - phase_def.t0_constraint.symbolic_expression
+                )
+                self._multiphase_state.cross_phase_constraints.append(constraint_expr)
+                logger.debug(f"Added automatic time initial constraint for phase {phase_id}")
+
+            if phase_def.tf_constraint.is_symbolic():
+                constraint_expr = (
+                    phase_def.sym_time_final - phase_def.tf_constraint.symbolic_expression
+                )
+                self._multiphase_state.cross_phase_constraints.append(constraint_expr)
+                logger.debug(f"Added automatic time final constraint for phase {phase_id}")
+
+            # Process state symbolic boundary constraints
+            for var_name, constraint_type, symbolic_expr in phase_def.symbolic_boundary_constraints:
+                state_index = phase_def.state_name_to_index[var_name]
+
+                if constraint_type == "initial":
+                    state_initial_sym = phase_def.get_ordered_state_initial_symbols()[state_index]
+                    constraint_expr = state_initial_sym - symbolic_expr
+                    self._multiphase_state.cross_phase_constraints.append(constraint_expr)
+                    logger.debug(
+                        f"Added automatic initial constraint for phase {phase_id} state '{var_name}'"
+                    )
+
+                elif constraint_type == "final":
+                    state_final_sym = phase_def.get_ordered_state_final_symbols()[state_index]
+                    constraint_expr = state_final_sym - symbolic_expr
+                    self._multiphase_state.cross_phase_constraints.append(constraint_expr)
+                    logger.debug(
+                        f"Added automatic final constraint for phase {phase_id} state '{var_name}'"
+                    )
+
+                elif constraint_type == "boundary":
+                    # For boundary constraints, apply to both initial and final
+                    state_initial_sym = phase_def.get_ordered_state_initial_symbols()[state_index]
+                    state_final_sym = phase_def.get_ordered_state_final_symbols()[state_index]
+
+                    initial_constraint = state_initial_sym - symbolic_expr
+                    final_constraint = state_final_sym - symbolic_expr
+
+                    self._multiphase_state.cross_phase_constraints.extend(
+                        [initial_constraint, final_constraint]
+                    )
+                    logger.debug(
+                        f"Added automatic boundary constraints for phase {phase_id} state '{var_name}'"
+                    )

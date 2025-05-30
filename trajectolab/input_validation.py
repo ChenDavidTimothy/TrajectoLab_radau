@@ -268,9 +268,13 @@ def validate_polynomial_degrees_list(
 
 
 def validate_constraint_input_format(constraint_input: Any, context: str) -> None:
-    """Validate constraint input format - CENTRALIZED."""
+    """Validate constraint input format - ENHANCED to accept CasADi symbolic expressions."""
     if constraint_input is None:
         return  # None is valid (no constraint)
+
+    # NEW: Accept CasADi symbolic expressions
+    if isinstance(constraint_input, ca.MX):
+        return  # CasADi expressions are valid for symbolic constraints
 
     if isinstance(constraint_input, int | float):
         # Validate numeric constraint
@@ -310,7 +314,7 @@ def validate_constraint_input_format(constraint_input: Any, context: str) -> Non
             )
     else:
         raise ConfigurationError(
-            f"Invalid constraint input type: {type(constraint_input)}. Expected float, int, tuple, or None",
+            f"Invalid constraint input type: {type(constraint_input)}. Expected float, int, tuple, CasADi MX, or None",
             f"Constraint specification error in {context}",
         )
 

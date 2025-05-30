@@ -15,16 +15,16 @@ from ..input_validation import validate_constraint_input_format, validate_variab
 from ..tl_types import FloatArray, PhaseID
 
 
-# Constraint input type definition
-ConstraintInput = float | int | tuple[float | int | None, float | int | None] | None
+# EXTENDED Constraint input type definition to include CasADi symbolic
+ConstraintInput = float | int | tuple[float | int | None, float | int | None] | None | ca.MX
 
 
 class _BoundaryConstraint:
-    """Internal class for representing boundary constraints - USES CENTRALIZED VALIDATION."""
+    """Internal class for representing boundary constraints - ENHANCED to handle symbolic expressions."""
 
     def __init__(self, constraint_input: ConstraintInput = None) -> None:
         """
-        Create boundary constraint from unified constraint input.
+        Create boundary constraint from unified constraint input including symbolic expressions.
 
         Uses centralized validation from input_validation.py
         """
@@ -34,10 +34,14 @@ class _BoundaryConstraint:
         self.equals: float | None = None
         self.lower: float | None = None
         self.upper: float | None = None
+        self.symbolic_expression: ca.MX | None = None  # NEW: Store symbolic expressions
 
         if constraint_input is None:
             # No constraint
             pass
+        elif isinstance(constraint_input, ca.MX):
+            # NEW: Symbolic constraint - store for later processing
+            self.symbolic_expression = constraint_input
         elif isinstance(constraint_input, int | float):
             # Equality constraint (validation already done)
             self.equals = float(constraint_input)
@@ -51,13 +55,23 @@ class _BoundaryConstraint:
 
     def has_constraint(self) -> bool:
         """Check if this boundary constraint is actually constraining anything."""
-        return self.equals is not None or self.lower is not None or self.upper is not None
+        return (
+            self.equals is not None
+            or self.lower is not None
+            or self.upper is not None
+            or self.symbolic_expression is not None
+        )
+
+    def is_symbolic(self) -> bool:
+        """Check if this is a symbolic constraint."""
+        return self.symbolic_expression is not None
 
     def __repr__(self) -> str:
-        if self.equals is not None:
+        if self.symbolic_expression is not None:
+            return f"_BoundaryConstraint(symbolic={self.symbolic_expression})"
+        elif self.equals is not None:
             return f"_BoundaryConstraint(equals={self.equals})"
-
-        if self.lower is not None and self.upper is not None:
+        elif self.lower is not None and self.upper is not None:
             return f"_BoundaryConstraint(lower={self.lower}, upper={self.upper})"
         elif self.lower is not None:
             return f"_BoundaryConstraint(lower={self.lower})"
@@ -67,6 +81,7 @@ class _BoundaryConstraint:
             return "_BoundaryConstraint(no constraint)"
 
 
+# Rest of the file remains exactly the same...
 @dataclass
 class _VariableInfo:
     """Internal storage for variable metadata with initial/final symbol support."""
@@ -87,6 +102,7 @@ class _VariableInfo:
             )
 
 
+# All the rest of the classes remain exactly the same...
 @dataclass
 class PhaseDefinition:
     """Complete definition of a single phase in multiphase optimal control problem."""
@@ -127,6 +143,9 @@ class PhaseDefinition:
     # Thread safety
     _ordering_lock: threading.Lock = field(default_factory=threading.Lock)
 
+    # NEW: Collect symbolic boundary constraints for automatic cross-phase processing
+    symbolic_boundary_constraints: list[tuple[str, str, ca.MX]] = field(default_factory=list)
+
     def add_state(
         self,
         name: str,
@@ -137,7 +156,7 @@ class PhaseDefinition:
         final_constraint: _BoundaryConstraint | None = None,
         boundary_constraint: _BoundaryConstraint | None = None,
     ) -> None:
-        """Add state variable to phase - USES CENTRALIZED VALIDATION."""
+        """Add state variable to phase - ENHANCED to collect symbolic constraints."""
         validate_variable_name(name, "state")
 
         if symbol is None:
@@ -166,6 +185,21 @@ class PhaseDefinition:
                     boundary_constraint=boundary_constraint,
                 )
                 self.state_info.append(var_info)
+
+                # NEW: Collect symbolic boundary constraints for automatic processing
+                if initial_constraint is not None and initial_constraint.is_symbolic():
+                    self.symbolic_boundary_constraints.append(
+                        (name, "initial", initial_constraint.symbolic_expression)
+                    )
+                if final_constraint is not None and final_constraint.is_symbolic():
+                    self.symbolic_boundary_constraints.append(
+                        (name, "final", final_constraint.symbolic_expression)
+                    )
+                if boundary_constraint is not None and boundary_constraint.is_symbolic():
+                    self.symbolic_boundary_constraints.append(
+                        (name, "boundary", boundary_constraint.symbolic_expression)
+                    )
+
             except Exception as e:
                 self.state_name_to_index.pop(name, None)
                 self.state_names.pop()
@@ -174,6 +208,7 @@ class PhaseDefinition:
                     "TrajectoLab variable creation error",
                 ) from e
 
+    # All other methods remain exactly the same as in the original file...
     def add_control(
         self,
         name: str,
@@ -290,6 +325,10 @@ class PhaseDefinition:
                 "TrajectoLab time bounds corruption",
             )
 
+        # NEW: Handle symbolic constraints by providing reasonable bounds
+        if self.t0_constraint.is_symbolic():
+            return (-1e6, 1e6)  # Wide bounds for symbolic constraints
+
         if self.t0_constraint.equals is not None:
             return (self.t0_constraint.equals, self.t0_constraint.equals)
 
@@ -306,6 +345,10 @@ class PhaseDefinition:
                 "TrajectoLab time bounds corruption",
             )
 
+        # NEW: Handle symbolic constraints by providing reasonable bounds
+        if self.tf_constraint.is_symbolic():
+            return (-1e6, 1e6)  # Wide bounds for symbolic constraints
+
         if self.tf_constraint.equals is not None:
             return (self.tf_constraint.equals, self.tf_constraint.equals)
 
@@ -314,6 +357,7 @@ class PhaseDefinition:
         return (lower, upper)
 
 
+# All remaining classes stay exactly the same...
 @dataclass
 class StaticParameterState:
     """State for static parameters that span across all phases."""
