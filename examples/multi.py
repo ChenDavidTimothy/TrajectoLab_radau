@@ -1,197 +1,295 @@
-# examples/tumor_antiangiogenesis_multiphase.py
+# examples/kinetic_batch_reactor.py
 """
-TrajectoLab Example: Tumor Antiangiogenesis Two-Phase Optimal Control Problem
-Based on Example 10.142 from optimal control literature.
+TrajectoLab Example: Kinetic Batch Reactor - Three Phase Chemical Process Control
+Based on Example 10.80 lwbr01 from optimal control literature.
 
-Phase 1: Treatment phase with antiangiogenic therapy
-Phase 2: No treatment phase (drug washout/recovery)
-Objective: Minimize final tumor endothelial cell population
+This is a complex chemical reactor problem with:
+- 3 phases: Transient Stage 1, Transient Stage 2, Steady State
+- 6 differential state variables (y1-y6)
+- 5 control variables (u1-u5) with algebraic constraints
+- Temperature-dependent chemical kinetics
+- Objective: Minimize final time + penalty on final parameter
+
+Expected optimal: J* = 3.16466910; t_F^(3) = 1.7468208
 """
 
 import casadi as ca
-import numpy as np
 
 import trajectolab as tl
 
 
-# Tumor model parameters from Table 10.33
-xi = 0.084  # ξ - endothelial cell death rate
-b = 5.85  # b - endothelial cell birth rate
-d = 0.00873  # d - tumor growth parameter
-G = 0.15  # G - treatment efficacy parameter
-mu = 0.02  # μ - natural death rate
-a = 75  # a - maximum treatment rate
-A = 15  # A - maximum cumulative treatment
+# Chemical kinetics model constants
+k1_hat = 1.3708e12
+beta1 = 9.2984e3
+K1 = 2.575e-16
 
-# Derived parameters
-p_bar = ((b - mu) / d) ** (3 / 2)  # p̄ = q̄ = [(b-μ)/d]^(3/2)
-q_bar = p_bar
-p_0 = p_bar / 2  # p₀ = p̄/2
-q_0 = q_bar / 4  # q₀ = q̄/4
+k_minus1_hat = 1.6215e20
+beta_minus1 = 1.3108e4
+K2 = 4.876e-14
 
-print("Tumor Model Parameters:")
-print(f"  ξ = {xi}, b = {b}, d = {d}")
-print(f"  G = {G}, μ = {mu}, a_max = {a}, A = {A}")
-print(f"  Computed: p̄ = q̄ = {p_bar:.2f}")
-print(f"  Initial: p₀ = {p_0:.2f}, q₀ = {q_0:.2f}")
+k2_hat = 5.2282e12
+beta2 = 9.5999e3
+K3 = 1.7884e-16
 
-# Create multiphase tumor treatment problem
-problem = tl.Problem("Tumor Antiangiogenesis Two-Phase Treatment")
+print("Kinetic Batch Reactor - Chemical Process Control")
+print("=" * 60)
+print("Model Constants:")
+print(f"  k̂₁ = {k1_hat:.4e}, β₁ = {beta1:.4e}, K₁ = {K1:.4e}")
+print(f"  k̂₋₁ = {k_minus1_hat:.4e}, β₋₁ = {beta_minus1:.4e}, K₂ = {K2:.4e}")
+print(f"  k̂₂ = {k2_hat:.4e}, β₂ = {beta2:.4e}, K₃ = {K3:.4e}")
 
-# Phase 1: Treatment Phase (0 to t_F^(1))
-with problem.phase(1) as treatment:
-    print("\nDefining Phase 1: Treatment Phase")
+# Create multiphase chemical reactor problem
+problem = tl.Problem("Kinetic Batch Reactor")
 
-    # Time for treatment phase (free final time with minimum bound)
-    t1 = treatment.time(initial=0.0, final=(0.01, None))
+# Static parameter for optimization
+p = problem.parameter("p", boundary=(0.0, 0.0262))
 
-    # States: endothelial cells (p), tumor cells (q), cumulative treatment (y)
-    p1 = treatment.state(
-        "p", initial=p_0, final=(0.01, p_bar), boundary=(0.01, p_bar)
-    )  # Endothelial cells
-    q1 = treatment.state(
-        "q", initial=q_0, final=(0.01, q_bar), boundary=(0.01, q_bar)
-    )  # Tumor cells
-    y1 = treatment.state(
-        "y", initial=0.0, final=(0.0, A), boundary=(0, None)
-    )  # Cumulative treatment
+# Phase 1: Transient Stage 1 (0 to 0.01)
+with problem.phase(1) as phase1:
+    print("\nDefining Phase 1: Transient Stage 1")
 
-    # Dynamics for treatment phase
-    # ṗ = -ξp ln(p/q)
-    # q̇ = q[b - (μ + dp^(2/3) + Ga)]
-    # ẏ = a
-    treatment.dynamics(
-        {p1: -xi * p1 * ca.log(p1 / q1), q1: q1 * (b - (mu + d * p1 ** (2 / 3) + G * a)), y1: a}
-    )
+    # Time for phase 1 (fixed duration)
+    t1 = phase1.time(initial=0.0, final=0.01)
 
-    # Mesh for treatment phase - refined for complex dynamics
-    treatment.set_mesh([10, 10, 10], [-1.0, -1 / 3, 1 / 3, 1.0])
+    # Differential state variables
+    y1_1 = phase1.state("y1", initial=1.5776, boundary=(None, 2))
+    y2_1 = phase1.state("y2", initial=8.32, boundary=(5, 10))
+    y3_1 = phase1.state("y3", initial=0.0, boundary=(None, 2))
+    y4_1 = phase1.state("y4", initial=0.0, boundary=(None, 2))
+    y5_1 = phase1.state("y5", initial=0.0, boundary=(None, 2))
+    y6_1 = phase1.state("y6", final=p, boundary=(None, 0.1))
 
-# Phase 2: No Treatment Phase (t_F^(1) to t_F^(2))
-with problem.phase(2) as recovery:
-    print("Defining Phase 2: Recovery Phase (No Treatment)")
+    # Control variables (algebraic variables in original formulation)
+    u1_1 = phase1.control("u1", boundary=(0, 15))
+    u2_1 = phase1.control("u2", boundary=(0, 0.02))
+    u3_1 = phase1.control("u3", boundary=(0, 5e-5))
+    u4_1 = phase1.control("u4", boundary=(0, 5e-5))
+    u5_1 = phase1.control("u5", boundary=(293.15, 393.15))
 
-    # Time for recovery phase (continues from treatment phase)
-    t2 = recovery.time(initial=t1.final)
+    # Temperature-dependent rate constants
+    k1_1 = k1_hat * ca.exp(-beta1 / u5_1)
+    k_minus1_1 = k_minus1_hat * ca.exp(-beta_minus1 / u5_1)
+    k2_1 = k2_hat * ca.exp(-beta2 / u5_1)
+    k3_1 = k1_1
+    k_minus3_1 = k_minus1_1 / 2
 
-    # States: continue from treatment phase with state continuity
-    p2 = recovery.state("p", initial=p1.final, final=(0.01, p_bar), boundary=(0.01, p_bar))
-    q2 = recovery.state("q", initial=q1.final, final=(0.01, q_bar), boundary=(0.01, q_bar))
-    y2 = recovery.state("y", initial=y1.final, final=(0.0, A), boundary=(0, None))
-
-    # Dynamics for recovery phase (no treatment term)
-    # ṗ = -ξp ln(p/q)
-    # q̇ = q[b - (μ + dp^(2/3))]  [Note: no Ga term]
-    # ẏ = 0  [no treatment]
-    recovery.dynamics(
+    # Differential equations (10.584)-(10.589)
+    phase1.dynamics(
         {
-            p2: -xi * p2 * ca.log(p2 / q2),
-            q2: q2 * (b - (mu + d * p2 ** (2 / 3))),  # No treatment term
-            y2: 0,  # No change in cumulative treatment
+            y1_1: -k2_1 * y2_1 * u2_1,
+            y2_1: -k1_1 * y2_1 * y6_1 + k_minus1_1 * u4_1 - k2_1 * y2_1 * u2_1,
+            y3_1: k2_1 * y2_1 * u2_1 + k3_1 * y4_1 * y6_1 - k_minus3_1 * u3_1,
+            y4_1: -k3_1 * y4_1 * y6_1 + k_minus3_1 * u3_1,
+            y5_1: k1_1 * y2_1 * y6_1 - k_minus1_1 * u4_1,
+            y6_1: -k1_1 * y2_1 * y6_1 + k_minus1_1 * u4_1 - k3_1 * y4_1 * y6_1 + k_minus3_1 * u3_1,
         }
     )
 
-    # Mesh for recovery phase
-    recovery.set_mesh([8, 8], [-1.0, 0.0, 1.0])
+    # Algebraic constraints as path constraints (10.590)-(10.594)
+    phase1.subject_to(p - y6_1 + 10 ** (-u1_1) - u2_1 - u3_1 - u4_1 == 0)
+    phase1.subject_to(u2_1 - K2 * y1_1 / (K2 + 10 ** (-u1_1)) == 0)
+    phase1.subject_to(u3_1 - K3 * y3_1 / (K3 + 10 ** (-u1_1)) == 0)
+    phase1.subject_to(u4_1 - K1 * y5_1 / (K1 + 10 ** (-u1_1)) == 0)
+    # Inequality constraint (10.594)
+    phase1.subject_to(y4_1 <= 2 * t1**2)
 
-# Cross-phase constraints (state continuity - automatically handled by initial conditions)
+    # Mesh for phase 1
+    phase1.set_mesh([8, 8], [-1.0, 0.0, 1.0])
+
+# Phase 2: Transient Stage 2 (0.01 to t_F^(2))
+with problem.phase(2) as phase2:
+    print("Defining Phase 2: Transient Stage 2")
+
+    # Time for phase 2 (free final time)
+    t2 = phase2.time(initial=t1.final, final=(0.02, None))
+
+    # State continuity from phase 1
+    y1_2 = phase2.state("y1", initial=y1_1.final, boundary=(None, 2))
+    y2_2 = phase2.state("y2", initial=y2_1.final, boundary=(5, 10))
+    y3_2 = phase2.state("y3", initial=y3_1.final, boundary=(None, 2))
+    y4_2 = phase2.state("y4", initial=y4_1.final, boundary=(None, 2))
+    y5_2 = phase2.state("y5", initial=y5_1.final, boundary=(None, 2))
+    y6_2 = phase2.state("y6", initial=y6_1.final, boundary=(None, 0.1))
+
+    # Control variables
+    u1_2 = phase2.control("u1", boundary=(0, 15))
+    u2_2 = phase2.control("u2", boundary=(0, 0.02))
+    u3_2 = phase2.control("u3", boundary=(0, 5e-5))
+    u4_2 = phase2.control("u4", boundary=(0, 5e-5))
+    u5_2 = phase2.control("u5", boundary=(293.15, 393.15))
+
+    # Temperature-dependent rate constants
+    k1_2 = k1_hat * ca.exp(-beta1 / u5_2)
+    k_minus1_2 = k_minus1_hat * ca.exp(-beta_minus1 / u5_2)
+    k2_2 = k2_hat * ca.exp(-beta2 / u5_2)
+    k3_2 = k1_2
+    k_minus3_2 = k_minus1_2 / 2
+
+    # Same differential equations
+    phase2.dynamics(
+        {
+            y1_2: -k2_2 * y2_2 * u2_2,
+            y2_2: -k1_2 * y2_2 * y6_2 + k_minus1_2 * u4_2 - k2_2 * y2_2 * u2_2,
+            y3_2: k2_2 * y2_2 * u2_2 + k3_2 * y4_2 * y6_2 - k_minus3_2 * u3_2,
+            y4_2: -k3_2 * y4_2 * y6_2 + k_minus3_2 * u3_2,
+            y5_2: k1_2 * y2_2 * y6_2 - k_minus1_2 * u4_2,
+            y6_2: -k1_2 * y2_2 * y6_2 + k_minus1_2 * u4_2 - k3_2 * y4_2 * y6_2 + k_minus3_2 * u3_2,
+        }
+    )
+
+    # Same algebraic constraints
+    phase2.subject_to(p - y6_2 + 10 ** (-u1_2) - u2_2 - u3_2 - u4_2 == 0)
+    phase2.subject_to(u2_2 - K2 * y1_2 / (K2 + 10 ** (-u1_2)) == 0)
+    phase2.subject_to(u3_2 - K3 * y3_2 / (K3 + 10 ** (-u1_2)) == 0)
+    phase2.subject_to(u4_2 - K1 * y5_2 / (K1 + 10 ** (-u1_2)) == 0)
+    phase2.subject_to(y4_2 <= 2 * t2**2)
+
+    # Mesh for phase 2
+    phase2.set_mesh([10, 10], [-1.0, 0.0, 1.0])
+
+# Phase 3: Steady State (t_F^(2) to t_F^(3))
+with problem.phase(3) as phase3:
+    print("Defining Phase 3: Steady State")
+
+    # Time for phase 3 (free final time with minimum bound)
+    t3 = phase3.time(initial=t2.final, final=(1.5, None))
+
+    # State continuity from phase 2
+    y1_3 = phase3.state("y1", initial=y1_2.final, boundary=(None, 2))
+    y2_3 = phase3.state("y2", initial=y2_2.final, boundary=(5, 10))
+    y3_3 = phase3.state("y3", initial=y3_2.final, boundary=(None, 2))
+    y4_3 = phase3.state("y4", initial=y4_2.final, boundary=(None, 2))
+    y5_3 = phase3.state("y5", initial=y5_2.final, boundary=(None, 2))
+    y6_3 = phase3.state("y6", initial=y6_2.final, boundary=(None, 0.1))
+
+    # Control variables
+    u1_3 = phase3.control("u1", boundary=(0, 15))
+    u2_3 = phase3.control("u2", boundary=(0, 0.02))
+    u3_3 = phase3.control("u3", boundary=(0, 5e-5))
+    u4_3 = phase3.control("u4", boundary=(0, 5e-5))
+    u5_3 = phase3.control("u5", boundary=(293.15, 393.15))
+
+    # Temperature-dependent rate constants
+    k1_3 = k1_hat * ca.exp(-beta1 / u5_3)
+    k_minus1_3 = k_minus1_hat * ca.exp(-beta_minus1 / u5_3)
+    k2_3 = k2_hat * ca.exp(-beta2 / u5_3)
+    k3_3 = k1_3
+    k_minus3_3 = k_minus1_3 / 2
+
+    # Same differential equations (but no inequality constraint in steady state)
+    phase3.dynamics(
+        {
+            y1_3: -k2_3 * y2_3 * u2_3,
+            y2_3: -k1_3 * y2_3 * y6_3 + k_minus1_3 * u4_3 - k2_3 * y2_3 * u2_3,
+            y3_3: k2_3 * y2_3 * u2_3 + k3_3 * y4_3 * y6_3 - k_minus3_3 * u3_3,
+            y4_3: -k3_3 * y4_3 * y6_3 + k_minus3_3 * u3_3,
+            y5_3: k1_3 * y2_3 * y6_3 - k_minus1_3 * u4_3,
+            y6_3: -k1_3 * y2_3 * y6_3 + k_minus1_3 * u4_3 - k3_3 * y4_3 * y6_3 + k_minus3_3 * u3_3,
+        }
+    )
+
+    # Algebraic constraints (equations 10.590-10.593, no 10.594 in steady state)
+    phase3.subject_to(p - y6_3 + 10 ** (-u1_3) - u2_3 - u3_3 - u4_3 == 0)
+    phase3.subject_to(u2_3 - K2 * y1_3 / (K2 + 10 ** (-u1_3)) == 0)
+    phase3.subject_to(u3_3 - K3 * y3_3 / (K3 + 10 ** (-u1_3)) == 0)
+    phase3.subject_to(u4_3 - K1 * y5_3 / (K1 + 10 ** (-u1_3)) == 0)
+
+    # Mesh for phase 3
+    phase3.set_mesh([12, 12], [-1.0, 0.0, 1.0])
+
+# Cross-phase constraints (state continuity is handled automatically through initial conditions)
 print("Cross-phase constraints: State continuity enforced through initial conditions")
 
-# Objective: Minimize final endothelial cell population p(t_F^(2))
-problem.minimize(p2.final)
+# Objective: Minimize J = t_F^(3) + 100*p^(3)
+problem.minimize(t3.final + 100 * p)
 
-print("Objective: Minimize final endothelial cell population p(t_F^(2))")
+print("Objective: Minimize final time + 100*parameter penalty")
+print("Expected optimal: J* = 3.16466910; t_F^(3) = 1.7468208")
 
-
-# Solve the two-phase tumor treatment problem
-print("\nSolving Two-Phase Tumor Treatment Problem...")
+# Solve the three-phase kinetic batch reactor problem
+print("\nSolving Three-Phase Kinetic Batch Reactor Problem...")
 print("=" * 60)
 
 solution = tl.solve_fixed_mesh(
     problem,
     nlp_options={
         "ipopt.print_level": 3,
-        "ipopt.max_iter": 2000,
+        "ipopt.max_iter": 3000,
         "ipopt.tol": 1e-8,
         "ipopt.constr_viol_tol": 1e-8,
         "ipopt.acceptable_tol": 1e-6,
+        "ipopt.nlp_scaling_method": "gradient-based",
+        "ipopt.mu_strategy": "adaptive",
     },
 )
 
 # Results and Analysis
 if solution.success:
     print("\n" + "=" * 60)
-    print("TUMOR TREATMENT OPTIMIZATION SUCCESS!")
+    print("KINETIC BATCH REACTOR OPTIMIZATION SUCCESS!")
     print("=" * 60)
 
-    # Treatment summary
-    print(f"Objective Value (Final p): {solution.objective:.6f}")
-    print("Expected Optimal Value: ~7571.67 (from reference)")
-    print(f"Total Treatment Duration: {solution.get_total_mission_time():.4f} time units")
+    print(f"Objective Value: {solution.objective:.8f}")
+    print("Expected Optimal: 3.16466910")
+    print(f"Error: {abs(solution.objective - 3.16466910):.2e}")
 
-    # Phase 1 results (Treatment)
-    t1_duration = solution.get_phase_duration(1)
-    print(f"\nPhase 1 (Treatment): {t1_duration:.4f} time units")
-    print(f"  Initial endothelial cells (p): {solution[(1, 'p')][0]:.2f}")
-    print(f"  Final endothelial cells (p): {solution[(1, 'p')][-1]:.2f}")
-    print(f"  Initial tumor cells (q): {solution[(1, 'q')][0]:.2f}")
-    print(f"  Final tumor cells (q): {solution[(1, 'q')][-1]:.2f}")
-    print(f"  Total treatment given (y): {solution[(1, 'y')][-1]:.4f}")
-    print(f"  Average treatment rate: {np.mean(solution[(1, 'a')]):.4f}")
-    print(f"  Max treatment rate used: {np.max(solution[(1, 'a')]):.4f}")
+    # Phase results
+    print(f"\nPhase 1 Duration: {solution.get_phase_duration(1):.6f} (fixed at 0.01)")
+    print(f"Phase 2 Duration: {solution.get_phase_duration(2):.6f}")
+    print(f"Phase 3 Duration: {solution.get_phase_duration(3):.6f}")
+    print(f"Total Process Time: {solution.get_total_mission_time():.6f}")
+    print("Expected Final Time: 1.7468208")
 
-    # Phase 2 results (Recovery)
-    t2_duration = solution.get_phase_duration(2)
-    print(f"\nPhase 2 (Recovery): {t2_duration:.4f} time units")
-    print(f"  Initial endothelial cells (p): {solution[(2, 'p')][0]:.2f}")
-    print(f"  Final endothelial cells (p): {solution[(2, 'p')][-1]:.2f}")
-    print(f"  Initial tumor cells (q): {solution[(2, 'q')][0]:.2f}")
-    print(f"  Final tumor cells (q): {solution[(2, 'q')][-1]:.2f}")
-    print(f"  Cumulative treatment (constant): {solution[(2, 'y')][-1]:.4f}")
+    # Parameter value
+    print(f"\nOptimal Parameter p: {solution.static_parameters[0]:.8f}")
 
-    # Treatment strategy analysis
-    total_treatment = solution[(1, "y")][-1]
-    treatment_efficiency = total_treatment / A * 100
-    reduction_p = (solution[(1, "p")][0] - solution[(2, "p")][-1]) / solution[(1, "p")][0] * 100
+    # Final states for each phase
+    print("\nFinal State Values:")
+    for phase_id in [1, 2, 3]:
+        print(f"  Phase {phase_id}:")
+        for i in range(1, 7):
+            state_name = f"y{i}"
+            if (phase_id, state_name) in solution:
+                final_val = solution[(phase_id, state_name)][-1]
+                print(f"    {state_name}: {final_val:.6f}")
 
-    print("\nTreatment Strategy Analysis:")
-    print(f"  Treatment utilization: {treatment_efficiency:.1f}% of maximum allowed")
-    print(f"  Endothelial cell reduction: {reduction_p:.1f}%")
-    print(f"  Final p/initial p ratio: {solution[(2, 'p')][-1] / solution[(1, 'p')][0]:.4f}")
-
-    # Verify state continuity at phase boundary
-    p1_final = solution[(1, "p")][-1]
-    p2_initial = solution[(2, "p")][0]
-    q1_final = solution[(1, "q")][-1]
-    q2_initial = solution[(2, "q")][0]
-    y1_final = solution[(1, "y")][-1]
-    y2_initial = solution[(2, "y")][0]
-
+    # Verify state continuity
     print("\nState Continuity Verification:")
-    print(f"  p: {p1_final:.6f} → {p2_initial:.6f} (diff: {abs(p1_final - p2_initial):.2e})")
-    print(f"  q: {q1_final:.6f} → {q2_initial:.6f} (diff: {abs(q1_final - q2_initial):.2e})")
-    print(f"  y: {y1_final:.6f} → {y2_initial:.6f} (diff: {abs(y1_final - y2_initial):.2e})")
+    for i in range(1, 7):
+        state_name = f"y{i}"
+        y1_final = solution[(1, state_name)][-1]
+        y2_initial = solution[(2, state_name)][0]
+        y2_final = solution[(2, state_name)][-1]
+        y3_initial = solution[(3, state_name)][0]
 
-    # Plot multiphase solution
-    print("\nPlotting tumor treatment trajectories...")
-    solution.plot(show_phase_boundaries=True)
+        print(
+            f"  {state_name}: P1→P2 diff: {abs(y1_final - y2_initial):.2e}, P2→P3 diff: {abs(y2_final - y3_initial):.2e}"
+        )
+
+    # Plot the solution
+    print("\nPlotting kinetic batch reactor trajectories...")
+    solution.plot(show_phase_boundaries=True, figsize=(15, 12))
 
     # Plot individual phases for detailed analysis
-    solution.plot(phase_id=1, figsize=(12, 10))  # Treatment phase
-    solution.plot(phase_id=2, figsize=(12, 10))  # Recovery phase
+    for phase_id in [1, 2, 3]:
+        solution.plot(phase_id=phase_id, figsize=(12, 10))
 
     print("\n" + "=" * 70)
-    print("- Comparison with reference optimal value J* = 7571.67158")
+    print("- Complex chemical kinetics with temperature-dependent rates")
+    print("- Three-phase process: Transient 1 → Transient 2 → Steady State")
+    print("- Algebraic constraints handled as path constraints")
     print("=" * 70)
 
 else:
-    # Print problem structure for debugging
+    print(f"\nOptimization failed: {solution.message}")
     print("\nProblem Structure:")
     print(f"  Phases: {solution.get_phase_ids()}")
     for phase_id in problem.get_phase_ids():
         num_states, num_controls = problem.get_phase_variable_counts(phase_id)
         print(f"  Phase {phase_id}: {num_states} states, {num_controls} controls")
 
-    print("  Parameter values used:")
-    print(f"    p̄ = q̄ = {p_bar:.2f}")
-    print(f"    p₀ = {p_0:.2f}, q₀ = {q_0:.2f}")
+    print("\nThis is a challenging problem with:")
+    print("  - Complex chemical kinetics")
+    print("  - Temperature-dependent rate constants")
+    print("  - Algebraic constraints")
+    print("  - Multiple time scales across phases")
