@@ -1,234 +1,211 @@
-# examples/rocket_ascent_coast_multiphase.py
+# examples/tumor_antiangiogenesis_multiphase.py
 """
-TrajectoLab Example: True Multiphase Rocket Problem
-Demonstrates cross-phase constraints and unified NLP optimization.
+TrajectoLab Example: Tumor Antiangiogenesis Two-Phase Optimal Control Problem
+Based on Example 10.142 from optimal control literature.
 
-Phase 1: Powered ascent with thrust control
-Phase 2: Coasting phase with no thrust
-Cross-phase constraints ensure state continuity
-Objective: Minimize fuel consumption while maximizing final altitude
+Phase 1: Treatment phase with antiangiogenic therapy
+Phase 2: No treatment phase (drug washout/recovery)
+Objective: Minimize final tumor endothelial cell population
 """
 
+import casadi as ca
 import numpy as np
 
 import trajectolab as tl
 
 
-# Physical constants
-g = 9.81  # Gravity (m/s^2)
-Isp = 300  # Specific impulse (s)
-m0 = 1000  # Initial mass (kg)
-max_thrust = 15000  # Maximum thrust (N)
+# Tumor model parameters from Table 10.33
+xi = 0.084  # ξ - endothelial cell death rate
+b = 5.85  # b - endothelial cell birth rate
+d = 0.00873  # d - tumor growth parameter
+G = 0.15  # G - treatment efficacy parameter
+mu = 0.02  # μ - natural death rate
+a = 75  # a - maximum treatment rate
+A = 15  # A - maximum cumulative treatment
 
-# Create multiphase rocket problem
-problem = tl.Problem("Multiphase Rocket Ascent and Coast")
+# Derived parameters
+p_bar = ((b - mu) / d) ** (3 / 2)  # p̄ = q̄ = [(b-μ)/d]^(3/2)
+q_bar = p_bar
+p_0 = p_bar / 2  # p₀ = p̄/2
+q_0 = q_bar / 4  # q₀ = q̄/4
 
-# Static parameter: total mission time constraint
-T_mission = problem.parameter("total_mission_time", boundary=(10.0, 100.0))
+print("Tumor Model Parameters:")
+print(f"  ξ = {xi}, b = {b}, d = {d}")
+print(f"  G = {G}, μ = {mu}, a_max = {a}, A = {A}")
+print(f"  Computed: p̄ = q̄ = {p_bar:.2f}")
+print(f"  Initial: p₀ = {p_0:.2f}, q₀ = {q_0:.2f}")
 
-# Phase 1: Powered Ascent (0 to T1)
-with problem.phase(1) as ascent:
-    print("Defining Phase 1: Powered Ascent")
+# Create multiphase tumor treatment problem
+problem = tl.Problem("Tumor Antiangiogenesis Two-Phase Treatment")
 
-    # Time for ascent phase (free final time)
-    t1 = ascent.time(initial=0.0, final=(5.0, 50.0))
+# Phase 1: Treatment Phase (0 to t_F^(1))
+with problem.phase(1) as treatment:
+    print("\nDefining Phase 1: Treatment Phase")
 
-    # States: altitude, velocity, mass
-    h1 = ascent.state("altitude", initial=0.0, boundary=(0.0, None))  # Start at ground
-    v1 = ascent.state("velocity", initial=0.0, boundary=(-50.0, 200.0))  # Start at rest
-    m1 = ascent.state("mass", initial=m0, boundary=(100.0, m0))  # Mass decreases
+    # Time for treatment phase (free final time with minimum bound)
+    t1 = treatment.time(initial=0.0, final=(0.01, None))
 
-    # Control: thrust (bounded)
-    T1 = ascent.control("thrust", boundary=(0.0, max_thrust))
+    # States: endothelial cells (p), tumor cells (q), cumulative treatment (y)
+    p1 = treatment.state(
+        "p", initial=p_0, final=(0.01, p_bar), boundary=(0.01, p_bar)
+    )  # Endothelial cells
+    q1 = treatment.state(
+        "q", initial=q_0, final=(0.01, q_bar), boundary=(0.01, q_bar)
+    )  # Tumor cells
+    y1 = treatment.state(
+        "y", initial=0.0, final=(0.0, A), boundary=(0, None)
+    )  # Cumulative treatment
 
-    # Dynamics for powered ascent
-    ascent.dynamics(
+    # Dynamics for treatment phase
+    # ṗ = -ξp ln(p/q)
+    # q̇ = q[b - (μ + dp^(2/3) + Ga)]
+    # ẏ = a
+    treatment.dynamics(
+        {p1: -xi * p1 * ca.log(p1 / q1), q1: q1 * (b - (mu + d * p1 ** (2 / 3) + G * a)), y1: a}
+    )
+
+    # Additional path constraint: cumulative treatment limit
+    treatment.subject_to(y1 <= A)
+
+    # Mesh for treatment phase - refined for complex dynamics
+    treatment.set_mesh([10, 10, 10], [-1.0, -1 / 3, 1 / 3, 1.0])
+
+# Phase 2: No Treatment Phase (t_F^(1) to t_F^(2))
+with problem.phase(2) as recovery:
+    print("Defining Phase 2: Recovery Phase (No Treatment)")
+
+    # Time for recovery phase (continues from treatment phase)
+    t2 = recovery.time(initial=t1.final)
+
+    # States: continue from treatment phase with state continuity
+    p2 = recovery.state("p", initial=p1.final, final=(0.01, p_bar), boundary=(0.01, p_bar))
+    q2 = recovery.state("q", initial=q1.final, final=(0.01, q_bar), boundary=(0.01, q_bar))
+    y2 = recovery.state("y", initial=y1.final, final=(0.0, A), boundary=(0, None))
+
+    # Dynamics for recovery phase (no treatment term)
+    # ṗ = -ξp ln(p/q)
+    # q̇ = q[b - (μ + dp^(2/3))]  [Note: no Ga term]
+    # ẏ = 0  [no treatment]
+    recovery.dynamics(
         {
-            h1: v1,  # altitude rate = velocity
-            v1: T1 / m1 - g,  # acceleration = thrust/mass - gravity
-            m1: -T1 / (Isp * g),  # mass rate = -thrust/(Isp * g)
+            p2: -xi * p2 * ca.log(p2 / q2),
+            q2: q2 * (b - (mu + d * p2 ** (2 / 3))),  # No treatment term
+            y2: 0,  # No change in cumulative treatment
         }
     )
 
-    # Fuel consumption integral for phase 1
-    fuel_rate1 = T1 / (Isp * g)
-    fuel_used1 = ascent.add_integral(fuel_rate1)
+    # Mesh for recovery phase
+    recovery.set_mesh([8, 8], [-1.0, 0.0, 1.0])
 
-    # Mesh for ascent phase
-    ascent.set_mesh([8, 8], [-1.0, 0.0, 1.0])
+# Cross-phase constraints (state continuity - automatically handled by initial conditions)
+print("Cross-phase constraints: State continuity enforced through initial conditions")
 
-# Phase 2: Coasting (T1 to T2)
-with problem.phase(2) as coast:
-    print("Defining Phase 2: Coasting Flight")
+# Objective: Minimize final endothelial cell population p(t_F^(2))
+problem.minimize(p2.final)
 
-    # Time for coast phase (T1 to some final time)
-    t2 = coast.time(initial=t1.final, final=t1.final + 20.0)
-
-    # States: altitude, velocity, mass (mass constant during coast)
-    h2 = coast.state("altitude", initial=h1.final, boundary=(0.0, None))
-    v2 = coast.state("velocity", initial=v1.final, boundary=(-100.0, 200.0))
-    m2 = coast.state("mass", initial=m1.final, boundary=(100.0, m0))
-
-    # No control during coasting (or zero thrust)
-    T2 = coast.control("thrust", boundary=(0.0, 0.0))  # No thrust available
-
-    # Dynamics for coasting (ballistic flight)
-    coast.dynamics(
-        {
-            h2: v2,  # altitude rate = velocity
-            v2: -g,  # acceleration = -gravity (no thrust)
-            m2: 0,  # mass constant (no fuel burn)
-        }
-    )
-
-    # No fuel consumption during coast
-    fuel_used2 = coast.add_integral(0.0)  # Zero fuel consumption
-
-    # Mesh for coast phase
-    coast.set_mesh([6, 6], [-1.0, 0.0, 1.0])
-
-# Cross-phase constraints (Event constraints linking phases)
-print("Defining Cross-Phase Constraints")
-
-# State continuity constraints (automatic through initial conditions above)
-# These are already enforced by setting initial conditions of phase 2 to final of phase 1
+print("Objective: Minimize final endothelial cell population p(t_F^(2))")
 
 
-# Additional mission constraints
-problem.subject_to(t2.final <= T_mission)  # Total mission time limit
-problem.subject_to(h2.final >= 1000.0)  # Minimum final altitude requirement
-problem.subject_to(v2.final >= -10.0)  # Don't crash (reasonable final velocity)
-
-# Multi-objective: minimize fuel consumption, maximize final altitude
-total_fuel_used = fuel_used1 + fuel_used2
-final_altitude = h2.final
-
-# Weighted objective: minimize fuel, maximize altitude
-alpha = 0.1  # Weight for altitude term
-problem.minimize(total_fuel_used - alpha * final_altitude)
-
-# Set initial guess for multiphase problem
-print("Setting Initial Guess")
-
-# Phase 1 initial guess
-ascent_states_guess = []
-ascent_controls_guess = []
-for N in [8, 8]:
-    tau = np.linspace(-1, 1, N + 1)
-    t_norm = (tau + 1) / 2  # Normalize to [0, 1]
-
-    # Reasonable ascent trajectory guess
-    h_vals = 500 * t_norm**2  # Quadratic altitude growth
-    v_vals = 50 * t_norm  # Linear velocity growth
-    m_vals = m0 - 200 * t_norm  # Linear mass decrease
-
-    ascent_states_guess.append(np.vstack([h_vals, v_vals, m_vals]))
-    ascent_controls_guess.append(np.full((1, N), 8000))  # Moderate thrust
-
-# Phase 2 initial guess
-coast_states_guess = []
-coast_controls_guess = []
-for N in [6, 6]:
-    tau = np.linspace(-1, 1, N + 1)
-    t_norm = (tau + 1) / 2
-
-    # Ballistic trajectory guess
-    h_vals = 500 + 25 * t_norm - 4.9 * t_norm**2  # Parabolic trajectory
-    v_vals = 25 - 9.81 * t_norm  # Linear velocity decrease
-    m_vals = np.full(N + 1, 800)  # Constant mass
-
-    coast_states_guess.append(np.vstack([h_vals, v_vals, m_vals]))
-    coast_controls_guess.append(np.zeros((1, N)))  # No thrust
-
-
-# Solve the multiphase problem
-print("Solving Multiphase Rocket Problem...")
-print("=" * 50)
+# Solve the two-phase tumor treatment problem
+print("\nSolving Two-Phase Tumor Treatment Problem...")
+print("=" * 60)
 
 solution = tl.solve_fixed_mesh(
     problem,
     nlp_options={
         "ipopt.print_level": 3,
-        "ipopt.max_iter": 1000,
-        "ipopt.tol": 1e-6,
+        "ipopt.max_iter": 2000,
+        "ipopt.tol": 1e-8,
+        "ipopt.constr_viol_tol": 1e-8,
+        "ipopt.acceptable_tol": 1e-6,
     },
 )
 
 # Results and Analysis
 if solution.success:
-    print("\n" + "=" * 50)
-    print("MULTIPHASE ROCKET MISSION SUCCESS!")
-    print("=" * 50)
-
-    # Mission summary
-    print(f"Objective Value: {solution.objective:.4f}")
-    print(f"Total Mission Time: {solution.get_total_mission_time():.2f} s")
-
-    # Phase 1 results
-    t1_duration = solution.get_phase_duration(1)
-    print(f"\nPhase 1 (Ascent): {t1_duration:.2f} s")
-    print(f"  Final altitude: {solution[(1, 'altitude')][-1]:.1f} m")
-    print(f"  Final velocity: {solution[(1, 'velocity')][-1]:.1f} m/s")
-    print(f"  Final mass: {solution[(1, 'mass')][-1]:.1f} kg")
-    print(f"  Fuel consumed: {solution.phase_integrals[1]:.1f} kg")
-
-    # Phase 2 results
-    t2_duration = solution.get_phase_duration(2)
-    print(f"\nPhase 2 (Coast): {t2_duration:.2f} s")
-    print(f"  Final altitude: {solution[(2, 'altitude')][-1]:.1f} m")
-    print(f"  Final velocity: {solution[(2, 'velocity')][-1]:.1f} m/s")
-    print(f"  Mass (constant): {solution[(2, 'mass')][-1]:.1f} kg")
-
-    # Mission analysis
-    total_fuel = solution.phase_integrals[1] + solution.phase_integrals[2]
-    fuel_fraction = total_fuel / m0 * 100
-    print("\nMission Analysis:")
-    print(f"  Total fuel used: {total_fuel:.1f} kg ({fuel_fraction:.1f}% of initial mass)")
-    print(
-        f"  Maximum altitude: {max(np.max(solution[(1, 'altitude')]), np.max(solution[(2, 'altitude')])):.1f} m"
-    )
-    print(f"  Static parameter (T_mission): {solution.static_parameters[0]:.2f} s")
-
-    # Verify state continuity at phase boundary
-    h1_final = solution[(1, "altitude")][-1]
-    h2_initial = solution[(2, "altitude")][0]
-    v1_final = solution[(1, "velocity")][-1]
-    v2_initial = solution[(2, "velocity")][0]
-    m1_final = solution[(1, "mass")][-1]
-    m2_initial = solution[(2, "mass")][0]
-
-    print("\nState Continuity Verification:")
-    print(f"  Altitude: {h1_final:.6f} → {h2_initial:.6f} (diff: {abs(h1_final - h2_initial):.2e})")
-    print(f"  Velocity: {v1_final:.6f} → {v2_initial:.6f} (diff: {abs(v1_final - v2_initial):.2e})")
-    print(f"  Mass: {m1_final:.6f} → {m2_initial:.6f} (diff: {abs(m1_final - m2_initial):.2e})")
-
-    # Plot multiphase solution
-    print("\nPlotting multiphase trajectory...")
-    solution.plot(show_phase_boundaries=True)  # Show all phases with boundaries
-
-    # Also plot individual phases
-    print("Plotting individual phases...")
-    solution.plot(phase_id=1)  # Ascent phase only
-    solution.plot(phase_id=2)  # Coast phase only
-
     print("\n" + "=" * 60)
-    print("SUCCESS: True multiphase optimization with cross-phase coupling!")
-    print("- Unified NLP solved both phases simultaneously")
-    print("- Cross-phase constraints maintained state continuity")
-    print("- Static parameters controlled global mission constraints")
-    print("- Mixed objectives optimized across multiple phases")
+    print("TUMOR TREATMENT OPTIMIZATION SUCCESS!")
     print("=" * 60)
 
-else:
-    print(f"\nMultiphase solution failed: {solution.message}")
-    print("This might indicate:")
-    print("- Infeasible cross-phase constraints")
-    print("- Poor initial guess for multiphase problem")
-    print("- Solver parameter tuning needed")
+    # Treatment summary
+    print(f"Objective Value (Final p): {solution.objective:.6f}")
+    print("Expected Optimal Value: ~7571.67 (from reference)")
+    print(f"Total Treatment Duration: {solution.get_total_mission_time():.4f} time units")
 
-    # Print detailed problem info for debugging
+    # Phase 1 results (Treatment)
+    t1_duration = solution.get_phase_duration(1)
+    print(f"\nPhase 1 (Treatment): {t1_duration:.4f} time units")
+    print(f"  Initial endothelial cells (p): {solution[(1, 'p')][0]:.2f}")
+    print(f"  Final endothelial cells (p): {solution[(1, 'p')][-1]:.2f}")
+    print(f"  Initial tumor cells (q): {solution[(1, 'q')][0]:.2f}")
+    print(f"  Final tumor cells (q): {solution[(1, 'q')][-1]:.2f}")
+    print(f"  Total treatment given (y): {solution[(1, 'y')][-1]:.4f}")
+    print(f"  Average treatment rate: {np.mean(solution[(1, 'a')]):.4f}")
+    print(f"  Max treatment rate used: {np.max(solution[(1, 'a')]):.4f}")
+
+    # Phase 2 results (Recovery)
+    t2_duration = solution.get_phase_duration(2)
+    print(f"\nPhase 2 (Recovery): {t2_duration:.4f} time units")
+    print(f"  Initial endothelial cells (p): {solution[(2, 'p')][0]:.2f}")
+    print(f"  Final endothelial cells (p): {solution[(2, 'p')][-1]:.2f}")
+    print(f"  Initial tumor cells (q): {solution[(2, 'q')][0]:.2f}")
+    print(f"  Final tumor cells (q): {solution[(2, 'q')][-1]:.2f}")
+    print(f"  Cumulative treatment (constant): {solution[(2, 'y')][-1]:.4f}")
+
+    # Treatment strategy analysis
+    total_treatment = solution[(1, "y")][-1]
+    treatment_efficiency = total_treatment / A * 100
+    reduction_p = (solution[(1, "p")][0] - solution[(2, "p")][-1]) / solution[(1, "p")][0] * 100
+
+    print("\nTreatment Strategy Analysis:")
+    print(f"  Treatment utilization: {treatment_efficiency:.1f}% of maximum allowed")
+    print(f"  Endothelial cell reduction: {reduction_p:.1f}%")
+    print(f"  Final p/initial p ratio: {solution[(2, 'p')][-1] / solution[(1, 'p')][0]:.4f}")
+
+    # Verify state continuity at phase boundary
+    p1_final = solution[(1, "p")][-1]
+    p2_initial = solution[(2, "p")][0]
+    q1_final = solution[(1, "q")][-1]
+    q2_initial = solution[(2, "q")][0]
+    y1_final = solution[(1, "y")][-1]
+    y2_initial = solution[(2, "y")][0]
+
+    print("\nState Continuity Verification:")
+    print(f"  p: {p1_final:.6f} → {p2_initial:.6f} (diff: {abs(p1_final - p2_initial):.2e})")
+    print(f"  q: {q1_final:.6f} → {q2_initial:.6f} (diff: {abs(q1_final - q2_initial):.2e})")
+    print(f"  y: {y1_final:.6f} → {y2_initial:.6f} (diff: {abs(y1_final - y2_initial):.2e})")
+
+    # Plot multiphase solution
+    print("\nPlotting tumor treatment trajectories...")
+    solution.plot(show_phase_boundaries=True)
+
+    # Plot individual phases for detailed analysis
+    solution.plot(phase_id=1, figsize=(12, 10))  # Treatment phase
+    solution.plot(phase_id=2, figsize=(12, 10))  # Recovery phase
+
+    print("\n" + "=" * 70)
+    print("SUCCESS: Two-phase tumor treatment optimization completed!")
+    print("- Phase 1: Optimal treatment strategy with antiangiogenic therapy")
+    print("- Phase 2: Recovery dynamics without treatment")
+    print("- Cross-phase state continuity maintained")
+    print("- Objective: Minimized final endothelial cell population")
+    print("- Comparison with reference optimal value J* = 7571.67158")
+    print("=" * 70)
+
+else:
+    print(f"\nTumor treatment optimization failed: {solution.message}")
+    print("This might indicate:")
+    print("- Complex nonlinear dynamics require better initial guess")
+    print("- Tighter solver tolerances needed for this problem")
+    print("- Constraint feasibility issues with tumor model")
+
+    # Print problem structure for debugging
     print("\nProblem Structure:")
     print(f"  Phases: {solution.get_phase_ids()}")
     for phase_id in problem.get_phase_ids():
         num_states, num_controls = problem.get_phase_variable_counts(phase_id)
         print(f"  Phase {phase_id}: {num_states} states, {num_controls} controls")
+
+    print("  Parameter values used:")
+    print(f"    p̄ = q̄ = {p_bar:.2f}")
+    print(f"    p₀ = {p_0:.2f}, q₀ = {q_0:.2f}")
