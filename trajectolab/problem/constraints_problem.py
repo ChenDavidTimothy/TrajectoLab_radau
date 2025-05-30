@@ -141,6 +141,8 @@ def get_phase_path_constraints_function(
         time: ca.MX,
         static_parameters_vec: ca.MX | None = None,
         static_parameter_symbols: list[ca.MX] | None = None,
+        initial_time_variable: ca.MX | None = None,
+        terminal_time_variable: ca.MX | None = None,
     ) -> list[Constraint]:
         """Apply path constraints at a single collocation point."""
         result: list[Constraint] = []
@@ -156,9 +158,16 @@ def get_phase_path_constraints_function(
         for i, control_sym in enumerate(control_syms):
             subs_map[control_sym] = controls_vec[i]
 
-        # Map time symbol to current time
+        # Map time symbols to current values
         if phase_def.sym_time is not None:
             subs_map[phase_def.sym_time] = time
+
+        # CRITICAL FIX: Map phase initial and final time symbols
+        if phase_def.sym_time_initial is not None and initial_time_variable is not None:
+            subs_map[phase_def.sym_time_initial] = initial_time_variable
+
+        if phase_def.sym_time_final is not None and terminal_time_variable is not None:
+            subs_map[phase_def.sym_time_final] = terminal_time_variable
 
         # Map static parameter symbols to current parameter values
         if static_parameters_vec is not None and static_parameter_symbols is not None:

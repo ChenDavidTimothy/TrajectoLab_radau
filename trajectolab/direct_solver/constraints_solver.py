@@ -143,13 +143,15 @@ def apply_phase_path_constraints(
             terminal_time_variable - initial_time_variable
         ) / 2 * global_colloc_tau_val + (terminal_time_variable + initial_time_variable) / 2
 
-        # Get and apply path constraints
+        # Get and apply path constraints - CRITICAL FIX: Pass time variables
         path_constraints_result: list[Constraint] | Constraint = path_constraints_function(
             state_at_colloc,
             control_at_colloc,
             physical_time_at_colloc,
             static_parameters_vec,
             static_parameter_symbols,
+            initial_time_variable,  # NEW: Pass initial time variable
+            terminal_time_variable,  # NEW: Pass terminal time variable
         )
 
         constraints_to_apply = (
