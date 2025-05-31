@@ -1,6 +1,6 @@
 # trajectolab/problem/state.py
 """
-State management classes for multiphase variables, constraints, and mesh configuration - PURGED.
+State management classes for multiphase variables, constraints, and mesh configuration - .
 All redundancy eliminated, using centralized validation.
 """
 
@@ -37,7 +37,7 @@ class _BoundaryConstraint:
             pass  # No constraint
         elif isinstance(constraint_input, ca.MX):
             self.symbolic_expression = constraint_input
-        elif isinstance(constraint_input, (int, float)):
+        elif isinstance(constraint_input, int | float):
             self.equals = float(constraint_input)
             self.lower = float(constraint_input)
             self.upper = float(constraint_input)

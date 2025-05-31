@@ -42,7 +42,7 @@ def validate_positive_integer(value: Any, name: str, min_value: int = 1) -> None
 
 def validate_positive_number(value: Any, name: str) -> None:
     """Single source for positive number validation."""
-    if not isinstance(value, (int, float)):
+    if not isinstance(value, int | float):
         raise ConfigurationError(f"{name} must be numeric, got {type(value)}")
     if value <= 0:
         raise ConfigurationError(f"{name} must be positive, got {value}")
@@ -95,7 +95,7 @@ def validate_constraint_input_format(constraint_input: Any, context: str) -> Non
     if constraint_input is None or isinstance(constraint_input, ca.MX):
         return  # None and CasADi expressions are valid
 
-    if isinstance(constraint_input, (int, float)):
+    if isinstance(constraint_input, int | float):
         if math.isnan(constraint_input) or math.isinf(constraint_input):
             raise ConfigurationError(
                 f"Constraint cannot be NaN/infinite: {constraint_input}", context
@@ -109,7 +109,7 @@ def validate_constraint_input_format(constraint_input: Any, context: str) -> Non
         lower, upper = constraint_input
         for i, val in enumerate([lower, upper]):
             if val is not None:
-                if not isinstance(val, (int, float)):
+                if not isinstance(val, int | float):
                     raise ConfigurationError(
                         f"Constraint bound {i} must be numeric/None, got {type(val)}", context
                     )
@@ -290,11 +290,11 @@ def validate_integral_values(integrals: float | FloatArray | None, num_integrals
         return
 
     if num_integrals == 1:
-        if not isinstance(integrals, (int, float)):
+        if not isinstance(integrals, int | float):
             raise DataIntegrityError(f"Single integral must be scalar, got {type(integrals)}")
         validate_array_numerical_integrity(np.array([integrals]), "integral value")
     elif num_integrals > 1:
-        if isinstance(integrals, (int, float)):
+        if isinstance(integrals, int | float):
             raise DataIntegrityError(f"Multiple integrals ({num_integrals}) need array, got scalar")
 
         integrals_array = np.array(integrals, dtype=np.float64)
@@ -469,7 +469,7 @@ def set_integral_guess_values(
         return
 
     if num_integrals == 1:
-        if isinstance(guess, (int, float)):
+        if isinstance(guess, int | float):
             opti.set_initial(integral_vars, float(guess))
         else:
             raise ConfigurationError(f"Single integral needs scalar guess, got {type(guess)}")

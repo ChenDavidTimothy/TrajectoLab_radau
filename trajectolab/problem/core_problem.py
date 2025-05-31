@@ -1,6 +1,6 @@
 # trajectolab/problem/core_problem.py
 """
-Core multiphase problem definition - PURGED of all redundancies.
+Core multiphase problem definition -  of all redundancies.
 Streamlined, modular organization with centralized validation.
 """
 

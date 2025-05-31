@@ -1,7 +1,7 @@
 # trajectolab/problem/solver_interface.py
 """
-Interface conversion between multiphase problem definition and solver requirements - PURGED.
-All redundancy eliminated, using centralized caching and validation.
+Interface conversion between multiphase problem definition and solver requirements.
+Redundancies eliminated: unified CasADi function building, shared symbol mapping.
 """
 
 from __future__ import annotations
@@ -13,6 +13,12 @@ from typing import cast
 import casadi as ca
 
 from ..tl_types import PhaseID
+from ..utils.casadi_utils import (
+    build_static_parameter_substitution_map,
+    build_unified_casadi_function_inputs,
+    build_unified_multiphase_symbol_inputs,
+    build_unified_symbol_substitution_map,
+)
 from ..utils.expression_cache import (
     create_cache_key_from_multiphase_state,
     create_cache_key_from_phase_state,
@@ -24,7 +30,7 @@ from .state import MultiPhaseVariableState, PhaseDefinition
 def get_phase_dynamics_function(
     phase_def: PhaseDefinition, static_parameter_symbols: list[ca.MX] | None = None
 ) -> Callable[..., list[ca.MX]]:
-    """SINGLE SOURCE for phase dynamics function creation with expression caching and static parameter support."""
+    """Get phase dynamics function using unified CasADi function building."""
     dynamics_exprs = [str(expr) for expr in phase_def.dynamics_expressions.values()]
     param_info = f"_params_{len(static_parameter_symbols) if static_parameter_symbols else 0}"
     expr_hash = hashlib.sha256("".join(sorted(dynamics_exprs)).encode()).hexdigest()[:16]
@@ -32,32 +38,19 @@ def get_phase_dynamics_function(
     cache_key = create_cache_key_from_phase_state(phase_def, f"dynamics{param_info}", expr_hash)
 
     def build_dynamics_function() -> ca.Function:
-        """Build CasADi dynamics function for phase - expensive operation."""
+        """Build CasADi dynamics function using unified input builder."""
+        # Use unified function input builder
+        states_vec, controls_vec, time, static_params_vec, function_inputs = (
+            build_unified_casadi_function_inputs(phase_def, static_parameter_symbols)
+        )
+
+        # Build substitution map using unified builder
+        subs_map = build_static_parameter_substitution_map(
+            static_parameter_symbols, static_params_vec
+        )
+
+        # Build dynamics expressions
         state_syms = phase_def.get_ordered_state_symbols()
-        control_syms = phase_def.get_ordered_control_symbols()
-
-        states_vec = ca.vertcat(*state_syms) if state_syms else ca.MX()
-        controls_vec = ca.vertcat(*control_syms) if control_syms else ca.MX()
-        time = phase_def.sym_time if phase_def.sym_time is not None else ca.MX.sym("t", 1)  # type: ignore[arg-type]
-
-        # Create static parameters with correct dimensions
-        num_static_params = len(static_parameter_symbols) if static_parameter_symbols else 0
-        if num_static_params > 0:
-            static_params_vec = ca.MX.sym("static_params", num_static_params, 1)
-        else:
-            static_params_vec = ca.MX.sym(
-                "static_params", 1, 1
-            )  # Dummy parameter for consistent signature
-
-        # Build substitution map for static parameters
-        subs_map = {}
-        if static_parameter_symbols and num_static_params > 0:
-            for i, param_sym in enumerate(static_parameter_symbols):
-                if num_static_params == 1:
-                    subs_map[param_sym] = static_params_vec
-                else:
-                    subs_map[param_sym] = static_params_vec[i]
-
         dynamics_expr = []
         for state_sym in state_syms:
             if state_sym in phase_def.dynamics_expressions:
@@ -75,7 +68,6 @@ def get_phase_dynamics_function(
                 dynamics_expr.append(ca.MX(0))
 
         dynamics_vec = ca.vertcat(*dynamics_expr) if dynamics_expr else ca.MX()
-        function_inputs = [states_vec, controls_vec, time, static_params_vec]
 
         return ca.Function(f"dynamics_p{phase_def.phase_id}", function_inputs, [dynamics_vec])
 
@@ -93,13 +85,12 @@ def get_phase_dynamics_function(
         num_static_params = len(static_parameter_symbols) if static_parameter_symbols else 0
 
         if static_parameters_vec is None or num_static_params == 0:
-            # Create dummy parameters for consistent function signature
             static_params_input = ca.DM.zeros(max(1, num_static_params), 1)
         else:
             static_params_input = static_parameters_vec
 
         result = dynamics_func(states_vec, controls_vec, time, static_params_input)
-        dynamics_output = result[0] if isinstance(result, (list, tuple)) else result
+        dynamics_output = result[0] if isinstance(result, list | tuple) else result
 
         if dynamics_output is None:
             raise ValueError(f"Phase {phase_def.phase_id} dynamics function returned None")
@@ -117,7 +108,7 @@ def get_phase_dynamics_function(
 def get_multiphase_objective_function(
     multiphase_state: MultiPhaseVariableState,
 ) -> Callable[..., ca.MX]:
-    """SINGLE SOURCE for multiphase objective function creation with expression caching."""
+    """Get multiphase objective function using unified symbol mapping."""
     if multiphase_state.objective_expression is None:
         raise ValueError("Multiphase objective expression not defined")
 
@@ -125,89 +116,14 @@ def get_multiphase_objective_function(
     cache_key = create_cache_key_from_multiphase_state(multiphase_state, "objective", obj_hash)
 
     def build_objective_function() -> ca.Function:
-        """Build CasADi multiphase objective function - expensive operation."""
-        # Collect all phase endpoint symbols
-        phase_inputs = []
-        phase_symbols_map = {}
+        """Build CasADi multiphase objective function using unified builders."""
+        # Use unified multiphase symbol input builder
+        phase_inputs, s_vec = build_unified_multiphase_symbol_inputs(multiphase_state)
 
-        for phase_id in sorted(multiphase_state.phases.keys()):
-            phase_def = multiphase_state.phases[phase_id]
-
-            # Time symbols
-            t0 = (
-                phase_def.sym_time_initial
-                if phase_def.sym_time_initial is not None
-                else ca.MX.sym(f"t0_p{phase_id}", 1)
-            )  # type: ignore[arg-type]
-            tf = (
-                phase_def.sym_time_final
-                if phase_def.sym_time_final is not None
-                else ca.MX.sym(f"tf_p{phase_id}", 1)
-            )  # type: ignore[arg-type]
-
-            # State vectors
-            state_syms = phase_def.get_ordered_state_symbols()
-            state_initial_syms = phase_def.get_ordered_state_initial_symbols()
-            state_final_syms = phase_def.get_ordered_state_final_symbols()
-
-            x0_vec = ca.vertcat(
-                *[ca.MX.sym(f"x0_{i}_p{phase_id}", 1) for i in range(len(state_syms))]
-            )  # type: ignore[arg-type]
-            xf_vec = ca.vertcat(
-                *[ca.MX.sym(f"xf_{i}_p{phase_id}", 1) for i in range(len(state_syms))]
-            )  # type: ignore[arg-type]
-
-            # Integral vector
-            q_vec = (
-                ca.vertcat(
-                    *[ca.MX.sym(f"q_{i}_p{phase_id}", 1) for i in range(phase_def.num_integrals)]
-                )  # type: ignore[arg-type]
-                if phase_def.num_integrals > 0
-                else ca.MX.sym(f"q_p{phase_id}", 1)  # type: ignore[arg-type]
-            )
-
-            phase_inputs.extend([t0, tf, x0_vec, xf_vec, q_vec])
-
-            # Build substitution map
-            phase_symbols_map[t0] = t0
-            phase_symbols_map[tf] = tf
-
-            for i, (state_sym, initial_sym, final_sym) in enumerate(
-                zip(state_syms, state_initial_syms, state_final_syms, strict=True)
-            ):
-                # Map state symbols to final values by default
-                if len(state_syms) == 1:
-                    phase_symbols_map[state_sym] = xf_vec
-                    phase_symbols_map[initial_sym] = x0_vec
-                    phase_symbols_map[final_sym] = xf_vec
-                else:
-                    phase_symbols_map[state_sym] = xf_vec[i]
-                    phase_symbols_map[initial_sym] = x0_vec[i]
-                    phase_symbols_map[final_sym] = xf_vec[i]
-
-            # Map integral symbols
-            for i, integral_sym in enumerate(phase_def.integral_symbols):
-                if phase_def.num_integrals == 1:
-                    phase_symbols_map[integral_sym] = q_vec
-                else:
-                    phase_symbols_map[integral_sym] = q_vec[i]
-
-        # Static parameters
-        static_param_syms = multiphase_state.static_parameters.get_ordered_parameter_symbols()
-        s_vec = (
-            ca.vertcat(*[ca.MX.sym(f"s_{i}", 1) for i in range(len(static_param_syms))])  # type: ignore[arg-type]
-            if static_param_syms
-            else ca.MX.sym("s", 1)  # type: ignore[arg-type]
+        # Build unified symbol substitution map
+        phase_symbols_map = build_unified_symbol_substitution_map(
+            multiphase_state, phase_inputs, s_vec
         )
-
-        # Add static parameter substitution
-        for i, param_sym in enumerate(static_param_syms):
-            if len(static_param_syms) == 1:
-                phase_symbols_map[param_sym] = s_vec
-            else:
-                phase_symbols_map[param_sym] = s_vec[i]
-
-        phase_inputs.append(s_vec)
 
         # Substitute in objective expression
         objective_expr = multiphase_state.objective_expression
@@ -262,7 +178,7 @@ def get_multiphase_objective_function(
             inputs.append(ca.DM.zeros(max(1, num_params), 1))  # type: ignore[arg-type]
 
         result = obj_func(*inputs)
-        obj_output = result[0] if isinstance(result, (list, tuple)) else result
+        obj_output = result[0] if isinstance(result, list | tuple) else result
         return cast(ca.MX, obj_output)
 
     return unified_multiphase_objective
@@ -271,7 +187,7 @@ def get_multiphase_objective_function(
 def get_phase_integrand_function(
     phase_def: PhaseDefinition, static_parameter_symbols: list[ca.MX] | None = None
 ) -> Callable[..., ca.MX] | None:
-    """SINGLE SOURCE for phase integrand function creation with expression caching and static parameter support."""
+    """Get phase integrand function using unified CasADi function building."""
     if not phase_def.integral_expressions:
         return None
 
@@ -281,29 +197,16 @@ def get_phase_integrand_function(
     cache_key = create_cache_key_from_phase_state(phase_def, f"integrand{param_info}", expr_hash)
 
     def build_integrand_functions() -> list[ca.Function]:
-        """Build CasADi integrand functions for phase - expensive operation."""
-        state_syms = phase_def.get_ordered_state_symbols()
-        control_syms = phase_def.get_ordered_control_symbols()
+        """Build CasADi integrand functions using unified input builder."""
+        # Use unified function input builder
+        states_vec, controls_vec, time, static_params_vec, function_inputs = (
+            build_unified_casadi_function_inputs(phase_def, static_parameter_symbols)
+        )
 
-        states_vec = ca.vertcat(*state_syms) if state_syms else ca.MX()
-        controls_vec = ca.vertcat(*control_syms) if control_syms else ca.MX()
-        time = phase_def.sym_time if phase_def.sym_time is not None else ca.MX.sym("t", 1)  # type: ignore[arg-type]
-
-        # Include static parameters as inputs for integrand functions
-        num_static_params = len(static_parameter_symbols) if static_parameter_symbols else 0
-        if num_static_params > 0:
-            static_params_vec = ca.MX.sym("static_params", num_static_params, 1)
-        else:
-            static_params_vec = ca.MX.sym("static_params", 1, 1)
-
-        # Build substitution map for static parameters
-        subs_map = {}
-        if static_parameter_symbols and num_static_params > 0:
-            for i, param_sym in enumerate(static_parameter_symbols):
-                if num_static_params == 1:
-                    subs_map[param_sym] = static_params_vec
-                else:
-                    subs_map[param_sym] = static_params_vec[i]
+        # Build substitution map using unified builder
+        subs_map = build_static_parameter_substitution_map(
+            static_parameter_symbols, static_params_vec
+        )
 
         integrand_funcs = []
         for i, expr in enumerate(phase_def.integral_expressions):
@@ -314,8 +217,6 @@ def get_phase_integrand_function(
                     [expr], list(subs_map.keys()), list(subs_map.values())
                 )[0]
 
-            # Include static parameters in integrand function inputs
-            function_inputs = [states_vec, controls_vec, time, static_params_vec]
             integrand_funcs.append(
                 ca.Function(
                     f"integrand_{i}_p{phase_def.phase_id}", function_inputs, [processed_expr]
@@ -342,13 +243,12 @@ def get_phase_integrand_function(
         num_static_params = len(static_parameter_symbols) if static_parameter_symbols else 0
 
         if static_parameters_vec is None or num_static_params == 0:
-            # Create dummy parameters if none provided
             static_params_input = ca.DM.zeros(max(1, num_static_params), 1)
         else:
             static_params_input = static_parameters_vec
 
         result = integrand_funcs[integral_idx](states_vec, controls_vec, time, static_params_input)
-        integrand_output = result[0] if isinstance(result, (list, tuple)) else result
+        integrand_output = result[0] if isinstance(result, list | tuple) else result
         return cast(ca.MX, integrand_output)
 
     return vectorized_integrand

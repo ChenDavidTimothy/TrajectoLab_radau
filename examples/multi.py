@@ -28,7 +28,7 @@ def solve_two_phase_hypersensitive_debug():
 
     # Phase 2: [20, 40]
     with problem_phase.phase(2) as phase2:
-        t2 = phase2.time(initial=t1.final, final=40.0)
+        phase2.time(initial=t1.final, final=40.0)
         x2 = phase2.state("x", initial=x1.final, final=1.0)
         u2 = phase2.control("u")
         phase2.dynamics({x2: -(x2**3) + u2})

@@ -1,6 +1,6 @@
 # trajectolab/problem/mesh.py
 """
-Mesh configuration for multiphase pseudospectral discretization - PURGED.
+Mesh configuration for multiphase pseudospectral discretization - .
 All redundancy eliminated, using centralized validation.
 """
 

@@ -1,6 +1,6 @@
 # trajectolab/problem/constraints_problem.py
 """
-Constraint processing and conversion for multiphase path and event constraints - PURGED.
+Constraint processing and conversion for multiphase path and event constraints - .
 All redundancy eliminated, using centralized validation and conversion patterns.
 """
 

@@ -1,6 +1,6 @@
 # trajectolab/solution_extraction.py
 """
-Solution data extraction and formatting from raw CasADi multiphase optimization results - PURGED.
+Solution data extraction and formatting from raw CasADi multiphase optimization results - .
 All redundancy eliminated, using centralized validation.
 """
 
@@ -72,7 +72,7 @@ def extract_multiphase_integral_values(
                 )
                 return result_array
 
-        elif isinstance(raw_value, (float, int)):
+        elif isinstance(raw_value, float | int):
             if num_integrals == 1:
                 result = float(raw_value)
                 validate_array_numerical_integrity(
@@ -331,7 +331,7 @@ def extract_and_format_multiphase_solution(
                     is_state=True,
                 )
         except Exception as e:
-            if isinstance(e, (SolutionExtractionError, DataIntegrityError)):
+            if isinstance(e, SolutionExtractionError | DataIntegrityError):
                 raise
             raise SolutionExtractionError(
                 f"Failed to extract phase {phase_id} state trajectories: {e}",
@@ -366,7 +366,7 @@ def extract_and_format_multiphase_solution(
                     is_state=False,
                 )
         except Exception as e:
-            if isinstance(e, (SolutionExtractionError, DataIntegrityError)):
+            if isinstance(e, SolutionExtractionError | DataIntegrityError):
                 raise
             raise SolutionExtractionError(
                 f"Failed to extract phase {phase_id} control trajectories: {e}",
@@ -392,7 +392,7 @@ def extract_and_format_multiphase_solution(
                 state_vals = casadi_solution_object.value(state_vars)
 
                 # Ensure proper dimensionality
-                if isinstance(state_vals, (ca.DM, ca.MX)):
+                if isinstance(state_vals, ca.DM | ca.MX):
                     state_vals = np.array(state_vals.full())
                 else:
                     state_vals = np.array(state_vals)
@@ -422,7 +422,7 @@ def extract_and_format_multiphase_solution(
                     control_vals = casadi_solution_object.value(control_vars)
 
                     # Ensure proper dimensionality
-                    if isinstance(control_vals, (ca.DM, ca.MX)):
+                    if isinstance(control_vals, ca.DM | ca.MX):
                         control_vals = np.array(control_vals.full())
                     else:
                         control_vals = np.array(control_vals)

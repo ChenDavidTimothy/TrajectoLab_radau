@@ -1,10 +1,7 @@
 # trajectolab/direct_solver/core_solver.py
 """
 Core orchestration for the multiphase direct pseudospectral solver using Radau collocation.
-
-This implements the CGPOPS unified NLP structure:
-z = [z^(1), z^(2), ..., z^(P), s_1, ..., s_n_s]
-H(z) = [h^(1), h^(2), ..., h^(P), b]
+Redundancies eliminated: unified phase endpoint extraction, consolidated phase processing.
 """
 
 import logging
@@ -33,28 +30,42 @@ from .variables_solver import (
 )
 
 
-# Library logger
 logger = logging.getLogger(__name__)
+
+
+def _extract_phase_endpoint_data(
+    variables: MultiPhaseVariableReferences, problem: ProblemProtocol
+) -> dict[PhaseID, dict[str, ca.MX]]:
+    """Extract phase endpoint data once for reuse across all solver components."""
+    phase_endpoint_data = {}
+
+    for phase_id, phase_vars in variables.phase_variables.items():
+        num_mesh_intervals = len(problem._phases[phase_id].collocation_points_per_interval)
+
+        initial_state = phase_vars.state_at_mesh_nodes[0]
+        terminal_state = phase_vars.state_at_mesh_nodes[num_mesh_intervals]
+
+        phase_endpoint_data[phase_id] = {
+            "t0": phase_vars.initial_time,
+            "tf": phase_vars.terminal_time,
+            "x0": initial_state,
+            "xf": terminal_state,
+            "q": phase_vars.integral_variables,
+        }
+
+    return phase_endpoint_data
 
 
 def solve_multiphase_radau_collocation(problem: ProblemProtocol) -> OptimalControlSolution:
     """
     Solve a multiphase optimal control problem using Radau pseudospectral collocation.
-
-    Implements the CGPOPS unified NLP structure with cross-phase event constraints.
     """
-
-    # Log solver start
     logger.debug("Starting multiphase Radau collocation solver")
 
-    # Initialize optimization problem
     opti: ca.Opti = ca.Opti()
-
-    # Get problem structure
     phase_ids = problem.get_phase_ids()
     total_states, total_controls, num_static_params = problem.get_total_variable_counts()
 
-    # Log problem structure
     logger.debug(
         "Multiphase problem structure: phases=%d, total_states=%d, total_controls=%d, static_params=%d",
         len(phase_ids),
@@ -64,28 +75,32 @@ def solve_multiphase_radau_collocation(problem: ProblemProtocol) -> OptimalContr
     )
 
     try:
-        # Set up multiphase optimization variables following CGPOPS structure
+        # Set up multiphase optimization variables
         logger.debug("Setting up multiphase optimization variables")
         variables = setup_multiphase_optimization_variables(opti, problem)
 
-        # Initialize containers for multiphase processing
+        # Initialize metadata container
         metadata = MultiPhaseMetadataBundle()
 
-        # Process each phase
-        logger.debug("Processing %d phases", len(phase_ids))
-        _process_all_phases(opti, variables, metadata, problem)
+        # Extract phase endpoint data once for reuse
+        logger.debug("Extracting unified phase endpoint data")
+        phase_endpoint_data = _extract_phase_endpoint_data(variables, problem)
 
-        # Set up multiphase objective and cross-phase constraints
+        # Process all phases with unified data
+        logger.debug("Processing %d phases", len(phase_ids))
+        _process_all_phases_unified(opti, variables, metadata, problem, phase_endpoint_data)
+
+        # Set up multiphase objective and constraints using shared endpoint data
         logger.debug("Setting up multiphase objective and cross-phase constraints")
-        _setup_multiphase_objective_and_constraints(opti, variables, problem)
+        _setup_objective_and_constraints_unified(opti, variables, problem, phase_endpoint_data)
 
         # Apply multiphase initial guess
         logger.debug("Applying multiphase initial guess")
         apply_multiphase_initial_guess(opti, variables, problem)
 
-        # Configure solver
+        # Configure solver with shared endpoint data
         logger.debug("Configuring NLP solver")
-        _configure_multiphase_solver_and_store_references(opti, variables, metadata, problem)
+        _configure_solver_unified(opti, variables, metadata, problem, phase_endpoint_data)
 
     except Exception as e:
         logger.error("Failed to set up multiphase optimization problem: %s", str(e))
@@ -103,34 +118,42 @@ def solve_multiphase_radau_collocation(problem: ProblemProtocol) -> OptimalContr
     return solution_obj
 
 
-def _process_all_phases(
+def _process_all_phases_unified(
     opti: ca.Opti,
     variables: MultiPhaseVariableReferences,
     metadata: MultiPhaseMetadataBundle,
     problem: ProblemProtocol,
+    phase_endpoint_data: dict[PhaseID, dict[str, ca.MX]],
 ) -> None:
-    """Process all phases to set up constraints and integrals."""
-
+    """Process all phases with unified endpoint data to eliminate redundant extraction."""
     for phase_id in problem.get_phase_ids():
         if phase_id not in variables.phase_variables:
             continue
 
         phase_vars = variables.phase_variables[phase_id]
-        _process_single_phase(
-            opti, phase_vars, metadata, problem, phase_id, variables.static_parameters
+        endpoint_data = phase_endpoint_data[phase_id]
+
+        _process_single_phase_unified(
+            opti,
+            phase_vars,
+            metadata,
+            problem,
+            phase_id,
+            variables.static_parameters,
+            endpoint_data,
         )
 
 
-def _process_single_phase(
+def _process_single_phase_unified(
     opti: ca.Opti,
-    phase_vars,  # PhaseVariableReferences
+    phase_vars,
     metadata: MultiPhaseMetadataBundle,
     problem: ProblemProtocol,
     phase_id: PhaseID,
     static_parameters_vec: ca.MX | None = None,
+    endpoint_data: dict[str, ca.MX] | None = None,
 ) -> None:
-    """Process a single phase to set up constraints and integrals."""
-
+    """Process a single phase with unified endpoint data."""
     # Get phase information
     num_states, num_controls = problem.get_phase_variable_counts(phase_id)
     phase_def = problem._phases[phase_id]
@@ -143,7 +166,7 @@ def _process_single_phase(
     integral_integrand_function = problem.get_phase_integrand_function(phase_id)
     global_mesh_nodes = phase_def.global_normalized_mesh_nodes
 
-    # Get static parameter symbols for substitution
+    # Get static parameter symbols
     static_parameter_symbols = None
     if static_parameters_vec is not None:
         static_parameter_symbols = problem._static_parameters.get_ordered_parameter_symbols()
@@ -160,10 +183,14 @@ def _process_single_phase(
     metadata.phase_local_control_tau[phase_id] = []
     metadata.phase_global_mesh_nodes[phase_id] = global_mesh_nodes
 
-    # Initialize accumulated integrals for this phase
+    # Initialize accumulated integrals
     accumulated_integral_expressions: list[ca.MX] = (
         [ca.MX(0) for _ in range(num_integrals)] if num_integrals > 0 else []
     )
+
+    # Extract time variables from unified endpoint data
+    initial_time_var = endpoint_data["t0"] if endpoint_data else phase_vars.initial_time
+    terminal_time_var = endpoint_data["tf"] if endpoint_data else phase_vars.terminal_time
 
     for mesh_interval_index in range(num_mesh_intervals):
         num_colloc_nodes = phase_def.collocation_points_per_interval[mesh_interval_index]
@@ -194,7 +221,7 @@ def _process_single_phase(
             )
             metadata.phase_local_control_tau[phase_id].append(basis_components.collocation_nodes)
 
-            # CRITICAL FIX: Apply collocation constraints with static parameters
+            # Apply collocation constraints
             apply_phase_collocation_constraints(
                 opti,
                 phase_id,
@@ -203,11 +230,11 @@ def _process_single_phase(
                 phase_vars.control_variables[mesh_interval_index],
                 basis_components,
                 global_mesh_nodes,
-                phase_vars.initial_time,
-                phase_vars.terminal_time,
+                initial_time_var,
+                terminal_time_var,
                 dynamics_function,
                 problem,
-                static_parameters_vec,  # CRITICAL FIX: Pass static parameters
+                static_parameters_vec,
             )
 
             # Apply path constraints if they exist
@@ -220,8 +247,8 @@ def _process_single_phase(
                     phase_vars.control_variables[mesh_interval_index],
                     basis_components,
                     global_mesh_nodes,
-                    phase_vars.initial_time,
-                    phase_vars.terminal_time,
+                    initial_time_var,
+                    terminal_time_var,
                     path_constraints_function,
                     problem,
                     static_parameters_vec,
@@ -238,12 +265,12 @@ def _process_single_phase(
                     phase_vars.control_variables[mesh_interval_index],
                     basis_components,
                     global_mesh_nodes,
-                    phase_vars.initial_time,
-                    phase_vars.terminal_time,
+                    initial_time_var,
+                    terminal_time_var,
                     integral_integrand_function,
                     num_integrals,
                     accumulated_integral_expressions,
-                    static_parameters_vec,  # CRITICAL FIX: Pass static parameters for integrands
+                    static_parameters_vec,
                 )
 
         except Exception as e:
@@ -265,39 +292,22 @@ def _process_single_phase(
         )
 
 
-def _setup_multiphase_objective_and_constraints(
+def _setup_objective_and_constraints_unified(
     opti: ca.Opti,
     variables: MultiPhaseVariableReferences,
     problem: ProblemProtocol,
+    phase_endpoint_data: dict[PhaseID, dict[str, ca.MX]],
 ) -> None:
-    """Set up the multiphase objective function and apply cross-phase event constraints."""
-
+    """Set up objective and constraints using pre-extracted endpoint data."""
     # Get multiphase objective function
     objective_function = problem.get_objective_function()
 
-    # Prepare phase endpoint data for objective and constraints
-    phase_endpoint_data = {}
-    for phase_id, phase_vars in variables.phase_variables.items():
-        num_mesh_intervals = len(problem._phases[phase_id].collocation_points_per_interval)
-
-        initial_state = phase_vars.state_at_mesh_nodes[0]
-        terminal_state = phase_vars.state_at_mesh_nodes[num_mesh_intervals]
-
-        phase_endpoint_data[phase_id] = {
-            "t0": phase_vars.initial_time,
-            "tf": phase_vars.terminal_time,
-            "x0": initial_state,
-            "xf": terminal_state,
-            "q": phase_vars.integral_variables,
-        }
-
     try:
-        # Set up multiphase objective
+        # Set up multiphase objective using shared endpoint data
         objective_value: ca.MX = objective_function(
             phase_endpoint_data,
             variables.static_parameters,
         )
-
         opti.minimize(objective_value)
 
     except Exception as e:
@@ -306,7 +316,7 @@ def _setup_multiphase_objective_and_constraints(
             "Multiphase objective function evaluation error",
         ) from e
 
-    # Apply cross-phase event constraints
+    # Apply cross-phase event constraints using shared endpoint data
     apply_multiphase_cross_phase_event_constraints(
         opti,
         phase_endpoint_data,
@@ -315,14 +325,14 @@ def _setup_multiphase_objective_and_constraints(
     )
 
 
-def _configure_multiphase_solver_and_store_references(
+def _configure_solver_unified(
     opti: ca.Opti,
     variables: MultiPhaseVariableReferences,
     metadata: MultiPhaseMetadataBundle,
     problem: ProblemProtocol,
+    phase_endpoint_data: dict[PhaseID, dict[str, ca.MX]],
 ) -> None:
-    """Configure solver options and store references for multiphase solution extraction."""
-
+    """Configure solver options and store references using unified endpoint data."""
     # Set solver options
     solver_options_to_use: dict[str, object] = problem.solver_options or {}
 
@@ -333,25 +343,11 @@ def _configure_multiphase_solver_and_store_references(
             f"Failed to configure solver: {e}", "Invalid solver options"
         ) from e
 
-    # Store references for multiphase solution extraction
+    # Store references for solution extraction
     opti.multiphase_variables_reference = variables
     opti.multiphase_metadata_reference = metadata
 
-    # Store objective expression for extraction
-    phase_endpoint_data = {}
-    for phase_id, phase_vars in variables.phase_variables.items():
-        num_mesh_intervals = len(problem._phases[phase_id].collocation_points_per_interval)
-        initial_state = phase_vars.state_at_mesh_nodes[0]
-        terminal_state = phase_vars.state_at_mesh_nodes[num_mesh_intervals]
-
-        phase_endpoint_data[phase_id] = {
-            "t0": phase_vars.initial_time,
-            "tf": phase_vars.terminal_time,
-            "x0": initial_state,
-            "xf": terminal_state,
-            "q": phase_vars.integral_variables,
-        }
-
+    # Store objective expression using shared endpoint data
     objective_function = problem.get_objective_function()
     objective_expression = objective_function(phase_endpoint_data, variables.static_parameters)
     opti.multiphase_objective_expression_reference = objective_expression
@@ -359,7 +355,6 @@ def _configure_multiphase_solver_and_store_references(
 
 def _execute_multiphase_solve(opti: ca.Opti, problem: ProblemProtocol) -> OptimalControlSolution:
     """Execute the multiphase solve and handle results."""
-
     try:
         # Attempt solve
         solver_solution: ca.OptiSol = opti.solve()

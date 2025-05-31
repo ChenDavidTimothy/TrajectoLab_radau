@@ -1,6 +1,6 @@
 # trajectolab/solver.py
 """
-Main solver interface for multiphase optimal control problems - PURGED.
+Main solver interface for multiphase optimal control problems - .
 All redundancy eliminated, using centralized validation.
 """
 

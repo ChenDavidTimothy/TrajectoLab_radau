@@ -1,6 +1,6 @@
 # trajectolab/problem/initial_guess_problem.py
 """
-Initial guess validation and management for multiphase problems - PURGED.
+Initial guess validation and management for multiphase problems - .
 All redundancy eliminated, using centralized validation.
 """
 

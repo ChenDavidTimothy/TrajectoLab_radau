@@ -1,6 +1,6 @@
 # trajectolab/problem/variables_problem.py
 """
-Variable creation and management for multiphase optimal control - PURGED.
+Variable creation and management for multiphase optimal control - .
 All redundancy eliminated, using centralized validation.
 """
 

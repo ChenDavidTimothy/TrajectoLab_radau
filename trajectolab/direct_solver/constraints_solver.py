@@ -1,6 +1,6 @@
 # trajectolab/direct_solver/constraints_solver.py
 """
-Constraint application for multiphase collocation, path, and event constraints - PURGED.
+Constraint application for multiphase collocation, path, and event constraints - .
 All redundancy eliminated, using centralized validation.
 """
 
