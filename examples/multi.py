@@ -62,8 +62,8 @@ def solve_two_phase_hypersensitive_debug():
     problem_phase.set_initial_guess(
         phase_states={1: states_guess_p1, 2: states_guess_p2},
         phase_controls={1: controls_guess_p1, 2: controls_guess_p2},
-        phase_initial_times={1: 0.0, 2: 20.0},  # Give solver the expected time values
-        phase_terminal_times={1: 20.0, 2: 40.0},
+        phase_initial_times={1: 0.0, 2: 5000.0},
+        phase_terminal_times={1: 5000.0, 2: 10000.0},
         phase_integrals={1: 0.1, 2: 0.1},
     )
 

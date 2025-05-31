@@ -39,7 +39,7 @@ problem_fixed.set_initial_guess(
     phase_states={1: states_guess},
     phase_controls={1: controls_guess},
     phase_initial_times={1: 0.0},
-    phase_terminal_times={1: 40.0},
+    phase_terminal_times={1: 10000.0},
     phase_integrals={1: 0.1},
 )
 

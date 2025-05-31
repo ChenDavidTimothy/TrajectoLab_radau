@@ -348,7 +348,8 @@ def main():
     # Solve with fixed mesh
     solution = tl.solve_adaptive(
         problem,
-        error_tolerance=1e-3,
+        error_tolerance=1e-4,
+        max_iterations=30,
         nlp_options={
             "ipopt.print_level": 5,
             "ipopt.max_iter": 3000,
