@@ -289,7 +289,7 @@ def get_phase_integrand_function(
 
     integrand_exprs = [str(expr) for expr in phase_def.integral_expressions]
     param_info = f"_params_{len(static_parameter_symbols) if static_parameter_symbols else 0}"
-    expr_hash = hashlib.sha256("".join(integrand_exprs)).hexdigest()[:16]
+    expr_hash = hashlib.sha256("".join(integrand_exprs).encode()).hexdigest()[:16]
     cache_key = create_cache_key_from_phase_state(phase_def, f"integrand{param_info}", expr_hash)
 
     def build_integrand_functions() -> list[ca.Function]:
