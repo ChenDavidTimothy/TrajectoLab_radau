@@ -49,11 +49,28 @@ def get_phase_dynamics_function(
                 "static_params", 1, 1
             )  # Dummy parameter for consistent signature
 
+        # CRITICAL FIX: Build substitution map for static parameters
+        subs_map = {}
+        if static_parameter_symbols and num_static_params > 0:
+            for i, param_sym in enumerate(static_parameter_symbols):
+                if num_static_params == 1:
+                    subs_map[param_sym] = static_params_vec
+                else:
+                    subs_map[param_sym] = static_params_vec[i]
+
         dynamics_expr = []
         for state_sym in state_syms:
             if state_sym in phase_def.dynamics_expressions:
                 expr = phase_def.dynamics_expressions[state_sym]
-                dynamics_expr.append(ca.MX(expr) if not isinstance(expr, ca.MX) else expr)
+                casadi_expr = ca.MX(expr) if not isinstance(expr, ca.MX) else expr
+
+                # CRITICAL FIX: Apply substitution if we have static parameters
+                if subs_map:
+                    casadi_expr = ca.substitute(
+                        [casadi_expr], list(subs_map.keys()), list(subs_map.values())
+                    )[0]
+
+                dynamics_expr.append(casadi_expr)
             else:
                 dynamics_expr.append(ca.MX(0))
 
@@ -185,6 +202,7 @@ def get_multiphase_objective_function(
             else ca.MX.sym("s", 1)  # type: ignore[arg-type]
         )  # type: ignore[arg-type]
 
+        # CRITICAL FIX: Add static parameter substitution
         for i, param_sym in enumerate(static_param_syms):
             if len(static_param_syms) == 1:
                 phase_symbols_map[param_sym] = s_vec
@@ -193,7 +211,7 @@ def get_multiphase_objective_function(
 
         phase_inputs.append(s_vec)
 
-        # Substitute in objective expression
+        # CRITICAL FIX: Substitute in objective expression
         objective_expr = multiphase_state.objective_expression
         if phase_symbols_map:
             objective_expr = ca.substitute(
@@ -262,14 +280,17 @@ def get_multiphase_objective_function(
     return unified_multiphase_objective
 
 
-def get_phase_integrand_function(phase_def: PhaseDefinition) -> Callable[..., ca.MX] | None:
+def get_phase_integrand_function(
+    phase_def: PhaseDefinition, static_parameter_symbols: list[ca.MX] | None = None
+) -> Callable[..., ca.MX] | None:
     """Get integrand function for a specific phase with expression caching and static parameter support."""
     if not phase_def.integral_expressions:
         return None
 
     integrand_exprs = [str(expr) for expr in phase_def.integral_expressions]
-    expr_hash = hashlib.sha256("".join(integrand_exprs).encode()).hexdigest()[:16]
-    cache_key = create_cache_key_from_phase_state(phase_def, "integrand", expr_hash)
+    param_info = f"_params_{len(static_parameter_symbols) if static_parameter_symbols else 0}"
+    expr_hash = hashlib.sha256("".join(integrand_exprs)).hexdigest()[:16]
+    cache_key = create_cache_key_from_phase_state(phase_def, f"integrand{param_info}", expr_hash)
 
     def build_integrand_functions() -> list[ca.Function]:
         """Build CasADi integrand functions for phase - expensive operation."""
@@ -281,14 +302,36 @@ def get_phase_integrand_function(phase_def: PhaseDefinition) -> Callable[..., ca
         time = phase_def.sym_time if phase_def.sym_time is not None else ca.MX.sym("t", 1)  # type: ignore[arg-type]
 
         # CRITICAL FIX: Include static parameters as inputs for integrand functions
-        static_params_vec = ca.MX.sym("static_params", 1)
+        num_static_params = len(static_parameter_symbols) if static_parameter_symbols else 0
+        if num_static_params > 0:
+            static_params_vec = ca.MX.sym("static_params", num_static_params, 1)
+        else:
+            static_params_vec = ca.MX.sym("static_params", 1, 1)
+
+        # CRITICAL FIX: Build substitution map for static parameters
+        subs_map = {}
+        if static_parameter_symbols and num_static_params > 0:
+            for i, param_sym in enumerate(static_parameter_symbols):
+                if num_static_params == 1:
+                    subs_map[param_sym] = static_params_vec
+                else:
+                    subs_map[param_sym] = static_params_vec[i]
 
         integrand_funcs = []
         for i, expr in enumerate(phase_def.integral_expressions):
+            # CRITICAL FIX: Apply substitution if we have static parameters
+            processed_expr = expr
+            if subs_map:
+                processed_expr = ca.substitute(
+                    [expr], list(subs_map.keys()), list(subs_map.values())
+                )[0]
+
             # CRITICAL FIX: Include static parameters in integrand function inputs
             function_inputs = [states_vec, controls_vec, time, static_params_vec]
             integrand_funcs.append(
-                ca.Function(f"integrand_{i}_p{phase_def.phase_id}", function_inputs, [expr])
+                ca.Function(
+                    f"integrand_{i}_p{phase_def.phase_id}", function_inputs, [processed_expr]
+                )
             )
 
         return integrand_funcs
@@ -308,9 +351,11 @@ def get_phase_integrand_function(phase_def: PhaseDefinition) -> Callable[..., ca
             return ca.MX(0.0)
 
         # CRITICAL FIX: Handle static parameters in integrand function call
-        if static_parameters_vec is None:
+        num_static_params = len(static_parameter_symbols) if static_parameter_symbols else 0
+
+        if static_parameters_vec is None or num_static_params == 0:
             # Create dummy parameters if none provided
-            static_params_input = ca.DM.zeros(1, 1)
+            static_params_input = ca.DM.zeros(max(1, num_static_params), 1)
         else:
             static_params_input = static_parameters_vec
 
