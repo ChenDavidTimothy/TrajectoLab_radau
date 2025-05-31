@@ -1,6 +1,6 @@
 """
-Provides the PHS (P-refinement, H-refinement, S-refinement) adaptive algorithm for multiphase problems.
-Updated to work with unified NLP multiphase optimization.
+Streamlined PHS adaptive algorithm for multiphase problems.
+BLOAT ELIMINATED: Simplified exports, removed over-engineered components.
 """
 
 from trajectolab.adaptive.phs.algorithm import solve_multiphase_phs_adaptive_internal

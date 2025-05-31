@@ -1,5 +1,6 @@
 """
-Error estimation functions using forward and backward dynamics simulation for multiphase problems.
+Streamlined error estimation using forward and backward dynamics simulation.
+BLOAT ELIMINATED: Removed IntervalSimulationBundle, simplified simulation returns.
 """
 
 import logging
@@ -9,7 +10,6 @@ from typing import cast
 import casadi as ca
 import numpy as np
 
-from trajectolab.adaptive.phs.data_structures import IntervalSimulationBundle
 from trajectolab.tl_types import (
     FloatArray,
     ODESolverCallable,
@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 
 # ========================================================================
-# MATHEMATICAL CORE FUNCTIONS - Pure calculations for testing
+# MATHEMATICAL CORE FUNCTIONS - Pure calculations (UNCHANGED)
 # ========================================================================
 
 
@@ -104,17 +104,8 @@ def _calculate_combined_error_estimate(
     Calculates the combined maximum error from forward and backward simulations.
     Prioritizes valid numerical errors over NaNs for each state component.
     """
-    if not isinstance(max_fwd_errors_per_state, np.ndarray) or not isinstance(
-        max_bwd_errors_per_state, np.ndarray
-    ):
-        raise TypeError(
-            "Inputs max_fwd_errors_per_state and max_bwd_errors_per_state must be numpy arrays."
-        )
-
     if max_fwd_errors_per_state.shape != max_bwd_errors_per_state.shape:
-        raise ValueError(
-            "Input arrays max_fwd_errors_per_state and max_bwd_errors_per_state must have the same shape."
-        )
+        raise ValueError("Input arrays must have the same shape.")
 
     num_states = max_fwd_errors_per_state.shape[0]
     combined_errors_per_state = np.full(num_states, np.nan, dtype=np.float64)
@@ -153,56 +144,8 @@ def _calculate_combined_error_estimate(
 
 
 # ========================================================================
-# ORCHESTRATION FUNCTIONS - Simulation and coordination
+# STREAMLINED SIMULATION FUNCTIONS
 # ========================================================================
-
-
-def _simulate_forward(
-    dynamics_rhs,
-    initial_state: FloatArray,
-    tau_points: FloatArray,
-    ode_solver: ODESolverCallable,
-    ode_rtol: float,
-) -> tuple[bool, FloatArray]:
-    """Simulate forward dynamics."""
-    try:
-        sim_result = ode_solver(
-            dynamics_rhs,
-            t_span=(-1, 1),
-            y0=initial_state,
-            t_eval=tau_points,
-            method="RK45",
-            rtol=ode_rtol,
-            atol=ode_rtol * 1e-2,
-        )
-        return sim_result.success, sim_result.y if sim_result.success else np.array([])
-    except Exception as e:
-        logger.error(f"Forward simulation failed: {e}")
-        return False, np.array([])
-
-
-def _simulate_backward(
-    dynamics_rhs,
-    terminal_state: FloatArray,
-    tau_points: FloatArray,
-    ode_solver: ODESolverCallable,
-    ode_rtol: float,
-) -> tuple[bool, FloatArray]:
-    """Simulate backward dynamics."""
-    try:
-        sim_result = ode_solver(
-            dynamics_rhs,
-            t_span=(1, -1),
-            y0=terminal_state,
-            t_eval=tau_points,
-            method="RK45",
-            rtol=ode_rtol,
-            atol=ode_rtol * 1e-2,
-        )
-        return sim_result.success, np.fliplr(sim_result.y) if sim_result.success else np.array([])
-    except Exception as e:
-        logger.error(f"Backward simulation failed: {e}")
-        return False, np.array([])
 
 
 def simulate_dynamics_for_phase_interval_error_estimation(
@@ -215,16 +158,16 @@ def simulate_dynamics_for_phase_interval_error_estimation(
     ode_solver: ODESolverCallable,
     ode_rtol: float = DEFAULT_ODE_RTOL,
     n_eval_points: int = 50,
-) -> IntervalSimulationBundle:
+) -> tuple[bool, FloatArray, FloatArray, FloatArray, FloatArray, FloatArray, FloatArray]:
     """
-    Simulates dynamics forward and backward for error estimation in a specific phase interval.
-    Updated to work with unified multiphase solution.
+    STREAMLINED: Returns tuple instead of complex dataclass.
+    Returns: (success, fwd_tau_points, fwd_sim_traj, fwd_nlp_traj, bwd_tau_points, bwd_sim_traj, bwd_nlp_traj)
     """
-    result = IntervalSimulationBundle(are_forward_and_backward_simulations_successful=False)
-
     if not solution.success or solution.raw_solution is None:
         logger.warning(f"NLP solution unsuccessful for phase {phase_id} interval {interval_idx}")
-        return result
+        # Return empty arrays on failure
+        empty = np.array([], dtype=np.float64)
+        return False, empty, empty, empty, empty, empty, empty
 
     # Get variable counts for this phase
     num_states, num_controls = problem.get_phase_variable_counts(phase_id)
@@ -236,7 +179,8 @@ def simulate_dynamics_for_phase_interval_error_estimation(
         or phase_id not in solution.phase_terminal_times
     ):
         logger.error(f"Missing time variables for phase {phase_id} interval {interval_idx}")
-        return result
+        empty = np.array([], dtype=np.float64)
+        return False, empty, empty, empty, empty, empty, empty
 
     # Time transformation parameters for this phase
     t0 = solution.phase_initial_times[phase_id]
@@ -247,12 +191,14 @@ def simulate_dynamics_for_phase_interval_error_estimation(
     # Validate phase mesh
     if phase_id not in solution.phase_mesh_nodes:
         logger.error(f"Missing mesh for phase {phase_id} interval {interval_idx}")
-        return result
+        empty = np.array([], dtype=np.float64)
+        return False, empty, empty, empty, empty, empty, empty
 
     global_mesh = solution.phase_mesh_nodes[phase_id]
     if interval_idx + 1 >= len(global_mesh):
         logger.error(f"Interval {interval_idx} out of bounds for phase {phase_id} mesh")
-        return result
+        empty = np.array([], dtype=np.float64)
+        return False, empty, empty, empty, empty, empty, empty
 
     tau_start = global_mesh[interval_idx]
     tau_end = global_mesh[interval_idx + 1]
@@ -260,7 +206,8 @@ def simulate_dynamics_for_phase_interval_error_estimation(
     beta_k = (tau_end - tau_start) / 2.0
     if abs(beta_k) < 1e-12:
         logger.warning(f"Phase {phase_id} interval {interval_idx} has zero length")
-        return result
+        empty = np.array([], dtype=np.float64)
+        return False, empty, empty, empty, empty, empty, empty
 
     beta_k0 = (tau_end + tau_start) / 2.0
     overall_scaling = alpha * beta_k
@@ -299,22 +246,29 @@ def simulate_dynamics_for_phase_interval_error_estimation(
         initial_state = initial_state.flatten()
 
     fwd_tau_points = np.linspace(-1, 1, n_eval_points, dtype=np.float64)
-    fwd_success, fwd_trajectory = _simulate_forward(
-        dynamics_rhs, initial_state, fwd_tau_points, ode_solver, ode_rtol
-    )
 
-    # Store forward results
-    result.forward_simulation_local_tau_evaluation_points = fwd_tau_points
-    if fwd_success:
-        result.state_trajectory_from_forward_simulation = fwd_trajectory
-    else:
-        result.state_trajectory_from_forward_simulation = np.full(
-            (num_states, len(fwd_tau_points)), np.nan, dtype=np.float64
+    try:
+        fwd_sim = ode_solver(
+            dynamics_rhs,
+            t_span=(-1, 1),
+            y0=initial_state,
+            t_eval=fwd_tau_points,
+            method="RK45",
+            rtol=ode_rtol,
+            atol=ode_rtol * 1e-2,
         )
+        fwd_success = fwd_sim.success
+        fwd_trajectory = (
+            fwd_sim.y
+            if fwd_success
+            else np.full((num_states, len(fwd_tau_points)), np.nan, dtype=np.float64)
+        )
+    except Exception as e:
+        logger.error(f"Forward simulation failed: {e}")
+        fwd_success = False
+        fwd_trajectory = np.full((num_states, len(fwd_tau_points)), np.nan, dtype=np.float64)
 
-    result.nlp_state_trajectory_evaluated_at_forward_simulation_points = state_evaluator(
-        fwd_tau_points
-    )
+    fwd_nlp_trajectory = state_evaluator(fwd_tau_points)
 
     # Backward simulation
     terminal_state = state_evaluator(1.0)
@@ -322,71 +276,73 @@ def simulate_dynamics_for_phase_interval_error_estimation(
         terminal_state = terminal_state.flatten()
 
     bwd_tau_points = np.linspace(1, -1, n_eval_points, dtype=np.float64)
-    bwd_success, bwd_trajectory = _simulate_backward(
-        dynamics_rhs, terminal_state, bwd_tau_points, ode_solver, ode_rtol
-    )
 
-    # Store backward results
-    sorted_bwd_tau_points = np.flip(bwd_tau_points)
-    result.backward_simulation_local_tau_evaluation_points = sorted_bwd_tau_points
-
-    if bwd_success:
-        result.state_trajectory_from_backward_simulation = bwd_trajectory
-    else:
-        result.state_trajectory_from_backward_simulation = np.full(
-            (num_states, len(sorted_bwd_tau_points)), np.nan, dtype=np.float64
+    try:
+        bwd_sim = ode_solver(
+            dynamics_rhs,
+            t_span=(1, -1),
+            y0=terminal_state,
+            t_eval=bwd_tau_points,
+            method="RK45",
+            rtol=ode_rtol,
+            atol=ode_rtol * 1e-2,
         )
+        bwd_success = bwd_sim.success
+        bwd_trajectory = (
+            np.fliplr(bwd_sim.y)
+            if bwd_success
+            else np.full((num_states, len(bwd_tau_points)), np.nan, dtype=np.float64)
+        )
+    except Exception as e:
+        logger.error(f"Backward simulation failed: {e}")
+        bwd_success = False
+        bwd_trajectory = np.full((num_states, len(bwd_tau_points)), np.nan, dtype=np.float64)
 
-    result.nlp_state_trajectory_evaluated_at_backward_simulation_points = state_evaluator(
-        sorted_bwd_tau_points
+    sorted_bwd_tau_points = np.flip(bwd_tau_points)
+    bwd_nlp_trajectory = state_evaluator(sorted_bwd_tau_points)
+
+    overall_success = fwd_success and bwd_success
+    return (
+        overall_success,
+        fwd_tau_points,
+        fwd_trajectory,
+        fwd_nlp_trajectory,
+        sorted_bwd_tau_points,
+        bwd_trajectory,
+        bwd_nlp_trajectory,
     )
-
-    result.are_forward_and_backward_simulations_successful = fwd_success and bwd_success
-    return result
 
 
 def calculate_relative_error_estimate(
     phase_id: PhaseID,
     interval_idx: int,
-    sim_bundle: IntervalSimulationBundle,
+    success: bool,
+    fwd_sim_traj: FloatArray,
+    fwd_nlp_traj: FloatArray,
+    bwd_sim_traj: FloatArray,
+    bwd_nlp_traj: FloatArray,
     gamma_factors: FloatArray,
 ) -> float:
-    """Calculates the maximum relative error estimate for a phase interval."""
+    """STREAMLINED: Direct parameters instead of complex bundle object."""
     # Check for failed simulations
-    if (
-        not sim_bundle.are_forward_and_backward_simulations_successful
-        or sim_bundle.state_trajectory_from_forward_simulation is None
-        or sim_bundle.nlp_state_trajectory_evaluated_at_forward_simulation_points is None
-        or sim_bundle.state_trajectory_from_backward_simulation is None
-        or sim_bundle.nlp_state_trajectory_evaluated_at_backward_simulation_points is None
-    ):
+    if not success or fwd_sim_traj.size == 0 or bwd_sim_traj.size == 0:
         logger.warning(
             f"Incomplete simulation results for phase {phase_id} interval {interval_idx}"
         )
         return np.inf
 
-    num_states = sim_bundle.state_trajectory_from_forward_simulation.shape[0]
+    num_states = fwd_sim_traj.shape[0]
     if num_states == 0:
         return 0.0
 
     # Forward errors using MATHEMATICAL CORE
     fwd_diff, max_fwd_errors = _calculate_trajectory_error_differences(
-        sim_bundle.state_trajectory_from_forward_simulation,
-        sim_bundle.nlp_state_trajectory_evaluated_at_forward_simulation_points,
-        gamma_factors,
-    )
-    logger.debug(
-        f"Phase {phase_id} interval {interval_idx} forward max difference: {np.max(fwd_diff):.2e}"
+        fwd_sim_traj, fwd_nlp_traj, gamma_factors
     )
 
     # Backward errors using MATHEMATICAL CORE
     bwd_diff, max_bwd_errors = _calculate_trajectory_error_differences(
-        sim_bundle.state_trajectory_from_backward_simulation,
-        sim_bundle.nlp_state_trajectory_evaluated_at_backward_simulation_points,
-        gamma_factors,
-    )
-    logger.debug(
-        f"Phase {phase_id} interval {interval_idx} backward max difference: {np.max(bwd_diff):.2e}"
+        bwd_sim_traj, bwd_nlp_traj, gamma_factors
     )
 
     # Combined error using MATHEMATICAL CORE

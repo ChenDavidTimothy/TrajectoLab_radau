@@ -1,5 +1,6 @@
 """
-Initial guess propagation and interpolation for multiphase adaptive mesh refinement.
+Streamlined initial guess propagation and interpolation for multiphase adaptive mesh refinement.
+BLOAT ELIMINATED: Removed memory pooling, simplified validation, direct array allocation.
 """
 
 import logging
@@ -13,10 +14,6 @@ from trajectolab.adaptive.phs.numerical import (
     map_local_interval_tau_to_global_normalized_tau,
 )
 from trajectolab.exceptions import ConfigurationError, DataIntegrityError, InterpolationError
-from trajectolab.input_validation import (
-    validate_array_numerical_integrity,
-    validate_multiphase_initial_guess_structure,
-)
 from trajectolab.radau import compute_radau_collocation_components
 from trajectolab.tl_types import (
     FloatArray,
@@ -25,7 +22,6 @@ from trajectolab.tl_types import (
     PhaseID,
     ProblemProtocol,
 )
-from trajectolab.utils.memory_pool import create_buffer_context
 
 
 __all__ = [
@@ -36,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 
 # ========================================================================
-# MATHEMATICAL CORE FUNCTIONS - Pure calculations for testing
+# MATHEMATICAL CORE FUNCTIONS - Pure calculations (UNCHANGED)
 # ========================================================================
 
 
@@ -138,37 +134,12 @@ def _determine_interpolation_parameters(
         return prev_interval_idx, prev_local_tau
 
 
-def _validate_interpolated_trajectory_result(
-    trajectory: FloatArray,
-    num_variables: int,
-    phase_id: PhaseID,
-    interval_idx: int,
-    trajectory_type: str,
-) -> None:
-    """Pure validation calculation - easily testable."""
-    try:
-        validate_array_numerical_integrity(
-            trajectory,
-            f"Final interpolated trajectory for phase {phase_id} interval {interval_idx}",
-            "final interpolation result validation",
-        )
-    except DataIntegrityError as e:
-        raise DataIntegrityError(str(e), "Corruption in final interpolation result") from e
-
-    if trajectory.shape[0] != num_variables:
-        raise InterpolationError(
-            f"Variable count mismatch in {trajectory_type} trajectory for phase {phase_id} interval {interval_idx}: "
-            f"expected {num_variables}, got {trajectory.shape[0]}",
-            "Interpolation output dimension error",
-        )
-
-
 # ========================================================================
-# ORCHESTRATION FUNCTIONS - Memory management and setup for phases
+# STREAMLINED INTERPOLATION - Memory pooling removed
 # ========================================================================
 
 
-def _interpolate_phase_trajectory_to_new_mesh_optimized(
+def _interpolate_phase_trajectory_to_new_mesh_streamlined(
     prev_trajectory_per_interval: list[FloatArray],
     prev_mesh_points: FloatArray,
     prev_polynomial_degrees: list[int],
@@ -179,182 +150,116 @@ def _interpolate_phase_trajectory_to_new_mesh_optimized(
     is_state_trajectory: bool = True,
 ) -> list[FloatArray]:
     """
-    OPTIMIZED interpolation using memory pooling for a specific phase - ENHANCED WITH FAIL-FAST.
+    STREAMLINED interpolation with direct allocation - NO MEMORY POOLING.
     """
     trajectory_type = "state" if is_state_trajectory else "control"
-    logger.info(f"    OPTIMIZED interpolation of phase {phase_id} {trajectory_type} trajectories:")
     logger.info(
-        f"      Previous mesh: {len(prev_mesh_points) - 1} intervals, degrees {prev_polynomial_degrees}"
-    )
-    logger.info(
-        f"      Target mesh: {len(target_mesh_points) - 1} intervals, degrees {target_polynomial_degrees}"
+        f"    STREAMLINED interpolation of phase {phase_id} {trajectory_type} trajectories:"
     )
 
-    # Guard clause: Validate input consistency
+    # Validate input consistency
     if len(prev_trajectory_per_interval) != len(prev_polynomial_degrees):
         raise InterpolationError(
             f"Phase {phase_id} previous trajectory count ({len(prev_trajectory_per_interval)}) doesn't match polynomial degrees count ({len(prev_polynomial_degrees)})",
             "Input data inconsistency in interpolation",
         )
 
-    # Guard clause: Check for empty inputs
     if not prev_trajectory_per_interval or not target_polynomial_degrees:
         raise InterpolationError(
             f"Cannot interpolate phase {phase_id} with empty trajectory or polynomial degree data",
             "Missing interpolation input data",
         )
 
-    try:
-        # Use memory pool context for automatic buffer management
-        with create_buffer_context() as buffer_pool:
-            # Create polynomial interpolants for each interval in previous solution
-            prev_interpolants = []
+    # Create polynomial interpolants for each interval in previous solution
+    prev_interpolants = []
 
-            for k, (N_k, traj_k) in enumerate(
-                zip(prev_polynomial_degrees, prev_trajectory_per_interval, strict=False)
-            ):
-                # Get the appropriate nodes for this interval type
-                try:
-                    if is_state_trajectory:
-                        basis_components = compute_radau_collocation_components(N_k)
-                        local_nodes = basis_components.state_approximation_nodes
-                        barycentric_weights = basis_components.barycentric_weights_for_state_nodes
-                    else:
-                        basis_components = compute_radau_collocation_components(N_k)
-                        local_nodes = basis_components.collocation_nodes
-                        from trajectolab.radau import compute_barycentric_weights
+    for k, (N_k, traj_k) in enumerate(
+        zip(prev_polynomial_degrees, prev_trajectory_per_interval, strict=False)
+    ):
+        # Get the appropriate nodes for this interval type
+        if is_state_trajectory:
+            basis_components = compute_radau_collocation_components(N_k)
+            local_nodes = basis_components.state_approximation_nodes
+            barycentric_weights = basis_components.barycentric_weights_for_state_nodes
+        else:
+            basis_components = compute_radau_collocation_components(N_k)
+            local_nodes = basis_components.collocation_nodes
+            from trajectolab.radau import compute_barycentric_weights
 
-                        barycentric_weights = compute_barycentric_weights(local_nodes)
-                except Exception as e:
-                    raise InterpolationError(
-                        f"Failed to compute basis components for phase {phase_id} interval {k} with degree {N_k}: {e}",
-                        "Radau basis computation error",
-                    ) from e
+            barycentric_weights = compute_barycentric_weights(local_nodes)
 
-                # Create interpolant for this interval
-                try:
-                    interpolant = PolynomialInterpolant(local_nodes, traj_k, barycentric_weights)
-                    prev_interpolants.append(interpolant)
-                    logger.debug(
-                        f"        Phase {phase_id} interval {k}: Created interpolant for {traj_k.shape} trajectory"
-                    )
-                except Exception as e:
-                    raise InterpolationError(
-                        f"Failed to create interpolant for phase {phase_id} interval {k}: {e}",
-                        "Polynomial interpolant construction error",
-                    ) from e
+        # Create interpolant for this interval
+        interpolant = PolynomialInterpolant(local_nodes, traj_k, barycentric_weights)
+        prev_interpolants.append(interpolant)
 
-            # Interpolate trajectory values for each target interval using pooled memory
-            target_trajectories = []
+    # Interpolate trajectory values for each target interval - DIRECT ALLOCATION
+    target_trajectories = []
 
-            for k, N_k_target in enumerate(target_polynomial_degrees):
-                logger.debug(
-                    f"      Processing phase {phase_id} target interval {k} (degree {N_k_target})..."
-                )
-
-                # Get target nodes for this interval type
-                try:
-                    if is_state_trajectory:
-                        target_basis = compute_radau_collocation_components(N_k_target)
-                        target_local_nodes = target_basis.state_approximation_nodes
-                        num_target_nodes = N_k_target + 1
-                    else:
-                        target_basis = compute_radau_collocation_components(N_k_target)
-                        target_local_nodes = target_basis.collocation_nodes
-                        num_target_nodes = N_k_target
-                except Exception as e:
-                    raise InterpolationError(
-                        f"Failed to compute target basis for phase {phase_id} interval {k} with degree {N_k_target}: {e}",
-                        "Target basis computation error",
-                    ) from e
-
-                # Get pooled buffer instead of allocating new memory
-                target_traj_k = buffer_pool.get_buffer((num_variables, num_target_nodes))
-
-                # Global interval boundaries for target interval k
-                target_tau_start = target_mesh_points[k]
-                target_tau_end = target_mesh_points[k + 1]
-
-                # Use MATHEMATICAL CORE for coordinate transformation
-                global_tau_points = _calculate_global_tau_points_for_interval(
-                    target_local_nodes, target_tau_start, target_tau_end
-                )
-
-                # Process all nodes for this interval
-                for j, (_, global_tau) in enumerate(
-                    zip(target_local_nodes, global_tau_points, strict=False)
-                ):
-                    # Use MATHEMATICAL CORE for interpolation parameter determination
-                    try:
-                        prev_interval_idx, prev_local_tau = _determine_interpolation_parameters(
-                            global_tau, prev_mesh_points
-                        )
-                    except InterpolationError:
-                        raise
-
-                    # Evaluate the interpolant at this local tau
-                    try:
-                        interpolated_values = prev_interpolants[prev_interval_idx](prev_local_tau)
-                        if interpolated_values.ndim > 1:
-                            interpolated_values = interpolated_values.flatten()
-
-                        # Validate interpolated values
-                        try:
-                            validate_array_numerical_integrity(
-                                interpolated_values,
-                                f"Phase {phase_id} interpolated values at tau={prev_local_tau}",
-                                "interpolation result validation",
-                            )
-                        except DataIntegrityError as e:
-                            raise DataIntegrityError(
-                                str(e), "Numerical corruption in interpolation result"
-                            ) from e
-
-                        # Store the interpolated values
-                        if len(interpolated_values) == num_variables:
-                            target_traj_k[:, j] = interpolated_values
-                        elif num_variables == 0:
-                            # Handle empty variable case
-                            pass
-                        else:
-                            raise InterpolationError(
-                                f"Phase {phase_id} dimension mismatch: interpolated {len(interpolated_values)} values, expected {num_variables}",
-                                "Interpolation output dimension error",
-                            )
-
-                    except Exception as e:
-                        if isinstance(e, InterpolationError | DataIntegrityError):
-                            raise
-                        raise InterpolationError(
-                            f"Failed to evaluate interpolant for phase {phase_id}: {e}",
-                            "Interpolant evaluation error",
-                        ) from e
-
-                # Copy result from pooled buffer to permanent storage
-                result_array = np.array(target_traj_k, dtype=np.float64, copy=True)
-
-                # Use MATHEMATICAL CORE for final validation
-                _validate_interpolated_trajectory_result(
-                    result_array, num_variables, phase_id, k, trajectory_type
-                )
-
-                target_trajectories.append(result_array)
-                logger.debug(
-                    f"        Phase {phase_id} interval {k}: Created trajectory of shape {result_array.shape}"
-                )
-
-        logger.info(
-            f"    ✓ Successfully interpolated phase {phase_id} {trajectory_type} trajectories (OPTIMIZED)"
+    for k, N_k_target in enumerate(target_polynomial_degrees):
+        logger.debug(
+            f"      Processing phase {phase_id} target interval {k} (degree {N_k_target})..."
         )
-        return cast(list[FloatArray], target_trajectories)
 
-    except Exception as e:
-        if isinstance(e, InterpolationError | DataIntegrityError):
-            raise
-        raise InterpolationError(
-            f"Failed to interpolate phase {phase_id} {trajectory_type} trajectories: {e}",
-            "Critical interpolation failure",
-        ) from e
+        # Get target nodes for this interval type
+        if is_state_trajectory:
+            target_basis = compute_radau_collocation_components(N_k_target)
+            target_local_nodes = target_basis.state_approximation_nodes
+            num_target_nodes = N_k_target + 1
+        else:
+            target_basis = compute_radau_collocation_components(N_k_target)
+            target_local_nodes = target_basis.collocation_nodes
+            num_target_nodes = N_k_target
+
+        # STREAMLINED: Direct allocation instead of memory pooling
+        target_traj_k = np.zeros((num_variables, num_target_nodes), dtype=np.float64)
+
+        # Global interval boundaries for target interval k
+        target_tau_start = target_mesh_points[k]
+        target_tau_end = target_mesh_points[k + 1]
+
+        # Use MATHEMATICAL CORE for coordinate transformation
+        global_tau_points = _calculate_global_tau_points_for_interval(
+            target_local_nodes, target_tau_start, target_tau_end
+        )
+
+        # Process all nodes for this interval
+        for j, global_tau in enumerate(global_tau_points):
+            # Use MATHEMATICAL CORE for interpolation parameter determination
+            prev_interval_idx, prev_local_tau = _determine_interpolation_parameters(
+                global_tau, prev_mesh_points
+            )
+
+            # Evaluate the interpolant at this local tau
+            interpolated_values = prev_interpolants[prev_interval_idx](prev_local_tau)
+            if interpolated_values.ndim > 1:
+                interpolated_values = interpolated_values.flatten()
+
+            # STREAMLINED: Simple NaN check instead of complex validation
+            if np.any(np.isnan(interpolated_values)) or np.any(np.isinf(interpolated_values)):
+                raise DataIntegrityError(
+                    f"Numerical corruption in interpolation result for phase {phase_id}",
+                    "Interpolation result validation",
+                )
+
+            # Store the interpolated values
+            if len(interpolated_values) == num_variables:
+                target_traj_k[:, j] = interpolated_values
+            elif num_variables == 0:
+                # Handle empty variable case
+                pass
+            else:
+                raise InterpolationError(
+                    f"Phase {phase_id} dimension mismatch: interpolated {len(interpolated_values)} values, expected {num_variables}",
+                    "Interpolation output dimension error",
+                )
+
+        # STREAMLINED: No copy needed since we allocated directly
+        target_trajectories.append(target_traj_k)
+
+    logger.info(
+        f"    ✓ Successfully interpolated phase {phase_id} {trajectory_type} trajectories (STREAMLINED)"
+    )
+    return cast(list[FloatArray], target_trajectories)
 
 
 def propagate_multiphase_solution_to_new_meshes(
@@ -364,11 +269,11 @@ def propagate_multiphase_solution_to_new_meshes(
     target_phase_mesh_points: dict[PhaseID, FloatArray],
 ) -> MultiPhaseInitialGuess:
     """
-    CORRECTED multiphase solution propagation with exact single-phase interpolation behavior per phase.
+    STREAMLINED multiphase solution propagation with direct allocation.
     """
-    logger.info("  Starting CORRECTED multiphase interpolation-based propagation...")
+    logger.info("  Starting STREAMLINED multiphase interpolation-based propagation...")
 
-    # Guard clause: Validate previous solution
+    # Validate previous solution
     if not prev_solution.success:
         raise InterpolationError(
             "Cannot propagate from unsuccessful previous unified solution",
@@ -381,156 +286,179 @@ def propagate_multiphase_solution_to_new_meshes(
     phase_integrals = prev_solution.phase_integrals.copy()
     static_parameters = prev_solution.static_parameters
 
-    logger.info(f"    Propagated time variables for {len(phase_initial_times)} phases")
-    if static_parameters is not None:
-        logger.info(f"    Propagated static parameters: {len(static_parameters)} values")
+    # Ensure solution has proper per-interval trajectory data
+    if not prev_solution.phase_solved_state_trajectories_per_interval:
+        logger.info("    Extracting per-interval trajectories from raw solution...")
+        _extract_multiphase_solution_trajectories(prev_solution, problem)
 
-    try:
-        # CORRECTED: Ensure solution has proper per-interval trajectory data
-        if not prev_solution.phase_solved_state_trajectories_per_interval:
-            logger.info("    Extracting per-interval trajectories from raw solution...")
-            _extract_multiphase_solution_trajectories(prev_solution, problem)
+    # Interpolate trajectories for each phase
+    phase_states = {}
+    phase_controls = {}
 
-        # Interpolate trajectories for each phase
-        phase_states = {}
-        phase_controls = {}
+    for phase_id in problem.get_phase_ids():
+        logger.info(f"    Processing phase {phase_id} interpolation...")
 
-        for phase_id in problem.get_phase_ids():
-            logger.info(f"    Processing phase {phase_id} interpolation...")
-
-            # Validate target mesh configuration for this phase
-            if phase_id not in target_phase_polynomial_degrees:
-                raise ConfigurationError(
-                    f"Missing target polynomial degrees for phase {phase_id}",
-                    "Target mesh configuration error",
-                )
-            if phase_id not in target_phase_mesh_points:
-                raise ConfigurationError(
-                    f"Missing target mesh points for phase {phase_id}",
-                    "Target mesh configuration error",
-                )
-
-            target_degrees = target_phase_polynomial_degrees[phase_id]
-            target_mesh = target_phase_mesh_points[phase_id]
-
-            if len(target_degrees) != len(target_mesh) - 1:
-                raise ConfigurationError(
-                    f"Phase {phase_id} target polynomial degrees count ({len(target_degrees)}) != target mesh intervals ({len(target_mesh) - 1})",
-                    "Target mesh configuration error",
-                )
-
-            # CORRECTED: Get previous mesh information correctly for this phase
-            if phase_id not in prev_solution.phase_solved_state_trajectories_per_interval:
-                raise InterpolationError(
-                    f"Previous solution missing state trajectory data for phase {phase_id}",
-                    "Missing source state data",
-                )
-            if phase_id not in prev_solution.phase_solved_control_trajectories_per_interval:
-                raise InterpolationError(
-                    f"Previous solution missing control trajectory data for phase {phase_id}",
-                    "Missing source control data",
-                )
-            if phase_id not in prev_solution.phase_mesh_nodes:
-                raise InterpolationError(
-                    f"Previous solution missing mesh information for phase {phase_id}",
-                    "Missing source mesh data",
-                )
-            if phase_id not in prev_solution.phase_mesh_intervals:
-                raise InterpolationError(
-                    f"Previous solution missing polynomial degree information for phase {phase_id}",
-                    "Missing source degree data",
-                )
-
-            prev_states = prev_solution.phase_solved_state_trajectories_per_interval[phase_id]
-            prev_controls = prev_solution.phase_solved_control_trajectories_per_interval[phase_id]
-            prev_mesh = prev_solution.phase_mesh_nodes[phase_id]
-            prev_degrees = prev_solution.phase_mesh_intervals[phase_id]
-
-            # CRITICAL FIX: Validate that previous data is consistent
-            logger.debug(f"    Phase {phase_id} previous data validation:")
-            logger.debug(f"      prev_states count: {len(prev_states)}")
-            logger.debug(f"      prev_controls count: {len(prev_controls)}")
-            logger.debug(f"      prev_degrees: {prev_degrees}")
-            logger.debug(f"      prev_mesh points: {len(prev_mesh)}")
-
-            if len(prev_states) != len(prev_degrees):
-                logger.error(
-                    f"    Phase {phase_id} trajectory/degree mismatch: {len(prev_states)} vs {len(prev_degrees)}"
-                )
-                raise InterpolationError(
-                    f"Phase {phase_id} previous state trajectories count ({len(prev_states)}) != previous polynomial degrees count ({len(prev_degrees)})",
-                    "Previous solution data inconsistency",
-                )
-
-            if len(prev_controls) != len(prev_degrees):
-                logger.error(
-                    f"    Phase {phase_id} control trajectory/degree mismatch: {len(prev_controls)} vs {len(prev_degrees)}"
-                )
-                raise InterpolationError(
-                    f"Phase {phase_id} previous control trajectories count ({len(prev_controls)}) != previous polynomial degrees count ({len(prev_degrees)})",
-                    "Previous solution data inconsistency",
-                )
-
-            # Get problem dimensions for this phase
-            num_states, num_controls = problem.get_phase_variable_counts(phase_id)
-
-            logger.info(
-                f"    Phase {phase_id} dimensions: {num_states} states, {num_controls} controls"
-            )
-            logger.info(
-                f"    Phase {phase_id} mesh transition: {len(prev_degrees)} → {len(target_degrees)} intervals"
+        # Validate target mesh configuration for this phase
+        if (
+            phase_id not in target_phase_polynomial_degrees
+            or phase_id not in target_phase_mesh_points
+        ):
+            raise ConfigurationError(
+                f"Missing target mesh configuration for phase {phase_id}",
+                "Target mesh configuration error",
             )
 
-            # Use corrected interpolation for this phase
-            phase_states[phase_id] = _interpolate_phase_trajectory_to_new_mesh_optimized(
-                prev_trajectory_per_interval=prev_states,
-                prev_mesh_points=prev_mesh,
-                prev_polynomial_degrees=prev_degrees,
-                target_mesh_points=target_mesh,
-                target_polynomial_degrees=target_degrees,
-                num_variables=num_states,
-                phase_id=phase_id,
-                is_state_trajectory=True,
+        target_degrees = target_phase_polynomial_degrees[phase_id]
+        target_mesh = target_phase_mesh_points[phase_id]
+
+        if len(target_degrees) != len(target_mesh) - 1:
+            raise ConfigurationError(
+                f"Phase {phase_id} target polynomial degrees count ({len(target_degrees)}) != target mesh intervals ({len(target_mesh) - 1})",
+                "Target mesh configuration error",
             )
 
-            phase_controls[phase_id] = _interpolate_phase_trajectory_to_new_mesh_optimized(
-                prev_trajectory_per_interval=prev_controls,
-                prev_mesh_points=prev_mesh,
-                prev_polynomial_degrees=prev_degrees,
-                target_mesh_points=target_mesh,
-                target_polynomial_degrees=target_degrees,
-                num_variables=num_controls,
-                phase_id=phase_id,
-                is_state_trajectory=False,
+        # Get previous mesh information correctly for this phase
+        if (
+            phase_id not in prev_solution.phase_solved_state_trajectories_per_interval
+            or phase_id not in prev_solution.phase_solved_control_trajectories_per_interval
+            or phase_id not in prev_solution.phase_mesh_nodes
+            or phase_id not in prev_solution.phase_mesh_intervals
+        ):
+            raise InterpolationError(
+                f"Previous solution missing required data for phase {phase_id}",
+                "Missing source data",
             )
 
-        # Create multiphase initial guess object
-        initial_guess = MultiPhaseInitialGuess(
-            phase_states=phase_states,
-            phase_controls=phase_controls,
-            phase_initial_times=phase_initial_times,
-            phase_terminal_times=phase_terminal_times,
-            phase_integrals=phase_integrals,
-            static_parameters=static_parameters,
+        prev_states = prev_solution.phase_solved_state_trajectories_per_interval[phase_id]
+        prev_controls = prev_solution.phase_solved_control_trajectories_per_interval[phase_id]
+        prev_mesh = prev_solution.phase_mesh_nodes[phase_id]
+        prev_degrees = prev_solution.phase_mesh_intervals[phase_id]
+
+        # Validate consistency
+        if len(prev_states) != len(prev_degrees) or len(prev_controls) != len(prev_degrees):
+            raise InterpolationError(
+                f"Phase {phase_id} previous data inconsistency",
+                "Previous solution data inconsistency",
+            )
+
+        # Get problem dimensions for this phase
+        num_states, num_controls = problem.get_phase_variable_counts(phase_id)
+
+        # Use streamlined interpolation for this phase
+        phase_states[phase_id] = _interpolate_phase_trajectory_to_new_mesh_streamlined(
+            prev_trajectory_per_interval=prev_states,
+            prev_mesh_points=prev_mesh,
+            prev_polynomial_degrees=prev_degrees,
+            target_mesh_points=target_mesh,
+            target_polynomial_degrees=target_degrees,
+            num_variables=num_states,
+            phase_id=phase_id,
+            is_state_trajectory=True,
         )
 
-        # Validate the interpolated initial guess using existing validation infrastructure
-        logger.info("  Validating interpolated multiphase initial guess...")
-        validate_multiphase_initial_guess_structure(
-            initial_guess=initial_guess,
-            problem=problem,
+        phase_controls[phase_id] = _interpolate_phase_trajectory_to_new_mesh_streamlined(
+            prev_trajectory_per_interval=prev_controls,
+            prev_mesh_points=prev_mesh,
+            prev_polynomial_degrees=prev_degrees,
+            target_mesh_points=target_mesh,
+            target_polynomial_degrees=target_degrees,
+            num_variables=num_controls,
+            phase_id=phase_id,
+            is_state_trajectory=False,
         )
-        logger.info("  ✓ All interpolated multiphase initial guess validations passed")
 
-        logger.info(
-            "  ✓ Completed CORRECTED multiphase interpolation-based propagation successfully"
-        )
-        return initial_guess
+    # Create multiphase initial guess object
+    initial_guess = MultiPhaseInitialGuess(
+        phase_states=phase_states,
+        phase_controls=phase_controls,
+        phase_initial_times=phase_initial_times,
+        phase_terminal_times=phase_terminal_times,
+        phase_integrals=phase_integrals,
+        static_parameters=static_parameters,
+    )
 
-    except Exception as e:
-        if isinstance(e, InterpolationError | DataIntegrityError | ConfigurationError):
-            raise
-        raise InterpolationError(
-            f"CORRECTED multiphase interpolation propagation failed: {e}",
-            "Critical propagation failure",
-        ) from e
+    # STREAMLINED: Simple validation instead of complex validation infrastructure
+    logger.info("  Validating interpolated multiphase initial guess...")
+    _validate_interpolated_guess(initial_guess, problem)
+    logger.info("  ✓ Completed STREAMLINED multiphase interpolation-based propagation successfully")
+
+    return initial_guess
+
+
+def _validate_interpolated_guess(
+    initial_guess: MultiPhaseInitialGuess, problem: ProblemProtocol
+) -> None:
+    """STREAMLINED validation - essential checks only."""
+    # Check that all required phases have data
+    for phase_id in problem.get_phase_ids():
+        if (
+            phase_id not in initial_guess.phase_states
+            or phase_id not in initial_guess.phase_controls
+        ):
+            raise InterpolationError(f"Missing interpolated data for phase {phase_id}")
+
+        # Basic NaN check on first trajectory of each phase
+        if (
+            initial_guess.phase_states[phase_id]
+            and initial_guess.phase_states[phase_id][0].size > 0
+        ):
+            if np.any(np.isnan(initial_guess.phase_states[phase_id][0])):
+                raise DataIntegrityError(f"NaN values in interpolated states for phase {phase_id}")
+
+
+def _extract_multiphase_solution_trajectories(
+    solution: OptimalControlSolution, problem: ProblemProtocol
+) -> None:
+    """STREAMLINED extraction of state and control trajectories for all phases."""
+    from trajectolab.adaptive.phs.data_structures import ensure_2d_array
+
+    if solution.raw_solution is None or solution.opti_object is None:
+        raise ValueError("Missing raw solution or opti object")
+
+    opti = solution.opti_object
+    raw_sol = solution.raw_solution
+
+    # Initialize solution data structures
+    solution.phase_solved_state_trajectories_per_interval = {}
+    solution.phase_solved_control_trajectories_per_interval = {}
+
+    # Extract trajectories for each phase independently
+    for phase_id in problem.get_phase_ids():
+        num_states, num_controls = problem.get_phase_variable_counts(phase_id)
+        phase_def = problem._phases[phase_id]
+        polynomial_degrees = phase_def.collocation_points_per_interval
+
+        # Initialize phase trajectory storage
+        solution.phase_solved_state_trajectories_per_interval[phase_id] = []
+        solution.phase_solved_control_trajectories_per_interval[phase_id] = []
+
+        # Extract trajectories using multiphase variables reference
+        if hasattr(opti, "multiphase_variables_reference"):
+            variables = opti.multiphase_variables_reference
+            if phase_id in variables.phase_variables:
+                phase_vars = variables.phase_variables[phase_id]
+
+                # Extract state matrices for each interval in this phase
+                for k, state_matrix in enumerate(phase_vars.state_matrices):
+                    state_vals = raw_sol.value(state_matrix)
+                    state_array = ensure_2d_array(state_vals, num_states, polynomial_degrees[k] + 1)
+                    solution.phase_solved_state_trajectories_per_interval[phase_id].append(
+                        state_array
+                    )
+
+                # Extract control trajectories for this phase
+                if num_controls > 0:
+                    for k, control_var in enumerate(phase_vars.control_variables):
+                        control_vals = raw_sol.value(control_var)
+                        control_array = ensure_2d_array(
+                            control_vals, num_controls, polynomial_degrees[k]
+                        )
+                        solution.phase_solved_control_trajectories_per_interval[phase_id].append(
+                            control_array
+                        )
+                else:
+                    # No controls for this phase
+                    for k in range(len(polynomial_degrees)):
+                        solution.phase_solved_control_trajectories_per_interval[phase_id].append(
+                            np.empty((0, polynomial_degrees[k]), dtype=np.float64)
+                        )
