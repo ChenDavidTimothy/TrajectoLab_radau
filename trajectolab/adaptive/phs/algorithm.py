@@ -29,6 +29,7 @@ from trajectolab.adaptive.phs.refinement import (
     p_reduce_interval,
     p_refine_interval,
 )
+from trajectolab.exceptions import DataIntegrityError
 from trajectolab.radau import (
     RadauBasisComponents,
     compute_barycentric_weights,
@@ -49,32 +50,51 @@ logger = logging.getLogger(__name__)
 def _extract_multiphase_solution_trajectories(
     solution: OptimalControlSolution, problem: ProblemProtocol
 ) -> None:
-    """Extract state and control trajectories for all phases from unified solution."""
+    """CORRECTED extraction of state and control trajectories for all phases from unified solution."""
     if solution.raw_solution is None or solution.opti_object is None:
         raise ValueError("Missing raw solution or opti object")
 
     opti = solution.opti_object
     raw_sol = solution.raw_solution
 
-    # Extract trajectories for each phase
+    # CRITICAL FIX: Ensure solution data structures are initialized
+    if not hasattr(solution, "phase_solved_state_trajectories_per_interval"):
+        solution.phase_solved_state_trajectories_per_interval = {}
+    if not hasattr(solution, "phase_solved_control_trajectories_per_interval"):
+        solution.phase_solved_control_trajectories_per_interval = {}
+
+    # Extract trajectories for each phase independently
     for phase_id in problem.get_phase_ids():
+        logger.debug(f"    Extracting trajectories for phase {phase_id}...")
+
         num_states, num_controls = problem.get_phase_variable_counts(phase_id)
         phase_def = problem._phases[phase_id]
         polynomial_degrees = phase_def.collocation_points_per_interval
 
-        # Initialize phase trajectory storage if not present
-        if phase_id not in solution.phase_solved_state_trajectories_per_interval:
-            solution.phase_solved_state_trajectories_per_interval[phase_id] = []
-        if phase_id not in solution.phase_solved_control_trajectories_per_interval:
-            solution.phase_solved_control_trajectories_per_interval[phase_id] = []
+        logger.debug(
+            f"      Phase {phase_id}: {len(polynomial_degrees)} intervals with degrees {polynomial_degrees}"
+        )
 
-        # Extract state trajectories for this phase
+        # Initialize phase trajectory storage
+        solution.phase_solved_state_trajectories_per_interval[phase_id] = []
+        solution.phase_solved_control_trajectories_per_interval[phase_id] = []
+
+        # Extract trajectories using multiphase variables reference
         if hasattr(opti, "multiphase_variables_reference"):
             variables = opti.multiphase_variables_reference
             if phase_id in variables.phase_variables:
                 phase_vars = variables.phase_variables[phase_id]
 
-                # Extract state matrices for each interval in this phase
+                # CORRECTED: Extract state matrices for each interval in this phase only
+                if len(phase_vars.state_matrices) != len(polynomial_degrees):
+                    logger.error(
+                        f"      Phase {phase_id} state matrices count mismatch: {len(phase_vars.state_matrices)} vs {len(polynomial_degrees)}"
+                    )
+                    raise DataIntegrityError(
+                        f"Phase {phase_id} state matrices count ({len(phase_vars.state_matrices)}) != polynomial degrees count ({len(polynomial_degrees)})",
+                        "Solution extraction state matrix mismatch",
+                    )
+
                 for k, state_matrix in enumerate(phase_vars.state_matrices):
                     state_vals = raw_sol.value(state_matrix)
                     state_array = extract_and_prepare_array(
@@ -83,9 +103,21 @@ def _extract_multiphase_solution_trajectories(
                     solution.phase_solved_state_trajectories_per_interval[phase_id].append(
                         state_array
                     )
+                    logger.debug(
+                        f"        Phase {phase_id} interval {k}: extracted state shape {state_array.shape}"
+                    )
 
-                # Extract control trajectories for this phase
+                # CORRECTED: Extract control trajectories for this phase only
                 if num_controls > 0:
+                    if len(phase_vars.control_variables) != len(polynomial_degrees):
+                        logger.error(
+                            f"      Phase {phase_id} control variables count mismatch: {len(phase_vars.control_variables)} vs {len(polynomial_degrees)}"
+                        )
+                        raise DataIntegrityError(
+                            f"Phase {phase_id} control variables count ({len(phase_vars.control_variables)}) != polynomial degrees count ({len(polynomial_degrees)})",
+                            "Solution extraction control matrix mismatch",
+                        )
+
                     for k, control_var in enumerate(phase_vars.control_variables):
                         control_vals = raw_sol.value(control_var)
                         control_array = extract_and_prepare_array(
@@ -94,12 +126,22 @@ def _extract_multiphase_solution_trajectories(
                         solution.phase_solved_control_trajectories_per_interval[phase_id].append(
                             control_array
                         )
+                        logger.debug(
+                            f"        Phase {phase_id} interval {k}: extracted control shape {control_array.shape}"
+                        )
                 else:
                     # No controls for this phase
                     for k in range(len(polynomial_degrees)):
                         solution.phase_solved_control_trajectories_per_interval[phase_id].append(
                             np.empty((0, polynomial_degrees[k]), dtype=np.float64)
                         )
+                        logger.debug(
+                            f"        Phase {phase_id} interval {k}: no controls (empty array)"
+                        )
+
+        logger.debug(
+            f"    ✓ Phase {phase_id} extraction complete: {len(solution.phase_solved_state_trajectories_per_interval[phase_id])} state trajectories, {len(solution.phase_solved_control_trajectories_per_interval[phase_id])} control trajectories"
+        )
 
 
 def _create_phase_interpolants(
@@ -440,6 +482,7 @@ def solve_multiphase_phs_adaptive_internal(
 ) -> OptimalControlSolution:
     """
     Internal multiphase PHS-Adaptive mesh refinement algorithm implementation.
+    CORRECTED to properly store mesh information for interpolation.
     """
 
     # Log algorithm start
@@ -541,10 +584,30 @@ def solve_multiphase_phs_adaptive_internal(
                 logger.error("No successful unified solution obtained")
                 return solution
 
+        # CRITICAL FIX: Store the mesh information that was ACTUALLY used for this solve
+        # This must be done BEFORE trajectory extraction and BEFORE any mesh refinement
+        logger.debug("Storing actual mesh configuration used for this solve...")
+        solution.phase_mesh_intervals = {}
+        solution.phase_mesh_nodes = {}
+
+        for phase_id in problem.get_phase_ids():
+            # Store the polynomial degrees that were actually used
+            phase_def = problem._phases[phase_id]
+            solution.phase_mesh_intervals[phase_id] = list(
+                phase_def.collocation_points_per_interval
+            )
+            solution.phase_mesh_nodes[phase_id] = phase_def.global_normalized_mesh_nodes.copy()
+
+            logger.debug(
+                f"  Phase {phase_id}: stored {len(solution.phase_mesh_intervals[phase_id])} intervals "
+                f"with degrees {solution.phase_mesh_intervals[phase_id]}"
+            )
+
         # Extract trajectories from unified solution for all phases
         try:
+            logger.debug("Extracting multiphase solution trajectories...")
             _extract_multiphase_solution_trajectories(solution, problem)
-            logger.debug("Multiphase solution trajectories extracted successfully")
+            logger.debug("✓ Multiphase solution trajectories extracted successfully")
         except Exception as e:
             logger.error(
                 "Failed to extract multiphase trajectories in iteration %d: %s",
@@ -554,11 +617,6 @@ def solve_multiphase_phs_adaptive_internal(
             solution.message = f"Failed to extract multiphase trajectories: {e}"
             solution.success = False
             return solution
-
-        # CRITICAL FIX: Store the mesh information that was ACTUALLY used for this solve
-        # This must be done BEFORE any mesh refinement
-        solution.phase_mesh_intervals = adaptive_state.phase_polynomial_degrees.copy()
-        solution.phase_mesh_nodes = adaptive_state.phase_mesh_points.copy()
 
         # Update most recent successful solution
         adaptive_state.most_recent_unified_solution = solution
@@ -626,16 +684,21 @@ def solve_multiphase_phs_adaptive_internal(
             if not phase_converged:
                 any_phase_needs_refinement = True
 
-                # Refine mesh for this phase
+                # Refine mesh for this phase - use the CURRENT mesh configuration
                 try:
                     logger.debug("Refining mesh for phase %d", phase_id)
+
+                    # Use the mesh that was actually used for this solve (stored above)
+                    current_degrees = solution.phase_mesh_intervals[phase_id]
+                    current_mesh_points = solution.phase_mesh_nodes[phase_id]
+
                     (
                         adaptive_state.phase_polynomial_degrees[phase_id],
                         adaptive_state.phase_mesh_points[phase_id],
                     ) = _refine_phase_mesh(
                         phase_id,
-                        adaptive_state.phase_polynomial_degrees[phase_id],
-                        adaptive_state.phase_mesh_points[phase_id],
+                        current_degrees,  # Use the mesh from this solve
+                        current_mesh_points,  # Use the mesh from this solve
                         phase_errors,
                         adaptive_params,
                         solution,

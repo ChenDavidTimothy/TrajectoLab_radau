@@ -43,7 +43,7 @@ problem_fixed.set_initial_guess(
     phase_integrals={1: 0.1},
 )
 
-fixed_solution = tl.solve_fixed_mesh(
+fixed_solution = tl.solve_adaptive(
     problem_fixed,
     nlp_options={
         "ipopt.print_level": 0,

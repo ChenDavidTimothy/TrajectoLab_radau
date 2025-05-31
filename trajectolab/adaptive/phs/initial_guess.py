@@ -364,9 +364,9 @@ def propagate_multiphase_solution_to_new_meshes(
     target_phase_mesh_points: dict[PhaseID, FloatArray],
 ) -> MultiPhaseInitialGuess:
     """
-    OPTIMIZED multiphase solution propagation using unified storage and memory pooling - ENHANCED WITH FAIL-FAST.
+    CORRECTED multiphase solution propagation with exact single-phase interpolation behavior per phase.
     """
-    logger.info("  Starting OPTIMIZED multiphase aggressive interpolation-based propagation...")
+    logger.info("  Starting CORRECTED multiphase interpolation-based propagation...")
 
     # Guard clause: Validate previous solution
     if not prev_solution.success:
@@ -386,11 +386,18 @@ def propagate_multiphase_solution_to_new_meshes(
         logger.info(f"    Propagated static parameters: {len(static_parameters)} values")
 
     try:
+        # CORRECTED: Ensure solution has proper per-interval trajectory data
+        if not prev_solution.phase_solved_state_trajectories_per_interval:
+            logger.info("    Extracting per-interval trajectories from raw solution...")
+            _extract_multiphase_solution_trajectories(prev_solution, problem)
+
         # Interpolate trajectories for each phase
         phase_states = {}
         phase_controls = {}
 
         for phase_id in problem.get_phase_ids():
+            logger.info(f"    Processing phase {phase_id} interpolation...")
+
             # Validate target mesh configuration for this phase
             if phase_id not in target_phase_polynomial_degrees:
                 raise ConfigurationError(
@@ -412,7 +419,7 @@ def propagate_multiphase_solution_to_new_meshes(
                     "Target mesh configuration error",
                 )
 
-            # Get previous mesh information for this phase
+            # CORRECTED: Get previous mesh information correctly for this phase
             if phase_id not in prev_solution.phase_solved_state_trajectories_per_interval:
                 raise InterpolationError(
                     f"Previous solution missing state trajectory data for phase {phase_id}",
@@ -439,6 +446,31 @@ def propagate_multiphase_solution_to_new_meshes(
             prev_mesh = prev_solution.phase_mesh_nodes[phase_id]
             prev_degrees = prev_solution.phase_mesh_intervals[phase_id]
 
+            # CRITICAL FIX: Validate that previous data is consistent
+            logger.debug(f"    Phase {phase_id} previous data validation:")
+            logger.debug(f"      prev_states count: {len(prev_states)}")
+            logger.debug(f"      prev_controls count: {len(prev_controls)}")
+            logger.debug(f"      prev_degrees: {prev_degrees}")
+            logger.debug(f"      prev_mesh points: {len(prev_mesh)}")
+
+            if len(prev_states) != len(prev_degrees):
+                logger.error(
+                    f"    Phase {phase_id} trajectory/degree mismatch: {len(prev_states)} vs {len(prev_degrees)}"
+                )
+                raise InterpolationError(
+                    f"Phase {phase_id} previous state trajectories count ({len(prev_states)}) != previous polynomial degrees count ({len(prev_degrees)})",
+                    "Previous solution data inconsistency",
+                )
+
+            if len(prev_controls) != len(prev_degrees):
+                logger.error(
+                    f"    Phase {phase_id} control trajectory/degree mismatch: {len(prev_controls)} vs {len(prev_degrees)}"
+                )
+                raise InterpolationError(
+                    f"Phase {phase_id} previous control trajectories count ({len(prev_controls)}) != previous polynomial degrees count ({len(prev_degrees)})",
+                    "Previous solution data inconsistency",
+                )
+
             # Get problem dimensions for this phase
             num_states, num_controls = problem.get_phase_variable_counts(phase_id)
 
@@ -449,7 +481,7 @@ def propagate_multiphase_solution_to_new_meshes(
                 f"    Phase {phase_id} mesh transition: {len(prev_degrees)} → {len(target_degrees)} intervals"
             )
 
-            # Use memory-pooled interpolation for massive performance gains
+            # Use corrected interpolation for this phase
             phase_states[phase_id] = _interpolate_phase_trajectory_to_new_mesh_optimized(
                 prev_trajectory_per_interval=prev_states,
                 prev_mesh_points=prev_mesh,
@@ -491,7 +523,7 @@ def propagate_multiphase_solution_to_new_meshes(
         logger.info("  ✓ All interpolated multiphase initial guess validations passed")
 
         logger.info(
-            "  ✓ Completed OPTIMIZED multiphase aggressive interpolation-based propagation successfully"
+            "  ✓ Completed CORRECTED multiphase interpolation-based propagation successfully"
         )
         return initial_guess
 
@@ -499,6 +531,6 @@ def propagate_multiphase_solution_to_new_meshes(
         if isinstance(e, InterpolationError | DataIntegrityError | ConfigurationError):
             raise
         raise InterpolationError(
-            f"OPTIMIZED multiphase aggressive interpolation propagation failed: {e}",
+            f"CORRECTED multiphase interpolation propagation failed: {e}",
             "Critical propagation failure",
         ) from e

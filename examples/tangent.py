@@ -346,8 +346,9 @@ def main():
     print("Control u computed algebraically from parameters and time")
 
     # Solve with fixed mesh
-    solution = tl.solve_fixed_mesh(
+    solution = tl.solve_adaptive(
         problem,
+        error_tolerance=1e-5,
         nlp_options={
             "ipopt.print_level": 5,
             "ipopt.max_iter": 3000,
