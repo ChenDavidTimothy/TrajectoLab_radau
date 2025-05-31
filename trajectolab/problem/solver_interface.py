@@ -13,16 +13,16 @@ from typing import cast
 import casadi as ca
 
 from ..tl_types import PhaseID
-from ..utils.casadi_utils import (
-    build_static_parameter_substitution_map,
-    build_unified_casadi_function_inputs,
-    build_unified_multiphase_symbol_inputs,
-    build_unified_symbol_substitution_map,
-)
 from ..utils.expression_cache import (
     create_cache_key_from_multiphase_state,
     create_cache_key_from_phase_state,
     get_global_expression_cache,
+)
+from .casadi_build import (
+    build_static_parameter_substitution_map,
+    build_unified_casadi_function_inputs,
+    build_unified_multiphase_symbol_inputs,
+    build_unified_symbol_substitution_map,
 )
 from .state import MultiPhaseVariableState, PhaseDefinition
 
