@@ -194,7 +194,7 @@ def _process_single_phase(
             )
             metadata.phase_local_control_tau[phase_id].append(basis_components.collocation_nodes)
 
-            # Apply collocation constraints
+            # CRITICAL FIX: Apply collocation constraints with static parameters
             apply_phase_collocation_constraints(
                 opti,
                 phase_id,
@@ -207,6 +207,7 @@ def _process_single_phase(
                 phase_vars.terminal_time,
                 dynamics_function,
                 problem,
+                static_parameters_vec,  # CRITICAL FIX: Pass static parameters
             )
 
             # Apply path constraints if they exist
@@ -242,6 +243,7 @@ def _process_single_phase(
                     integral_integrand_function,
                     num_integrals,
                     accumulated_integral_expressions,
+                    static_parameters_vec,  # CRITICAL FIX: Pass static parameters for integrands
                 )
 
         except Exception as e:

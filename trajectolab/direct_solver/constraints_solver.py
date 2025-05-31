@@ -39,6 +39,7 @@ def apply_phase_collocation_constraints(
     terminal_time_variable: ca.MX,
     dynamics_function: Callable[..., list[ca.MX]],
     problem: ProblemProtocol | None = None,
+    static_parameters_vec: ca.MX | None = None,  # CRITICAL FIX: Add static parameters support
 ) -> None:
     """Apply collocation constraints for a single mesh interval within a phase."""
     num_colloc_nodes = len(basis_components.collocation_nodes)
@@ -84,9 +85,9 @@ def apply_phase_collocation_constraints(
             terminal_time_variable - initial_time_variable
         ) / 2 * global_colloc_tau_val + (terminal_time_variable + initial_time_variable) / 2
 
-        # Get dynamics
+        # CRITICAL FIX: Pass static parameters to dynamics function
         state_derivative_rhs: list[ca.MX] | ca.MX | Sequence[ca.MX] = dynamics_function(
-            state_at_colloc, control_at_colloc, physical_time_at_colloc
+            state_at_colloc, control_at_colloc, physical_time_at_colloc, static_parameters_vec
         )
 
         # Validate and format dynamics output

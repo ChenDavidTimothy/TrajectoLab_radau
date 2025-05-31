@@ -27,6 +27,7 @@ def setup_phase_integrals(
     integral_integrand_function: Callable[..., ca.MX],
     num_integrals: int,
     accumulated_integral_expressions: list[ca.MX],
+    static_parameters_vec: ca.MX | None = None,  # CRITICAL FIX: Add static parameters support
 ) -> None:
     """
     Set up integral calculations for a single mesh interval within a phase.
@@ -44,6 +45,7 @@ def setup_phase_integrals(
         integral_integrand_function: Integrand function for this phase
         num_integrals: Number of integrals for this phase
         accumulated_integral_expressions: List to accumulate integral expressions
+        static_parameters_vec: Static parameter variables (CRITICAL FIX: Added parameter)
 
     Note:
         This function modifies accumulated_integral_expressions in place.
@@ -84,8 +86,14 @@ def setup_phase_integrals(
 
             # Calculate integrand and add to quadrature sum
             weight: float = quad_weights[i_colloc]
+
+            # CRITICAL FIX: Pass static parameters to integrand function
             integrand_value: ca.MX = integral_integrand_function(
-                state_at_colloc, control_at_colloc, physical_time_at_colloc, integral_index
+                state_at_colloc,
+                control_at_colloc,
+                physical_time_at_colloc,
+                integral_index,
+                static_parameters_vec,  # CRITICAL FIX: Pass static parameters
             )
             quad_sum += weight * integrand_value
 

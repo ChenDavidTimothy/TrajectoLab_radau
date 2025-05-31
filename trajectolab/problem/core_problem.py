@@ -393,7 +393,15 @@ class Problem:
         """Get dynamics function for given phase."""
         if phase_id not in self._multiphase_state.phases:
             raise ValueError(f"Phase {phase_id} does not exist")
-        return solver_interface.get_phase_dynamics_function(self._multiphase_state.phases[phase_id])
+
+        # CRITICAL FIX: Pass static parameter symbols to dynamics function creation
+        static_parameter_symbols = (
+            self._multiphase_state.static_parameters.get_ordered_parameter_symbols()
+        )
+
+        return solver_interface.get_phase_dynamics_function(
+            self._multiphase_state.phases[phase_id], static_parameter_symbols
+        )
 
     def get_objective_function(self) -> Any:
         """Get multiphase objective function."""
@@ -403,8 +411,14 @@ class Problem:
         """Get integrand function for given phase."""
         if phase_id not in self._multiphase_state.phases:
             raise ValueError(f"Phase {phase_id} does not exist")
+
+        # CRITICAL FIX: Pass static parameter symbols to integrand function creation
+        static_parameter_symbols = (
+            self._multiphase_state.static_parameters.get_ordered_parameter_symbols()
+        )
+
         return solver_interface.get_phase_integrand_function(
-            self._multiphase_state.phases[phase_id]
+            self._multiphase_state.phases[phase_id], static_parameter_symbols
         )
 
     def get_phase_path_constraints_function(self, phase_id: PhaseID) -> Any:

@@ -20,12 +20,16 @@ from ..utils.expression_cache import (
 from .state import MultiPhaseVariableState, PhaseDefinition
 
 
-def get_phase_dynamics_function(phase_def: PhaseDefinition) -> Callable[..., list[ca.MX]]:
-    """Get dynamics function for a specific phase with expression caching."""
+def get_phase_dynamics_function(
+    phase_def: PhaseDefinition, static_parameter_symbols: list[ca.MX] | None = None
+) -> Callable[..., list[ca.MX]]:
+    """Get dynamics function for a specific phase with expression caching and static parameter support."""
     dynamics_exprs = [str(expr) for expr in phase_def.dynamics_expressions.values()]
+    # CRITICAL FIX: Include static parameter info in cache key
+    param_info = f"_params_{len(static_parameter_symbols) if static_parameter_symbols else 0}"
     expr_hash = hashlib.sha256("".join(sorted(dynamics_exprs)).encode()).hexdigest()[:16]
 
-    cache_key = create_cache_key_from_phase_state(phase_def, "dynamics", expr_hash)
+    cache_key = create_cache_key_from_phase_state(phase_def, f"dynamics{param_info}", expr_hash)
 
     def build_dynamics_function() -> ca.Function:
         """Build CasADi dynamics function for phase - expensive operation."""
@@ -36,6 +40,15 @@ def get_phase_dynamics_function(phase_def: PhaseDefinition) -> Callable[..., lis
         controls_vec = ca.vertcat(*control_syms) if control_syms else ca.MX()
         time = phase_def.sym_time if phase_def.sym_time is not None else ca.MX.sym("t", 1)  # type: ignore[arg-type]
 
+        # CRITICAL FIX: Create static parameters with correct dimensions
+        num_static_params = len(static_parameter_symbols) if static_parameter_symbols else 0
+        if num_static_params > 0:
+            static_params_vec = ca.MX.sym("static_params", num_static_params, 1)
+        else:
+            static_params_vec = ca.MX.sym(
+                "static_params", 1, 1
+            )  # Dummy parameter for consistent signature
+
         dynamics_expr = []
         for state_sym in state_syms:
             if state_sym in phase_def.dynamics_expressions:
@@ -45,9 +58,11 @@ def get_phase_dynamics_function(phase_def: PhaseDefinition) -> Callable[..., lis
                 dynamics_expr.append(ca.MX(0))
 
         dynamics_vec = ca.vertcat(*dynamics_expr) if dynamics_expr else ca.MX()
-        return ca.Function(
-            f"dynamics_p{phase_def.phase_id}", [states_vec, controls_vec, time], [dynamics_vec]
-        )
+
+        # CRITICAL FIX: Include static parameters in function inputs
+        function_inputs = [states_vec, controls_vec, time, static_params_vec]
+
+        return ca.Function(f"dynamics_p{phase_def.phase_id}", function_inputs, [dynamics_vec])
 
     dynamics_func = get_global_expression_cache().get_dynamics_function(
         cache_key, build_dynamics_function
@@ -57,8 +72,18 @@ def get_phase_dynamics_function(phase_def: PhaseDefinition) -> Callable[..., lis
         states_vec: ca.MX,
         controls_vec: ca.MX,
         time: ca.MX,
+        static_parameters_vec: ca.MX | None = None,  # CRITICAL FIX: Add parameter support
     ) -> list[ca.MX]:
-        result = dynamics_func(states_vec, controls_vec, time)
+        # CRITICAL FIX: Handle static parameters in function call
+        num_static_params = len(static_parameter_symbols) if static_parameter_symbols else 0
+
+        if static_parameters_vec is None or num_static_params == 0:
+            # Create dummy parameters for consistent function signature
+            static_params_input = ca.DM.zeros(max(1, num_static_params), 1)
+        else:
+            static_params_input = static_parameters_vec
+
+        result = dynamics_func(states_vec, controls_vec, time, static_params_input)
         dynamics_output = result[0] if isinstance(result, list | tuple) else result
 
         if dynamics_output is None:
@@ -238,7 +263,7 @@ def get_multiphase_objective_function(
 
 
 def get_phase_integrand_function(phase_def: PhaseDefinition) -> Callable[..., ca.MX] | None:
-    """Get integrand function for a specific phase with expression caching."""
+    """Get integrand function for a specific phase with expression caching and static parameter support."""
     if not phase_def.integral_expressions:
         return None
 
@@ -255,12 +280,15 @@ def get_phase_integrand_function(phase_def: PhaseDefinition) -> Callable[..., ca
         controls_vec = ca.vertcat(*control_syms) if control_syms else ca.MX()
         time = phase_def.sym_time if phase_def.sym_time is not None else ca.MX.sym("t", 1)  # type: ignore[arg-type]
 
+        # CRITICAL FIX: Include static parameters as inputs for integrand functions
+        static_params_vec = ca.MX.sym("static_params", 1)
+
         integrand_funcs = []
         for i, expr in enumerate(phase_def.integral_expressions):
+            # CRITICAL FIX: Include static parameters in integrand function inputs
+            function_inputs = [states_vec, controls_vec, time, static_params_vec]
             integrand_funcs.append(
-                ca.Function(
-                    f"integrand_{i}_p{phase_def.phase_id}", [states_vec, controls_vec, time], [expr]
-                )
+                ca.Function(f"integrand_{i}_p{phase_def.phase_id}", function_inputs, [expr])
             )
 
         return integrand_funcs
@@ -274,11 +302,19 @@ def get_phase_integrand_function(phase_def: PhaseDefinition) -> Callable[..., ca
         controls_vec: ca.MX,
         time: ca.MX,
         integral_idx: int,
+        static_parameters_vec: ca.MX | None = None,  # CRITICAL FIX: Add parameter support
     ) -> ca.MX:
         if integral_idx >= len(integrand_funcs):
             return ca.MX(0.0)
 
-        result = integrand_funcs[integral_idx](states_vec, controls_vec, time)
+        # CRITICAL FIX: Handle static parameters in integrand function call
+        if static_parameters_vec is None:
+            # Create dummy parameters if none provided
+            static_params_input = ca.DM.zeros(1, 1)
+        else:
+            static_params_input = static_parameters_vec
+
+        result = integrand_funcs[integral_idx](states_vec, controls_vec, time, static_params_input)
         integrand_output = result[0] if isinstance(result, list | tuple) else result
         return cast(ca.MX, integrand_output)
 
