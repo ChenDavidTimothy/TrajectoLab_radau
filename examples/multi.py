@@ -19,21 +19,21 @@ def solve_two_phase_hypersensitive_debug():
 
     # Phase 1: [0, 20]
     with problem_phase.phase(1) as phase1:
-        t1 = phase1.time(initial=0.0, final=20.0)  # Fixed intermediate time
+        t1 = phase1.time(initial=0.0, final=5000.0)  # Fixed intermediate time
         x1 = phase1.state("x", initial=1.5)
         u1 = phase1.control("u")
         phase1.dynamics({x1: -(x1**3) + u1})
         integral1 = phase1.add_integral(0.5 * (x1**2 + u1**2))
-        phase1.set_mesh([10, 6, 10], [-1.0, -1 / 3, 1 / 3, 1.0])
+        phase1.set_mesh([4, 4, 4], [-1.0, -1 / 3, 1 / 3, 1.0])
 
     # Phase 2: [20, 40]
     with problem_phase.phase(2) as phase2:
-        phase2.time(initial=t1.final, final=40.0)
+        phase2.time(initial=t1.final, final=10000.0)
         x2 = phase2.state("x", initial=x1.final, final=1.0)
         u2 = phase2.control("u")
         phase2.dynamics({x2: -(x2**3) + u2})
         integral2 = phase2.add_integral(0.5 * (x2**2 + u2**2))
-        phase2.set_mesh([10, 6, 10], [-1.0, -1 / 3, 1 / 3, 1.0])
+        phase2.set_mesh([4, 4, 4], [-1.0, -1 / 3, 1 / 3, 1.0])
 
     problem_phase.minimize(integral1 + integral2)
 
@@ -43,7 +43,7 @@ def solve_two_phase_hypersensitive_debug():
     controls_guess_p2 = []
 
     # Phase 1: [0, 20] with x going from 1.5 to something intermediate
-    for N in [10, 6, 10]:  # Match your mesh
+    for N in [4, 4, 4]:  # Match your mesh
         tau = np.linspace(-1, 1, N + 1)
         # Linear interpolation from 1.5 to ~0.5 over phase 1
         x_vals = 1.5 + (0.5 - 1.5) * (tau + 1) / 2
@@ -51,7 +51,7 @@ def solve_two_phase_hypersensitive_debug():
         controls_guess_p1.append(np.zeros((1, N)))
 
     # Phase 2: [20, 40] with x going from ~0.5 to 1.0
-    for N in [10, 6, 10]:  # Match your mesh
+    for N in [4, 4, 4]:  # Match your mesh
         tau = np.linspace(-1, 1, N + 1)
         # Linear interpolation from 0.5 to 1.0 over phase 2
         x_vals = 0.5 + (1.0 - 0.5) * (tau + 1) / 2
@@ -70,9 +70,13 @@ def solve_two_phase_hypersensitive_debug():
     print("Solving with IPOPT print_level = 3...")
     solution = tl.solve_adaptive(
         problem_phase,
+        error_tolerance=7.47e-7,
+        max_iterations=30,
+        min_polynomial_degree=3,
+        max_polynomial_degree=15,
         nlp_options={
             "ipopt.print_level": 0,  # Increased verbosity
-            "ipopt.max_iter": 200,
+            "ipopt.max_iter": 500,
             "ipopt.tol": 1e-8,
             "ipopt.constr_viol_tol": 1e-8,  # Added for robustness
         },

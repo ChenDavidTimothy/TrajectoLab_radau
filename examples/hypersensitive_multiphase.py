@@ -14,7 +14,7 @@ problem_fixed = tl.Problem("Hypersensitive Fixed Mesh")
 
 with problem_fixed.phase(1) as phase1_fixed:
     # Same problem definition
-    t_fixed = phase1_fixed.time(initial=0, final=40)
+    t_fixed = phase1_fixed.time(initial=0, final=10000)
     x_fixed = phase1_fixed.state("x", initial=1.5, final=1.0)
     u_fixed = phase1_fixed.control("u")
     phase1_fixed.dynamics({x_fixed: -(x_fixed**3) + u_fixed})
@@ -45,9 +45,13 @@ problem_fixed.set_initial_guess(
 
 fixed_solution = tl.solve_adaptive(
     problem_fixed,
+    error_tolerance=7.47e-7,
+    max_iterations=30,
+    min_polynomial_degree=3,
+    max_polynomial_degree=10,
     nlp_options={
         "ipopt.print_level": 0,
-        "ipopt.max_iter": 200,
+        "ipopt.max_iter": 500,
     },
 )
 if fixed_solution.success:

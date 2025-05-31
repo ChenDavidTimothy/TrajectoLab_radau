@@ -40,5 +40,13 @@ __all__ = [
 
 __version__ = "0.3.0"  # Updated for multiphase support
 
+
+logging.basicConfig(
+    level=logging.INFO,  # Set to DEBUG to see everything
+    format="%(name)s  - %(message)s",
+    handlers=[
+        logging.StreamHandler()  # Output to console
+    ],
+)
 # PRODUCTION LOGGING: Silent by default, user controls everything
-logging.getLogger(__name__).setLevel(logging.DEBUG)
+logging.getLogger(__name__).setLevel(logging.INFO)

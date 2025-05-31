@@ -102,7 +102,7 @@ def solve_linear_tangent_steering_problem():
         )
 
         # Set mesh for Phase 1
-        phase1.set_mesh([8, 8], [-1.0, 0.0, 1.0])
+        phase1.set_mesh([4, 4], [-1.0, 0.0, 1.0])
 
     # ========================================================================
     # Phase 2: t ∈ [t_F^(1), t_F^(2)]
@@ -141,7 +141,7 @@ def solve_linear_tangent_steering_problem():
         )
 
         # Set mesh for Phase 2
-        phase2.set_mesh([8, 8], [-1.0, 0.0, 1.0])
+        phase2.set_mesh([4, 4], [-1.0, 0.0, 1.0])
 
     # ========================================================================
     # Phase 3: t ∈ [t_F^(2), t_F^(3)]
@@ -180,7 +180,7 @@ def solve_linear_tangent_steering_problem():
         )
 
         # Set mesh for Phase 3
-        phase3.set_mesh([8, 8], [-1.0, 0.0, 1.0])
+        phase3.set_mesh([4, 4], [-1.0, 0.0, 1.0])
 
     # ========================================================================
     # Cross-Phase Boundary Conditions
@@ -234,7 +234,7 @@ def create_initial_guess():
     controls_p1 = []  # Empty - no explicit control variables
 
     # Interval 1: 8 collocation points -> (4, 9) states, NO controls
-    tau1 = np.linspace(-1, 1, 9)
+    tau1 = np.linspace(-1, 1, 5)
     t_phys1 = (tau1 + 1) / 2 * phase_duration  # Map to [0, phase_duration]
 
     # Linear trajectory guesses for Phase 1
@@ -244,10 +244,10 @@ def create_initial_guess():
     x4_vals = t_phys1 * 5.0  # Building up x4 velocity
 
     states_p1.append(np.array([x1_vals, x2_vals, x3_vals, x4_vals]))
-    controls_p1.append(np.zeros((0, 8)))  # No controls (0 control variables, 8 collocation points)
+    controls_p1.append(np.zeros((0, 4)))  # No controls (0 control variables, 8 collocation points)
 
     # Interval 2: 8 collocation points -> (4, 9) states, NO controls
-    tau2 = np.linspace(-1, 1, 9)
+    tau2 = np.linspace(-1, 1, 5)
     t_phys2 = (tau2 + 1) / 2 * phase_duration
 
     x1_vals = t_phys2 * 3.0 + 0.5
@@ -256,7 +256,7 @@ def create_initial_guess():
     x4_vals = t_phys2 * 7.0 + 1.0
 
     states_p1.append(np.array([x1_vals, x2_vals, x3_vals, x4_vals]))
-    controls_p1.append(np.zeros((0, 8)))  # No controls
+    controls_p1.append(np.zeros((0, 4)))  # No controls
 
     # ========================================================================
     # Phase 2: mesh [8, 8], states [x1, x2, x3, x4] (4 states), NO CONTROLS
@@ -267,7 +267,7 @@ def create_initial_guess():
 
     # Continue from Phase 1 end values and progress toward final values
     for i in range(2):
-        tau = np.linspace(-1, 1, 9)
+        tau = np.linspace(-1, 1, 5)
         t_phys = (tau + 1) / 2 * phase_duration
 
         # Intermediate values progressing toward final state
@@ -277,7 +277,7 @@ def create_initial_guess():
         x4_vals = t_phys * 3.0 + 2.0 - i * 1.0  # Moving toward x4=0
 
         states_p2.append(np.array([x1_vals, x2_vals, x3_vals, x4_vals]))
-        controls_p2.append(np.zeros((0, 8)))  # No controls
+        controls_p2.append(np.zeros((0, 4)))  # No controls
 
     # ========================================================================
     # Phase 3: mesh [8, 8], states [x1, x2, x3, x4] (4 states), NO CONTROLS
@@ -288,7 +288,7 @@ def create_initial_guess():
 
     # Approach final conditions: x2=5, x3=45, x4=0
     for i in range(2):
-        tau = np.linspace(-1, 1, 9)
+        tau = np.linspace(-1, 1, 5)
         t_phys = (tau + 1) / 2 * phase_duration
 
         # Final approach to target values
@@ -298,7 +298,7 @@ def create_initial_guess():
         x4_vals = 1.0 - (tau + 1) / 2 * 1.0  # Approach x4=0
 
         states_p3.append(np.array([x1_vals, x2_vals, x3_vals, x4_vals]))
-        controls_p3.append(np.zeros((0, 8)))  # No controls
+        controls_p3.append(np.zeros((0, 4)))  # No controls
 
     return {
         "phase_states": {1: states_p1, 2: states_p2, 3: states_p3},
@@ -348,7 +348,7 @@ def main():
     # Solve with fixed mesh
     solution = tl.solve_adaptive(
         problem,
-        error_tolerance=1e-5,
+        error_tolerance=1e-3,
         nlp_options={
             "ipopt.print_level": 5,
             "ipopt.max_iter": 3000,
