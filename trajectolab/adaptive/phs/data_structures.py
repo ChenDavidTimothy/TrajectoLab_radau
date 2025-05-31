@@ -1,5 +1,5 @@
 """
-Data structures and parameter containers for the PHS adaptive algorithm.
+Data structures and parameter containers for the multiphase PHS adaptive algorithm.
 """
 
 import logging
@@ -8,13 +8,14 @@ from typing import Any
 
 import numpy as np
 
-from trajectolab.tl_types import FloatArray, ODESolverCallable
+from trajectolab.tl_types import FloatArray, ODESolverCallable, PhaseID
 
 
 __all__ = [
     "AdaptiveParameters",
     "HRefineResult",
     "IntervalSimulationBundle",
+    "MultiphaseAdaptiveState",
     "PReduceResult",
     "PRefineResult",
     "extract_and_prepare_array",
@@ -25,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class AdaptiveParameters:
-    """Parameters controlling the adaptive mesh refinement algorithm."""
+    """Parameters controlling the multiphase adaptive mesh refinement algorithm."""
 
     error_tolerance: float
     max_iterations: int
@@ -59,8 +60,35 @@ class AdaptiveParameters:
 
 
 @dataclass
+class MultiphaseAdaptiveState:
+    """Tracks adaptive refinement state across all phases in unified NLP."""
+
+    phase_polynomial_degrees: dict[PhaseID, list[int]]
+    phase_mesh_points: dict[PhaseID, FloatArray]
+    phase_converged: dict[PhaseID, bool]
+    iteration: int = 0
+    most_recent_unified_solution: Any = None  # OptimalControlSolution
+
+    def all_phases_converged(self) -> bool:
+        """Check if all phases have converged."""
+        return all(self.phase_converged.values()) if self.phase_converged else False
+
+    def get_phase_ids(self) -> list[PhaseID]:
+        """Get ordered list of phase IDs."""
+        return sorted(self.phase_polynomial_degrees.keys())
+
+    def configure_problem_meshes(self, problem: Any) -> None:  # ProblemProtocol
+        """Configure all phase meshes in the unified problem."""
+        for phase_id in self.get_phase_ids():
+            if phase_id in problem._phases:
+                phase_def = problem._phases[phase_id]
+                phase_def.collocation_points_per_interval = self.phase_polynomial_degrees[phase_id]
+                phase_def.global_normalized_mesh_nodes = self.phase_mesh_points[phase_id]
+
+
+@dataclass
 class IntervalSimulationBundle:
-    """Holds results from forward/backward simulations for error estimation."""
+    """Holds results from forward/backward simulations for error estimation in specific phase interval."""
 
     forward_simulation_local_tau_evaluation_points: FloatArray | None = None
     state_trajectory_from_forward_simulation: FloatArray | None = None

@@ -156,7 +156,7 @@ def solve_adaptive(
     if initial_guess is not None:
         protocol_problem.initial_guess = initial_guess
 
-    # Log initial mesh configurations
+    # Log initial mesh configurations for all phases
     if logger.isEnabledFor(logging.DEBUG):
         for phase_id in problem.get_phase_ids():
             phase_def = problem._phases[phase_id]
@@ -171,7 +171,7 @@ def solve_adaptive(
                 )
 
     # Call multiphase adaptive algorithm
-    from trajectolab.adaptive.multiphase_phs.algorithm import solve_multiphase_phs_adaptive_internal
+    from trajectolab.adaptive.phs.algorithm import solve_multiphase_phs_adaptive_internal
 
     solution_data: OptimalControlSolution = solve_multiphase_phs_adaptive_internal(
         problem=protocol_problem,
@@ -193,11 +193,11 @@ def solve_adaptive(
             len(intervals) for intervals in solution_data.phase_mesh_intervals.values()
         )
         logger.info(
-            "Adaptive solve converged: objective=%.6e, total_intervals=%d",
+            "Multiphase adaptive solve converged: objective=%.6e, total_intervals=%d",
             solution_data.objective or 0.0,
             total_intervals,
         )
     else:
-        logger.warning("Adaptive solve failed: %s", solution_data.message)
+        logger.warning("Multiphase adaptive solve failed: %s", solution_data.message)
 
     return Solution(solution_data, protocol_problem)

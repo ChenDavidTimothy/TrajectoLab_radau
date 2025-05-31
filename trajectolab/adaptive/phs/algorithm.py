@@ -1,5 +1,5 @@
 """
-Main PHS adaptive mesh refinement algorithm implementation.
+Main multiphase PHS adaptive mesh refinement algorithm implementation.
 """
 
 import logging
@@ -9,15 +9,16 @@ import numpy as np
 
 from trajectolab.adaptive.phs.data_structures import (
     AdaptiveParameters,
+    MultiphaseAdaptiveState,
     extract_and_prepare_array,
 )
 from trajectolab.adaptive.phs.error_estimation import (
-    calculate_gamma_normalizers,
+    calculate_gamma_normalizers_for_phase,
     calculate_relative_error_estimate,
-    simulate_dynamics_for_error_estimation,
+    simulate_dynamics_for_phase_interval_error_estimation,
 )
 from trajectolab.adaptive.phs.initial_guess import (
-    propagate_solution_to_new_mesh,
+    propagate_multiphase_solution_to_new_meshes,
 )
 from trajectolab.adaptive.phs.numerical import (
     PolynomialInterpolant,
@@ -33,67 +34,95 @@ from trajectolab.radau import (
     compute_barycentric_weights,
     compute_radau_collocation_components,
 )
-from trajectolab.tl_types import FloatArray, InitialGuess, OptimalControlSolution, ProblemProtocol
+from trajectolab.tl_types import (
+    FloatArray,
+    MultiPhaseInitialGuess,
+    OptimalControlSolution,
+    PhaseID,
+    ProblemProtocol,
+)
 
 
 logger = logging.getLogger(__name__)
 
 
-def _extract_solution_trajectories(
-    solution: OptimalControlSolution, problem: ProblemProtocol, polynomial_degrees: list[int]
+def _extract_multiphase_solution_trajectories(
+    solution: OptimalControlSolution, problem: ProblemProtocol
 ) -> None:
-    """Extract state and control trajectories from the solution using unified storage."""
+    """Extract state and control trajectories for all phases from unified solution."""
     if solution.raw_solution is None or solution.opti_object is None:
         raise ValueError("Missing raw solution or opti object")
 
     opti = solution.opti_object
     raw_sol = solution.raw_solution
 
-    # Get variable counts from unified storage
-    num_states, num_controls = problem.get_variable_counts()
+    # Extract trajectories for each phase
+    for phase_id in problem.get_phase_ids():
+        num_states, num_controls = problem.get_phase_variable_counts(phase_id)
+        phase_def = problem._phases[phase_id]
+        polynomial_degrees = phase_def.collocation_points_per_interval
 
-    # Extract state trajectories
-    if hasattr(opti, "state_at_local_approximation_nodes_all_intervals_variables"):
-        solution.solved_state_trajectories_per_interval = [
-            extract_and_prepare_array(
-                raw_sol.value(var),
-                num_states,
-                polynomial_degrees[i] + 1,
-            )
-            for i, var in enumerate(opti.state_at_local_approximation_nodes_all_intervals_variables)
-        ]
+        # Initialize phase trajectory storage if not present
+        if phase_id not in solution.phase_solved_state_trajectories_per_interval:
+            solution.phase_solved_state_trajectories_per_interval[phase_id] = []
+        if phase_id not in solution.phase_solved_control_trajectories_per_interval:
+            solution.phase_solved_control_trajectories_per_interval[phase_id] = []
 
-    # Extract control trajectories
-    if num_controls > 0 and hasattr(
-        opti, "control_at_local_collocation_nodes_all_intervals_variables"
-    ):
-        solution.solved_control_trajectories_per_interval = [
-            extract_and_prepare_array(
-                raw_sol.value(var),
-                num_controls,
-                polynomial_degrees[i],
-            )
-            for i, var in enumerate(opti.control_at_local_collocation_nodes_all_intervals_variables)
-        ]
-    else:
-        solution.solved_control_trajectories_per_interval = [
-            np.empty((0, polynomial_degrees[i]), dtype=np.float64)
-            for i in range(len(polynomial_degrees))
-        ]
+        # Extract state trajectories for this phase
+        if hasattr(opti, "multiphase_variables_reference"):
+            variables = opti.multiphase_variables_reference
+            if phase_id in variables.phase_variables:
+                phase_vars = variables.phase_variables[phase_id]
+
+                # Extract state matrices for each interval in this phase
+                for k, state_matrix in enumerate(phase_vars.state_matrices):
+                    state_vals = raw_sol.value(state_matrix)
+                    state_array = extract_and_prepare_array(
+                        state_vals, num_states, polynomial_degrees[k] + 1
+                    )
+                    solution.phase_solved_state_trajectories_per_interval[phase_id].append(
+                        state_array
+                    )
+
+                # Extract control trajectories for this phase
+                if num_controls > 0:
+                    for k, control_var in enumerate(phase_vars.control_variables):
+                        control_vals = raw_sol.value(control_var)
+                        control_array = extract_and_prepare_array(
+                            control_vals, num_controls, polynomial_degrees[k]
+                        )
+                        solution.phase_solved_control_trajectories_per_interval[phase_id].append(
+                            control_array
+                        )
+                else:
+                    # No controls for this phase
+                    for k in range(len(polynomial_degrees)):
+                        solution.phase_solved_control_trajectories_per_interval[phase_id].append(
+                            np.empty((0, polynomial_degrees[k]), dtype=np.float64)
+                        )
 
 
-def _create_interpolants(
+def _create_phase_interpolants(
     solution: OptimalControlSolution,
     problem: ProblemProtocol,
-    polynomial_degrees: list[int],
+    phase_id: PhaseID,
 ) -> tuple[
     list[Callable[[float | FloatArray], FloatArray] | None],
     list[Callable[[float | FloatArray], FloatArray] | None],
 ]:
-    """Create state and control interpolants for all intervals using unified storage."""
+    """Create state and control interpolants for all intervals in a specific phase."""
+    if phase_id not in solution.phase_solved_state_trajectories_per_interval:
+        raise ValueError(f"Missing state trajectories for phase {phase_id}")
+
+    phase_def = problem._phases[phase_id]
+    polynomial_degrees = phase_def.collocation_points_per_interval
     num_intervals = len(polynomial_degrees)
+
+    num_states, num_controls = problem.get_phase_variable_counts(phase_id)
+
     basis_cache: dict[int, RadauBasisComponents] = {}
     control_weights_cache: dict[int, FloatArray] = {}
+
     state_evaluators: list[Callable[[float | FloatArray], FloatArray] | None] = [
         None
     ] * num_intervals
@@ -101,17 +130,8 @@ def _create_interpolants(
         None
     ] * num_intervals
 
-    states_list = solution.solved_state_trajectories_per_interval
-    controls_list = solution.solved_control_trajectories_per_interval
-
-    if states_list is None:
-        raise ValueError("Missing state trajectories for interpolant creation")
-
-    if controls_list is None:
-        # Get variable counts from unified storage
-        _, num_controls = problem.get_variable_counts()
-        if num_controls > 0:
-            raise ValueError("Missing control trajectories for interpolant creation")
+    states_list = solution.phase_solved_state_trajectories_per_interval[phase_id]
+    controls_list = solution.phase_solved_control_trajectories_per_interval.get(phase_id)
 
     for k in range(num_intervals):
         try:
@@ -132,8 +152,6 @@ def _create_interpolants(
             )
 
             # Create control interpolant
-            # Get variable counts from unified storage
-            _, num_controls = problem.get_variable_counts()
             if num_controls > 0 and controls_list is not None:
                 control_data = controls_list[k]
 
@@ -155,42 +173,36 @@ def _create_interpolants(
                 )
 
         except Exception as e:
-            logger.warning(f"Error creating interpolant for interval {k}: {e}")
+            logger.warning(f"Error creating interpolant for phase {phase_id} interval {k}: {e}")
             # Create fallback interpolants
             if state_evaluators[k] is None:
-                # Get variable counts from unified storage
-                num_states, _ = problem.get_variable_counts()
                 state_evaluators[k] = PolynomialInterpolant(
                     np.array([-1.0, 1.0], dtype=np.float64),
                     np.full((num_states, 2), np.nan, dtype=np.float64),
                     None,
                 )
             if control_evaluators[k] is None:
-                # Get variable counts from unified storage
-                _, num_controls = problem.get_variable_counts()
                 control_evaluators[k] = PolynomialInterpolant(
                     np.array([-1.0, 1.0], dtype=np.float64),
-                    np.full(
-                        (num_controls if num_controls > 0 else 0, 2),
-                        np.nan,
-                        dtype=np.float64,
-                    ),
+                    np.full((num_controls if num_controls > 0 else 0, 2), np.nan, dtype=np.float64),
                     None,
                 )
 
     return state_evaluators, control_evaluators
 
 
-def _estimate_errors(
+def _estimate_phase_errors(
     solution: OptimalControlSolution,
     problem: ProblemProtocol,
-    polynomial_degrees: list[int],
+    phase_id: PhaseID,
     state_evaluators: list[Callable[[float | FloatArray], FloatArray] | None],
     control_evaluators: list[Callable[[float | FloatArray], FloatArray] | None],
     adaptive_params: AdaptiveParameters,
     gamma_factors: FloatArray,
 ) -> list[float]:
-    """Estimate errors for all intervals."""
+    """Estimate errors for all intervals in a specific phase."""
+    phase_def = problem._phases[phase_id]
+    polynomial_degrees = phase_def.collocation_points_per_interval
     num_intervals = len(polynomial_degrees)
     errors: list[float] = [np.inf] * num_intervals
 
@@ -202,26 +214,28 @@ def _estimate_errors(
             errors[k] = np.inf
             continue
 
-        # Pass configurable ODE solver
-        sim_bundle = simulate_dynamics_for_error_estimation(
+        # Pass configurable ODE solver and phase_id
+        sim_bundle = simulate_dynamics_for_phase_interval_error_estimation(
+            phase_id,
             k,
             solution,
             problem,
             state_eval,
             control_eval,
-            adaptive_params.get_ode_solver(),  # Use configured solver
+            adaptive_params.get_ode_solver(),
             ode_rtol=adaptive_params.ode_solver_tolerance,
             n_eval_points=adaptive_params.num_error_sim_points,
         )
 
         # Calculate relative error
-        error = calculate_relative_error_estimate(k, sim_bundle, gamma_factors)
+        error = calculate_relative_error_estimate(phase_id, k, sim_bundle, gamma_factors)
         errors[k] = error
 
     return errors
 
 
-def _refine_mesh(
+def _refine_phase_mesh(
+    phase_id: PhaseID,
     polynomial_degrees: list[int],
     mesh_points: FloatArray,
     errors: list[float],
@@ -232,7 +246,7 @@ def _refine_mesh(
     control_evaluators: list[Callable[[float | FloatArray], FloatArray] | None],
     gamma_factors: FloatArray,
 ) -> tuple[list[int], FloatArray]:
-    """Refine mesh for next iteration with correct h-reduction ordering."""
+    """Refine mesh for a specific phase with correct h-reduction ordering."""
     from typing import NamedTuple
 
     class MergeCandidate(NamedTuple):
@@ -256,7 +270,6 @@ def _refine_mesh(
             intervals_for_reduction.add(k)
 
     # Step 2: Process refinement intervals (p-refine or h-refine)
-    # Fix: Use Union type to handle both action types properly
     refinement_actions: dict[int, tuple[str, int] | tuple[str, list[int]]] = {}
 
     for k in intervals_needing_refinement:
@@ -289,8 +302,7 @@ def _refine_mesh(
             control_eval_second = control_evaluators[k + 1]
 
             # Check if merge is possible
-            # Get variable counts from unified storage
-            _, num_controls = problem.get_variable_counts()
+            num_states, num_controls = problem.get_phase_variable_counts(phase_id)
             if (
                 state_eval_first is not None
                 and state_eval_second is not None
@@ -300,6 +312,7 @@ def _refine_mesh(
                 )
             ):
                 can_merge = h_reduce_intervals(
+                    phase_id,
                     k,
                     solution,
                     problem,
@@ -373,14 +386,14 @@ def _refine_mesh(
             # Apply refinement
             action_type, action_data = refinement_actions[k]
             if action_type == "p":
-                # Fix: Handle p-refinement (single integer)
+                # Handle p-refinement (single integer)
                 assert isinstance(action_data, int), (
                     f"Expected int for p-refinement, got {type(action_data)}"
                 )
                 next_polynomial_degrees.append(action_data)
                 next_mesh_points.append(mesh_points[k + 1])
             else:  # h-refinement
-                # Fix: Handle h-refinement (list of integers)
+                # Handle h-refinement (list of integers)
                 assert isinstance(action_data, list), (
                     f"Expected list for h-refinement, got {type(action_data)}"
                 )
@@ -412,39 +425,28 @@ def _refine_mesh(
     return next_polynomial_degrees, np.array(next_mesh_points, dtype=np.float64)
 
 
-def solve_phs_adaptive_internal(
+def solve_multiphase_phs_adaptive_internal(
     problem: ProblemProtocol,
-    initial_polynomial_degrees: list[int],
-    initial_mesh_points: FloatArray,
     error_tolerance: float,
     max_iterations: int,
     min_polynomial_degree: int,
     max_polynomial_degree: int,
     ode_solver_tolerance: float,
-    num_error_sim_points: int,
+    ode_method: str,
+    ode_max_step: float | None,
     ode_solver,
-    initial_guess: InitialGuess | None = None,
-    ode_method: str = "RK45",
-    ode_max_step: float | None = None,
+    num_error_sim_points: int,
+    initial_guess: MultiPhaseInitialGuess | None = None,
 ) -> OptimalControlSolution:
     """
-    Internal PHS-Adaptive mesh refinement algorithm implementation.
+    Internal multiphase PHS-Adaptive mesh refinement algorithm implementation.
     """
 
-    # Log algorithm start (INFO - user cares about adaptive progress)
+    # Log algorithm start
     logger.info(
-        "Starting adaptive mesh refinement: tolerance=%.1e, max_iter=%d",
+        "Starting multiphase adaptive mesh refinement: tolerance=%.1e, max_iter=%d",
         error_tolerance,
         max_iterations,
-    )
-
-    # Log algorithm parameters (DEBUG)
-    logger.debug(
-        "Adaptive parameters: poly_range=[%d,%d], ode_tol=%.1e, sim_points=%d",
-        min_polynomial_degree,
-        max_polynomial_degree,
-        ode_solver_tolerance,
-        num_error_sim_points,
     )
 
     # Store adaptive parameters
@@ -460,215 +462,272 @@ def solve_phs_adaptive_internal(
         ode_solver=ode_solver,
     )
 
-    # Initialize mesh configuration
-    current_polynomial_degrees = list(initial_polynomial_degrees)
-    current_mesh_points = initial_mesh_points.copy()
-    most_recent_solution: OptimalControlSolution | None = None
-
-    # Log initial mesh (DEBUG)
-    logger.debug(
-        "Initial mesh: degrees=%s, intervals=%d",
-        current_polynomial_degrees,
-        len(current_polynomial_degrees),
+    # Initialize multiphase adaptive state
+    phase_ids = problem.get_phase_ids()
+    adaptive_state = MultiphaseAdaptiveState(
+        phase_polynomial_degrees={},
+        phase_mesh_points={},
+        phase_converged=dict.fromkeys(phase_ids, False),
+        iteration=0,
     )
 
-    # Import solver function
-    from trajectolab.direct_solver import solve_single_phase_radau_collocation
+    # Initialize mesh configuration from problem
+    for phase_id in phase_ids:
+        phase_def = problem._phases[phase_id]
+        if not phase_def.mesh_configured:
+            raise ValueError(f"Phase {phase_id} mesh must be configured before adaptive solving")
+
+        adaptive_state.phase_polynomial_degrees[phase_id] = list(
+            phase_def.collocation_points_per_interval
+        )
+        adaptive_state.phase_mesh_points[phase_id] = phase_def.global_normalized_mesh_nodes.copy()
+
+    # Log initial mesh configuration
+    for phase_id in phase_ids:
+        logger.debug(
+            "Phase %d initial mesh: degrees=%s, intervals=%d",
+            phase_id,
+            adaptive_state.phase_polynomial_degrees[phase_id],
+            len(adaptive_state.phase_polynomial_degrees[phase_id]),
+        )
+
+    # Import unified multiphase solver
+    from trajectolab.direct_solver import solve_multiphase_radau_collocation
 
     # Main adaptive refinement loop
     for iteration in range(max_iterations):
-        # Log iteration start (INFO - user cares about progress)
-        logger.info("Adaptive iteration %d/%d", iteration + 1, max_iterations)
+        adaptive_state.iteration = iteration
 
-        # Configure problem mesh
-        problem.set_mesh(current_polynomial_degrees, current_mesh_points)
+        # Log iteration start
+        logger.info("Multiphase adaptive iteration %d/%d", iteration + 1, max_iterations)
 
+        # Configure all phase meshes in the unified problem
+        adaptive_state.configure_problem_meshes(problem)
+
+        # Handle initial guess
         if iteration == 0:
             _handle_first_iteration_initial_guess(problem, initial_guess)
         else:
-            if most_recent_solution is None:
-                raise ValueError("No previous solution available for propagation")
+            if adaptive_state.most_recent_unified_solution is None:
+                raise ValueError("No previous unified solution available for propagation")
 
-            logger.debug("Propagating solution to new mesh")
-            propagated_guess = propagate_solution_to_new_mesh(
-                most_recent_solution,
+            logger.debug("Propagating unified solution to new multiphase meshes")
+            propagated_guess = propagate_multiphase_solution_to_new_meshes(
+                adaptive_state.most_recent_unified_solution,
                 problem,
-                current_polynomial_degrees,
-                current_mesh_points,
+                adaptive_state.phase_polynomial_degrees,
+                adaptive_state.phase_mesh_points,
             )
             problem.initial_guess = propagated_guess
 
-        # Solve optimal control problem
-        logger.debug("Solving NLP for iteration %d", iteration + 1)
-        solution = solve_single_phase_radau_collocation(problem)
+        # Solve unified multiphase NLP
+        logger.debug("Solving unified multiphase NLP for iteration %d", iteration + 1)
+        solution = solve_multiphase_radau_collocation(problem)
 
         if not solution.success:
-            logger.warning("NLP solve failed in iteration %d: %s", iteration + 1, solution.message)
+            logger.warning(
+                "Unified NLP solve failed in iteration %d: %s", iteration + 1, solution.message
+            )
 
-            if most_recent_solution is not None:
-                most_recent_solution.message = f"Adaptive stopped due to solver failure in iteration {iteration + 1}: {solution.message}"
-                most_recent_solution.success = False
-                logger.info("Returning last successful solution")
-                return most_recent_solution
+            if adaptive_state.most_recent_unified_solution is not None:
+                adaptive_state.most_recent_unified_solution.message = f"Adaptive stopped due to solver failure in iteration {iteration + 1}: {solution.message}"
+                adaptive_state.most_recent_unified_solution.success = False
+                logger.info("Returning last successful unified solution")
+                return adaptive_state.most_recent_unified_solution
             else:
-                solution.message = f"Adaptive failed in first iteration: {solution.message}"
-                logger.error("No successful solution obtained")
+                solution.message = (
+                    f"Multiphase adaptive failed in first iteration: {solution.message}"
+                )
+                logger.error("No successful unified solution obtained")
                 return solution
 
-        # Extract trajectories
+        # Extract trajectories from unified solution for all phases
         try:
-            _extract_solution_trajectories(solution, problem, current_polynomial_degrees)
-            logger.debug("Solution trajectories extracted successfully")
+            _extract_multiphase_solution_trajectories(solution, problem)
+            logger.debug("Multiphase solution trajectories extracted successfully")
         except Exception as e:
             logger.error(
-                "Failed to extract trajectories in iteration %d: %s", iteration + 1, str(e)
+                "Failed to extract multiphase trajectories in iteration %d: %s",
+                iteration + 1,
+                str(e),
             )
-            solution.message = f"Failed to extract trajectories: {e}"
+            solution.message = f"Failed to extract multiphase trajectories: {e}"
             solution.success = False
             return solution
+
+        # CRITICAL FIX: Store the mesh information that was ACTUALLY used for this solve
+        # This must be done BEFORE any mesh refinement
+        solution.phase_mesh_intervals = adaptive_state.phase_polynomial_degrees.copy()
+        solution.phase_mesh_nodes = adaptive_state.phase_mesh_points.copy()
 
         # Update most recent successful solution
-        most_recent_solution = solution
-        most_recent_solution.num_collocation_nodes_list_at_solve_time = (
-            current_polynomial_degrees.copy()
-        )
-        most_recent_solution.global_mesh_nodes_at_solve_time = current_mesh_points.copy()
+        adaptive_state.most_recent_unified_solution = solution
 
-        # Calculate gamma normalization factors
-        gamma_factors = calculate_gamma_normalizers(solution, problem)
-        num_states, _ = problem.get_variable_counts()
-        if gamma_factors is None and num_states > 0:
-            logger.error("Failed to calculate gamma normalizers in iteration %d", iteration + 1)
-            solution.message = f"Failed to calculate gamma normalizers at iteration {iteration + 1}"
-            solution.success = False
-            return solution
+        # Process each phase for convergence and refinement
+        any_phase_needs_refinement = False
 
-        safe_gamma = (
-            gamma_factors
-            if gamma_factors is not None
-            else np.ones((num_states, 1), dtype=np.float64)
-        )
+        for phase_id in phase_ids:
+            logger.debug(f"Processing phase {phase_id} for iteration {iteration + 1}")
 
-        # Create interpolants and calculate errors
-        logger.debug("Creating interpolants and estimating errors")
-        state_evaluators, control_evaluators = _create_interpolants(
-            solution, problem, current_polynomial_degrees
-        )
+            # Calculate gamma normalization factors for this phase
+            gamma_factors = calculate_gamma_normalizers_for_phase(solution, problem, phase_id)
+            num_states, _ = problem.get_phase_variable_counts(phase_id)
+            if gamma_factors is None and num_states > 0:
+                logger.error(
+                    "Failed to calculate gamma normalizers for phase %d in iteration %d",
+                    phase_id,
+                    iteration + 1,
+                )
+                solution.message = f"Failed to calculate gamma normalizers for phase {phase_id} at iteration {iteration + 1}"
+                solution.success = False
+                return solution
 
-        errors = _estimate_errors(
-            solution,
-            problem,
-            current_polynomial_degrees,
-            state_evaluators,
-            control_evaluators,
-            adaptive_params,
-            safe_gamma,
-        )
+            safe_gamma = (
+                gamma_factors
+                if gamma_factors is not None
+                else np.ones((num_states, 1), dtype=np.float64)
+            )
 
-        # Log error analysis (INFO - user cares about convergence)
-        max_error = max(errors) if errors else 0.0
-        avg_error = np.mean(errors) if errors else 0.0
-        logger.info(
-            "Error analysis: max=%.2e, avg=%.2e, tolerance=%.2e",
-            max_error,
-            avg_error,
-            error_tolerance,
-        )
+            # Create interpolants and calculate errors for this phase
+            state_evaluators, control_evaluators = _create_phase_interpolants(
+                solution, problem, phase_id
+            )
 
-        # Check convergence
-        all_errors_within_tolerance = all(
-            not (np.isnan(error) or np.isinf(error)) and error <= adaptive_params.error_tolerance
-            for error in errors
-        )
+            phase_errors = _estimate_phase_errors(
+                solution,
+                problem,
+                phase_id,
+                state_evaluators,
+                control_evaluators,
+                adaptive_params,
+                safe_gamma,
+            )
 
-        if all_errors_within_tolerance:
-            # Log convergence success (INFO - user cares about final result)
-            logger.info("Adaptive refinement converged in %d iterations", iteration + 1)
+            # Log phase error analysis
+            max_phase_error = max(phase_errors) if phase_errors else 0.0
+            avg_phase_error = np.mean(phase_errors) if phase_errors else 0.0
+            logger.info(
+                "Phase %d error analysis: max=%.2e, avg=%.2e, tolerance=%.2e",
+                phase_id,
+                max_phase_error,
+                avg_phase_error,
+                error_tolerance,
+            )
 
-            solution.num_collocation_nodes_per_interval = current_polynomial_degrees.copy()
-            solution.global_normalized_mesh_nodes = current_mesh_points.copy()
+            # Check phase convergence
+            phase_converged = all(
+                not (np.isnan(error) or np.isinf(error))
+                and error <= adaptive_params.error_tolerance
+                for error in phase_errors
+            )
+
+            adaptive_state.phase_converged[phase_id] = phase_converged
+
+            if not phase_converged:
+                any_phase_needs_refinement = True
+
+                # Refine mesh for this phase
+                try:
+                    logger.debug("Refining mesh for phase %d", phase_id)
+                    (
+                        adaptive_state.phase_polynomial_degrees[phase_id],
+                        adaptive_state.phase_mesh_points[phase_id],
+                    ) = _refine_phase_mesh(
+                        phase_id,
+                        adaptive_state.phase_polynomial_degrees[phase_id],
+                        adaptive_state.phase_mesh_points[phase_id],
+                        phase_errors,
+                        adaptive_params,
+                        solution,
+                        problem,
+                        state_evaluators,
+                        control_evaluators,
+                        safe_gamma,
+                    )
+
+                    # Log mesh refinement result
+                    logger.debug(
+                        "Phase %d mesh refined: new_degrees=%s, new_intervals=%d",
+                        phase_id,
+                        adaptive_state.phase_polynomial_degrees[phase_id],
+                        len(adaptive_state.phase_polynomial_degrees[phase_id]),
+                    )
+
+                except Exception as e:
+                    logger.error(
+                        "Mesh refinement failed for phase %d in iteration %d: %s",
+                        phase_id,
+                        iteration + 1,
+                        str(e),
+                    )
+                    if adaptive_state.most_recent_unified_solution is not None:
+                        adaptive_state.most_recent_unified_solution.message = (
+                            f"Mesh refinement failed for phase {phase_id}: {e}"
+                        )
+                        adaptive_state.most_recent_unified_solution.success = False
+                        return adaptive_state.most_recent_unified_solution
+
+        # Check global convergence
+        if not any_phase_needs_refinement:
+            # Log convergence success
+            logger.info("Multiphase adaptive refinement converged in %d iterations", iteration + 1)
+
             solution.message = (
-                f"Adaptive mesh converged to tolerance {adaptive_params.error_tolerance:.1e} "
+                f"Multiphase adaptive mesh converged to tolerance {adaptive_params.error_tolerance:.1e} "
                 f"in {iteration + 1} iterations"
             )
             return solution
 
-        # Refine mesh for next iteration
-        try:
-            logger.debug("Refining mesh for next iteration")
-            current_polynomial_degrees, current_mesh_points = _refine_mesh(
-                current_polynomial_degrees,
-                current_mesh_points,
-                errors,
-                adaptive_params,
-                solution,
-                problem,
-                state_evaluators,
-                control_evaluators,
-                safe_gamma,
-            )
-
-            # Log mesh refinement result (DEBUG)
-            logger.debug(
-                "Mesh refined: new_degrees=%s, new_intervals=%d",
-                current_polynomial_degrees,
-                len(current_polynomial_degrees),
-            )
-
-        except Exception as e:
-            logger.error("Mesh refinement failed in iteration %d: %s", iteration + 1, str(e))
-            if most_recent_solution is not None:
-                most_recent_solution.message = f"Mesh refinement failed: {e}"
-                most_recent_solution.success = False
-                return most_recent_solution
-
     # Maximum iterations reached
     logger.warning(
-        "Adaptive refinement reached maximum iterations (%d) without convergence", max_iterations
+        "Multiphase adaptive refinement reached maximum iterations (%d) without convergence",
+        max_iterations,
     )
 
-    if most_recent_solution is not None:
+    if adaptive_state.most_recent_unified_solution is not None:
         max_iter_msg = (
             f"Reached maximum iterations ({max_iterations}) without full convergence "
             f"to tolerance {adaptive_params.error_tolerance:.1e}"
         )
-        most_recent_solution.message = max_iter_msg
-        most_recent_solution.num_collocation_nodes_per_interval = current_polynomial_degrees.copy()
-        most_recent_solution.global_normalized_mesh_nodes = current_mesh_points.copy()
-        return most_recent_solution
+        adaptive_state.most_recent_unified_solution.message = max_iter_msg
+        return adaptive_state.most_recent_unified_solution
     else:
         # Create failure solution
         failed_solution = OptimalControlSolution()
         failed_solution.success = False
-        failed_solution.message = f"No successful solution obtained in {max_iterations} iterations"
-        failed_solution.num_collocation_nodes_per_interval = current_polynomial_degrees
-        failed_solution.global_normalized_mesh_nodes = current_mesh_points
-        logger.error("Adaptive refinement failed completely")
+        failed_solution.message = (
+            f"No successful unified solution obtained in {max_iterations} iterations"
+        )
+        logger.error("Multiphase adaptive refinement failed completely")
         return failed_solution
 
 
 def _handle_first_iteration_initial_guess(
     problem: ProblemProtocol,
-    initial_guess: InitialGuess | None,
+    initial_guess: MultiPhaseInitialGuess | None,
 ) -> None:
     """
-    Handle initial guess for the first iteration.
+    Handle initial guess for the first iteration of multiphase adaptive.
 
     Args:
-        problem: The problem object
-        initial_guess: User-provided initial guess
+        problem: The multiphase problem object
+        initial_guess: User-provided multiphase initial guess
     """
     if problem.initial_guess is not None:
         try:
-            problem.validate_initial_guess()
+            from trajectolab.input_validation import validate_multiphase_initial_guess_structure
+
+            validate_multiphase_initial_guess_structure(problem.initial_guess, problem)
         except ValueError as e:
-            raise ValueError(f"Initial guess invalid for mesh: {e}") from e
+            raise ValueError(f"Initial guess invalid for multiphase mesh: {e}") from e
     elif initial_guess is not None:
-        # The problem's set_initial_guess method handles the transformation
+        # Set the initial guess and validate
         problem.initial_guess = initial_guess
         try:
-            problem.validate_initial_guess()
+            from trajectolab.input_validation import validate_multiphase_initial_guess_structure
+
+            validate_multiphase_initial_guess_structure(problem.initial_guess, problem)
         except ValueError as e:
-            raise ValueError(f"Initial guess invalid for mesh: {e}") from e
+            raise ValueError(f"Initial guess invalid for multiphase mesh: {e}") from e
     else:
         problem.initial_guess = None

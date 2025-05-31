@@ -1,5 +1,5 @@
 """
-Error estimation functions using forward and backward dynamics simulation.
+Error estimation functions using forward and backward dynamics simulation for multiphase problems.
 """
 
 import logging
@@ -14,18 +14,18 @@ from trajectolab.tl_types import (
     FloatArray,
     ODESolverCallable,
     OptimalControlSolution,
+    PhaseID,
     ProblemProtocol,
 )
 from trajectolab.utils.constants import DEFAULT_ODE_RTOL
 
 
 __all__ = [
-    "calculate_gamma_normalizers",
+    "calculate_gamma_normalizers_for_phase",
     "calculate_relative_error_estimate",
-    "simulate_dynamics_for_error_estimation",
+    "simulate_dynamics_for_phase_interval_error_estimation",
 ]
 
-# Set up logging for this module
 logger = logging.getLogger(__name__)
 
 
@@ -41,8 +41,10 @@ def _calculate_gamma_normalization_factors(max_state_values: FloatArray) -> Floa
     return gamma_factors.reshape(-1, 1)
 
 
-def _find_maximum_state_values_across_intervals(Y_solved_list: list[FloatArray]) -> FloatArray:
-    """Pure maximum value calculation across intervals - easily testable."""
+def _find_maximum_state_values_across_phase_intervals(
+    Y_solved_list: list[FloatArray],
+) -> FloatArray:
+    """Pure maximum value calculation across intervals in a phase - easily testable."""
     if not Y_solved_list:
         return np.array([], dtype=np.float64)
 
@@ -136,14 +138,13 @@ def _calculate_combined_error_estimate(
     if combined_errors_per_state.size > 0:
         max_error = float(np.nanmax(combined_errors_per_state))
     else:  # No states
-        max_error = 0.0  # Or np.inf if that's more appropriate for zero states
+        max_error = 0.0
 
     # If all per-state errors were NaN, nanmax returns NaN (with a warning)
     if np.isnan(max_error):
         return np.inf
 
-    # Ensure a minimum error threshold for numerical stability or to drive refinement
-    # This threshold was mentioned as 1e-15 in tests.
+    # Ensure a minimum error threshold for numerical stability
     MIN_ERROR_THRESHOLD = 1e-15
     if max_error < MIN_ERROR_THRESHOLD and max_error != 0.0:  # Allow true zero error
         max_error = MIN_ERROR_THRESHOLD
@@ -204,9 +205,10 @@ def _simulate_backward(
         return False, np.array([])
 
 
-def simulate_dynamics_for_error_estimation(
+def simulate_dynamics_for_phase_interval_error_estimation(
+    phase_id: PhaseID,
     interval_idx: int,
-    solution: "OptimalControlSolution",
+    solution: OptimalControlSolution,
     problem: ProblemProtocol,
     state_evaluator: Callable[[float | FloatArray], FloatArray],
     control_evaluator: Callable[[float | FloatArray], FloatArray],
@@ -215,42 +217,49 @@ def simulate_dynamics_for_error_estimation(
     n_eval_points: int = 50,
 ) -> IntervalSimulationBundle:
     """
-    Simulates dynamics forward and backward for error estimation - SIMPLIFIED.
-    Updated to use unified storage system.
+    Simulates dynamics forward and backward for error estimation in a specific phase interval.
+    Updated to work with unified multiphase solution.
     """
     result = IntervalSimulationBundle(are_forward_and_backward_simulations_successful=False)
 
     if not solution.success or solution.raw_solution is None:
-        logger.warning(f"NLP solution unsuccessful for interval {interval_idx}")
+        logger.warning(f"NLP solution unsuccessful for phase {phase_id} interval {interval_idx}")
         return result
 
-    # Get variable counts from unified storage - ORCHESTRATION SETUP
-    num_states, num_controls = problem.get_variable_counts()
-    casadi_dynamics_function = problem.get_dynamics_function()
+    # Get variable counts for this phase
+    num_states, num_controls = problem.get_phase_variable_counts(phase_id)
+    phase_dynamics_function = problem.get_phase_dynamics_function(phase_id)
 
-    # Validate time variables - ORCHESTRATION SETUP
-    if solution.initial_time_variable is None or solution.terminal_time_variable is None:
-        logger.error(f"Missing time variables for interval {interval_idx}")
+    # Validate time variables for this phase
+    if (
+        phase_id not in solution.phase_initial_times
+        or phase_id not in solution.phase_terminal_times
+    ):
+        logger.error(f"Missing time variables for phase {phase_id} interval {interval_idx}")
         return result
 
-    # Time transformation parameters - ORCHESTRATION SETUP
-    t0 = solution.initial_time_variable
-    tf = solution.terminal_time_variable
+    # Time transformation parameters for this phase
+    t0 = solution.phase_initial_times[phase_id]
+    tf = solution.phase_terminal_times[phase_id]
     alpha = (tf - t0) / 2.0
     alpha_0 = (tf + t0) / 2.0
 
-    # Validate global mesh - ORCHESTRATION SETUP
-    if solution.global_normalized_mesh_nodes is None:
-        logger.error(f"Missing global mesh for interval {interval_idx}")
+    # Validate phase mesh
+    if phase_id not in solution.phase_mesh_nodes:
+        logger.error(f"Missing mesh for phase {phase_id} interval {interval_idx}")
         return result
 
-    global_mesh = solution.global_normalized_mesh_nodes
+    global_mesh = solution.phase_mesh_nodes[phase_id]
+    if interval_idx + 1 >= len(global_mesh):
+        logger.error(f"Interval {interval_idx} out of bounds for phase {phase_id} mesh")
+        return result
+
     tau_start = global_mesh[interval_idx]
     tau_end = global_mesh[interval_idx + 1]
 
     beta_k = (tau_end - tau_start) / 2.0
     if abs(beta_k) < 1e-12:
-        logger.warning(f"Interval {interval_idx} has zero length")
+        logger.warning(f"Phase {phase_id} interval {interval_idx} has zero length")
         return result
 
     beta_k0 = (tau_end + tau_start) / 2.0
@@ -267,24 +276,24 @@ def simulate_dynamics_for_error_estimation(
         global_tau = beta_k * tau + beta_k0
         physical_time = alpha * global_tau + alpha_0
 
-        # Get dynamics result as list[ca.MX] from protocol
-        dynamics_result = casadi_dynamics_function(
+        # Get dynamics result as list[ca.MX] from phase-specific dynamics
+        dynamics_result = phase_dynamics_function(
             ca.MX(state), ca.MX(control), ca.MX(physical_time)
         )
 
-        # Convert list[ca.MX] to numpy - protocol guarantees this is a list
+        # Convert list[ca.MX] to numpy
         state_deriv_np = np.array(
             [float(ca.evalf(expr)) for expr in dynamics_result], dtype=np.float64
         )
 
         if state_deriv_np.shape[0] != num_states:
             raise ValueError(
-                f"Dynamics output dimension mismatch. Expected {num_states}, got {state_deriv_np.shape[0]}"
+                f"Phase {phase_id} dynamics output dimension mismatch. Expected {num_states}, got {state_deriv_np.shape[0]}"
             )
 
         return cast(FloatArray, overall_scaling * state_deriv_np)
 
-    # Forward simulation - ORCHESTRATION
+    # Forward simulation
     initial_state = state_evaluator(-1.0)
     if initial_state.ndim > 1:
         initial_state = initial_state.flatten()
@@ -294,7 +303,7 @@ def simulate_dynamics_for_error_estimation(
         dynamics_rhs, initial_state, fwd_tau_points, ode_solver, ode_rtol
     )
 
-    # Store forward results - ORCHESTRATION
+    # Store forward results
     result.forward_simulation_local_tau_evaluation_points = fwd_tau_points
     if fwd_success:
         result.state_trajectory_from_forward_simulation = fwd_trajectory
@@ -307,7 +316,7 @@ def simulate_dynamics_for_error_estimation(
         fwd_tau_points
     )
 
-    # Backward simulation - ORCHESTRATION
+    # Backward simulation
     terminal_state = state_evaluator(1.0)
     if terminal_state.ndim > 1:
         terminal_state = terminal_state.flatten()
@@ -317,7 +326,7 @@ def simulate_dynamics_for_error_estimation(
         dynamics_rhs, terminal_state, bwd_tau_points, ode_solver, ode_rtol
     )
 
-    # Store backward results - ORCHESTRATION
+    # Store backward results
     sorted_bwd_tau_points = np.flip(bwd_tau_points)
     result.backward_simulation_local_tau_evaluation_points = sorted_bwd_tau_points
 
@@ -337,10 +346,13 @@ def simulate_dynamics_for_error_estimation(
 
 
 def calculate_relative_error_estimate(
-    interval_idx: int, sim_bundle: IntervalSimulationBundle, gamma_factors: FloatArray
+    phase_id: PhaseID,
+    interval_idx: int,
+    sim_bundle: IntervalSimulationBundle,
+    gamma_factors: FloatArray,
 ) -> float:
-    """Calculates the maximum relative error estimate for an interval."""
-    # Check for failed simulations - ORCHESTRATION VALIDATION
+    """Calculates the maximum relative error estimate for a phase interval."""
+    # Check for failed simulations
     if (
         not sim_bundle.are_forward_and_backward_simulations_successful
         or sim_bundle.state_trajectory_from_forward_simulation is None
@@ -348,7 +360,9 @@ def calculate_relative_error_estimate(
         or sim_bundle.state_trajectory_from_backward_simulation is None
         or sim_bundle.nlp_state_trajectory_evaluated_at_backward_simulation_points is None
     ):
-        logger.warning(f"Incomplete simulation results for interval {interval_idx}")
+        logger.warning(
+            f"Incomplete simulation results for phase {phase_id} interval {interval_idx}"
+        )
         return np.inf
 
     num_states = sim_bundle.state_trajectory_from_forward_simulation.shape[0]
@@ -361,7 +375,9 @@ def calculate_relative_error_estimate(
         sim_bundle.nlp_state_trajectory_evaluated_at_forward_simulation_points,
         gamma_factors,
     )
-    logger.debug(f"Forward max difference for interval {interval_idx}: {np.max(fwd_diff):.2e}")
+    logger.debug(
+        f"Phase {phase_id} interval {interval_idx} forward max difference: {np.max(fwd_diff):.2e}"
+    )
 
     # Backward errors using MATHEMATICAL CORE
     bwd_diff, max_bwd_errors = _calculate_trajectory_error_differences(
@@ -369,37 +385,46 @@ def calculate_relative_error_estimate(
         sim_bundle.nlp_state_trajectory_evaluated_at_backward_simulation_points,
         gamma_factors,
     )
-    logger.debug(f"Backward max difference for interval {interval_idx}: {np.max(bwd_diff):.2e}")
+    logger.debug(
+        f"Phase {phase_id} interval {interval_idx} backward max difference: {np.max(bwd_diff):.2e}"
+    )
 
     # Combined error using MATHEMATICAL CORE
     max_error = _calculate_combined_error_estimate(max_fwd_errors, max_bwd_errors)
 
     if np.isnan(max_error):
-        logger.warning(f"Error calculation resulted in NaN for interval {interval_idx}")
+        logger.warning(
+            f"Error calculation resulted in NaN for phase {phase_id} interval {interval_idx}"
+        )
         return np.inf
 
     return max_error
 
 
-def calculate_gamma_normalizers(
-    solution: "OptimalControlSolution", problem: ProblemProtocol
+def calculate_gamma_normalizers_for_phase(
+    solution: OptimalControlSolution, problem: ProblemProtocol, phase_id: PhaseID
 ) -> FloatArray | None:
-    """Calculates gamma_i normalization factors for error estimation - SIMPLIFIED."""
+    """Calculates gamma_i normalization factors for error estimation for a specific phase."""
     if not solution.success or solution.raw_solution is None:
         return None
 
-    # Get variable counts from unified storage - ORCHESTRATION SETUP
-    num_states, _ = problem.get_variable_counts()
+    # Get variable counts for this phase
+    num_states, _ = problem.get_phase_variable_counts(phase_id)
     if num_states == 0:
         return np.array([], dtype=np.float64).reshape(0, 1)
 
-    Y_solved_list = solution.solved_state_trajectories_per_interval
+    # Get phase-specific state trajectories
+    if phase_id not in solution.phase_solved_state_trajectories_per_interval:
+        logger.warning(f"Missing solved state trajectories for phase {phase_id} gamma calculation")
+        return None
+
+    Y_solved_list = solution.phase_solved_state_trajectories_per_interval[phase_id]
     if not Y_solved_list:
-        logger.warning("Missing solved state trajectories for gamma calculation")
+        logger.warning(f"Empty solved state trajectories for phase {phase_id} gamma calculation")
         return None
 
     # Use MATHEMATICAL CORE for calculation
-    max_abs_values = _find_maximum_state_values_across_intervals(Y_solved_list)
+    max_abs_values = _find_maximum_state_values_across_phase_intervals(Y_solved_list)
     gamma_factors = _calculate_gamma_normalization_factors(max_abs_values)
 
     return gamma_factors

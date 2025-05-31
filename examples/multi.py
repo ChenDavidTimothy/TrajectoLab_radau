@@ -68,7 +68,7 @@ def solve_two_phase_hypersensitive_debug():
     )
 
     print("Solving with IPOPT print_level = 3...")
-    solution = tl.solve_fixed_mesh(
+    solution = tl.solve_adaptive(
         problem_phase,
         nlp_options={
             "ipopt.print_level": 0,  # Increased verbosity

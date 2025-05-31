@@ -1,5 +1,5 @@
 """
-Mesh refinement strategies including p-refinement, h-refinement, and reduction.
+Mesh refinement strategies including p-refinement, h-refinement, and reduction for multiphase problems.
 """
 
 import logging
@@ -24,6 +24,7 @@ from trajectolab.adaptive.phs.numerical import (
 from trajectolab.tl_types import (
     FloatArray,
     OptimalControlSolution,
+    PhaseID,
     ProblemProtocol,
 )
 from trajectolab.utils.casadi_utils import convert_casadi_to_numpy
@@ -54,9 +55,9 @@ def _calculate_merge_feasibility_from_errors(
         else np.array([], dtype=np.float64)
     )
 
-    # FIX: Handle case where both error lists are actually empty
+    # Handle case where both error lists are actually empty
     if not np_fwd_errors.size and not np_bwd_errors.size:
-        return False, np.inf  # As per test expectation
+        return False, np.inf
 
     if np.any(np.isnan(np_fwd_errors)) or np.any(np.isnan(np_bwd_errors)):
         return False, np.inf
@@ -179,8 +180,9 @@ def p_reduce_interval(
 
 
 def h_reduce_intervals(
+    phase_id: PhaseID,
     first_idx: int,
-    solution: "OptimalControlSolution",
+    solution: OptimalControlSolution,
     problem: ProblemProtocol,
     adaptive_params: AdaptiveParameters,
     gamma_factors: FloatArray,
@@ -189,28 +191,34 @@ def h_reduce_intervals(
     state_evaluator_second: Callable[[float | FloatArray], FloatArray],
     control_evaluator_second: Callable[[float | FloatArray], FloatArray] | None,
 ) -> bool:
-    """Check if two adjacent intervals can be merged."""
+    """Check if two adjacent intervals in a specific phase can be merged."""
 
-    # Log h-reduction attempt (DEBUG - developer info)
-    logger.debug("Checking h-reduction for intervals %d and %d", first_idx, first_idx + 1)
+    # Log h-reduction attempt
+    logger.debug(
+        "Checking h-reduction for phase %d intervals %d and %d", phase_id, first_idx, first_idx + 1
+    )
 
     error_tol = adaptive_params.error_tolerance
     ode_rtol = adaptive_params.ode_solver_tolerance
     ode_atol = ode_rtol * DEFAULT_ODE_ATOL_FACTOR
     num_sim_points = adaptive_params.num_error_sim_points
 
-    # Get variable counts from unified storage
-    num_states, _ = problem.get_variable_counts()
-    casadi_dynamics_function = cast(ca.Function, problem.get_dynamics_function())
+    # Get variable counts for this phase
+    num_states, _ = problem.get_phase_variable_counts(phase_id)
+    phase_dynamics_function = cast(ca.Function, problem.get_phase_dynamics_function(phase_id))
 
     if solution.raw_solution is None:
         logger.debug("h-reduction failed: Raw solution missing")
         return False
 
-    # Extract mesh and time information - ORCHESTRATION SETUP
-    global_mesh = solution.global_normalized_mesh_nodes
-    if global_mesh is None:
-        logger.debug("h-reduction failed: Global mesh is None")
+    # Extract mesh and time information for this phase
+    if phase_id not in solution.phase_mesh_nodes:
+        logger.debug("h-reduction failed: Phase %d mesh is None", phase_id)
+        return False
+
+    global_mesh = solution.phase_mesh_nodes[phase_id]
+    if first_idx + 2 >= len(global_mesh):
+        logger.debug("h-reduction failed: Phase %d insufficient mesh points", phase_id)
         return False
 
     tau_start_k = global_mesh[first_idx]
@@ -221,17 +229,23 @@ def h_reduce_intervals(
     beta_kp1 = (tau_end_kp1 - tau_shared) / 2.0
 
     if abs(beta_k) < 1e-12 or abs(beta_kp1) < 1e-12:
-        logger.debug("h-reduction check: One interval has zero length. Merge not possible")
+        logger.debug(
+            "h-reduction check: Phase %d one interval has zero length. Merge not possible", phase_id
+        )
         return False
 
-    # Time transformation parameters - ORCHESTRATION SETUP
-    t0 = solution.initial_time_variable
-    tf = solution.terminal_time_variable
-
-    # Check for None values before arithmetic operations
-    if t0 is None or tf is None:
-        logger.warning("h-reduction failed: Initial or terminal time is None")
+    # Time transformation parameters for this phase
+    if (
+        phase_id not in solution.phase_initial_times
+        or phase_id not in solution.phase_terminal_times
+    ):
+        logger.warning(
+            "h-reduction failed: Initial or terminal time missing for phase %d", phase_id
+        )
         return False
+
+    t0 = solution.phase_initial_times[phase_id]
+    tf = solution.phase_terminal_times[phase_id]
 
     alpha = (tf - t0) / 2.0
     alpha_0 = (tf + t0) / 2.0
@@ -261,7 +275,7 @@ def h_reduce_intervals(
 
         # Use consolidated conversion function
         f_rhs_np = convert_casadi_to_numpy(
-            cast(ca.Function, casadi_dynamics_function),
+            cast(ca.Function, phase_dynamics_function),
             state_clipped,
             u_val,
             t_actual,
@@ -278,35 +292,50 @@ def h_reduce_intervals(
         t_actual = alpha * global_tau + alpha_0
 
         # Use consolidated conversion function
-        f_rhs_np = convert_casadi_to_numpy(casadi_dynamics_function, state_clipped, u_val, t_actual)
+        f_rhs_np = convert_casadi_to_numpy(phase_dynamics_function, state_clipped, u_val, t_actual)
         return cast(FloatArray, scaling_kp1 * f_rhs_np)
 
-    # Get state values at interval endpoints - ORCHESTRATION SETUP
+    # Get state values at interval endpoints for this phase
     try:
-        Y_solved_list = solution.solved_state_trajectories_per_interval
-        Nk_k = problem.collocation_points_per_interval[first_idx]
-        Nk_kp1 = problem.collocation_points_per_interval[first_idx + 1]
-
-        if Y_solved_list and first_idx < len(Y_solved_list):
-            Xk_nlp = Y_solved_list[first_idx]
-        else:  # Fallback
+        if phase_id in solution.phase_solved_state_trajectories_per_interval and first_idx < len(
+            solution.phase_solved_state_trajectories_per_interval[phase_id]
+        ):
+            Xk_nlp = solution.phase_solved_state_trajectories_per_interval[phase_id][first_idx]
+        else:
+            # Fallback to raw extraction
             opti = solution.opti_object
             raw_sol = solution.raw_solution
             if opti is None or raw_sol is None:
                 logger.warning("h-reduction failed: Optimization object or raw solution is None")
                 return False
 
+            variables = opti.multiphase_variables_reference
+            if phase_id not in variables.phase_variables or first_idx >= len(
+                variables.phase_variables[phase_id].state_matrices
+            ):
+                logger.warning(
+                    "h-reduction failed: Missing state matrix for phase %d interval %d",
+                    phase_id,
+                    first_idx,
+                )
+                return False
+
+            phase_def = problem._phases[phase_id]
+            Nk_k = phase_def.collocation_points_per_interval[first_idx]
+
             Xk_nlp_raw = raw_sol.value(
-                opti.state_at_local_approximation_nodes_all_intervals_variables[first_idx]
+                variables.phase_variables[phase_id].state_matrices[first_idx]
             )
             Xk_nlp = extract_and_prepare_array(Xk_nlp_raw, num_states, Nk_k + 1)
 
         initial_state_fwd = Xk_nlp[:, 0].flatten()
     except Exception as e:
-        logger.warning("h-reduction failed: Error getting initial state: %s", str(e))
+        logger.warning(
+            "h-reduction failed: Error getting initial state for phase %d: %s", phase_id, str(e)
+        )
         return False
 
-    # Forward simulation through merged domain - ORCHESTRATION
+    # Forward simulation through merged domain
     target_end_tau_k = map_local_tau_from_interval_k_plus_1_to_equivalent_in_interval_k(
         1.0, tau_start_k, tau_shared, tau_end_kp1
     )
@@ -314,7 +343,8 @@ def h_reduce_intervals(
     fwd_tau_points = np.linspace(-1.0, target_end_tau_k, num_fwd_pts, dtype=np.float64)
 
     logger.info(
-        "h-reduction: Starting merged forward simulation from zeta_k=-1 to %.3f (%d points)",
+        "h-reduction: Starting merged forward simulation for phase %d from zeta_k=-1 to %.3f (%d points)",
+        phase_id,
         target_end_tau_k,
         num_fwd_pts,
     )
@@ -341,32 +371,55 @@ def h_reduce_intervals(
             fwd_trajectory = fwd_sim.y
             fwd_sim_success = True
         else:
-            logger.warning("Merged forward simulation failed: %s", fwd_sim.message)
+            logger.warning(
+                "Phase %d merged forward simulation failed: %s", phase_id, fwd_sim.message
+            )
     except Exception as e:
-        logger.warning("Exception during merged forward simulation: %s", str(e))
+        logger.warning("Exception during phase %d merged forward simulation: %s", phase_id, str(e))
 
-    # Get terminal state for backward simulation - ORCHESTRATION SETUP
+    # Get terminal state for backward simulation
     try:
-        if Y_solved_list is not None and (first_idx + 1) < len(Y_solved_list):
-            Xkp1_nlp = Y_solved_list[first_idx + 1]
-        else:  # Fallback
+        if phase_id in solution.phase_solved_state_trajectories_per_interval and (
+            first_idx + 1
+        ) < len(solution.phase_solved_state_trajectories_per_interval[phase_id]):
+            Xkp1_nlp = solution.phase_solved_state_trajectories_per_interval[phase_id][
+                first_idx + 1
+            ]
+        else:
+            # Fallback to raw extraction
             opti = solution.opti_object
             raw_sol = solution.raw_solution
             if opti is None or raw_sol is None:
                 logger.warning("h-reduction failed: Optimization object or raw solution is None")
                 return False
 
+            variables = opti.multiphase_variables_reference
+            if phase_id not in variables.phase_variables or (first_idx + 1) >= len(
+                variables.phase_variables[phase_id].state_matrices
+            ):
+                logger.warning(
+                    "h-reduction failed: Missing state matrix for phase %d interval %d",
+                    phase_id,
+                    first_idx + 1,
+                )
+                return False
+
+            phase_def = problem._phases[phase_id]
+            Nk_kp1 = phase_def.collocation_points_per_interval[first_idx + 1]
+
             Xkp1_nlp_raw = raw_sol.value(
-                opti.state_at_local_approximation_nodes_all_intervals_variables[first_idx + 1]
+                variables.phase_variables[phase_id].state_matrices[first_idx + 1]
             )
             Xkp1_nlp = extract_and_prepare_array(Xkp1_nlp_raw, num_states, Nk_kp1 + 1)
 
         terminal_state_bwd = Xkp1_nlp[:, -1].flatten()
     except Exception as e:
-        logger.warning("h-reduction failed: Error getting terminal state: %s", str(e))
+        logger.warning(
+            "h-reduction failed: Error getting terminal state for phase %d: %s", phase_id, str(e)
+        )
         return False
 
-    # Backward simulation through merged domain - ORCHESTRATION
+    # Backward simulation through merged domain
     target_end_tau_kp1 = map_local_tau_from_interval_k_to_equivalent_in_interval_k_plus_1(
         -1.0, tau_start_k, tau_shared, tau_end_kp1
     )
@@ -375,7 +428,8 @@ def h_reduce_intervals(
     sorted_bwd_tau_points = np.flip(bwd_tau_points)
 
     logger.info(
-        "h-reduction: Starting merged backward simulation from zeta_kp1=1 to %.3f (%d points)",
+        "h-reduction: Starting merged backward simulation for phase %d from zeta_kp1=1 to %.3f (%d points)",
+        phase_id,
         target_end_tau_kp1,
         num_bwd_pts,
     )
@@ -404,14 +458,20 @@ def h_reduce_intervals(
             bwd_trajectory = np.array(flipped_data, dtype=np.float64).reshape(rows, cols)
             bwd_sim_success = True
         else:
-            logger.warning("Merged backward simulation failed: %s", bwd_sim.message)
+            logger.warning(
+                "Phase %d merged backward simulation failed: %s", phase_id, bwd_sim.message
+            )
     except Exception as e:
-        logger.warning("Exception during merged backward simulation: %s", str(e))
+        logger.warning("Exception during phase %d merged backward simulation: %s", phase_id, str(e))
 
     # For problems with no states, just check if simulations were successful
     if num_states == 0:
         can_merge = fwd_sim_success and bwd_sim_success
-        logger.debug("h-reduction check (no states): can_intervals_be_merged=%s", can_merge)
+        logger.debug(
+            "h-reduction check for phase %d (no states): can_intervals_be_merged=%s",
+            phase_id,
+            can_merge,
+        )
         return can_merge
 
     # Calculate errors for merged domain using MATHEMATICAL CORE
@@ -456,11 +516,23 @@ def h_reduce_intervals(
         all_fwd_errors, all_bwd_errors, error_tol
     )
 
-    logger.debug("h-reduction result: max_error=%.4e, can_merge=%s", max_error, can_merge)
+    logger.debug(
+        "h-reduction result for phase %d: max_error=%.4e, can_merge=%s",
+        phase_id,
+        max_error,
+        can_merge,
+    )
 
     if can_merge:
-        logger.debug("h-reduction approved for intervals %d, %d", first_idx, first_idx + 1)
+        logger.debug(
+            "h-reduction approved for phase %d intervals %d, %d", phase_id, first_idx, first_idx + 1
+        )
     else:
-        logger.debug("h-reduction rejected: error %.2e > tolerance %.2e", max_error, error_tol)
+        logger.debug(
+            "h-reduction rejected for phase %d: error %.2e > tolerance %.2e",
+            phase_id,
+            max_error,
+            error_tol,
+        )
 
     return can_merge
