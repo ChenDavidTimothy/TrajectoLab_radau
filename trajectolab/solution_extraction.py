@@ -1,6 +1,7 @@
 # trajectolab/solution_extraction.py
 """
-Solution data extraction and formatting from raw CasADi multiphase optimization results.
+Solution data extraction and formatting from raw CasADi multiphase optimization results - PURGED.
+All redundancy eliminated, using centralized validation.
 """
 
 import logging
@@ -9,12 +10,8 @@ import casadi as ca
 import numpy as np
 
 from .exceptions import DataIntegrityError, SolutionExtractionError
-from .tl_types import (
-    FloatArray,
-    OptimalControlSolution,
-    PhaseID,
-    ProblemProtocol,
-)
+from .input_validation import validate_array_numerical_integrity
+from .tl_types import FloatArray, OptimalControlSolution, PhaseID, ProblemProtocol
 
 
 logger = logging.getLogger(__name__)
@@ -26,7 +23,7 @@ def extract_multiphase_integral_values(
     phase_id: PhaseID,
     num_integrals: int,
 ) -> float | FloatArray | None:
-    """Extract integral values for a specific phase from the CasADi solution."""
+    """SINGLE SOURCE for extracting integral values for a specific phase from the CasADi solution."""
     if (
         num_integrals == 0
         or not hasattr(opti_object, "multiphase_variables_reference")
@@ -51,12 +48,12 @@ def extract_multiphase_integral_values(
             if num_integrals == 1:
                 if np_array_value.size == 1:
                     result = float(np_array_value.item())
-                    # Critical: Check for NaN/Inf in TrajectoLab's result
-                    if np.isnan(result) or np.isinf(result):
-                        raise DataIntegrityError(
-                            f"Phase {phase_id} integral value is invalid: {result}",
-                            "Numerical corruption in integral extraction",
-                        )
+                    # SINGLE validation call
+                    validate_array_numerical_integrity(
+                        np.array([result]),
+                        f"Phase {phase_id} integral value",
+                        "integral extraction",
+                    )
                     return result
                 else:
                     logger.warning(
@@ -69,22 +66,18 @@ def extract_multiphase_integral_values(
                         return np.nan
             else:
                 result_array = np_array_value.flatten().astype(np.float64)
-                # Critical: Check for NaN/Inf in TrajectoLab's result
-                if np.any(np.isnan(result_array)) or np.any(np.isinf(result_array)):
-                    raise DataIntegrityError(
-                        f"Phase {phase_id} integral array contains NaN or Inf values",
-                        "Numerical corruption in integral extraction",
-                    )
+                # SINGLE validation call
+                validate_array_numerical_integrity(
+                    result_array, f"Phase {phase_id} integral array", "integral extraction"
+                )
                 return result_array
 
-        elif isinstance(raw_value, float | int):
+        elif isinstance(raw_value, (float, int)):
             if num_integrals == 1:
                 result = float(raw_value)
-                if np.isnan(result) or np.isinf(result):
-                    raise DataIntegrityError(
-                        f"Phase {phase_id} integral value is invalid: {result}",
-                        "Numerical corruption in integral extraction",
-                    )
+                validate_array_numerical_integrity(
+                    np.array([result]), f"Phase {phase_id} integral value", "integral extraction"
+                )
                 return result
             else:
                 logger.warning(
@@ -103,7 +96,7 @@ def extract_multiphase_integral_values(
 
     except Exception as e:
         if isinstance(e, DataIntegrityError):
-            raise  # Re-raise TrajectoLab-specific errors
+            raise
         logger.warning(f"Could not extract integral values for phase {phase_id}: {e}")
         if num_integrals > 1:
             return np.full(num_integrals, np.nan, dtype=np.float64)
@@ -127,8 +120,8 @@ def process_phase_trajectory_points(
     num_variables: int,
     is_state: bool = True,
 ) -> float:
-    """Process trajectory points for a single mesh interval within a phase."""
-    # Guard clause: Validate inputs
+    """SINGLE SOURCE for processing trajectory points for a single mesh interval within a phase."""
+    # Guard clause validation
     if mesh_interval_index >= len(variables_list) or mesh_interval_index >= len(local_tau_nodes):
         raise SolutionExtractionError(
             f"Phase {phase_id}: Variable list or tau nodes incomplete for interval {mesh_interval_index}",
@@ -146,16 +139,16 @@ def process_phase_trajectory_points(
             "CasADi value extraction error",
         ) from e
 
-    # Critical: Shape validation
+    # Shape validation
     if num_variables == 1 and solved_values.ndim == 1:
         solved_values = solved_values.reshape(1, -1)
 
-    # Critical: Check for NaN/Inf in solution values
-    if np.any(np.isnan(solved_values)) or np.any(np.isinf(solved_values)):
-        raise DataIntegrityError(
-            f"Phase {phase_id} solution values for interval {mesh_interval_index} contain NaN or Inf",
-            "Numerical corruption in solution data",
-        )
+    # SINGLE validation call
+    validate_array_numerical_integrity(
+        solved_values,
+        f"Phase {phase_id} solution values for interval {mesh_interval_index}",
+        "solution data extraction",
+    )
 
     # For controls, we don't include the final point (which belongs to states)
     num_nodes_to_process = len(current_interval_local_tau_values)
@@ -192,12 +185,12 @@ def process_phase_trajectory_points(
             trajectory_times.append(physical_time)
             for var_index in range(num_variables):
                 value = solved_values[var_index, node_index]
-                # Critical: Check individual values
-                if np.isnan(value) or np.isinf(value):
-                    raise DataIntegrityError(
-                        f"Phase {phase_id} invalid trajectory value at interval {mesh_interval_index}, node {node_index}: {value}",
-                        "Numerical corruption in trajectory data",
-                    )
+                # SINGLE validation call
+                validate_array_numerical_integrity(
+                    np.array([value]),
+                    f"Phase {phase_id} trajectory value at interval {mesh_interval_index}, node {node_index}",
+                    "trajectory data extraction",
+                )
                 trajectory_values_lists[var_index].append(value)
             last_added_point = physical_time
 
@@ -209,7 +202,7 @@ def extract_and_format_multiphase_solution(
     casadi_optimization_problem_object: ca.Opti,
     problem: ProblemProtocol,
 ) -> OptimalControlSolution:
-    """Extract and format the solution from multiphase CasADi optimization result."""
+    """SINGLE SOURCE for extracting and formatting the solution from multiphase CasADi optimization result."""
     solution = OptimalControlSolution()
     solution.opti_object = casadi_optimization_problem_object
 
@@ -230,7 +223,7 @@ def extract_and_format_multiphase_solution(
     variables = casadi_optimization_problem_object.multiphase_variables_reference
     metadata = casadi_optimization_problem_object.multiphase_metadata_reference
 
-    # Critical: Extract core solution values with validation
+    # Extract core solution values with validation
     try:
         # Extract objective
         objective = float(
@@ -239,17 +232,15 @@ def extract_and_format_multiphase_solution(
             )
         )
 
-        # Critical: Validate objective
-        if np.isnan(objective) or np.isinf(objective):
-            raise DataIntegrityError(
-                f"Invalid multiphase objective value: {objective}", "Core solution corruption"
-            )
-
+        # SINGLE validation call
+        validate_array_numerical_integrity(
+            np.array([objective]), "multiphase objective value", "core solution extraction"
+        )
         solution.objective = objective
 
     except Exception as e:
         if isinstance(e, DataIntegrityError):
-            raise  # Re-raise TrajectoLab-specific errors
+            raise
         solution.success = False
         solution.message = f"Failed to extract core multiphase solution values: {e}"
         solution.raw_solution = casadi_solution_object
@@ -267,13 +258,10 @@ def extract_and_format_multiphase_solution(
             else:
                 static_params_array = np.array(static_params_raw).flatten()
 
-            # Validate static parameters
-            if np.any(np.isnan(static_params_array)) or np.any(np.isinf(static_params_array)):
-                raise DataIntegrityError(
-                    "Static parameters contain NaN or Inf values",
-                    "Numerical corruption in static parameters",
-                )
-
+            # SINGLE validation call
+            validate_array_numerical_integrity(
+                static_params_array, "static parameters", "static parameter extraction"
+            )
             solution.static_parameters = static_params_array.astype(np.float64)
         except Exception as e:
             if isinstance(e, DataIntegrityError):
@@ -297,17 +285,12 @@ def extract_and_format_multiphase_solution(
             initial_time = float(casadi_solution_object.value(phase_vars.initial_time))
             terminal_time = float(casadi_solution_object.value(phase_vars.terminal_time))
 
-            # Validate phase times
-            if np.isnan(initial_time) or np.isinf(initial_time):
-                raise DataIntegrityError(
-                    f"Phase {phase_id} invalid initial time: {initial_time}",
-                    "Core solution corruption",
-                )
-            if np.isnan(terminal_time) or np.isinf(terminal_time):
-                raise DataIntegrityError(
-                    f"Phase {phase_id} invalid terminal time: {terminal_time}",
-                    "Core solution corruption",
-                )
+            # SINGLE validation call for times
+            validate_array_numerical_integrity(
+                np.array([initial_time, terminal_time]),
+                f"Phase {phase_id} times",
+                "phase time extraction",
+            )
 
             solution.phase_initial_times[phase_id] = initial_time
             solution.phase_terminal_times[phase_id] = terminal_time
@@ -348,7 +331,7 @@ def extract_and_format_multiphase_solution(
                     is_state=True,
                 )
         except Exception as e:
-            if isinstance(e, SolutionExtractionError | DataIntegrityError):
+            if isinstance(e, (SolutionExtractionError, DataIntegrityError)):
                 raise
             raise SolutionExtractionError(
                 f"Failed to extract phase {phase_id} state trajectories: {e}",
@@ -383,7 +366,7 @@ def extract_and_format_multiphase_solution(
                     is_state=False,
                 )
         except Exception as e:
-            if isinstance(e, SolutionExtractionError | DataIntegrityError):
+            if isinstance(e, (SolutionExtractionError, DataIntegrityError)):
                 raise
             raise SolutionExtractionError(
                 f"Failed to extract phase {phase_id} control trajectories: {e}",
@@ -409,17 +392,17 @@ def extract_and_format_multiphase_solution(
                 state_vals = casadi_solution_object.value(state_vars)
 
                 # Ensure proper dimensionality
-                if isinstance(state_vals, ca.DM | ca.MX):
+                if isinstance(state_vals, (ca.DM, ca.MX)):
                     state_vals = np.array(state_vals.full())
                 else:
                     state_vals = np.array(state_vals)
 
-                # Critical: Validate extracted state values
-                if np.any(np.isnan(state_vals)) or np.any(np.isinf(state_vals)):
-                    raise DataIntegrityError(
-                        f"Phase {phase_id} state values for interval {mesh_idx} contain NaN or Inf",
-                        "Per-interval state data corruption",
-                    )
+                # SINGLE validation call
+                validate_array_numerical_integrity(
+                    state_vals,
+                    f"Phase {phase_id} state values for interval {mesh_idx}",
+                    "per-interval state data extraction",
+                )
 
                 # Ensure it's 2D for consistent processing
                 if num_states == 1 and state_vals.ndim == 1:
@@ -439,17 +422,17 @@ def extract_and_format_multiphase_solution(
                     control_vals = casadi_solution_object.value(control_vars)
 
                     # Ensure proper dimensionality
-                    if isinstance(control_vals, ca.DM | ca.MX):
+                    if isinstance(control_vals, (ca.DM, ca.MX)):
                         control_vals = np.array(control_vals.full())
                     else:
                         control_vals = np.array(control_vals)
 
-                    # Critical: Validate extracted control values
-                    if np.any(np.isnan(control_vals)) or np.any(np.isinf(control_vals)):
-                        raise DataIntegrityError(
-                            f"Phase {phase_id} control values for interval {mesh_idx} contain NaN or Inf",
-                            "Per-interval control data corruption",
-                        )
+                    # SINGLE validation call
+                    validate_array_numerical_integrity(
+                        control_vals,
+                        f"Phase {phase_id} control values for interval {mesh_idx}",
+                        "per-interval control data extraction",
+                    )
 
                     # Ensure it's 2D for consistent processing
                     if num_controls == 1 and control_vals.ndim == 1:

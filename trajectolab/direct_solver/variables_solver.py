@@ -6,9 +6,6 @@ Optimization variable setup and configuration for the multiphase direct solver.
 import casadi as ca
 
 from ..exceptions import DataIntegrityError
-from ..input_validation import (
-    validate_casadi_optimization_object,
-)
 from ..tl_types import PhaseID, ProblemProtocol
 from ..utils.constants import MINIMUM_TIME_INTERVAL
 from .types_solver import (
@@ -28,7 +25,6 @@ def setup_multiphase_optimization_variables(
     Creates unified NLP decision vector: z = [z^(1), z^(2), ..., z^(P), s_1, ..., s_n_s]
     where each z^(p) = [Y^(p), U^(p), Q^(p), t_0^(p), t_f^(p)]
     """
-    validate_casadi_optimization_object(opti, "multiphase variable setup")
 
     multiphase_vars = MultiPhaseVariableReferences()
 

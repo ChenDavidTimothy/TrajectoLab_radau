@@ -1,6 +1,7 @@
 # trajectolab/problem/variables_problem.py
 """
-Variable creation and management functions for multiphase optimal control problem definition.
+Variable creation and management for multiphase optimal control - PURGED.
+All redundancy eliminated, using centralized validation.
 """
 
 from __future__ import annotations
@@ -9,6 +10,7 @@ from typing import Any, cast
 
 import casadi as ca
 
+from ..input_validation import validate_constraint_input_format, validate_string_not_empty
 from .state import (
     ConstraintInput,
     MultiPhaseVariableState,
@@ -37,21 +39,13 @@ class _SymbolicVariableBase:
         raise NotImplementedError("Variable indexing not yet implemented")
 
     def __casadi_MX__(self) -> ca.MX:  # noqa: N802
-        """Return underlying MX symbol for CasADi operations."""
         return self._symbolic_var
 
     def __array_function__(self, func, types, args, kwargs):
-        """Handle numpy/CasADi function calls by converting to underlying symbol."""
-        converted_args = []
-        for arg in args:
-            if arg is self:
-                converted_args.append(self._symbolic_var)
-            else:
-                converted_args.append(arg)
+        converted_args = [self._symbolic_var if arg is self else arg for arg in args]
         return func(*converted_args, **kwargs)
 
     def __getattr__(self, name: str) -> Any:
-        """Delegate unknown attributes to underlying MX symbol."""
         if name.startswith("_"):
             raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
         return getattr(self._symbolic_var, name)
@@ -64,7 +58,7 @@ class _SymbolicVariableBase:
             return self._symbolic_var is other._symbolic_var
         return self._symbolic_var is other
 
-    # Simplified arithmetic operators - let CasADi handle conversion
+    # Arithmetic operators
     def __add__(self, other: Any) -> ca.MX:
         return self._symbolic_var + other
 
@@ -95,7 +89,7 @@ class _SymbolicVariableBase:
     def __neg__(self) -> ca.MX:
         return cast(ca.MX, -self._symbolic_var)
 
-    # Simplified comparison operators
+    # Comparison operators
     def __lt__(self, other: Any) -> ca.MX:
         return self._symbolic_var < other
 
@@ -147,24 +141,27 @@ class StateVariableImpl(_SymbolicVariableBase):
 
 
 def create_phase_time_variable(
-    phase_def: PhaseDefinition,
-    initial: ConstraintInput = 0.0,
-    final: ConstraintInput = None,
+    phase_def: PhaseDefinition, initial: ConstraintInput = 0.0, final: ConstraintInput = None
 ) -> TimeVariableImpl:
     """Create time variable for a specific phase."""
+    # Validate constraints
+    validate_constraint_input_format(initial, f"phase {phase_def.phase_id} initial time")
+    validate_constraint_input_format(final, f"phase {phase_def.phase_id} final time")
+
+    # Create symbols
     sym_time = ca.MX.sym(f"t_p{phase_def.phase_id}", 1)  # type: ignore[arg-type]
     sym_t0 = ca.MX.sym(f"t0_p{phase_def.phase_id}", 1)  # type: ignore[arg-type]
     sym_tf = ca.MX.sym(f"tf_p{phase_def.phase_id}", 1)  # type: ignore[arg-type]
 
+    # Set defaults
     if initial is None:
         initial = 0.0
 
-    try:
-        t0_constraint = _BoundaryConstraint(initial)
-        tf_constraint = _BoundaryConstraint(final)
-    except (ValueError, TypeError) as e:
-        raise ValueError(f"Invalid time constraint for phase {phase_def.phase_id}: {e}") from e
+    # Create constraints
+    t0_constraint = _BoundaryConstraint(initial)
+    tf_constraint = _BoundaryConstraint(final)
 
+    # Store in phase definition
     phase_def.t0_constraint = t0_constraint
     phase_def.tf_constraint = tf_constraint
     phase_def.sym_time = sym_time
@@ -182,19 +179,25 @@ def create_phase_state_variable(
     boundary: ConstraintInput = None,
 ) -> StateVariableImpl:
     """Create a state variable for a specific phase."""
+    # Validate inputs
+    validate_string_not_empty(name, "State variable name")
+    validate_constraint_input_format(initial, f"phase {phase_def.phase_id} state '{name}' initial")
+    validate_constraint_input_format(final, f"phase {phase_def.phase_id} state '{name}' final")
+    validate_constraint_input_format(
+        boundary, f"phase {phase_def.phase_id} state '{name}' boundary"
+    )
+
+    # Create symbols
     sym_var = ca.MX.sym(f"{name}_p{phase_def.phase_id}", 1)  # type: ignore[arg-type]
     sym_initial = ca.MX.sym(f"{name}_initial_p{phase_def.phase_id}", 1)  # type: ignore[arg-type]
     sym_final = ca.MX.sym(f"{name}_final_p{phase_def.phase_id}", 1)  # type: ignore[arg-type]
 
-    try:
-        initial_constraint = _BoundaryConstraint(initial) if initial is not None else None
-        final_constraint = _BoundaryConstraint(final) if final is not None else None
-        boundary_constraint = _BoundaryConstraint(boundary) if boundary is not None else None
-    except (ValueError, TypeError) as e:
-        raise ValueError(
-            f"Invalid constraint for state '{name}' in phase {phase_def.phase_id}: {e}"
-        ) from e
+    # Create constraints
+    initial_constraint = _BoundaryConstraint(initial) if initial is not None else None
+    final_constraint = _BoundaryConstraint(final) if final is not None else None
+    boundary_constraint = _BoundaryConstraint(boundary) if boundary is not None else None
 
+    # Add to phase
     phase_def.add_state(
         name=name,
         symbol=sym_var,
@@ -209,47 +212,43 @@ def create_phase_state_variable(
 
 
 def create_phase_control_variable(
-    phase_def: PhaseDefinition,
-    name: str,
-    boundary: ConstraintInput = None,
+    phase_def: PhaseDefinition, name: str, boundary: ConstraintInput = None
 ) -> ca.MX:
     """Create a control variable for a specific phase."""
+    # Validate inputs
+    validate_string_not_empty(name, "Control variable name")
+    validate_constraint_input_format(
+        boundary, f"phase {phase_def.phase_id} control '{name}' boundary"
+    )
+
+    # Create symbol
     sym_var = ca.MX.sym(f"{name}_p{phase_def.phase_id}", 1)  # type: ignore[arg-type]
 
-    try:
-        boundary_constraint = _BoundaryConstraint(boundary) if boundary is not None else None
-    except (ValueError, TypeError) as e:
-        raise ValueError(
-            f"Invalid boundary constraint for control '{name}' in phase {phase_def.phase_id}: {e}"
-        ) from e
+    # Create constraint
+    boundary_constraint = _BoundaryConstraint(boundary) if boundary is not None else None
 
-    phase_def.add_control(
-        name=name,
-        symbol=sym_var,
-        boundary_constraint=boundary_constraint,
-    )
+    # Add to phase
+    phase_def.add_control(name=name, symbol=sym_var, boundary_constraint=boundary_constraint)
 
     return sym_var
 
 
 def create_static_parameter(
-    static_params: StaticParameterState,
-    name: str,
-    boundary: ConstraintInput = None,
+    static_params: StaticParameterState, name: str, boundary: ConstraintInput = None
 ) -> ca.MX:
     """Create a static parameter that spans across all phases."""
+    # Validate inputs
+    validate_string_not_empty(name, "Parameter name")
+    validate_constraint_input_format(boundary, f"parameter '{name}' boundary")
+
+    # Create symbol
     sym_var = ca.MX.sym(f"param_{name}", 1)  # type: ignore[arg-type]
 
-    try:
-        boundary_constraint = _BoundaryConstraint(boundary) if boundary is not None else None
-    except (ValueError, TypeError) as e:
-        raise ValueError(f"Invalid boundary constraint for parameter '{name}': {e}") from e
+    # Create constraint
+    boundary_constraint = _BoundaryConstraint(boundary) if boundary is not None else None
 
-    static_params.add_parameter(
-        name=name,
-        symbol=sym_var,
-        boundary_constraint=boundary_constraint,
-    )
+    # Add to static parameters
+    static_params.add_parameter(name=name, symbol=sym_var, boundary_constraint=boundary_constraint)
 
     return sym_var
 
@@ -288,13 +287,11 @@ def set_phase_dynamics(
         except Exception as e:
             if callable(value):
                 raise ValueError(
-                    f"Dynamics expression appears to be a function {value}. "
-                    f"Did you forget to call it? Use f(x, u) not f."
+                    f"Dynamics expression appears to be a function {value}. Did you forget to call it?"
                 ) from e
             else:
                 raise ValueError(
-                    f"Cannot convert dynamics expression of type {type(value)} to CasADi MX: {value}. "
-                    f"Original error: {e}"
+                    f"Cannot convert dynamics expression of type {type(value)} to CasADi MX: {value}"
                 ) from e
 
         converted_dict[storage_key] = storage_value
@@ -315,13 +312,11 @@ def add_phase_integral(phase_def: PhaseDefinition, integrand_expr: ca.MX | float
     except Exception as e:
         if callable(integrand_expr):
             raise ValueError(
-                f"Integrand appears to be a function {integrand_expr}. "
-                f"Did you forget to call it? Use f(x, u) not f."
+                f"Integrand appears to be a function {integrand_expr}. Did you forget to call it?"
             ) from e
         else:
             raise ValueError(
-                f"Cannot convert integrand expression of type {type(integrand_expr)} to CasADi MX: {integrand_expr}. "
-                f"Original error: {e}"
+                f"Cannot convert integrand expression of type {type(integrand_expr)} to CasADi MX: {integrand_expr}"
             ) from e
 
     phase_def.integral_expressions.append(pure_expr)
@@ -343,13 +338,11 @@ def set_multiphase_objective(
     except Exception as e:
         if callable(objective_expr):
             raise ValueError(
-                f"Objective appears to be a function {objective_expr}. "
-                f"Did you forget to call it? Use f(x, u) not f."
+                f"Objective appears to be a function {objective_expr}. Did you forget to call it?"
             ) from e
         else:
             raise ValueError(
-                f"Cannot convert objective expression of type {type(objective_expr)} to CasADi MX: {objective_expr}. "
-                f"Original error: {e}"
+                f"Cannot convert objective expression of type {type(objective_expr)} to CasADi MX: {objective_expr}"
             ) from e
 
     multiphase_state.objective_expression = pure_expr

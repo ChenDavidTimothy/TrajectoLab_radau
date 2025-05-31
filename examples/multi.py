@@ -4,7 +4,6 @@ TrajectoLab Debugging: Hypersensitive Problem Single vs Multi-Phase
 Focuses on inspecting the two-phase solution data.
 """
 
-import matplotlib.pyplot as plt
 import numpy as np
 
 import trajectolab as tl
@@ -166,8 +165,6 @@ if __name__ == "__main__":
         try:
             print("Plotting Two-Phase Solution...")
             solution_2p.plot(show_phase_boundaries=True)  # Plot all phases by default
-            plt.suptitle("Two-Phase Hypersensitive Solution (Debug)")
-            # plt.show() # Ensure plot is shown
         except Exception as e:
             print(f"Error plotting two-phase: {e}")
     elif solution_2p:

@@ -1,6 +1,7 @@
 # trajectolab/problem/constraints_problem.py
 """
-Constraint processing and conversion functions for multiphase path and event constraints.
+Constraint processing and conversion for multiphase path and event constraints - PURGED.
+All redundancy eliminated, using centralized validation and conversion patterns.
 """
 
 from __future__ import annotations
@@ -10,11 +11,7 @@ from collections.abc import Callable
 import casadi as ca
 
 from ..tl_types import Constraint, PhaseID
-from .state import (
-    MultiPhaseVariableState,
-    PhaseDefinition,
-    _BoundaryConstraint,
-)
+from .state import MultiPhaseVariableState, PhaseDefinition, _BoundaryConstraint
 
 
 def add_phase_path_constraint(
@@ -38,16 +35,13 @@ def add_cross_phase_constraint(
 
 
 def _symbolic_constraint_to_constraint(expr: ca.MX) -> Constraint:
-    """Convert symbolic constraint to unified Constraint."""
-
-    # Handle CasADi API compatibility - try to get proper operation constants
+    """SINGLE SOURCE for converting symbolic constraint to unified Constraint."""
     try:
-        # Attempt to get the actual integer constants from CasADi
+        # Attempt to handle CasADi operation checking for constraints
         OP_EQ = getattr(ca, "OP_EQ", None)
         OP_LE = getattr(ca, "OP_LE", None)
         OP_GE = getattr(ca, "OP_GE", None)
 
-        # Only proceed with operation checking if we have valid integer constants
         if (
             isinstance(expr, ca.MX)
             and hasattr(expr, "is_op")
@@ -77,15 +71,13 @@ def _symbolic_constraint_to_constraint(expr: ca.MX) -> Constraint:
         pass
 
     # Default case: treat as equality constraint
-    # This handles cross-phase constraints like (t0_p2-tf_p1) which should equal zero
     return Constraint(val=expr, equals=0.0)
 
 
 def _boundary_constraint_to_constraints(
-    boundary_constraint: _BoundaryConstraint,
-    variable_expression: ca.MX,
+    boundary_constraint: _BoundaryConstraint, variable_expression: ca.MX
 ) -> list[Constraint]:
-    """Convert boundary constraint to list of Constraint objects."""
+    """SINGLE SOURCE for converting boundary constraint to list of Constraint objects."""
     constraints: list[Constraint] = []
 
     if boundary_constraint.equals is not None:
@@ -106,11 +98,7 @@ def _boundary_constraint_to_constraints(
 def get_phase_path_constraints_function(
     phase_def: PhaseDefinition,
 ) -> Callable[..., list[Constraint]] | None:
-    """
-    Get path constraints function for a specific phase.
-
-    Path constraints are applied at every collocation point throughout the phase trajectory.
-    """
+    """Get path constraints function for a specific phase."""
     # Check if phase has any path constraints
     has_path_constraints = bool(phase_def.path_constraints)
 
@@ -162,7 +150,7 @@ def get_phase_path_constraints_function(
         if phase_def.sym_time is not None:
             subs_map[phase_def.sym_time] = time
 
-        # CRITICAL FIX: Map phase initial and final time symbols
+        # Map phase initial and final time symbols
         if phase_def.sym_time_initial is not None and initial_time_variable is not None:
             subs_map[phase_def.sym_time_initial] = initial_time_variable
 
@@ -206,12 +194,7 @@ def get_phase_path_constraints_function(
 def get_cross_phase_event_constraints_function(
     multiphase_state: MultiPhaseVariableState,
 ) -> Callable[..., list[Constraint]] | None:
-    """
-    Get cross-phase event constraints function for multiphase problems.
-
-    This implements the CGPOPS event constraint structure:
-    b_min ≤ b(E^(1), E^(2), ..., E^(P), s) ≤ b_max
-    """
+    """Get cross-phase event constraints function for multiphase problems."""
     # Check for cross-phase constraints
     has_cross_phase_constraints = bool(multiphase_state.cross_phase_constraints)
 
@@ -221,7 +204,7 @@ def get_cross_phase_event_constraints_function(
         state_initial_constraints = [info.initial_constraint for info in phase_def.state_info]
         state_final_constraints = [info.final_constraint for info in phase_def.state_info]
 
-        # CRITICAL FIX: Only count NON-SYMBOLIC constraints (symbolic ones already processed)
+        # Only count NON-SYMBOLIC constraints (symbolic ones already processed)
         if any(
             constraint is not None and constraint.has_constraint() and not constraint.is_symbolic()
             for constraint in (state_initial_constraints + state_final_constraints)
@@ -234,15 +217,10 @@ def get_cross_phase_event_constraints_function(
         return None
 
     def vectorized_cross_phase_event_constraints(
-        phase_endpoint_vectors: dict[PhaseID, dict[str, ca.MX]],
-        static_parameters_vec: ca.MX | None,
+        phase_endpoint_vectors: dict[PhaseID, dict[str, ca.MX]], static_parameters_vec: ca.MX | None
     ) -> list[Constraint]:
-        """Apply cross-phase event constraints with debugging."""
+        """Apply cross-phase event constraints."""
         result: list[Constraint] = []
-
-        # DEBUG: Track constraint sources
-        print("\n=== CONSTRAINT PROCESSING DEBUG ===")
-        print(f"Raw cross-phase constraints: {len(multiphase_state.cross_phase_constraints)}")
 
         # Create substitution map for cross-phase constraints
         subs_map = {}
@@ -298,25 +276,18 @@ def get_cross_phase_event_constraints_function(
                     subs_map[param_sym] = static_parameters_vec[i]
 
         # Process cross-phase constraints
-        cross_phase_count = 0
-        for i, expr in enumerate(multiphase_state.cross_phase_constraints):
+        for expr in multiphase_state.cross_phase_constraints:
             substituted_expr = ca.substitute(
                 [expr], list(subs_map.keys()), list(subs_map.values())
             )[0]
             constraint = _symbolic_constraint_to_constraint(substituted_expr)
             result.append(constraint)
-            cross_phase_count += 1
-            print(f"Cross-phase {i}: {constraint}")
 
-        print(f"Total cross-phase processed: {cross_phase_count}")
-
-        # DEBUG: Check boundary constraints processing
-        boundary_count = 0
+        # Process boundary constraints for each phase
         for phase_id, phase_def in multiphase_state.phases.items():
             if phase_id not in phase_endpoint_vectors:
                 continue
 
-            print(f"\n--- Phase {phase_id} Boundary Constraints ---")
             endpoint_data = phase_endpoint_vectors[phase_id]
             x0_vec = endpoint_data["x0"]
             xf_vec = endpoint_data["xf"]
@@ -324,46 +295,28 @@ def get_cross_phase_event_constraints_function(
             # Check initial constraints
             state_initial_constraints = [info.initial_constraint for info in phase_def.state_info]
             for i, constraint in enumerate(state_initial_constraints):
-                if constraint is not None:
-                    print(
-                        f"  State {i} initial: symbolic={constraint.is_symbolic()}, has={constraint.has_constraint()}"
-                    )
-                    if constraint.has_constraint() and not constraint.is_symbolic():
-                        if len(phase_def.state_info) == 1:
-                            result.extend(_boundary_constraint_to_constraints(constraint, x0_vec))
-                        else:
-                            result.extend(
-                                _boundary_constraint_to_constraints(constraint, x0_vec[i])
-                            )
-                        boundary_count += 1
-                        print("    → ADDED boundary constraint")
-                    elif constraint.has_constraint() and constraint.is_symbolic():
-                        print("    → SKIPPED symbolic constraint")
+                if (
+                    constraint is not None
+                    and constraint.has_constraint()
+                    and not constraint.is_symbolic()
+                ):
+                    if len(phase_def.state_info) == 1:
+                        result.extend(_boundary_constraint_to_constraints(constraint, x0_vec))
+                    else:
+                        result.extend(_boundary_constraint_to_constraints(constraint, x0_vec[i]))
 
             # Check final constraints
             state_final_constraints = [info.final_constraint for info in phase_def.state_info]
             for i, constraint in enumerate(state_final_constraints):
-                if constraint is not None:
-                    print(
-                        f"  State {i} final: symbolic={constraint.is_symbolic()}, has={constraint.has_constraint()}"
-                    )
-                    if constraint.has_constraint() and not constraint.is_symbolic():
-                        if len(phase_def.state_info) == 1:
-                            result.extend(_boundary_constraint_to_constraints(constraint, xf_vec))
-                        else:
-                            result.extend(
-                                _boundary_constraint_to_constraints(constraint, xf_vec[i])
-                            )
-                        boundary_count += 1
-                        print("    → ADDED boundary constraint")
-                    elif constraint.has_constraint() and constraint.is_symbolic():
-                        print("    → SKIPPED symbolic constraint")
-
-        print("\nSUMMARY:")
-        print(f"Cross-phase constraints: {cross_phase_count}")
-        print(f"Boundary constraints: {boundary_count}")
-        print(f"Total result length: {len(result)}")
-        print("=== END DEBUG ===\n")
+                if (
+                    constraint is not None
+                    and constraint.has_constraint()
+                    and not constraint.is_symbolic()
+                ):
+                    if len(phase_def.state_info) == 1:
+                        result.extend(_boundary_constraint_to_constraints(constraint, xf_vec))
+                    else:
+                        result.extend(_boundary_constraint_to_constraints(constraint, xf_vec[i]))
 
         return result
 

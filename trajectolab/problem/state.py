@@ -1,6 +1,7 @@
 # trajectolab/problem/state.py
 """
-State management classes for multiphase variables, constraints, and mesh configuration.
+State management classes for multiphase variables, constraints, and mesh configuration - PURGED.
+All redundancy eliminated, using centralized validation.
 """
 
 from __future__ import annotations
@@ -11,44 +12,36 @@ from dataclasses import dataclass, field
 import casadi as ca
 
 from ..exceptions import DataIntegrityError
-from ..input_validation import validate_constraint_input_format, validate_variable_name
+from ..input_validation import validate_constraint_input_format, validate_string_not_empty
 from ..tl_types import FloatArray, PhaseID
 
 
-# EXTENDED Constraint input type definition to include CasADi symbolic
+# Enhanced Constraint input type definition to include CasADi symbolic
 ConstraintInput = float | int | tuple[float | int | None, float | int | None] | None | ca.MX
 
 
 class _BoundaryConstraint:
-    """Internal class for representing boundary constraints - ENHANCED to handle symbolic expressions."""
+    """Internal class for representing boundary constraints with symbolic expression support."""
 
     def __init__(self, constraint_input: ConstraintInput = None) -> None:
-        """
-        Create boundary constraint from unified constraint input including symbolic expressions.
-
-        Uses centralized validation from input_validation.py
-        """
-        # CENTRALIZED VALIDATION - single call replaces all scattered validation logic
+        """Create boundary constraint from unified constraint input including symbolic expressions."""
+        # SINGLE validation call
         validate_constraint_input_format(constraint_input, "boundary constraint")
 
         self.equals: float | None = None
         self.lower: float | None = None
         self.upper: float | None = None
-        self.symbolic_expression: ca.MX | None = None  # NEW: Store symbolic expressions
+        self.symbolic_expression: ca.MX | None = None
 
         if constraint_input is None:
-            # No constraint
-            pass
+            pass  # No constraint
         elif isinstance(constraint_input, ca.MX):
-            # NEW: Symbolic constraint - store for later processing
             self.symbolic_expression = constraint_input
-        elif isinstance(constraint_input, int | float):
-            # Equality constraint (validation already done)
+        elif isinstance(constraint_input, (int, float)):
             self.equals = float(constraint_input)
             self.lower = float(constraint_input)
             self.upper = float(constraint_input)
         elif isinstance(constraint_input, tuple):
-            # Range constraint (validation already done)
             lower_val, upper_val = constraint_input
             self.lower = None if lower_val is None else float(lower_val)
             self.upper = None if upper_val is None else float(upper_val)
@@ -81,28 +74,23 @@ class _BoundaryConstraint:
             return "_BoundaryConstraint(no constraint)"
 
 
-# Rest of the file remains exactly the same...
 @dataclass
 class _VariableInfo:
     """Internal storage for variable metadata with initial/final symbol support."""
 
     symbol: ca.MX
-    initial_symbol: ca.MX | None = None  # For states only
-    final_symbol: ca.MX | None = None  # For states only
+    initial_symbol: ca.MX | None = None
+    final_symbol: ca.MX | None = None
     initial_constraint: _BoundaryConstraint | None = None
     final_constraint: _BoundaryConstraint | None = None
     boundary_constraint: _BoundaryConstraint | None = None
 
     def __post_init__(self) -> None:
         """Validate variable info after initialization."""
-        # Guard clause: Validate symbol (this is internal data integrity)
         if self.symbol is None:
-            raise DataIntegrityError(
-                "Variable symbol cannot be None", "TrajectoLab variable definition error"
-            )
+            raise DataIntegrityError("Variable symbol cannot be None", "Variable definition error")
 
 
-# All the rest of the classes remain exactly the same...
 @dataclass
 class PhaseDefinition:
     """Complete definition of a single phase in multiphase optimal control problem."""
@@ -143,7 +131,7 @@ class PhaseDefinition:
     # Thread safety
     _ordering_lock: threading.Lock = field(default_factory=threading.Lock)
 
-    # NEW: Collect symbolic boundary constraints for automatic cross-phase processing
+    # Symbolic boundary constraints collection
     symbolic_boundary_constraints: list[tuple[str, str, ca.MX]] = field(default_factory=list)
 
     def add_state(
@@ -156,19 +144,20 @@ class PhaseDefinition:
         final_constraint: _BoundaryConstraint | None = None,
         boundary_constraint: _BoundaryConstraint | None = None,
     ) -> None:
-        """Add state variable to phase - ENHANCED to collect symbolic constraints."""
-        validate_variable_name(name, "state")
+        """Add state variable to phase with automatic symbolic constraint collection."""
+        # SINGLE validation call
+        validate_string_not_empty(name, "State variable name")
 
         if symbol is None:
             raise DataIntegrityError(
-                f"State symbol for '{name}' cannot be None", "TrajectoLab variable definition error"
+                f"State symbol for '{name}' cannot be None", "Variable definition error"
             )
 
         with self._ordering_lock:
             if name in self.state_name_to_index:
                 raise DataIntegrityError(
                     f"State '{name}' already exists in phase {self.phase_id}",
-                    "TrajectoLab variable naming conflict",
+                    "Variable naming conflict",
                 )
 
             index = len(self.state_names)
@@ -186,7 +175,7 @@ class PhaseDefinition:
                 )
                 self.state_info.append(var_info)
 
-                # NEW: Collect symbolic boundary constraints for automatic processing
+                # Collect symbolic boundary constraints for automatic processing
                 if initial_constraint is not None and initial_constraint.is_symbolic():
                     self.symbolic_boundary_constraints.append(
                         (name, "initial", initial_constraint.symbolic_expression)
@@ -205,30 +194,26 @@ class PhaseDefinition:
                 self.state_names.pop()
                 raise DataIntegrityError(
                     f"Failed to create state variable info for '{name}': {e}",
-                    "TrajectoLab variable creation error",
+                    "Variable creation error",
                 ) from e
 
-    # All other methods remain exactly the same as in the original file...
     def add_control(
-        self,
-        name: str,
-        symbol: ca.MX,
-        boundary_constraint: _BoundaryConstraint | None = None,
+        self, name: str, symbol: ca.MX, boundary_constraint: _BoundaryConstraint | None = None
     ) -> None:
-        """Add control variable to phase - USES CENTRALIZED VALIDATION."""
-        validate_variable_name(name, "control")
+        """Add control variable to phase."""
+        # SINGLE validation call
+        validate_string_not_empty(name, "Control variable name")
 
         if symbol is None:
             raise DataIntegrityError(
-                f"Control symbol for '{name}' cannot be None",
-                "TrajectoLab variable definition error",
+                f"Control symbol for '{name}' cannot be None", "Variable definition error"
             )
 
         with self._ordering_lock:
             if name in self.control_name_to_index:
                 raise DataIntegrityError(
                     f"Control '{name}' already exists in phase {self.phase_id}",
-                    "TrajectoLab variable naming conflict",
+                    "Variable naming conflict",
                 )
 
             index = len(self.control_names)
@@ -250,7 +235,7 @@ class PhaseDefinition:
                 self.control_names.pop()
                 raise DataIntegrityError(
                     f"Failed to create control variable info for '{name}': {e}",
-                    "TrajectoLab variable creation error",
+                    "Variable creation error",
                 ) from e
 
     def get_variable_counts(self) -> tuple[int, int]:
@@ -261,33 +246,33 @@ class PhaseDefinition:
         if num_states != len(self.state_names):
             raise DataIntegrityError(
                 f"Phase {self.phase_id} state count inconsistency: info={num_states}, names={len(self.state_names)}",
-                "TrajectoLab variable storage corruption",
+                "Variable storage corruption",
             )
 
         if num_controls != len(self.control_names):
             raise DataIntegrityError(
                 f"Phase {self.phase_id} control count inconsistency: info={num_controls}, names={len(self.control_names)}",
-                "TrajectoLab variable storage corruption",
+                "Variable storage corruption",
             )
 
         return num_states, num_controls
 
     def get_ordered_state_symbols(self) -> list[ca.MX]:
-        """Get state symbols in order - with data integrity validation."""
+        """Get state symbols in order with data integrity validation."""
         if len(self.state_info) != len(self.state_names):
             raise DataIntegrityError(
-                f"Phase {self.phase_id} state info count ({len(self.state_info)}) doesn't match names count ({len(self.state_names)})",
-                "TrajectoLab variable storage inconsistency",
+                f"Phase {self.phase_id} state info count ({len(self.state_info)}) != names count ({len(self.state_names)})",
+                "Variable storage inconsistency",
             )
 
         return [info.symbol for info in self.state_info]
 
     def get_ordered_control_symbols(self) -> list[ca.MX]:
-        """Get control symbols in order - with data integrity validation."""
+        """Get control symbols in order with data integrity validation."""
         if len(self.control_info) != len(self.control_names):
             raise DataIntegrityError(
-                f"Phase {self.phase_id} control info count ({len(self.control_info)}) doesn't match names count ({len(self.control_names)})",
-                "TrajectoLab variable storage inconsistency",
+                f"Phase {self.phase_id} control info count ({len(self.control_info)}) != names count ({len(self.control_names)})",
+                "Variable storage inconsistency",
             )
 
         return [info.symbol for info in self.control_info]
@@ -298,8 +283,7 @@ class PhaseDefinition:
         for info in self.state_info:
             if info.initial_symbol is None:
                 raise DataIntegrityError(
-                    f"Phase {self.phase_id} state initial symbol is None",
-                    "TrajectoLab state symbol corruption",
+                    f"Phase {self.phase_id} state initial symbol is None", "State symbol corruption"
                 )
             symbols.append(info.initial_symbol)
         return symbols
@@ -310,8 +294,7 @@ class PhaseDefinition:
         for info in self.state_info:
             if info.final_symbol is None:
                 raise DataIntegrityError(
-                    f"Phase {self.phase_id} state final symbol is None",
-                    "TrajectoLab state symbol corruption",
+                    f"Phase {self.phase_id} state final symbol is None", "State symbol corruption"
                 )
             symbols.append(info.final_symbol)
         return symbols
@@ -321,13 +304,12 @@ class PhaseDefinition:
         """Get time initial bounds as tuple for compatibility."""
         if self.t0_constraint is None:
             raise DataIntegrityError(
-                f"Phase {self.phase_id} initial time constraint is None",
-                "TrajectoLab time bounds corruption",
+                f"Phase {self.phase_id} initial time constraint is None", "Time bounds corruption"
             )
 
-        # NEW: Handle symbolic constraints by providing reasonable bounds
+        # Handle symbolic constraints by providing reasonable bounds
         if self.t0_constraint.is_symbolic():
-            return (-1e6, 1e6)  # Wide bounds for symbolic constraints
+            return (-1e6, 1e6)
 
         if self.t0_constraint.equals is not None:
             return (self.t0_constraint.equals, self.t0_constraint.equals)
@@ -341,13 +323,12 @@ class PhaseDefinition:
         """Get time final bounds as tuple for compatibility."""
         if self.tf_constraint is None:
             raise DataIntegrityError(
-                f"Phase {self.phase_id} final time constraint is None",
-                "TrajectoLab time bounds corruption",
+                f"Phase {self.phase_id} final time constraint is None", "Time bounds corruption"
             )
 
-        # NEW: Handle symbolic constraints by providing reasonable bounds
+        # Handle symbolic constraints by providing reasonable bounds
         if self.tf_constraint.is_symbolic():
-            return (-1e6, 1e6)  # Wide bounds for symbolic constraints
+            return (-1e6, 1e6)
 
         if self.tf_constraint.equals is not None:
             return (self.tf_constraint.equals, self.tf_constraint.equals)
@@ -357,7 +338,6 @@ class PhaseDefinition:
         return (lower, upper)
 
 
-# All remaining classes stay exactly the same...
 @dataclass
 class StaticParameterState:
     """State for static parameters that span across all phases."""
@@ -368,24 +348,21 @@ class StaticParameterState:
     _ordering_lock: threading.Lock = field(default_factory=threading.Lock)
 
     def add_parameter(
-        self,
-        name: str,
-        symbol: ca.MX,
-        boundary_constraint: _BoundaryConstraint | None = None,
+        self, name: str, symbol: ca.MX, boundary_constraint: _BoundaryConstraint | None = None
     ) -> None:
-        """Add static parameter - USES CENTRALIZED VALIDATION."""
-        validate_variable_name(name, "parameter")
+        """Add static parameter."""
+        # SINGLE validation call
+        validate_string_not_empty(name, "Parameter name")
 
         if symbol is None:
             raise DataIntegrityError(
-                f"Parameter symbol for '{name}' cannot be None",
-                "TrajectoLab variable definition error",
+                f"Parameter symbol for '{name}' cannot be None", "Variable definition error"
             )
 
         with self._ordering_lock:
             if name in self.parameter_name_to_index:
                 raise DataIntegrityError(
-                    f"Parameter '{name}' already exists", "TrajectoLab variable naming conflict"
+                    f"Parameter '{name}' already exists", "Variable naming conflict"
                 )
 
             index = len(self.parameter_names)
@@ -407,7 +384,7 @@ class StaticParameterState:
                 self.parameter_names.pop()
                 raise DataIntegrityError(
                     f"Failed to create parameter variable info for '{name}': {e}",
-                    "TrajectoLab variable creation error",
+                    "Variable creation error",
                 ) from e
 
     def get_parameter_count(self) -> int:
@@ -432,7 +409,7 @@ class MultiPhaseVariableState:
         """Add new phase to multiphase problem."""
         if phase_id in self.phases:
             raise DataIntegrityError(
-                f"Phase {phase_id} already exists", "TrajectoLab phase definition conflict"
+                f"Phase {phase_id} already exists", "Phase definition conflict"
             )
 
         phase_def = PhaseDefinition(phase_id=phase_id)
