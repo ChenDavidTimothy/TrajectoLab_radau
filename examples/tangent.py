@@ -35,7 +35,7 @@ import trajectolab as tl
 
 def solve_linear_tangent_steering_problem():
     """
-    Implement the Linear Tangent Steering Problem using TrajectoLab's multiphase framework.
+    Implement the Linear Tangent Steering Problem using TrajectoLab's direct phase API.
 
     This is a PARAMETER OPTIMIZATION problem with:
     - Static parameters p₁, p₂ shared across all phases (optimization variables)
@@ -67,134 +67,123 @@ def solve_linear_tangent_steering_problem():
     # ========================================================================
     # Phase 1: t ∈ [0, t_F^(1)]
     # ========================================================================
-    with problem.phase(1) as phase1:
-        # Time variable with initial time fixed at 0
-        t1 = phase1.time(initial=0.0)
+    phase1 = problem.add_phase(1)
 
-        # State variables with initial conditions from specification
-        x1_1 = phase1.state("x1", initial=0.0)  # x₁(0) = 0
-        x2_1 = phase1.state("x2", initial=0.0)  # x₂(0) = 0
-        x3_1 = phase1.state("x3", initial=0.0)  # x₃(0) = 0
-        x4_1 = phase1.state("x4", initial=0.0)  # x₄(0) = 0
+    # Time variable with initial time fixed at 0
+    t1 = phase1.time(initial=0.0)
 
-        # Control law using equations (10.544)-(10.546)
-        # tan u = p₁ - p₂t
-        tan_u1 = p1 - p2 * t1
+    # State variables with initial conditions from specification
+    x1_1 = phase1.state("x1", initial=0.0)  # x₁(0) = 0
+    x2_1 = phase1.state("x2", initial=0.0)  # x₂(0) = 0
+    x3_1 = phase1.state("x3", initial=0.0)  # x₃(0) = 0
+    x4_1 = phase1.state("x4", initial=0.0)  # x₄(0) = 0
 
-        # D = (1 + tan² u)^(-1/2)  (equation 10.544)
-        D1 = ca.power(1 + tan_u1**2, -0.5)
+    # Control law using equations (10.544)-(10.546)
+    # tan u = p₁ - p₂t
+    tan_u1 = p1 - p2 * t1
 
-        # sin u = D tan u  (equation 10.545)
-        sin_u1 = D1 * tan_u1
+    # D = (1 + tan² u)^(-1/2)  (equation 10.544)
+    D1 = ca.power(1 + tan_u1**2, -0.5)
 
-        # cos u = D  (equation 10.546)
-        cos_u1 = D1
+    # sin u = D tan u  (equation 10.545)
+    sin_u1 = D1 * tan_u1
 
-        # Dynamics equations (10.527)-(10.530) with a = 100
-        # ẋ₁ = x₃, ẋ₂ = x₄, ẋ₃ = a cos u, ẋ₄ = a sin u
-        phase1.dynamics(
-            {
-                x1_1: x3_1,  # ẋ₁ = x₃
-                x2_1: x4_1,  # ẋ₂ = x₄
-                x3_1: a * cos_u1,  # ẋ₃ = a cos u
-                x4_1: a * sin_u1,  # ẋ₄ = a sin u
-            }
-        )
+    # cos u = D  (equation 10.546)
+    cos_u1 = D1
 
-        # Set mesh for Phase 1
-        phase1.set_mesh([4, 4], [-1.0, 0.0, 1.0])
+    # Dynamics equations (10.527)-(10.530) with a = 100
+    # ẋ₁ = x₃, ẋ₂ = x₄, ẋ₃ = a cos u, ẋ₄ = a sin u
+    phase1.dynamics(
+        {
+            x1_1: x3_1,  # ẋ₁ = x₃
+            x2_1: x4_1,  # ẋ₂ = x₄
+            x3_1: a * cos_u1,  # ẋ₃ = a cos u
+            x4_1: a * sin_u1,  # ẋ₄ = a sin u
+        }
+    )
+
+    # Set mesh for Phase 1
+    phase1.set_mesh([4, 4], [-1.0, 0.0, 1.0])
 
     # ========================================================================
     # Phase 2: t ∈ [t_F^(1), t_F^(2)]
     # ========================================================================
-    with problem.phase(2) as phase2:
-        # Time variable continuing from Phase 1
-        t2 = phase2.time(initial=t1.final)
+    phase2 = problem.add_phase(2)
 
-        # State variables with continuity from Phase 1
-        x1_2 = phase2.state("x1", initial=x1_1.final)  # x₁ continuity
-        x2_2 = phase2.state("x2", initial=x2_1.final)  # x₂ continuity
-        x3_2 = phase2.state("x3", initial=x3_1.final)  # x₃ continuity
-        x4_2 = phase2.state("x4", initial=x4_1.final)  # x₄ continuity
+    # Time variable continuing from Phase 1
+    t2 = phase2.time(initial=t1.final)
 
-        # Control law using equations (10.544)-(10.546)
-        # tan u = p₁ - p₂t
-        tan_u2 = p1 - p2 * t2
+    # State variables with continuity from Phase 1
+    x1_2 = phase2.state("x1", initial=x1_1.final)  # x₁ continuity
+    x2_2 = phase2.state("x2", initial=x2_1.final)  # x₂ continuity
+    x3_2 = phase2.state("x3", initial=x3_1.final)  # x₃ continuity
+    x4_2 = phase2.state("x4", initial=x4_1.final)  # x₄ continuity
 
-        # D = (1 + tan² u)^(-1/2)  (equation 10.544)
-        D2 = ca.power(1 + tan_u2**2, -0.5)
+    # Control law using equations (10.544)-(10.546)
+    # tan u = p₁ - p₂t
+    tan_u2 = p1 - p2 * t2
 
-        # sin u = D tan u  (equation 10.545)
-        sin_u2 = D2 * tan_u2
+    # D = (1 + tan² u)^(-1/2)  (equation 10.544)
+    D2 = ca.power(1 + tan_u2**2, -0.5)
 
-        # cos u = D  (equation 10.546)
-        cos_u2 = D2
+    # sin u = D tan u  (equation 10.545)
+    sin_u2 = D2 * tan_u2
 
-        # Same dynamics equations
-        phase2.dynamics(
-            {
-                x1_2: x3_2,  # ẋ₁ = x₃
-                x2_2: x4_2,  # ẋ₂ = x₄
-                x3_2: a * cos_u2,  # ẋ₃ = a cos u
-                x4_2: a * sin_u2,  # ẋ₄ = a sin u
-            }
-        )
+    # cos u = D  (equation 10.546)
+    cos_u2 = D2
 
-        # Set mesh for Phase 2
-        phase2.set_mesh([4, 4], [-1.0, 0.0, 1.0])
+    # Same dynamics equations
+    phase2.dynamics(
+        {
+            x1_2: x3_2,  # ẋ₁ = x₃
+            x2_2: x4_2,  # ẋ₂ = x₄
+            x3_2: a * cos_u2,  # ẋ₃ = a cos u
+            x4_2: a * sin_u2,  # ẋ₄ = a sin u
+        }
+    )
+
+    # Set mesh for Phase 2
+    phase2.set_mesh([4, 4], [-1.0, 0.0, 1.0])
 
     # ========================================================================
     # Phase 3: t ∈ [t_F^(2), t_F^(3)]
     # ========================================================================
-    with problem.phase(3) as phase3:
-        # Time variable continuing from Phase 2
-        t3 = phase3.time(initial=t2.final)
+    phase3 = problem.add_phase(3)
 
-        # State variables with continuity from Phase 2 and final constraints
-        x1_3 = phase3.state("x1", initial=x1_2.final)  # x₁ continuity
-        x2_3 = phase3.state("x2", initial=x2_2.final, final=5.0)  # x₂(t_F) = 5
-        x3_3 = phase3.state("x3", initial=x3_2.final, final=45.0)  # x₃(t_F) = 45
-        x4_3 = phase3.state("x4", initial=x4_2.final, final=0.0)  # x₄(t_F) = 0
+    # Time variable continuing from Phase 2
+    t3 = phase3.time(initial=t2.final)
 
-        # Control law using equations (10.544)-(10.546)
-        # tan u = p₁ - p₂t
-        tan_u3 = p1 - p2 * t3
+    # State variables with continuity from Phase 2 and final constraints
+    x1_3 = phase3.state("x1", initial=x1_2.final)  # x₁ continuity
+    x2_3 = phase3.state("x2", initial=x2_2.final, final=5.0)  # x₂(t_F) = 5
+    x3_3 = phase3.state("x3", initial=x3_2.final, final=45.0)  # x₃(t_F) = 45
+    x4_3 = phase3.state("x4", initial=x4_2.final, final=0.0)  # x₄(t_F) = 0
 
-        # D = (1 + tan² u)^(-1/2)  (equation 10.544)
-        D3 = ca.power(1 + tan_u3**2, -0.5)
+    # Control law using equations (10.544)-(10.546)
+    # tan u = p₁ - p₂t
+    tan_u3 = p1 - p2 * t3
 
-        # sin u = D tan u  (equation 10.545)
-        sin_u3 = D3 * tan_u3
+    # D = (1 + tan² u)^(-1/2)  (equation 10.544)
+    D3 = ca.power(1 + tan_u3**2, -0.5)
 
-        # cos u = D  (equation 10.546)
-        cos_u3 = D3
+    # sin u = D tan u  (equation 10.545)
+    sin_u3 = D3 * tan_u3
 
-        # Same dynamics equations
-        phase3.dynamics(
-            {
-                x1_3: x3_3,  # ẋ₁ = x₃
-                x2_3: x4_3,  # ẋ₂ = x₄
-                x3_3: a * cos_u3,  # ẋ₃ = a cos u
-                x4_3: a * sin_u3,  # ẋ₄ = a sin u
-            }
-        )
+    # cos u = D  (equation 10.546)
+    cos_u3 = D3
 
-        # Set mesh for Phase 3
-        phase3.set_mesh([4, 4], [-1.0, 0.0, 1.0])
+    # Same dynamics equations
+    phase3.dynamics(
+        {
+            x1_3: x3_3,  # ẋ₁ = x₃
+            x2_3: x4_3,  # ẋ₂ = x₄
+            x3_3: a * cos_u3,  # ẋ₃ = a cos u
+            x4_3: a * sin_u3,  # ẋ₄ = a sin u
+        }
+    )
 
-    # ========================================================================
-    # Cross-Phase Boundary Conditions
-    # ========================================================================
-
-    # State continuity is already handled by initial=final_state syntax above
-
-    # Additional timing constraints from specification:
-    # Phase 2: t_F^(2) - 2t_I^(2) = 0, where t_I^(2) appears to be related to intermediate timing
-    # Phase 3: t_F^(3) - 2t_I^(3) + t_I^(2) = 0
-
-    # Note: The t_I terms in the specification seem to be intermediate times within phases
-    # For now, implementing the core structure. These timing constraints may need refinement
-    # based on the full context of equations (10.544)-(10.546) which are referenced but not shown
+    # Set mesh for Phase 3
+    phase3.set_mesh([4, 4], [-1.0, 0.0, 1.0])
 
     # ========================================================================
     # Objective Function
@@ -227,13 +216,13 @@ def create_initial_guess():
     phase_duration = total_time / 3.0
 
     # ========================================================================
-    # Phase 1: mesh [8, 8], states [x1, x2, x3, x4] (4 states), NO CONTROLS
+    # Phase 1: mesh [4, 4], states [x1, x2, x3, x4] (4 states), NO CONTROLS
     # ========================================================================
 
     states_p1 = []
     controls_p1 = []  # Empty - no explicit control variables
 
-    # Interval 1: 8 collocation points -> (4, 9) states, NO controls
+    # Interval 1: 4 collocation points -> (4, 5) states, NO controls
     tau1 = np.linspace(-1, 1, 5)
     t_phys1 = (tau1 + 1) / 2 * phase_duration  # Map to [0, phase_duration]
 
@@ -244,9 +233,9 @@ def create_initial_guess():
     x4_vals = t_phys1 * 5.0  # Building up x4 velocity
 
     states_p1.append(np.array([x1_vals, x2_vals, x3_vals, x4_vals]))
-    controls_p1.append(np.zeros((0, 4)))  # No controls (0 control variables, 8 collocation points)
+    controls_p1.append(np.zeros((0, 4)))  # No controls (0 control variables, 4 collocation points)
 
-    # Interval 2: 8 collocation points -> (4, 9) states, NO controls
+    # Interval 2: 4 collocation points -> (4, 5) states, NO controls
     tau2 = np.linspace(-1, 1, 5)
     t_phys2 = (tau2 + 1) / 2 * phase_duration
 
@@ -259,7 +248,7 @@ def create_initial_guess():
     controls_p1.append(np.zeros((0, 4)))  # No controls
 
     # ========================================================================
-    # Phase 2: mesh [8, 8], states [x1, x2, x3, x4] (4 states), NO CONTROLS
+    # Phase 2: mesh [4, 4], states [x1, x2, x3, x4] (4 states), NO CONTROLS
     # ========================================================================
 
     states_p2 = []
@@ -280,7 +269,7 @@ def create_initial_guess():
         controls_p2.append(np.zeros((0, 4)))  # No controls
 
     # ========================================================================
-    # Phase 3: mesh [8, 8], states [x1, x2, x3, x4] (4 states), NO CONTROLS
+    # Phase 3: mesh [4, 4], states [x1, x2, x3, x4] (4 states), NO CONTROLS
     # ========================================================================
 
     states_p3 = []
@@ -310,19 +299,26 @@ def create_initial_guess():
 
 
 def main():
-    """Main execution function."""
+    """Main execution function demonstrating the new direct phase API."""
 
     print("=" * 80)
     print("TrajectoLab Implementation: Linear Tangent Steering Problem")
     print("Section 10.40 - Three Phase Optimal Control")
+    print("NEW DIRECT PHASE API DEMONSTRATION")
     print("=" * 80)
 
-    # Create and configure the problem
+    # Create and configure the problem using new API
     problem = solve_linear_tangent_steering_problem()
 
     # Set initial guess to aid convergence
     initial_guess = create_initial_guess()
     problem.set_initial_guess(**initial_guess)
+
+    print("\nNEW API FEATURES:")
+    print("✓ Direct phase objects: phase1 = problem.add_phase(1)")
+    print("✓ No context manager indentation")
+    print("✓ Natural OOP feel: phase1.state(), phase1.dynamics()")
+    print("✓ Clean cross-phase continuity: initial=x1_1.final")
 
     print("\nProblem Classification: PARAMETER OPTIMIZATION (not control optimization)")
     print("Optimization variables: Static parameters p₁, p₂ and phase final times")
@@ -345,7 +341,7 @@ def main():
     print("Optimizing: p₁, p₂ (static parameters) + phase final times")
     print("Control u computed algebraically from parameters and time")
 
-    # Solve with fixed mesh
+    # Solve with adaptive mesh
     solution = tl.solve_adaptive(
         problem,
         error_tolerance=1e-3,

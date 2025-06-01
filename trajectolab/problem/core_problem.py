@@ -14,38 +14,25 @@ from .constraints_problem import (
     get_cross_phase_event_constraints_function,
     get_phase_path_constraints_function,
 )
-from .state import ConstraintInput, MultiPhaseVariableState, PhaseDefinition
+from .state import ConstraintInput, MultiPhaseVariableState
 from .variables_problem import StateVariableImpl, TimeVariableImpl
 
 
 logger = logging.getLogger(__name__)
 
 
-class PhaseContext:
-    """Context manager for phase-specific variable definition."""
+class Phase:
+    """Direct phase object for defining phase-specific variables and constraints."""
 
     def __init__(self, problem: "Problem", phase_id: PhaseID) -> None:
         self.problem = problem
         self.phase_id = phase_id
-        self._phase_def: PhaseDefinition | None = None
-
-    def __enter__(self) -> "PhaseContext":
-        self.problem._current_phase_id = self.phase_id
-        if self.phase_id not in self.problem._multiphase_state.phases:
-            self._phase_def = self.problem._multiphase_state.add_phase(self.phase_id)
-        else:
-            self._phase_def = self.problem._multiphase_state.phases[self.phase_id]
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        self.problem._current_phase_id = None
+        self._phase_def = self.problem._multiphase_state.add_phase(self.phase_id)
 
     def time(
         self, initial: ConstraintInput = 0.0, final: ConstraintInput = None
     ) -> TimeVariableImpl:
         """Define time variable for this phase."""
-        if self._phase_def is None:
-            raise ValueError("Phase definition not initialized")
         return variables_problem.create_phase_time_variable(self._phase_def, initial, final)
 
     def state(
@@ -56,16 +43,12 @@ class PhaseContext:
         boundary: ConstraintInput = None,
     ) -> StateVariableImpl:
         """Define state variable for this phase."""
-        if self._phase_def is None:
-            raise ValueError("Phase definition not initialized")
         return variables_problem.create_phase_state_variable(
             self._phase_def, name, initial, final, boundary
         )
 
     def control(self, name: str, boundary: ConstraintInput = None) -> ca.MX:
         """Define control variable for this phase."""
-        if self._phase_def is None:
-            raise ValueError("Phase definition not initialized")
         return variables_problem.create_phase_control_variable(self._phase_def, name, boundary)
 
     def dynamics(
@@ -73,8 +56,6 @@ class PhaseContext:
         dynamics_dict: dict[ca.MX | StateVariableImpl, ca.MX | float | int],
     ) -> None:
         """Define dynamics for this phase."""
-        if self._phase_def is None:
-            raise ValueError("Phase definition not initialized")
         variables_problem.set_phase_dynamics(self._phase_def, dynamics_dict)
         logger.info(
             "Dynamics defined for phase %d with %d state variables",
@@ -84,21 +65,15 @@ class PhaseContext:
 
     def add_integral(self, integrand_expr: ca.MX | float | int) -> ca.MX:
         """Add integral expression for this phase."""
-        if self._phase_def is None:
-            raise ValueError("Phase definition not initialized")
         return variables_problem.add_phase_integral(self._phase_def, integrand_expr)
 
     def subject_to(self, constraint_expr: ca.MX | float | int) -> None:
         """Add path constraint for this phase."""
-        if self._phase_def is None:
-            raise ValueError("Phase definition not initialized")
         constraints_problem.add_phase_path_constraint(self._phase_def, constraint_expr)
         logger.debug("Path constraint added to phase %d", self.phase_id)
 
     def set_mesh(self, polynomial_degrees: list[int], mesh_points: NumericArrayLike) -> None:
         """Configure mesh for this phase."""
-        if self._phase_def is None:
-            raise ValueError("Phase definition not initialized")
         logger.info(
             "Setting mesh for phase %d: %d intervals", self.phase_id, len(polynomial_degrees)
         )
@@ -116,13 +91,16 @@ class Problem:
 
         # Core state management
         self._multiphase_state = MultiPhaseVariableState()
-        self._current_phase_id: PhaseID | None = None
         self._initial_guess_container = [None]
         self.solver_options: dict[str, Any] = {}
 
-    def phase(self, phase_id: PhaseID) -> PhaseContext:
-        """Create a phase context for defining phase-specific variables and constraints."""
-        return PhaseContext(self, phase_id)
+    def add_phase(self, phase_id: PhaseID) -> Phase:
+        """Add a new phase and return the phase object for direct manipulation."""
+        if phase_id in self._multiphase_state.phases:
+            raise ValueError(f"Phase {phase_id} already exists")
+
+        logger.debug("Adding phase %d to problem '%s'", phase_id, self.name)
+        return Phase(self, phase_id)
 
     def parameter(self, name: str, boundary: ConstraintInput = None) -> ca.MX:
         """Define a static parameter that spans across all phases."""

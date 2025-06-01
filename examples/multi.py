@@ -1,7 +1,7 @@
 # examples/multi_debug.py
 """
 TrajectoLab Debugging: Hypersensitive Problem Single vs Multi-Phase
-Focuses on inspecting the two-phase solution data.
+Focuses on inspecting the two-phase solution data using NEW DIRECT PHASE API.
 """
 
 import numpy as np
@@ -10,39 +10,57 @@ import trajectolab as tl
 
 
 def solve_two_phase_hypersensitive_debug():
-    """Solve two-phase hypersensitive problem with detailed debugging."""
+    """Solve two-phase hypersensitive problem with detailed debugging using new direct API."""
     print("\n" + "=" * 60)
-    print("🔄 Solving Two-Phase Hypersensitive (DEBUG MODE)...")
+    print("🔄 Solving Two-Phase Hypersensitive (DEBUG MODE - NEW API)...")
     print("=" * 60)
 
     problem_phase = tl.Problem("Two-Phase Hypersensitive Debug")
 
-    # Phase 1: [0, 20]
-    with problem_phase.phase(1) as phase1:
-        t1 = phase1.time(initial=0.0, final=5000.0)  # Fixed intermediate time
-        x1 = phase1.state("x", initial=1.5)
-        u1 = phase1.control("u")
-        phase1.dynamics({x1: -(x1**3) + u1})
-        integral1 = phase1.add_integral(0.5 * (x1**2 + u1**2))
-        phase1.set_mesh([4, 4, 4], [-1.0, -1 / 3, 1 / 3, 1.0])
+    # ========================================================================
+    # Phase 1: [0, 5000] - Using NEW direct phase API
+    # ========================================================================
+    phase1 = problem_phase.add_phase(1)
 
-    # Phase 2: [20, 40]
-    with problem_phase.phase(2) as phase2:
-        phase2.time(initial=t1.final, final=10000.0)
-        x2 = phase2.state("x", initial=x1.final, final=1.0)
-        u2 = phase2.control("u")
-        phase2.dynamics({x2: -(x2**3) + u2})
-        integral2 = phase2.add_integral(0.5 * (x2**2 + u2**2))
-        phase2.set_mesh([4, 4, 4], [-1.0, -1 / 3, 1 / 3, 1.0])
+    t1 = phase1.time(initial=0.0, final=5000.0)  # Fixed intermediate time
+    x1 = phase1.state("x", initial=1.5)
+    u1 = phase1.control("u")
+    phase1.dynamics({x1: -(x1**3) + u1})
+    integral1 = phase1.add_integral(0.5 * (x1**2 + u1**2))
+    phase1.set_mesh([4, 4, 4], [-1.0, -1 / 3, 1 / 3, 1.0])
 
+    # ========================================================================
+    # Phase 2: [5000, 10000] - Cleaner syntax with direct phase access
+    # ========================================================================
+    phase2 = problem_phase.add_phase(2)
+
+    t2 = phase2.time(initial=t1.final, final=10000.0)
+    x2 = phase2.state("x", initial=x1.final, final=1.0)  # Automatic continuity
+    u2 = phase2.control("u")
+    phase2.dynamics({x2: -(x2**3) + u2})
+    integral2 = phase2.add_integral(0.5 * (x2**2 + u2**2))
+    phase2.set_mesh([4, 4, 4], [-1.0, -1 / 3, 1 / 3, 1.0])
+
+    # ========================================================================
+    # Objective - Much cleaner cross-phase reference
+    # ========================================================================
     problem_phase.minimize(integral1 + integral2)
 
+    # ========================================================================
+    # Initial Guess Generation - Same logic, cleaner API demonstration
+    # ========================================================================
     states_guess_p1 = []
     controls_guess_p1 = []
     states_guess_p2 = []
     controls_guess_p2 = []
 
-    # Phase 1: [0, 20] with x going from 1.5 to something intermediate
+    print("✓ NEW API Benefits Demonstrated:")
+    print("  - No context manager indentation")
+    print("  - Direct phase object manipulation")
+    print("  - Cleaner cross-phase continuity syntax")
+    print("  - More intuitive OOP approach")
+
+    # Phase 1: [0, 5000] with x going from 1.5 to something intermediate
     for N in [4, 4, 4]:  # Match your mesh
         tau = np.linspace(-1, 1, N + 1)
         # Linear interpolation from 1.5 to ~0.5 over phase 1
@@ -50,7 +68,7 @@ def solve_two_phase_hypersensitive_debug():
         states_guess_p1.append(x_vals.reshape(1, -1))
         controls_guess_p1.append(np.zeros((1, N)))
 
-    # Phase 2: [20, 40] with x going from ~0.5 to 1.0
+    # Phase 2: [5000, 10000] with x going from ~0.5 to 1.0
     for N in [4, 4, 4]:  # Match your mesh
         tau = np.linspace(-1, 1, N + 1)
         # Linear interpolation from 0.5 to 1.0 over phase 2
@@ -67,7 +85,7 @@ def solve_two_phase_hypersensitive_debug():
         phase_integrals={1: 0.1, 2: 0.1},
     )
 
-    print("Solving with IPOPT print_level = 3...")
+    print("Solving with IPOPT print_level = 0...")
     solution = tl.solve_adaptive(
         problem_phase,
         error_tolerance=7.47e-7,
@@ -75,14 +93,14 @@ def solve_two_phase_hypersensitive_debug():
         min_polynomial_degree=3,
         max_polynomial_degree=15,
         nlp_options={
-            "ipopt.print_level": 0,  # Increased verbosity
+            "ipopt.print_level": 0,
             "ipopt.max_iter": 500,
             "ipopt.tol": 1e-8,
-            "ipopt.constr_viol_tol": 1e-8,  # Added for robustness
+            "ipopt.constr_viol_tol": 1e-8,
         },
     )
 
-    # --- DETAILED SOLUTION INSPECTION ---
+    # --- DETAILED SOLUTION INSPECTION (Same debugging logic) ---
     print("\n" + "-" * 20 + " TWO-PHASE SOLUTION INSPECTION " + "-" * 20)
     if solution is None:
         print("SOLUTION OBJECT IS NONE!")
@@ -160,11 +178,47 @@ def solve_two_phase_hypersensitive_debug():
     return solution
 
 
+def demonstrate_api_comparison():
+    """Demonstrate the difference between old and new APIs."""
+    print("\n" + "=" * 80)
+    print("API COMPARISON DEMONSTRATION")
+    print("=" * 80)
+
+    print("\n🔴 OLD CONTEXT MANAGER API (REMOVED):")
+    print("with problem.phase(1) as phase1:")
+    print("    t1 = phase1.time(initial=0.0)")
+    print("    x1 = phase1.state('x', initial=1.5)")
+    print("    u1 = phase1.control('u')")
+    print("    phase1.dynamics({x1: -(x1**3) + u1})")
+    print("    # Extra indentation required!")
+    print("    # Context manager complexity")
+
+    print("\n🟢 NEW DIRECT PHASE API:")
+    print("phase1 = problem.add_phase(1)")
+    print("t1 = phase1.time(initial=0.0)")
+    print("x1 = phase1.state('x', initial=1.5)")
+    print("u1 = phase1.control('u')")
+    print("phase1.dynamics({x1: -(x1**3) + u1})")
+    print("# Clean, intuitive OOP approach!")
+    print("# No extra indentation")
+
+    print("\n✅ NEW API ADVANTAGES:")
+    print("  ✓ More intuitive OOP design")
+    print("  ✓ No context manager complexity")
+    print("  ✓ No extra indentation")
+    print("  ✓ Better IDE support")
+    print("  ✓ Cleaner cross-phase continuity")
+    print("  ✓ Direct object manipulation")
+
+
 if __name__ == "__main__":
-    # Solve Two-Phase with Debugging
+    # Demonstrate API improvements
+    demonstrate_api_comparison()
+
+    # Solve Two-Phase with Debugging using NEW API
     solution_2p = solve_two_phase_hypersensitive_debug()
     if solution_2p and solution_2p.success:
-        print("\n✅ TWO-PHASE (DEBUG) SUCCESS")
+        print("\n✅ TWO-PHASE (DEBUG) SUCCESS - NEW API WORKS!")
         print(f"   Objective:   {solution_2p.objective:.8f}")
         try:
             print("Plotting Two-Phase Solution...")
