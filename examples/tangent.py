@@ -348,7 +348,7 @@ def main():
     # Solve with fixed mesh
     solution = tl.solve_adaptive(
         problem,
-        error_tolerance=1e-2,
+        error_tolerance=1e-3,
         max_iterations=30,
         min_polynomial_degree=2,
         max_polynomial_degree=15,

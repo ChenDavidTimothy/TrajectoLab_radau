@@ -13,6 +13,7 @@ from ..tl_types import (
     FloatArray,
     PhaseID,
 )
+from ..utils.coordinates import tau_to_time
 
 
 def setup_phase_integrals(
@@ -31,70 +32,44 @@ def setup_phase_integrals(
     static_parameters_vec: ca.MX | None = None,
 ) -> None:
     """
-    Set up integral calculations for a single mesh interval within a phase.
-    OPTIMIZED: Uses vectorized coordinate transformation for efficiency.
-
-    Args:
-        opti: CasADi optimization object
-        phase_id: Phase identifier
-        mesh_interval_index: Index of mesh interval within phase
-        state_at_nodes: State variables at all nodes in interval
-        control_variables: Control variables for interval
-        basis_components: Radau basis components
-        global_normalized_mesh_nodes: Global mesh nodes for this phase
-        initial_time_variable: Initial time variable for this phase
-        terminal_time_variable: Terminal time variable for this phase
-        integral_integrand_function: Integrand function for this phase
-        num_integrals: Number of integrals for this phase
-        accumulated_integral_expressions: List to accumulate integral expressions
-        static_parameters_vec: Static parameter variables
-
-    Note:
-        This function modifies accumulated_integral_expressions in place.
+    SIMPLIFIED: Set up integral calculations using simple coordinate transformation.
     """
     num_colloc_nodes = len(basis_components.collocation_nodes)
     colloc_nodes_tau = basis_components.collocation_nodes.flatten()
     quad_weights = basis_components.quadrature_weights.flatten()
 
-    # OPTIMIZED: Pre-compute coordinate transformation parameters once per interval
+    # SIMPLIFIED: Single scaling factor calculation
     global_segment_length = (
         global_normalized_mesh_nodes[mesh_interval_index + 1]
         - global_normalized_mesh_nodes[mesh_interval_index]
     )
-
-    tau_to_time_scaling: ca.MX = (
+    tau_to_time_scaling = (
         (terminal_time_variable - initial_time_variable) * global_segment_length / 4.0
     )
 
-    # OPTIMIZED: Pre-compute transformation parameters for vectorized operations
-
-    # Extract scalar time values for transformation matrix computation
-    # Note: For CasADi variables, we use the transformation formula directly
-    segment_start = global_normalized_mesh_nodes[mesh_interval_index]
-    segment_end = global_normalized_mesh_nodes[mesh_interval_index + 1]
-
-    # Pre-compute global tau values and time scale factor
-    scale_factor = global_segment_length / 2
-    offset_factor = (segment_end + segment_start) / 2
-    time_scale = (terminal_time_variable - initial_time_variable) / 2
-    time_offset = (terminal_time_variable + initial_time_variable) / 2
+    mesh_start = global_normalized_mesh_nodes[mesh_interval_index]
+    mesh_end = global_normalized_mesh_nodes[mesh_interval_index + 1]
 
     for integral_index in range(num_integrals):
         quad_sum: ca.MX = ca.MX(0)
 
         for i_colloc in range(num_colloc_nodes):
-            state_at_colloc: ca.MX = state_at_nodes[:, i_colloc]
-            control_at_colloc: ca.MX = control_variables[:, i_colloc]
+            state_at_colloc = state_at_nodes[:, i_colloc]
+            control_at_colloc = control_variables[:, i_colloc]
 
-            # OPTIMIZED: Direct coordinate transformation using pre-computed parameters
-            local_colloc_tau_val: float = colloc_nodes_tau[i_colloc]
-            global_colloc_tau_val: ca.MX = scale_factor * local_colloc_tau_val + offset_factor
-            physical_time_at_colloc: ca.MX = time_scale * global_colloc_tau_val + time_offset
+            # SIMPLIFIED: Single function call replaces 10+ lines of transformation code
+            local_colloc_tau_val = colloc_nodes_tau[i_colloc]
+            physical_time_at_colloc = tau_to_time(
+                local_colloc_tau_val,
+                mesh_start,
+                mesh_end,
+                initial_time_variable,
+                terminal_time_variable,
+            )
 
             # Calculate integrand and add to quadrature sum
-            weight: float = quad_weights[i_colloc]
-
-            integrand_value: ca.MX = integral_integrand_function(
+            weight = quad_weights[i_colloc]
+            integrand_value = integral_integrand_function(
                 state_at_colloc,
                 control_at_colloc,
                 physical_time_at_colloc,

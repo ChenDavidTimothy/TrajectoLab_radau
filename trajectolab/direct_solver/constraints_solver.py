@@ -8,7 +8,6 @@ from collections.abc import Callable
 
 import casadi as ca
 
-from trajectolab.input_validation import validate_dynamics_output, validate_interval_length
 from trajectolab.radau import RadauBasisComponents
 from trajectolab.tl_types import Constraint, FloatArray, PhaseID, ProblemProtocol
 
@@ -33,16 +32,21 @@ def apply_phase_collocation_constraints(
     global_normalized_mesh_nodes: FloatArray,
     initial_time_variable: ca.MX,
     terminal_time_variable: ca.MX,
-    dynamics_function: Callable[..., ca.MX],  # OPTIMIZED: Direct ca.MX return
+    dynamics_function: Callable[..., ca.MX],
     problem: ProblemProtocol | None = None,
     static_parameters_vec: ca.MX | None = None,
 ) -> None:
-    """Apply collocation constraints for a single mesh interval within a phase."""
+    """
+    SIMPLIFIED: Apply collocation constraints with simple coordinate transformation.
+    """
+    from ..input_validation import validate_dynamics_output, validate_interval_length
+    from ..utils.coordinates import tau_to_time
+
     num_colloc_nodes = len(basis_components.collocation_nodes)
     colloc_nodes_tau = basis_components.collocation_nodes.flatten()
     diff_matrix: ca.DM = ca.DM(basis_components.differentiation_matrix)
 
-    # SINGLE validation call
+    # Validation
     validate_interval_length(
         global_normalized_mesh_nodes[mesh_interval_index],
         global_normalized_mesh_nodes[mesh_interval_index + 1],
@@ -50,48 +54,43 @@ def apply_phase_collocation_constraints(
     )
 
     # Calculate state derivatives at collocation points
-    state_derivative_at_colloc: ca.MX = ca.mtimes(state_at_nodes, diff_matrix.T)
+    state_derivative_at_colloc = ca.mtimes(state_at_nodes, diff_matrix.T)
 
-    # Calculate time scaling
-    global_segment_length: float = (
+    # SIMPLIFIED: Single scaling calculation
+    global_segment_length = (
         global_normalized_mesh_nodes[mesh_interval_index + 1]
         - global_normalized_mesh_nodes[mesh_interval_index]
     )
-    tau_to_time_scaling: ca.MX = (
+    tau_to_time_scaling = (
         (terminal_time_variable - initial_time_variable) * global_segment_length / 4.0
     )
 
+    mesh_start = global_normalized_mesh_nodes[mesh_interval_index]
+    mesh_end = global_normalized_mesh_nodes[mesh_interval_index + 1]
+
     # Apply constraints at each collocation point
     for i_colloc in range(num_colloc_nodes):
-        state_at_colloc: ca.MX = state_at_nodes[:, i_colloc]
-        control_at_colloc: ca.MX = control_variables[:, i_colloc]
+        state_at_colloc = state_at_nodes[:, i_colloc]
+        control_at_colloc = control_variables[:, i_colloc]
 
-        # Calculate physical time at this collocation point
-        local_colloc_tau_val: float = colloc_nodes_tau[i_colloc]
-        global_colloc_tau_val: ca.MX = (
-            global_segment_length / 2 * local_colloc_tau_val
-            + (
-                global_normalized_mesh_nodes[mesh_interval_index + 1]
-                + global_normalized_mesh_nodes[mesh_interval_index]
-            )
-            / 2
+        # SIMPLIFIED: Single function call replaces complex transformation
+        local_colloc_tau_val = colloc_nodes_tau[i_colloc]
+        physical_time_at_colloc = tau_to_time(
+            local_colloc_tau_val,
+            mesh_start,
+            mesh_end,
+            initial_time_variable,
+            terminal_time_variable,
         )
-        physical_time_at_colloc: ca.MX = (
-            terminal_time_variable - initial_time_variable
-        ) / 2 * global_colloc_tau_val + (terminal_time_variable + initial_time_variable) / 2
 
-        # Get dynamics - OPTIMIZED: Direct vector return (no list conversion)
-        state_derivative_rhs: ca.MX = dynamics_function(
+        # Get dynamics and apply constraint
+        state_derivative_rhs = dynamics_function(
             state_at_colloc, control_at_colloc, physical_time_at_colloc, static_parameters_vec
         )
 
-        # OPTIMIZED: Direct validation without conversion
         num_states = state_at_nodes.shape[0]
-        state_derivative_rhs_vector: ca.MX = validate_dynamics_output(
-            state_derivative_rhs, num_states
-        )
+        state_derivative_rhs_vector = validate_dynamics_output(state_derivative_rhs, num_states)
 
-        # Apply collocation constraint
         opti.subject_to(
             state_derivative_at_colloc[:, i_colloc]
             == tau_to_time_scaling * state_derivative_rhs_vector
