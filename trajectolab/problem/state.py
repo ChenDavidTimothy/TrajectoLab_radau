@@ -20,6 +20,29 @@ from ..tl_types import FloatArray, PhaseID
 ConstraintInput = float | int | tuple[float | int | None, float | int | None] | None | ca.MX
 
 
+def _register_variable_name(
+    name: str, name_to_index: dict[str, int], names_list: list[str], error_context: str
+) -> int:
+    """Thread-safe variable name registration with collision detection."""
+    if name in name_to_index:
+        raise DataIntegrityError(
+            f"{error_context} '{name}' already exists", "Variable naming conflict"
+        )
+
+    index = len(names_list)
+    name_to_index[name] = index
+    names_list.append(name)
+    return index
+
+
+def _rollback_variable_registration(
+    name: str, name_to_index: dict[str, int], names_list: list[str]
+) -> None:
+    """Rollback variable registration on failure."""
+    name_to_index.pop(name, None)
+    names_list.pop()
+
+
 class _BoundaryConstraint:
     """Internal class for representing boundary constraints with symbolic expression support."""
 
@@ -154,15 +177,9 @@ class PhaseDefinition:
             )
 
         with self._ordering_lock:
-            if name in self.state_name_to_index:
-                raise DataIntegrityError(
-                    f"State '{name}' already exists in phase {self.phase_id}",
-                    "Variable naming conflict",
-                )
-
-            index = len(self.state_names)
-            self.state_name_to_index[name] = index
-            self.state_names.append(name)
+            index = _register_variable_name(
+                name, self.state_name_to_index, self.state_names, f"State in phase {self.phase_id}"
+            )
 
             try:
                 var_info = _VariableInfo(
@@ -190,8 +207,7 @@ class PhaseDefinition:
                     )
 
             except Exception as e:
-                self.state_name_to_index.pop(name, None)
-                self.state_names.pop()
+                _rollback_variable_registration(name, self.state_name_to_index, self.state_names)
                 raise DataIntegrityError(
                     f"Failed to create state variable info for '{name}': {e}",
                     "Variable creation error",
@@ -210,15 +226,12 @@ class PhaseDefinition:
             )
 
         with self._ordering_lock:
-            if name in self.control_name_to_index:
-                raise DataIntegrityError(
-                    f"Control '{name}' already exists in phase {self.phase_id}",
-                    "Variable naming conflict",
-                )
-
-            index = len(self.control_names)
-            self.control_name_to_index[name] = index
-            self.control_names.append(name)
+            index = _register_variable_name(
+                name,
+                self.control_name_to_index,
+                self.control_names,
+                f"Control in phase {self.phase_id}",
+            )
 
             try:
                 var_info = _VariableInfo(
@@ -231,8 +244,9 @@ class PhaseDefinition:
                 )
                 self.control_info.append(var_info)
             except Exception as e:
-                self.control_name_to_index.pop(name, None)
-                self.control_names.pop()
+                _rollback_variable_registration(
+                    name, self.control_name_to_index, self.control_names
+                )
                 raise DataIntegrityError(
                     f"Failed to create control variable info for '{name}': {e}",
                     "Variable creation error",
@@ -299,43 +313,30 @@ class PhaseDefinition:
             symbols.append(info.final_symbol)
         return symbols
 
+    def _get_time_bounds(
+        self, constraint: _BoundaryConstraint, constraint_type: str
+    ) -> tuple[float, float]:
+        """Extract time bounds from constraint with consistent logic."""
+        if constraint is None:
+            raise DataIntegrityError(
+                f"Phase {self.phase_id} {constraint_type} time constraint is None",
+                "Time bounds corruption",
+            )
+        if constraint.is_symbolic():
+            return (-1e6, 1e6)
+        if constraint.equals is not None:
+            return (constraint.equals, constraint.equals)
+        lower = constraint.lower if constraint.lower is not None else -1e6
+        upper = constraint.upper if constraint.upper is not None else 1e6
+        return (lower, upper)
+
     @property
     def t0_bounds(self) -> tuple[float, float]:
-        """Get time initial bounds as tuple for compatibility."""
-        if self.t0_constraint is None:
-            raise DataIntegrityError(
-                f"Phase {self.phase_id} initial time constraint is None", "Time bounds corruption"
-            )
-
-        # Handle symbolic constraints by providing reasonable bounds
-        if self.t0_constraint.is_symbolic():
-            return (-1e6, 1e6)
-
-        if self.t0_constraint.equals is not None:
-            return (self.t0_constraint.equals, self.t0_constraint.equals)
-
-        lower = self.t0_constraint.lower if self.t0_constraint.lower is not None else -1e6
-        upper = self.t0_constraint.upper if self.t0_constraint.upper is not None else 1e6
-        return (lower, upper)
+        return self._get_time_bounds(self.t0_constraint, "initial")
 
     @property
     def tf_bounds(self) -> tuple[float, float]:
-        """Get time final bounds as tuple for compatibility."""
-        if self.tf_constraint is None:
-            raise DataIntegrityError(
-                f"Phase {self.phase_id} final time constraint is None", "Time bounds corruption"
-            )
-
-        # Handle symbolic constraints by providing reasonable bounds
-        if self.tf_constraint.is_symbolic():
-            return (-1e6, 1e6)
-
-        if self.tf_constraint.equals is not None:
-            return (self.tf_constraint.equals, self.tf_constraint.equals)
-
-        lower = self.tf_constraint.lower if self.tf_constraint.lower is not None else -1e6
-        upper = self.tf_constraint.upper if self.tf_constraint.upper is not None else 1e6
-        return (lower, upper)
+        return self._get_time_bounds(self.tf_constraint, "final")
 
 
 @dataclass
@@ -360,14 +361,9 @@ class StaticParameterState:
             )
 
         with self._ordering_lock:
-            if name in self.parameter_name_to_index:
-                raise DataIntegrityError(
-                    f"Parameter '{name}' already exists", "Variable naming conflict"
-                )
-
-            index = len(self.parameter_names)
-            self.parameter_name_to_index[name] = index
-            self.parameter_names.append(name)
+            index = _register_variable_name(
+                name, self.parameter_name_to_index, self.parameter_names, "Parameter"
+            )
 
             try:
                 var_info = _VariableInfo(
@@ -380,8 +376,9 @@ class StaticParameterState:
                 )
                 self.parameter_info.append(var_info)
             except Exception as e:
-                self.parameter_name_to_index.pop(name, None)
-                self.parameter_names.pop()
+                _rollback_variable_registration(
+                    name, self.parameter_name_to_index, self.parameter_names
+                )
                 raise DataIntegrityError(
                     f"Failed to create parameter variable info for '{name}': {e}",
                     "Variable creation error",
