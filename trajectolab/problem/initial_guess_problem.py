@@ -216,11 +216,14 @@ def validate_multiphase_initial_guess(
         )
 
     # SINGLE comprehensive validation call
+    from typing import cast
+
     from ..problem import Problem  # Avoid circular import
+    from ..tl_types import ProblemProtocol
 
     dummy_problem = Problem()
     dummy_problem._multiphase_state = multiphase_state
-    validate_multiphase_initial_guess_structure(current_guess, dummy_problem)
+    validate_multiphase_initial_guess_structure(current_guess, cast(ProblemProtocol, dummy_problem))
 
 
 def get_multiphase_solver_input_summary(

@@ -15,18 +15,24 @@ def build_unified_casadi_function_inputs(
 
     states_vec = ca.vertcat(*state_syms) if state_syms else ca.MX()
     controls_vec = ca.vertcat(*control_syms) if control_syms else ca.MX()
-    time = phase_def.sym_time if phase_def.sym_time is not None else ca.MX.sym("t", 1)
+    time = phase_def.sym_time if phase_def.sym_time is not None else ca.MX.sym("t", 1)  # type: ignore[arg-type]
 
     # Create static parameters with correct dimensions
     num_static_params = len(static_parameter_symbols) if static_parameter_symbols else 0
     if num_static_params > 0:
-        static_params_vec = ca.MX.sym("static_params", num_static_params, 1)
+        static_params_vec = ca.MX.sym("static_params", num_static_params, 1)  # type: ignore[arg-type]
     else:
-        static_params_vec = ca.MX.sym("static_params", 1, 1)
+        static_params_vec = ca.MX.sym("static_params", 1, 1)  # type: ignore[arg-type]
 
     function_inputs = [states_vec, controls_vec, time, static_params_vec]
 
-    return states_vec, controls_vec, time, static_params_vec, function_inputs
+    return (
+        ca.MX(states_vec),
+        ca.MX(controls_vec),
+        ca.MX(time),
+        ca.MX(static_params_vec),
+        function_inputs,
+    )
 
 
 def build_static_parameter_substitution_map(
@@ -62,26 +68,26 @@ def build_unified_multiphase_symbol_inputs(multiphase_state) -> tuple[list[ca.MX
         t0 = (
             phase_def.sym_time_initial
             if phase_def.sym_time_initial is not None
-            else ca.MX.sym(f"t0_p{phase_id}", 1)
+            else ca.MX.sym(f"t0_p{phase_id}", 1)  # type: ignore[arg-type]
         )
         tf = (
             phase_def.sym_time_final
             if phase_def.sym_time_final is not None
-            else ca.MX.sym(f"tf_p{phase_id}", 1)
+            else ca.MX.sym(f"tf_p{phase_id}", 1)  # type: ignore[arg-type]
         )
 
         # State vectors
         state_syms = phase_def.get_ordered_state_symbols()
-        x0_vec = ca.vertcat(*[ca.MX.sym(f"x0_{i}_p{phase_id}", 1) for i in range(len(state_syms))])
-        xf_vec = ca.vertcat(*[ca.MX.sym(f"xf_{i}_p{phase_id}", 1) for i in range(len(state_syms))])
+        x0_vec = ca.vertcat(*[ca.MX.sym(f"x0_{i}_p{phase_id}", 1) for i in range(len(state_syms))])  # type: ignore[arg-type]
+        xf_vec = ca.vertcat(*[ca.MX.sym(f"xf_{i}_p{phase_id}", 1) for i in range(len(state_syms))])  # type: ignore[arg-type]
 
         # Integral vector
         q_vec = (
             ca.vertcat(
-                *[ca.MX.sym(f"q_{i}_p{phase_id}", 1) for i in range(phase_def.num_integrals)]
+                *[ca.MX.sym(f"q_{i}_p{phase_id}", 1) for i in range(phase_def.num_integrals)]  # type: ignore[arg-type]
             )
             if phase_def.num_integrals > 0
-            else ca.MX.sym(f"q_p{phase_id}", 1)
+            else ca.MX.sym(f"q_p{phase_id}", 1)  # type: ignore[arg-type]
         )
 
         phase_inputs.extend([t0, tf, x0_vec, xf_vec, q_vec])
@@ -89,14 +95,14 @@ def build_unified_multiphase_symbol_inputs(multiphase_state) -> tuple[list[ca.MX
     # Static parameters
     static_param_syms = multiphase_state.static_parameters.get_ordered_parameter_symbols()
     s_vec = (
-        ca.vertcat(*[ca.MX.sym(f"s_{i}", 1) for i in range(len(static_param_syms))])
+        ca.vertcat(*[ca.MX.sym(f"s_{i}", 1) for i in range(len(static_param_syms))])  # type: ignore[arg-type]
         if static_param_syms
-        else ca.MX.sym("s", 1)
+        else ca.MX.sym("s", 1)  # type: ignore[arg-type]
     )
 
     phase_inputs.append(s_vec)
 
-    return phase_inputs, s_vec
+    return phase_inputs, ca.MX(s_vec)
 
 
 def build_unified_symbol_substitution_map(

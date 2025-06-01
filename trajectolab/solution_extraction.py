@@ -107,7 +107,9 @@ def consolidated_phase_trajectory_extraction(
     problem: ProblemProtocol,
     initial_time: float,
     terminal_time: float,
-) -> tuple[dict[str, FloatArray], list[FloatArray], list[FloatArray]]:
+) -> tuple[
+    dict[str, FloatArray], list[FloatArray], list[FloatArray], list[FloatArray], list[FloatArray]
+]:
     """
     SIMPLIFIED: Single extraction pass with simple coordinate transformation.
     """
@@ -213,21 +215,29 @@ def consolidated_phase_trajectory_extraction(
                     )
                     control_trajectory_values[var_idx].append(value)
 
-    # Return trajectory data
+    # Return trajectory data with proper typing
     trajectory_data: dict[str, FloatArray] = {
         "state_times": np.array(state_trajectory_times, dtype=np.float64),
-        "state_values": [np.array(s_traj, dtype=np.float64) for s_traj in state_trajectory_values],
         "control_times": np.array(control_trajectory_times, dtype=np.float64)
         if num_controls > 0
         else np.array([], dtype=np.float64),
-        "control_values": [
-            np.array(c_traj, dtype=np.float64) for c_traj in control_trajectory_values
-        ]
-        if num_controls > 0
-        else [],
     }
 
-    return trajectory_data, per_interval_states, per_interval_controls
+    # Convert state and control values to FloatArray
+    state_values_arrays = [np.array(s_traj, dtype=np.float64) for s_traj in state_trajectory_values]
+    control_values_arrays = (
+        [np.array(c_traj, dtype=np.float64) for c_traj in control_trajectory_values]
+        if num_controls > 0
+        else []
+    )
+
+    return (
+        trajectory_data,
+        state_values_arrays,
+        control_values_arrays,
+        per_interval_states,
+        per_interval_controls,
+    )
 
 
 def extract_and_format_multiphase_solution(
@@ -347,31 +357,27 @@ def extract_and_format_multiphase_solution(
 
         # Single consolidated extraction for trajectories and per-interval data
         try:
-            trajectory_data, per_interval_states, per_interval_controls = (
-                consolidated_phase_trajectory_extraction(
-                    phase_id,
-                    casadi_solution_object,
-                    phase_vars,
-                    problem,
-                    initial_time,
-                    terminal_time,
-                )
+            (
+                trajectory_data,
+                state_values_arrays,
+                control_values_arrays,
+                per_interval_states,
+                per_interval_controls,
+            ) = consolidated_phase_trajectory_extraction(
+                phase_id,
+                casadi_solution_object,
+                phase_vars,
+                problem,
+                initial_time,
+                terminal_time,
             )
 
-            # Store trajectory data - FIX TYPE ANNOTATIONS
+            # Store trajectory data with proper types
             solution.phase_time_states[phase_id] = trajectory_data["state_times"]
-            state_values = trajectory_data["state_values"]
-            if isinstance(state_values, list):
-                solution.phase_states[phase_id] = state_values
-            else:
-                solution.phase_states[phase_id] = [state_values]
+            solution.phase_states[phase_id] = state_values_arrays
 
             solution.phase_time_controls[phase_id] = trajectory_data["control_times"]
-            control_values = trajectory_data["control_values"]
-            if isinstance(control_values, list):
-                solution.phase_controls[phase_id] = control_values
-            else:
-                solution.phase_controls[phase_id] = [control_values]
+            solution.phase_controls[phase_id] = control_values_arrays
 
             # Store per-interval data
             solution.phase_solved_state_trajectories_per_interval[phase_id] = per_interval_states

@@ -81,7 +81,7 @@ def convert_casadi_to_numpy(
         # Handle both optimized and legacy interfaces
         if isinstance(result_casadi, ca.DM):
             # Direct DM result - convert to numpy - FIX TYPE ANNOTATION
-            result_np = cast(FloatArray, np.array(result_casadi.full(), dtype=np.float64).flatten())
+            result_np = np.array(result_casadi.full(), dtype=np.float64).flatten()
         elif isinstance(result_casadi, ca.MX):
             # MX result (new optimized interface) - evaluate and convert
             result_dm = ca.evalf(result_casadi)

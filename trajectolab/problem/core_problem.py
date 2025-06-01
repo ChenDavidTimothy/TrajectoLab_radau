@@ -70,7 +70,7 @@ class PhaseContext:
 
     def dynamics(
         self,
-        dynamics_dict: dict[ca.MX | StateVariableImpl, ca.MX | float | int | StateVariableImpl],
+        dynamics_dict: dict[ca.MX | StateVariableImpl, ca.MX | float | int],
     ) -> None:
         """Define dynamics for this phase."""
         if self._phase_def is None:
@@ -269,6 +269,13 @@ class Problem:
         for phase_id, phase_def in self._multiphase_state.phases.items():
             # Process time constraints
             if phase_def.t0_constraint.is_symbolic():
+                if (
+                    phase_def.sym_time_initial is None
+                    or phase_def.t0_constraint.symbolic_expression is None
+                ):
+                    raise ValueError(
+                        f"Phase {phase_id} has an undefined symbolic time initial expression."
+                    )
                 constraint_expr = (
                     phase_def.sym_time_initial - phase_def.t0_constraint.symbolic_expression
                 )
@@ -276,6 +283,13 @@ class Problem:
                 logger.debug(f"Added automatic time initial constraint for phase {phase_id}")
 
             if phase_def.tf_constraint.is_symbolic():
+                if (
+                    phase_def.sym_time_final is None
+                    or phase_def.tf_constraint.symbolic_expression is None
+                ):
+                    raise ValueError(
+                        f"Phase {phase_id} has an undefined symbolic time final expression."
+                    )
                 constraint_expr = (
                     phase_def.sym_time_final - phase_def.tf_constraint.symbolic_expression
                 )

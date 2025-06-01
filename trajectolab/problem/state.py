@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import threading
 from dataclasses import dataclass, field
-from typing import TypeAlias
+from typing import TypeAlias, cast
 
 import casadi as ca
 
@@ -192,15 +192,15 @@ class PhaseDefinition:
                 # Collect symbolic boundary constraints for automatic processing
                 if initial_constraint is not None and initial_constraint.is_symbolic():
                     self.symbolic_boundary_constraints.append(
-                        (name, "initial", initial_constraint.symbolic_expression)
+                        (name, "initial", cast(ca.MX, initial_constraint.symbolic_expression))
                     )
                 if final_constraint is not None and final_constraint.is_symbolic():
                     self.symbolic_boundary_constraints.append(
-                        (name, "final", final_constraint.symbolic_expression)
+                        (name, "final", cast(ca.MX, final_constraint.symbolic_expression))
                     )
                 if boundary_constraint is not None and boundary_constraint.is_symbolic():
                     self.symbolic_boundary_constraints.append(
-                        (name, "boundary", boundary_constraint.symbolic_expression)
+                        (name, "boundary", cast(ca.MX, boundary_constraint.symbolic_expression))
                     )
 
             except Exception as e:
