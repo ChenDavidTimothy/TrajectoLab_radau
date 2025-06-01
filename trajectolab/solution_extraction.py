@@ -106,34 +106,8 @@ def extract_multiphase_integral_values(
         return None
 
 
-def vectorized_coordinate_transform(
-    local_tau_nodes: FloatArray,
-    global_mesh_nodes: FloatArray,
-    mesh_interval_index: int,
-    initial_time: float,
-    terminal_time: float,
-) -> FloatArray:
-    """
-    OPTIMIZED: Vectorized coordinate transformation eliminates per-point computation.
-
-    Transforms all tau coordinates for an interval in a single operation.
-    """
-    # Pre-compute interval parameters
-    segment_start = global_mesh_nodes[mesh_interval_index]
-    segment_end = global_mesh_nodes[mesh_interval_index + 1]
-    global_segment_length = segment_end - segment_start
-
-    # Vectorized local tau to global tau transformation
-    global_tau_nodes = (
-        global_segment_length / 2 * local_tau_nodes + (segment_end + segment_start) / 2
-    )
-
-    # Vectorized global tau to physical time transformation
-    physical_times = (terminal_time - initial_time) / 2 * global_tau_nodes + (
-        terminal_time + initial_time
-    ) / 2
-
-    return physical_times
+# REMOVED: vectorized_coordinate_transform function
+# USING: tau_to_time from utils.coordinates instead
 
 
 def consolidated_phase_trajectory_extraction(
@@ -214,7 +188,7 @@ def consolidated_phase_trajectory_extraction(
         state_tau_nodes = basis_components.state_approximation_nodes
         control_tau_nodes = basis_components.collocation_nodes
 
-        # SINGLE FUNCTION CALL - replaces all the complex transformation code
+        # CHANGED: Use tau_to_time instead of vectorized_coordinate_transform
         mesh_start = global_mesh_nodes[mesh_idx]
         mesh_end = global_mesh_nodes[mesh_idx + 1]
 

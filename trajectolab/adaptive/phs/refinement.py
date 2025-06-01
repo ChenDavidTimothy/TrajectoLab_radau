@@ -17,6 +17,9 @@ from trajectolab.adaptive.phs.data_structures import (
     PRefineResult,
     ensure_2d_array,
 )
+
+# CHANGED: Import from error_estimation instead of duplicate function
+from trajectolab.adaptive.phs.error_estimation import _convert_casadi_dynamics_result_to_numpy
 from trajectolab.adaptive.phs.numerical import (
     map_local_interval_tau_to_global_normalized_tau,
     map_local_tau_from_interval_k_plus_1_to_equivalent_in_interval_k,
@@ -96,45 +99,8 @@ def _calculate_trajectory_errors_with_gamma(
     return list(scaled_errors)
 
 
-def _convert_casadi_dynamics_result_to_numpy_for_refinement(
-    dynamics_result: ca.MX, num_states: int
-) -> FloatArray:
-    """
-    FIXED: Convert optimized dynamics result (ca.MX) to numpy array for refinement.
-
-    Handles the new dynamics interface where function returns ca.MX directly
-    instead of list[ca.MX].
-    """
-    if isinstance(dynamics_result, ca.MX):
-        # New optimized interface - ca.MX result
-        if dynamics_result.shape[0] == num_states and dynamics_result.shape[1] == 1:
-            # Correct shape - convert directly
-            state_deriv_np = np.array(
-                [float(ca.evalf(dynamics_result[i])) for i in range(num_states)], dtype=np.float64
-            )
-        elif dynamics_result.shape[0] == 1 and dynamics_result.shape[1] == num_states:
-            # Transposed - need to transpose first
-            state_deriv_np = np.array(
-                [float(ca.evalf(dynamics_result[0, i])) for i in range(num_states)],
-                dtype=np.float64,
-            )
-        else:
-            raise ValueError(
-                f"Unexpected dynamics result shape: {dynamics_result.shape}, expected ({num_states}, 1)"
-            )
-    elif isinstance(dynamics_result, list):
-        # Legacy interface - list[ca.MX] (backward compatibility)
-        if len(dynamics_result) != num_states:
-            raise ValueError(
-                f"Dynamics list length {len(dynamics_result)} != expected states {num_states}"
-            )
-        state_deriv_np = np.array(
-            [float(ca.evalf(expr)) for expr in dynamics_result], dtype=np.float64
-        )
-    else:
-        raise ValueError(f"Unsupported dynamics result type: {type(dynamics_result)}")
-
-    return cast(FloatArray, state_deriv_np)
+# REMOVED: _convert_casadi_dynamics_result_to_numpy_for_refinement function
+# USING: _convert_casadi_dynamics_result_to_numpy from error_estimation.py instead
 
 
 # ========================================================================
@@ -315,10 +281,8 @@ def h_reduce_intervals(
             ca.MX(state_clipped), ca.MX(u_val), ca.MX(t_actual)
         )
 
-        # FIXED: Convert using new helper function
-        f_rhs_np = _convert_casadi_dynamics_result_to_numpy_for_refinement(
-            dynamics_result, num_states
-        )
+        # CHANGED: Use shared function from error_estimation
+        f_rhs_np = _convert_casadi_dynamics_result_to_numpy(dynamics_result, num_states)
 
         return cast(FloatArray, scaling_k * f_rhs_np)
 
@@ -336,10 +300,8 @@ def h_reduce_intervals(
             ca.MX(state_clipped), ca.MX(u_val), ca.MX(t_actual)
         )
 
-        # FIXED: Convert using new helper function
-        f_rhs_np = _convert_casadi_dynamics_result_to_numpy_for_refinement(
-            dynamics_result, num_states
-        )
+        # CHANGED: Use shared function from error_estimation
+        f_rhs_np = _convert_casadi_dynamics_result_to_numpy(dynamics_result, num_states)
 
         return cast(FloatArray, scaling_kp1 * f_rhs_np)
 
