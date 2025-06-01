@@ -1,6 +1,7 @@
 """
 Streamlined initial guess propagation and interpolation for multiphase adaptive mesh refinement.
 BLOAT ELIMINATED: Removed memory pooling, simplified validation, direct array allocation.
+DEAD CODE REMOVED: Eliminated verified dead code from Phase 1 verification.
 """
 
 import logging
@@ -270,6 +271,7 @@ def propagate_multiphase_solution_to_new_meshes(
 ) -> MultiPhaseInitialGuess:
     """
     STREAMLINED multiphase solution propagation with direct allocation.
+    DEAD CODE REMOVED: Eliminated verified conditional extraction logic.
     """
     logger.info("  Starting STREAMLINED multiphase interpolation-based propagation...")
 
@@ -286,10 +288,9 @@ def propagate_multiphase_solution_to_new_meshes(
     phase_integrals = prev_solution.phase_integrals.copy()
     static_parameters = prev_solution.static_parameters
 
-    # Ensure solution has proper per-interval trajectory data
-    if not prev_solution.phase_solved_state_trajectories_per_interval:
-        logger.info("    Extracting per-interval trajectories from raw solution...")
-        _extract_multiphase_solution_trajectories(prev_solution, problem)
+    # DEAD CODE REMOVED: The conditional check and _extract_multiphase_solution_trajectories() call
+    # VERIFICATION CONFIRMED: prev_solution.phase_solved_state_trajectories_per_interval is ALWAYS populated
+    # by extract_and_format_multiphase_solution() in solve_multiphase_radau_collocation()
 
     # Interpolate trajectories for each phase
     phase_states = {}
@@ -404,61 +405,3 @@ def _validate_interpolated_guess(
         ):
             if np.any(np.isnan(initial_guess.phase_states[phase_id][0])):
                 raise DataIntegrityError(f"NaN values in interpolated states for phase {phase_id}")
-
-
-def _extract_multiphase_solution_trajectories(
-    solution: OptimalControlSolution, problem: ProblemProtocol
-) -> None:
-    """STREAMLINED extraction of state and control trajectories for all phases."""
-    from trajectolab.adaptive.phs.data_structures import ensure_2d_array
-
-    if solution.raw_solution is None or solution.opti_object is None:
-        raise ValueError("Missing raw solution or opti object")
-
-    opti = solution.opti_object
-    raw_sol = solution.raw_solution
-
-    # Initialize solution data structures
-    solution.phase_solved_state_trajectories_per_interval = {}
-    solution.phase_solved_control_trajectories_per_interval = {}
-
-    # Extract trajectories for each phase independently
-    for phase_id in problem.get_phase_ids():
-        num_states, num_controls = problem.get_phase_variable_counts(phase_id)
-        phase_def = problem._phases[phase_id]
-        polynomial_degrees = phase_def.collocation_points_per_interval
-
-        # Initialize phase trajectory storage
-        solution.phase_solved_state_trajectories_per_interval[phase_id] = []
-        solution.phase_solved_control_trajectories_per_interval[phase_id] = []
-
-        # Extract trajectories using multiphase variables reference
-        if hasattr(opti, "multiphase_variables_reference"):
-            variables = opti.multiphase_variables_reference
-            if phase_id in variables.phase_variables:
-                phase_vars = variables.phase_variables[phase_id]
-
-                # Extract state matrices for each interval in this phase
-                for k, state_matrix in enumerate(phase_vars.state_matrices):
-                    state_vals = raw_sol.value(state_matrix)
-                    state_array = ensure_2d_array(state_vals, num_states, polynomial_degrees[k] + 1)
-                    solution.phase_solved_state_trajectories_per_interval[phase_id].append(
-                        state_array
-                    )
-
-                # Extract control trajectories for this phase
-                if num_controls > 0:
-                    for k, control_var in enumerate(phase_vars.control_variables):
-                        control_vals = raw_sol.value(control_var)
-                        control_array = ensure_2d_array(
-                            control_vals, num_controls, polynomial_degrees[k]
-                        )
-                        solution.phase_solved_control_trajectories_per_interval[phase_id].append(
-                            control_array
-                        )
-                else:
-                    # No controls for this phase
-                    for k in range(len(polynomial_degrees)):
-                        solution.phase_solved_control_trajectories_per_interval[phase_id].append(
-                            np.empty((0, polynomial_degrees[k]), dtype=np.float64)
-                        )

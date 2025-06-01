@@ -1,6 +1,7 @@
 """
 Streamlined multiphase PHS adaptive mesh refinement algorithm implementation.
 BLOAT ELIMINATED: Simplified data handling, reduced excessive validation.
+EXTRACTION RESTORED: Maintained necessary trajectory extraction for adaptive algorithm.
 """
 
 import logging
