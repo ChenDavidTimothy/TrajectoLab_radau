@@ -1,6 +1,6 @@
 """
 Streamlined mesh refinement strategies for multiphase problems.
-BLOAT ELIMINATED: Simplified validation, reduced excessive error handling.
+FIXED: Updated to handle optimized dynamics interface (ca.MX instead of list[ca.MX]).
 """
 
 import logging
@@ -28,7 +28,6 @@ from trajectolab.tl_types import (
     PhaseID,
     ProblemProtocol,
 )
-from trajectolab.utils.casadi_utils import convert_casadi_to_numpy
 from trajectolab.utils.constants import DEFAULT_ODE_ATOL_FACTOR
 
 
@@ -95,6 +94,47 @@ def _calculate_trajectory_errors_with_gamma(
     abs_diff = np.abs(X_sim - X_nlp)
     scaled_errors = gamma_factors.flatten() * abs_diff
     return list(scaled_errors)
+
+
+def _convert_casadi_dynamics_result_to_numpy_for_refinement(
+    dynamics_result: ca.MX, num_states: int
+) -> FloatArray:
+    """
+    FIXED: Convert optimized dynamics result (ca.MX) to numpy array for refinement.
+
+    Handles the new dynamics interface where function returns ca.MX directly
+    instead of list[ca.MX].
+    """
+    if isinstance(dynamics_result, ca.MX):
+        # New optimized interface - ca.MX result
+        if dynamics_result.shape[0] == num_states and dynamics_result.shape[1] == 1:
+            # Correct shape - convert directly
+            state_deriv_np = np.array(
+                [float(ca.evalf(dynamics_result[i])) for i in range(num_states)], dtype=np.float64
+            )
+        elif dynamics_result.shape[0] == 1 and dynamics_result.shape[1] == num_states:
+            # Transposed - need to transpose first
+            state_deriv_np = np.array(
+                [float(ca.evalf(dynamics_result[0, i])) for i in range(num_states)],
+                dtype=np.float64,
+            )
+        else:
+            raise ValueError(
+                f"Unexpected dynamics result shape: {dynamics_result.shape}, expected ({num_states}, 1)"
+            )
+    elif isinstance(dynamics_result, list):
+        # Legacy interface - list[ca.MX] (backward compatibility)
+        if len(dynamics_result) != num_states:
+            raise ValueError(
+                f"Dynamics list length {len(dynamics_result)} != expected states {num_states}"
+            )
+        state_deriv_np = np.array(
+            [float(ca.evalf(expr)) for expr in dynamics_result], dtype=np.float64
+        )
+    else:
+        raise ValueError(f"Unsupported dynamics result type: {type(dynamics_result)}")
+
+    return cast(FloatArray, state_deriv_np)
 
 
 # ========================================================================
@@ -202,7 +242,7 @@ def h_reduce_intervals(
     state_evaluator_second: Callable[[float | FloatArray], FloatArray],
     control_evaluator_second: Callable[[float | FloatArray], FloatArray] | None,
 ) -> bool:
-    """STREAMLINED: Check if two adjacent intervals in a specific phase can be merged."""
+    """FIXED: Check if two adjacent intervals in a specific phase can be merged."""
 
     error_tol = adaptive_params.error_tolerance
     ode_rtol = adaptive_params.ode_solver_tolerance
@@ -211,7 +251,7 @@ def h_reduce_intervals(
 
     # Get variable counts for this phase
     num_states, _ = problem.get_phase_variable_counts(phase_id)
-    phase_dynamics_function = cast(ca.Function, problem.get_phase_dynamics_function(phase_id))
+    phase_dynamics_function = problem.get_phase_dynamics_function(phase_id)
 
     if solution.raw_solution is None:
         return False
@@ -270,13 +310,16 @@ def h_reduce_intervals(
         )
         t_actual = alpha * global_tau + alpha_0
 
-        # Use consolidated conversion function
-        f_rhs_np = convert_casadi_to_numpy(
-            cast(ca.Function, phase_dynamics_function),
-            state_clipped,
-            u_val,
-            t_actual,
+        # FIXED: Handle optimized dynamics interface
+        dynamics_result = phase_dynamics_function(
+            ca.MX(state_clipped), ca.MX(u_val), ca.MX(t_actual)
         )
+
+        # FIXED: Convert using new helper function
+        f_rhs_np = _convert_casadi_dynamics_result_to_numpy_for_refinement(
+            dynamics_result, num_states
+        )
+
         return cast(FloatArray, scaling_k * f_rhs_np)
 
     def merged_bwd_rhs(local_tau_kp1: float, state: FloatArray) -> FloatArray:
@@ -288,8 +331,16 @@ def h_reduce_intervals(
         )
         t_actual = alpha * global_tau + alpha_0
 
-        # Use consolidated conversion function
-        f_rhs_np = convert_casadi_to_numpy(phase_dynamics_function, state_clipped, u_val, t_actual)
+        # FIXED: Handle optimized dynamics interface
+        dynamics_result = phase_dynamics_function(
+            ca.MX(state_clipped), ca.MX(u_val), ca.MX(t_actual)
+        )
+
+        # FIXED: Convert using new helper function
+        f_rhs_np = _convert_casadi_dynamics_result_to_numpy_for_refinement(
+            dynamics_result, num_states
+        )
+
         return cast(FloatArray, scaling_kp1 * f_rhs_np)
 
     # Get state values at interval endpoints for this phase

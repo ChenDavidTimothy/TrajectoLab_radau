@@ -1,10 +1,10 @@
 # trajectolab/direct_solver/constraints_solver.py
 """
-Constraint application for multiphase collocation, path, and event constraints - .
-All redundancy eliminated, using centralized validation.
+Constraint application for multiphase collocation, path, and event constraints.
+OPTIMIZED: Updated to handle direct vector dynamics interface (eliminated list conversion).
 """
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 
 import casadi as ca
 
@@ -33,7 +33,7 @@ def apply_phase_collocation_constraints(
     global_normalized_mesh_nodes: FloatArray,
     initial_time_variable: ca.MX,
     terminal_time_variable: ca.MX,
-    dynamics_function: Callable[..., list[ca.MX]],
+    dynamics_function: Callable[..., ca.MX],  # OPTIMIZED: Direct ca.MX return
     problem: ProblemProtocol | None = None,
     static_parameters_vec: ca.MX | None = None,
 ) -> None:
@@ -80,12 +80,12 @@ def apply_phase_collocation_constraints(
             terminal_time_variable - initial_time_variable
         ) / 2 * global_colloc_tau_val + (terminal_time_variable + initial_time_variable) / 2
 
-        # Get dynamics
-        state_derivative_rhs: list[ca.MX] | ca.MX | Sequence[ca.MX] = dynamics_function(
+        # Get dynamics - OPTIMIZED: Direct vector return (no list conversion)
+        state_derivative_rhs: ca.MX = dynamics_function(
             state_at_colloc, control_at_colloc, physical_time_at_colloc, static_parameters_vec
         )
 
-        # SINGLE validation and conversion call
+        # OPTIMIZED: Direct validation without conversion
         num_states = state_at_nodes.shape[0]
         state_derivative_rhs_vector: ca.MX = validate_dynamics_output(
             state_derivative_rhs, num_states

@@ -1,9 +1,7 @@
 # trajectolab/solution.py
 """
 Solution interface for multiphase optimal control problem results.
-
-This module provides the Solution class that wraps optimization results
-in a user-friendly interface with plotting capabilities and trajectory access.
+OPTIMIZED: Simplified subplot layout logic and extracted helper methods for readability.
 """
 
 import logging
@@ -163,67 +161,70 @@ class Solution:
 
         # Handle tuple access: (phase_id, variable_name)
         if isinstance(key, tuple):
-            if len(key) != 2:
-                raise KeyError("Tuple key must have exactly 2 elements: (phase_id, variable_name)")
-
-            phase_id, var_name = key
-
-            if phase_id not in self.get_phase_ids():
-                raise KeyError(f"Phase {phase_id} not found in solution")
-
-            # Handle time arrays
-            if var_name == "time_states":
-                return self.phase_time_states.get(phase_id, np.array([], dtype=np.float64))
-            elif var_name == "time_controls":
-                return self.phase_time_controls.get(phase_id, np.array([], dtype=np.float64))
-
-            # Handle state variables
-            if (
-                phase_id in self._phase_state_names
-                and var_name in self._phase_state_names[phase_id]
-            ):
-                var_index = self._phase_state_names[phase_id].index(var_name)
-                if phase_id in self.phase_states and var_index < len(self.phase_states[phase_id]):
-                    return self.phase_states[phase_id][var_index]
-
-            # Handle control variables
-            if (
-                phase_id in self._phase_control_names
-                and var_name in self._phase_control_names[phase_id]
-            ):
-                var_index = self._phase_control_names[phase_id].index(var_name)
-                if phase_id in self.phase_controls and var_index < len(
-                    self.phase_controls[phase_id]
-                ):
-                    return self.phase_controls[phase_id][var_index]
-
-            raise KeyError(f"Variable '{var_name}' not found in phase {phase_id}")
+            return self._get_by_tuple_key(key)
 
         # Handle string access: search all phases for variable name
         elif isinstance(key, str):
-            # Search for variable in all phases
-            for phase_id in self.get_phase_ids():
-                try:
-                    return self[(phase_id, key)]
-                except KeyError:
-                    continue
-
-            # Variable not found in any phase
-            all_vars = []
-            for phase_id in self.get_phase_ids():
-                phase_vars = (
-                    self._phase_state_names.get(phase_id, [])
-                    + self._phase_control_names.get(phase_id, [])
-                    + ["time_states", "time_controls"]
-                )
-                all_vars.extend([f"({phase_id}, '{var}')" for var in phase_vars])
-
-            raise KeyError(f"Variable '{key}' not found in any phase. Available: {all_vars}")
+            return self._get_by_string_key(key)
 
         else:
             raise KeyError(
                 f"Invalid key type: {type(key)}. Use string or (phase_id, variable_name) tuple"
             )
+
+    def _get_by_tuple_key(self, key: tuple[PhaseID, str]) -> FloatArray:
+        """OPTIMIZED: Extracted helper method for tuple-based access."""
+        if len(key) != 2:
+            raise KeyError("Tuple key must have exactly 2 elements: (phase_id, variable_name)")
+
+        phase_id, var_name = key
+
+        if phase_id not in self.get_phase_ids():
+            raise KeyError(f"Phase {phase_id} not found in solution")
+
+        # Handle time arrays
+        if var_name == "time_states":
+            return self.phase_time_states.get(phase_id, np.array([], dtype=np.float64))
+        elif var_name == "time_controls":
+            return self.phase_time_controls.get(phase_id, np.array([], dtype=np.float64))
+
+        # Handle state variables
+        if phase_id in self._phase_state_names and var_name in self._phase_state_names[phase_id]:
+            var_index = self._phase_state_names[phase_id].index(var_name)
+            if phase_id in self.phase_states and var_index < len(self.phase_states[phase_id]):
+                return self.phase_states[phase_id][var_index]
+
+        # Handle control variables
+        if (
+            phase_id in self._phase_control_names
+            and var_name in self._phase_control_names[phase_id]
+        ):
+            var_index = self._phase_control_names[phase_id].index(var_name)
+            if phase_id in self.phase_controls and var_index < len(self.phase_controls[phase_id]):
+                return self.phase_controls[phase_id][var_index]
+
+        raise KeyError(f"Variable '{var_name}' not found in phase {phase_id}")
+
+    def _get_by_string_key(self, key: str) -> FloatArray:
+        """OPTIMIZED: Extracted helper method for string-based access."""
+        # Search for variable in all phases
+        for phase_id in self.get_phase_ids():
+            try:
+                return self[(phase_id, key)]
+            except KeyError:
+                continue
+
+        # Variable not found in any phase
+        all_vars = []
+        for phase_id in self.get_phase_ids():
+            phase_vars = (
+                self._phase_state_names.get(phase_id, [])
+                + self._phase_control_names.get(phase_id, [])
+                + ["time_states", "time_controls"]
+            )
+            all_vars.extend([f"({phase_id}, '{var}')" for var in phase_vars])
+
+        raise KeyError(f"Variable '{key}' not found in any phase. Available: {all_vars}")
 
     def __contains__(self, key: str | tuple[PhaseID, str]) -> bool:
         """
@@ -450,7 +451,7 @@ class Solution:
         if num_vars == 0:
             return plt.figure()
 
-        # Determine layout
+        # OPTIMIZED: Simplified subplot layout determination
         rows, cols = self._determine_subplot_layout(num_vars)
         fig, axes = plt.subplots(rows, cols, figsize=figsize, sharex=False)
         fig.suptitle(title)
@@ -534,23 +535,18 @@ class Solution:
         return fig
 
     def _determine_subplot_layout(self, num_plots: int) -> tuple[int, int]:
-        """Determine optimal (rows, cols) layout for given number of plots."""
-        if num_plots == 1:
+        """
+        OPTIMIZED: Simplified mathematical approach to subplot layout.
+
+        Eliminates hardcoded conditional logic with clean mathematical solution.
+        """
+        if num_plots <= 1:
             return (1, 1)
-        elif num_plots == 2:
-            return (2, 1)
-        elif num_plots == 3:
-            return (2, 2)
-        elif num_plots == 4:
-            return (2, 2)
-        elif num_plots in [5, 6]:
-            return (3, 2)
-        elif num_plots in [7, 8, 9]:
-            return (3, 3)
-        else:
-            rows = int(np.ceil(np.sqrt(num_plots)))
-            cols = int(np.ceil(num_plots / rows))
-            return (rows, cols)
+
+        # Pure mathematical approach - always works
+        rows = int(np.ceil(np.sqrt(num_plots)))
+        cols = int(np.ceil(num_plots / rows))
+        return (rows, cols)
 
     def _is_state_variable(self, phase_id: PhaseID, var_name: str) -> bool:
         """Check if a variable is a state variable in the given phase."""

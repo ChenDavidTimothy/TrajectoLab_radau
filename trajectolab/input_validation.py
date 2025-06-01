@@ -1,7 +1,7 @@
 # trajectolab/input_validation.py
 """
-CENTRALIZED validation for ALL multiphase user configuration - ZERO REDUNDANCY.
-All validation functions consolidated here to eliminate scattered validation logic.
+CENTRALIZED validation for ALL multiphase user configuration.
+OPTIMIZED: Updated dynamics validation to handle direct vector interface efficiently.
 """
 
 import logging
@@ -418,42 +418,56 @@ def validate_adaptive_solver_parameters(
 
 
 # ============================================================================
-# DYNAMICS OUTPUT VALIDATION - Critical for solver integrity
+# DYNAMICS OUTPUT VALIDATION - OPTIMIZED for direct vector interface
 # ============================================================================
 
 
 def validate_dynamics_output(output: Any, num_states: int) -> ca.MX:
-    """SINGLE SOURCE for dynamics function output validation and conversion."""
+    """
+    OPTIMIZED: Dynamics validation for both legacy list format and new direct vector format.
+
+    Handles backward compatibility while optimizing for the new direct ca.MX interface.
+    """
     if output is None:
         raise DataIntegrityError("Dynamics function returned None", "Dynamics evaluation error")
 
-    # Convert to CasADi format
+    # OPTIMIZED PATH: Direct ca.MX vector (new interface)
+    if isinstance(output, ca.MX):
+        if output.shape[0] == num_states and output.shape[1] == 1:
+            return output  # Perfect match - no conversion needed
+        elif output.shape[0] == 1 and output.shape[1] == num_states:
+            return output.T  # Simple transpose
+        elif output.shape[0] == num_states:
+            return output  # Allow row vector for single-state case
+        else:
+            raise DataIntegrityError(
+                f"Dynamics ca.MX shape mismatch: got {output.shape}, expected ({num_states}, 1)"
+            )
+
+    # LEGACY COMPATIBILITY: List format (slower but maintained for compatibility)
     if isinstance(output, list):
+        if len(output) != num_states:
+            raise DataIntegrityError(
+                f"Dynamics list length mismatch: got {len(output)}, expected {num_states}"
+            )
         result = ca.vertcat(*output) if output else ca.MX(num_states, 1)
-    elif isinstance(output, ca.MX):
-        result = output
-        if output.shape[1] == 1:
-            pass  # Already correct
-        elif output.shape[0] == 1 and num_states > 1:
-            result = output.T
-    elif isinstance(output, ca.DM):
+        return result
+
+    # Handle CasADi DM
+    if isinstance(output, ca.DM):
         result = ca.MX(output)
         if result.shape[0] == 1 and num_states > 1:
             result = result.T
-    elif isinstance(output, Sequence):
-        result = validate_dynamics_output(list(output), num_states)
-    else:
-        raise DataIntegrityError(
-            f"Unsupported dynamics output type: {type(output)}", "Dynamics type error"
-        )
+        return result
 
-    # Critical shape validation
-    if result.shape[0] != num_states:
-        raise DataIntegrityError(
-            f"Dynamics output shape mismatch: got {result.shape[0]} rows, expected {num_states}"
-        )
+    # Handle sequences (convert to list path)
+    if isinstance(output, Sequence):
+        return validate_dynamics_output(list(output), num_states)
 
-    return result
+    # Unsupported type
+    raise DataIntegrityError(
+        f"Unsupported dynamics output type: {type(output)}", "Dynamics type error"
+    )
 
 
 # ============================================================================

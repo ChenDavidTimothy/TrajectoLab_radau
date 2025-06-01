@@ -1,6 +1,7 @@
 # trajectolab/direct_solver/types_solver.py
 """
 Type definitions and data structure containers for the multiphase direct solver.
+OPTIMIZED: Eliminated redundant metadata storage - use problem data directly.
 """
 
 from __future__ import annotations
@@ -10,7 +11,7 @@ from typing import TypeAlias
 
 import casadi as ca
 
-from ..tl_types import FloatArray, PhaseID
+from ..tl_types import PhaseID
 
 
 # Internal type aliases for multiphase solver
@@ -49,12 +50,12 @@ class MultiPhaseVariableReferences:
 
 @dataclass
 class MultiPhaseMetadataBundle:
-    """Container for multiphase solver metadata."""
+    """
+    OPTIMIZED: Minimal metadata container - removed redundant storage.
 
-    # Per-phase metadata
-    phase_local_state_tau: dict[PhaseID, list[FloatArray]] = field(default_factory=dict)
-    phase_local_control_tau: dict[PhaseID, list[FloatArray]] = field(default_factory=dict)
-    phase_global_mesh_nodes: dict[PhaseID, FloatArray] = field(default_factory=dict)
+    Contains only data that cannot be derived from problem definition.
+    Mesh nodes and other problem data accessed directly from problem object.
+    """
 
-    # Global objective expression
+    # Global objective expression (cannot be derived elsewhere)
     objective_expression: ca.MX | None = None

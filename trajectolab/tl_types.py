@@ -1,6 +1,7 @@
 # trajectolab/tl_types.py
 """
-Core type definitions for the TrajectoLab multiphase optimal control framework
+Core type definitions for the TrajectoLab multiphase optimal control framework.
+OPTIMIZED: Removed legacy InitialGuess type alias (confirmed unused).
 """
 
 from __future__ import annotations
@@ -82,8 +83,8 @@ class ProblemProtocol(Protocol):
         """Get control names for given phase in order"""
         ...
 
-    def get_phase_dynamics_function(self, phase_id: PhaseID) -> Callable[..., list[ca.MX]]:
-        """Get dynamics function for given phase"""
+    def get_phase_dynamics_function(self, phase_id: PhaseID) -> Callable[..., ca.MX]:
+        """Get dynamics function for given phase (OPTIMIZED: returns ca.MX directly)"""
         ...
 
     def get_objective_function(self) -> Callable[..., ca.MX]:
@@ -195,7 +196,3 @@ class OptimalControlSolution:
         # Per-interval solution data per phase
         self.phase_solved_state_trajectories_per_interval: dict[PhaseID, list[FloatArray]] = {}
         self.phase_solved_control_trajectories_per_interval: dict[PhaseID, list[FloatArray]] = {}
-
-
-# --- LEGACY COMPATIBILITY TYPES ---
-InitialGuess: TypeAlias = MultiPhaseInitialGuess  # For backward compatibility during transition

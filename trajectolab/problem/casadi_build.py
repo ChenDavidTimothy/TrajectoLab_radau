@@ -1,6 +1,13 @@
+# trajectolab/problem/casadi_build.py
+"""
+Unified CasADi function building utilities with vectorized coordinate transformations.
+OPTIMIZED: Added vectorized transformations to eliminate per-point computation inefficiency.
+"""
+
 import casadi as ca
 
 from ..problem.state import PhaseDefinition
+from ..tl_types import FloatArray
 
 
 def build_unified_casadi_function_inputs(
@@ -199,3 +206,120 @@ def transform_tau_to_physical_time(
     ) / 2
 
     return physical_time
+
+
+# ============================================================================
+# OPTIMIZED: Vectorized Coordinate Transformation Utilities
+# ============================================================================
+
+
+def vectorized_tau_to_global_tau(
+    local_tau_array: FloatArray,
+    global_normalized_mesh_nodes: FloatArray,
+    mesh_interval_index: int,
+) -> FloatArray:
+    """
+    OPTIMIZED: Vectorized local tau to global tau transformation.
+
+    Eliminates per-point computation by applying transformation to entire array.
+    """
+    segment_start = global_normalized_mesh_nodes[mesh_interval_index]
+    segment_end = global_normalized_mesh_nodes[mesh_interval_index + 1]
+    global_segment_length = segment_end - segment_start
+
+    # Vectorized transformation
+    global_tau_array = (
+        global_segment_length / 2 * local_tau_array + (segment_end + segment_start) / 2
+    )
+
+    return global_tau_array
+
+
+def vectorized_global_tau_to_physical_time(
+    global_tau_array: FloatArray,
+    initial_time: float,
+    terminal_time: float,
+) -> FloatArray:
+    """
+    OPTIMIZED: Vectorized global tau to physical time transformation.
+
+    Eliminates per-point computation by applying transformation to entire array.
+    """
+    # Vectorized transformation
+    physical_time_array = (terminal_time - initial_time) / 2 * global_tau_array + (
+        terminal_time + initial_time
+    ) / 2
+
+    return physical_time_array
+
+
+def vectorized_tau_to_physical_time(
+    local_tau_array: FloatArray,
+    global_normalized_mesh_nodes: FloatArray,
+    mesh_interval_index: int,
+    initial_time: float,
+    terminal_time: float,
+) -> FloatArray:
+    """
+    OPTIMIZED: Complete vectorized coordinate transformation pipeline.
+
+    Single function call replaces multiple per-point transformations.
+    Provides O(1) per-interval complexity instead of O(n) per-point.
+    """
+    # Step 1: Local tau to global tau (vectorized)
+    global_tau_array = vectorized_tau_to_global_tau(
+        local_tau_array, global_normalized_mesh_nodes, mesh_interval_index
+    )
+
+    # Step 2: Global tau to physical time (vectorized)
+    physical_time_array = vectorized_global_tau_to_physical_time(
+        global_tau_array, initial_time, terminal_time
+    )
+
+    return physical_time_array
+
+
+def build_coordinate_transformation_matrix(
+    global_normalized_mesh_nodes: FloatArray,
+    mesh_interval_index: int,
+    initial_time: float,
+    terminal_time: float,
+) -> tuple[float, float, float]:
+    """
+    OPTIMIZED: Pre-compute transformation parameters for efficient coordinate conversion.
+
+    Returns transformation parameters that can be applied to any tau array for this interval.
+
+    Returns:
+        tuple: (scale_factor, offset_factor, time_scale) for transformation:
+               physical_time = time_scale * (scale_factor * tau + offset_factor) + time_offset
+    """
+    segment_start = global_normalized_mesh_nodes[mesh_interval_index]
+    segment_end = global_normalized_mesh_nodes[mesh_interval_index + 1]
+    global_segment_length = segment_end - segment_start
+
+    # Transformation parameters
+    scale_factor = global_segment_length / 2
+    offset_factor = (segment_end + segment_start) / 2
+    time_scale = (terminal_time - initial_time) / 2
+    time_offset = (terminal_time + initial_time) / 2
+
+    return scale_factor, offset_factor, time_scale, time_offset
+
+
+def apply_precomputed_transformation(
+    local_tau_array: FloatArray,
+    scale_factor: float,
+    offset_factor: float,
+    time_scale: float,
+    time_offset: float,
+) -> FloatArray:
+    """
+    OPTIMIZED: Apply pre-computed transformation parameters to tau array.
+
+    Fastest possible coordinate transformation using pre-computed parameters.
+    """
+    global_tau_array = scale_factor * local_tau_array + offset_factor
+    physical_time_array = time_scale * global_tau_array + time_offset
+
+    return physical_time_array

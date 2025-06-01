@@ -1,7 +1,7 @@
 # trajectolab/problem/solver_interface.py
 """
 Interface conversion between multiphase problem definition and solver requirements.
-Redundancies eliminated: unified CasADi function building, shared symbol mapping.
+OPTIMIZED: Eliminated vector→list→vector conversion inefficiency in dynamics interface.
 """
 
 from __future__ import annotations
@@ -29,8 +29,8 @@ from .state import MultiPhaseVariableState, PhaseDefinition
 
 def get_phase_dynamics_function(
     phase_def: PhaseDefinition, static_parameter_symbols: list[ca.MX] | None = None
-) -> Callable[..., list[ca.MX]]:
-    """Get phase dynamics function using unified CasADi function building."""
+) -> Callable[..., ca.MX]:
+    """Get phase dynamics function using optimized direct vector interface."""
     dynamics_exprs = [str(expr) for expr in phase_def.dynamics_expressions.values()]
     param_info = f"_params_{len(static_parameter_symbols) if static_parameter_symbols else 0}"
     expr_hash = hashlib.sha256("".join(sorted(dynamics_exprs)).encode()).hexdigest()[:16]
@@ -80,7 +80,8 @@ def get_phase_dynamics_function(
         controls_vec: ca.MX,
         time: ca.MX,
         static_parameters_vec: ca.MX | None = None,
-    ) -> list[ca.MX]:
+    ) -> ca.MX:
+        """OPTIMIZED: Direct vector return eliminates list conversion inefficiency."""
         # Handle static parameters in function call
         num_static_params = len(static_parameter_symbols) if static_parameter_symbols else 0
 
@@ -95,12 +96,7 @@ def get_phase_dynamics_function(
         if dynamics_output is None:
             raise ValueError(f"Phase {phase_def.phase_id} dynamics function returned None")
 
-        num_states = int(dynamics_output.size1())
-        result_list: list[ca.MX] = []
-        for i in range(num_states):
-            result_list.append(cast(ca.MX, dynamics_output[i]))
-
-        return result_list
+        return cast(ca.MX, dynamics_output)
 
     return vectorized_dynamics
 

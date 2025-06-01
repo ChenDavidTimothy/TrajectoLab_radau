@@ -1,6 +1,6 @@
 """
 Streamlined error estimation using forward and backward dynamics simulation.
-BLOAT ELIMINATED: Removed IntervalSimulationBundle, simplified simulation returns.
+FIXED: Updated to handle optimized dynamics interface (ca.MX instead of list[ca.MX]).
 """
 
 import logging
@@ -143,6 +143,45 @@ def _calculate_combined_error_estimate(
     return float(max_error)
 
 
+def _convert_casadi_dynamics_result_to_numpy(dynamics_result: ca.MX, num_states: int) -> FloatArray:
+    """
+    FIXED: Convert optimized dynamics result (ca.MX) to numpy array.
+
+    Handles the new dynamics interface where function returns ca.MX directly
+    instead of list[ca.MX].
+    """
+    if isinstance(dynamics_result, ca.MX):
+        # New optimized interface - ca.MX result
+        if dynamics_result.shape[0] == num_states and dynamics_result.shape[1] == 1:
+            # Correct shape - convert directly
+            state_deriv_np = np.array(
+                [float(ca.evalf(dynamics_result[i])) for i in range(num_states)], dtype=np.float64
+            )
+        elif dynamics_result.shape[0] == 1 and dynamics_result.shape[1] == num_states:
+            # Transposed - need to transpose first
+            state_deriv_np = np.array(
+                [float(ca.evalf(dynamics_result[0, i])) for i in range(num_states)],
+                dtype=np.float64,
+            )
+        else:
+            raise ValueError(
+                f"Unexpected dynamics result shape: {dynamics_result.shape}, expected ({num_states}, 1)"
+            )
+    elif isinstance(dynamics_result, list):
+        # Legacy interface - list[ca.MX] (backward compatibility)
+        if len(dynamics_result) != num_states:
+            raise ValueError(
+                f"Dynamics list length {len(dynamics_result)} != expected states {num_states}"
+            )
+        state_deriv_np = np.array(
+            [float(ca.evalf(expr)) for expr in dynamics_result], dtype=np.float64
+        )
+    else:
+        raise ValueError(f"Unsupported dynamics result type: {type(dynamics_result)}")
+
+    return cast(FloatArray, state_deriv_np)
+
+
 # ========================================================================
 # STREAMLINED SIMULATION FUNCTIONS
 # ========================================================================
@@ -160,7 +199,7 @@ def simulate_dynamics_for_phase_interval_error_estimation(
     n_eval_points: int = 50,
 ) -> tuple[bool, FloatArray, FloatArray, FloatArray, FloatArray, FloatArray, FloatArray]:
     """
-    STREAMLINED: Returns tuple instead of complex dataclass.
+    FIXED: Updated for optimized dynamics interface.
     Returns: (success, fwd_tau_points, fwd_sim_traj, fwd_nlp_traj, bwd_tau_points, bwd_sim_traj, bwd_nlp_traj)
     """
     if not solution.success or solution.raw_solution is None:
@@ -223,15 +262,13 @@ def simulate_dynamics_for_phase_interval_error_estimation(
         global_tau = beta_k * tau + beta_k0
         physical_time = alpha * global_tau + alpha_0
 
-        # Get dynamics result as list[ca.MX] from phase-specific dynamics
+        # FIXED: Handle optimized dynamics interface (ca.MX result)
         dynamics_result = phase_dynamics_function(
             ca.MX(state), ca.MX(control), ca.MX(physical_time)
         )
 
-        # Convert list[ca.MX] to numpy
-        state_deriv_np = np.array(
-            [float(ca.evalf(expr)) for expr in dynamics_result], dtype=np.float64
-        )
+        # FIXED: Convert using new helper function that handles both interfaces
+        state_deriv_np = _convert_casadi_dynamics_result_to_numpy(dynamics_result, num_states)
 
         if state_deriv_np.shape[0] != num_states:
             raise ValueError(

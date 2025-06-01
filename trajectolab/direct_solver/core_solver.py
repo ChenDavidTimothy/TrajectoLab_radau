@@ -1,7 +1,7 @@
 # trajectolab/direct_solver/core_solver.py
 """
 Core orchestration for the multiphase direct pseudospectral solver using Radau collocation.
-Redundancies eliminated: unified phase endpoint extraction, consolidated phase processing.
+OPTIMIZED: Eliminated metadata duplication - use problem data directly.
 """
 
 import logging
@@ -40,6 +40,7 @@ def _extract_phase_endpoint_data(
     phase_endpoint_data = {}
 
     for phase_id, phase_vars in variables.phase_variables.items():
+        # OPTIMIZED: Use problem data directly instead of duplicated metadata
         num_mesh_intervals = len(problem._phases[phase_id].collocation_points_per_interval)
 
         initial_state = phase_vars.state_at_mesh_nodes[0]
@@ -79,7 +80,7 @@ def solve_multiphase_radau_collocation(problem: ProblemProtocol) -> OptimalContr
         logger.debug("Setting up multiphase optimization variables")
         variables = setup_multiphase_optimization_variables(opti, problem)
 
-        # Initialize metadata container
+        # OPTIMIZED: Minimal metadata container (no redundant storage)
         metadata = MultiPhaseMetadataBundle()
 
         # Extract phase endpoint data once for reuse
@@ -154,7 +155,7 @@ def _process_single_phase_unified(
     endpoint_data: dict[str, ca.MX] | None = None,
 ) -> None:
     """Process a single phase with unified endpoint data."""
-    # Get phase information
+    # Get phase information directly from problem (no metadata duplication)
     num_states, num_controls = problem.get_phase_variable_counts(phase_id)
     phase_def = problem._phases[phase_id]
     num_mesh_intervals = len(phase_def.collocation_points_per_interval)
@@ -164,6 +165,8 @@ def _process_single_phase_unified(
     dynamics_function = problem.get_phase_dynamics_function(phase_id)
     path_constraints_function = problem.get_phase_path_constraints_function(phase_id)
     integral_integrand_function = problem.get_phase_integrand_function(phase_id)
+
+    # OPTIMIZED: Use problem data directly (no duplication in metadata)
     global_mesh_nodes = phase_def.global_normalized_mesh_nodes
 
     # Get static parameter symbols
@@ -177,11 +180,6 @@ def _process_single_phase_unified(
             f"Phase {phase_id} mesh nodes count ({len(global_mesh_nodes)}) doesn't match expected ({num_mesh_intervals + 1})",
             "Phase mesh configuration inconsistency",
         )
-
-    # Initialize phase metadata
-    metadata.phase_local_state_tau[phase_id] = []
-    metadata.phase_local_control_tau[phase_id] = []
-    metadata.phase_global_mesh_nodes[phase_id] = global_mesh_nodes
 
     # Initialize accumulated integrals
     accumulated_integral_expressions: list[ca.MX] = (
@@ -214,12 +212,6 @@ def _process_single_phase_unified(
             basis_components: RadauBasisComponents = compute_radau_collocation_components(
                 num_colloc_nodes
             )
-
-            # Store metadata for this interval
-            metadata.phase_local_state_tau[phase_id].append(
-                basis_components.state_approximation_nodes
-            )
-            metadata.phase_local_control_tau[phase_id].append(basis_components.collocation_nodes)
 
             # Apply collocation constraints
             apply_phase_collocation_constraints(
