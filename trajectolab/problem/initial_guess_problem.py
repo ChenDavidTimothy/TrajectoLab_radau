@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import Any
 
 import numpy as np
 
@@ -17,7 +18,7 @@ class MultiPhaseInitialGuessRequirements:
     """Requirements for multiphase initial guess specification."""
 
     def __init__(
-        self, phase_requirements: dict[PhaseID, dict[str, any]], static_parameters_length: int
+        self, phase_requirements: dict[PhaseID, dict[str, Any]], static_parameters_length: int
     ) -> None:
         self.phase_requirements = phase_requirements
         self.static_parameters_length = static_parameters_length
@@ -55,7 +56,7 @@ class MultiPhaseSolverInputSummary:
     def __init__(
         self,
         num_phases: int,
-        phase_summaries: dict[PhaseID, dict[str, any]],
+        phase_summaries: dict[PhaseID, dict[str, Any]],
         static_parameters_length: int,
         initial_guess_source: str,
     ) -> None:

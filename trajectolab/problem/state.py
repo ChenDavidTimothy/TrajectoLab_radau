@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import threading
 from dataclasses import dataclass, field
+from typing import TypeAlias
 
 import casadi as ca
 
@@ -11,7 +12,9 @@ from ..tl_types import FloatArray, PhaseID
 
 
 # Enhanced Constraint input type definition to include CasADi symbolic
-ConstraintInput = float | int | tuple[float | int | None, float | int | None] | None | ca.MX
+ConstraintInput: TypeAlias = (
+    float | int | tuple[float | int | None, float | int | None] | None | ca.MX
+)
 
 
 def _register_variable_name(

@@ -56,6 +56,10 @@ class ProblemProtocol(Protocol):
     _cross_phase_constraints: list[ca.MX]
     _num_phases: int
 
+    # ADD MISSING ATTRIBUTES
+    initial_guess: MultiPhaseInitialGuess | None
+    solver_options: dict[str, object]
+
     # Essential solver methods
     def get_phase_ids(self) -> list[PhaseID]:
         """Return ordered list of phase IDs"""

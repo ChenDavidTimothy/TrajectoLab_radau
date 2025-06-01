@@ -80,13 +80,13 @@ def convert_casadi_to_numpy(
 
         # Handle both optimized and legacy interfaces
         if isinstance(result_casadi, ca.DM):
-            # Direct DM result - convert to numpy
-            result_np = np.array(result_casadi.full(), dtype=np.float64).flatten()
+            # Direct DM result - convert to numpy - FIX TYPE ANNOTATION
+            result_np = cast(FloatArray, np.array(result_casadi.full(), dtype=np.float64).flatten())
         elif isinstance(result_casadi, ca.MX):
             # MX result (new optimized interface) - evaluate and convert
             result_dm = ca.evalf(result_casadi)
             if isinstance(result_dm, ca.DM):
-                result_np = np.array(result_dm.full(), dtype=np.float64).flatten()
+                result_np = cast(FloatArray, np.array(result_dm.full(), dtype=np.float64).flatten())
             else:
                 # Fallback: evaluate each element
                 num_states = result_casadi.shape[0]
@@ -114,7 +114,7 @@ def convert_casadi_to_numpy(
         else:
             # Try direct conversion
             try:
-                result_np = np.array(result_casadi, dtype=np.float64).flatten()
+                result_np = cast(FloatArray, np.array(result_casadi, dtype=np.float64).flatten())
             except Exception as e:
                 raise CasadiConversionError(
                     f"Unsupported result type {type(result_casadi)}: {e}"

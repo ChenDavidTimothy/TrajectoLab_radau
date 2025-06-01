@@ -116,13 +116,13 @@ def consolidated_phase_trajectory_extraction(
     num_mesh_intervals = len(phase_def.collocation_points_per_interval)
     global_mesh_nodes = phase_def.global_normalized_mesh_nodes
 
-    # Initialize storage
-    state_trajectory_times = []
-    state_trajectory_values = [[] for _ in range(num_states)]
-    control_trajectory_times = []
-    control_trajectory_values = [[] for _ in range(num_controls)]
-    per_interval_states = []
-    per_interval_controls = []
+    # Initialize storage - ADD TYPE ANNOTATIONS
+    state_trajectory_times: list[float] = []
+    state_trajectory_values: list[list[float]] = [[] for _ in range(num_states)]
+    control_trajectory_times: list[float] = []
+    control_trajectory_values: list[list[float]] = [[] for _ in range(num_controls)]
+    per_interval_states: list[FloatArray] = []
+    per_interval_controls: list[FloatArray] = []
 
     for mesh_idx in range(num_mesh_intervals):
         collocation_points = phase_def.collocation_points_per_interval[mesh_idx]
@@ -214,7 +214,7 @@ def consolidated_phase_trajectory_extraction(
                     control_trajectory_values[var_idx].append(value)
 
     # Return trajectory data
-    trajectory_data = {
+    trajectory_data: dict[str, FloatArray] = {
         "state_times": np.array(state_trajectory_times, dtype=np.float64),
         "state_values": [np.array(s_traj, dtype=np.float64) for s_traj in state_trajectory_values],
         "control_times": np.array(control_trajectory_times, dtype=np.float64)
@@ -338,10 +338,12 @@ def extract_and_format_multiphase_solution(
             solution.phase_terminal_times[phase_id] = float("nan")
             continue
 
-        # Extract phase integrals
-        solution.phase_integrals[phase_id] = extract_multiphase_integral_values(
+        # Extract phase integrals - FIX TYPE ANNOTATION
+        integral_result = extract_multiphase_integral_values(
             casadi_solution_object, casadi_optimization_problem_object, phase_id, num_integrals
         )
+        if integral_result is not None:
+            solution.phase_integrals[phase_id] = integral_result
 
         # Single consolidated extraction for trajectories and per-interval data
         try:
@@ -356,11 +358,20 @@ def extract_and_format_multiphase_solution(
                 )
             )
 
-            # Store trajectory data
+            # Store trajectory data - FIX TYPE ANNOTATIONS
             solution.phase_time_states[phase_id] = trajectory_data["state_times"]
-            solution.phase_states[phase_id] = trajectory_data["state_values"]
+            state_values = trajectory_data["state_values"]
+            if isinstance(state_values, list):
+                solution.phase_states[phase_id] = state_values
+            else:
+                solution.phase_states[phase_id] = [state_values]
+
             solution.phase_time_controls[phase_id] = trajectory_data["control_times"]
-            solution.phase_controls[phase_id] = trajectory_data["control_values"]
+            control_values = trajectory_data["control_values"]
+            if isinstance(control_values, list):
+                solution.phase_controls[phase_id] = control_values
+            else:
+                solution.phase_controls[phase_id] = [control_values]
 
             # Store per-interval data
             solution.phase_solved_state_trajectories_per_interval[phase_id] = per_interval_states

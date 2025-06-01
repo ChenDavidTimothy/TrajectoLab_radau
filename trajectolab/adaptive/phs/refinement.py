@@ -355,8 +355,10 @@ def h_reduce_intervals(
         if fwd_sim.success:
             fwd_trajectory = fwd_sim.y
             fwd_sim_success = True
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(
+            f"Forward simulation failed for phase {phase_id} intervals {first_idx}-{first_idx + 1}: {e}"
+        )
 
     # Get terminal state for backward simulation
     try:
@@ -422,8 +424,10 @@ def h_reduce_intervals(
             # Then create a new array with explicit type
             bwd_trajectory = np.array(flipped_data, dtype=np.float64).reshape(rows, cols)
             bwd_sim_success = True
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(
+            f"Backward simulation failed for phase {phase_id} intervals {first_idx}-{first_idx + 1}: {e}"
+        )
 
     # For problems with no states, just check if simulations were successful
     if num_states == 0:

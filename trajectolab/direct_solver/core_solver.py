@@ -371,7 +371,6 @@ def _execute_multiphase_solve(opti: ca.Opti, problem: ProblemProtocol) -> Optima
         solution_obj.success = False
         solution_obj.message = f"Multiphase solver runtime error: {e}"
 
-        # Try to retrieve debug values if available
         try:
             if hasattr(opti, "debug") and opti.debug is not None:
                 variables = opti.multiphase_variables_reference
@@ -383,10 +382,10 @@ def _execute_multiphase_solve(opti: ca.Opti, problem: ProblemProtocol) -> Optima
                         solution_obj.phase_terminal_times[phase_id] = float(
                             opti.debug.value(phase_vars.terminal_time)
                         )
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"Could not extract debug values for phase {phase_id}: {e}")
                 logger.debug("Retrieved debug values from failed multiphase solve")
-        except Exception:
-            logger.debug("Could not extract debug values from failed multiphase solve")
+        except Exception as e:
+            logger.debug(f"Could not extract debug values from failed multiphase solve: {e}")
 
     return solution_obj

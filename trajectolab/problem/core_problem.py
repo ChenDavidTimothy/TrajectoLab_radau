@@ -44,6 +44,8 @@ class PhaseContext:
         self, initial: ConstraintInput = 0.0, final: ConstraintInput = None
     ) -> TimeVariableImpl:
         """Define time variable for this phase."""
+        if self._phase_def is None:
+            raise ValueError("Phase definition not initialized")
         return variables_problem.create_phase_time_variable(self._phase_def, initial, final)
 
     def state(
@@ -54,12 +56,16 @@ class PhaseContext:
         boundary: ConstraintInput = None,
     ) -> StateVariableImpl:
         """Define state variable for this phase."""
+        if self._phase_def is None:
+            raise ValueError("Phase definition not initialized")
         return variables_problem.create_phase_state_variable(
             self._phase_def, name, initial, final, boundary
         )
 
     def control(self, name: str, boundary: ConstraintInput = None) -> ca.MX:
         """Define control variable for this phase."""
+        if self._phase_def is None:
+            raise ValueError("Phase definition not initialized")
         return variables_problem.create_phase_control_variable(self._phase_def, name, boundary)
 
     def dynamics(
@@ -67,6 +73,8 @@ class PhaseContext:
         dynamics_dict: dict[ca.MX | StateVariableImpl, ca.MX | float | int | StateVariableImpl],
     ) -> None:
         """Define dynamics for this phase."""
+        if self._phase_def is None:
+            raise ValueError("Phase definition not initialized")
         variables_problem.set_phase_dynamics(self._phase_def, dynamics_dict)
         logger.info(
             "Dynamics defined for phase %d with %d state variables",
@@ -76,15 +84,21 @@ class PhaseContext:
 
     def add_integral(self, integrand_expr: ca.MX | float | int) -> ca.MX:
         """Add integral expression for this phase."""
+        if self._phase_def is None:
+            raise ValueError("Phase definition not initialized")
         return variables_problem.add_phase_integral(self._phase_def, integrand_expr)
 
     def subject_to(self, constraint_expr: ca.MX | float | int) -> None:
         """Add path constraint for this phase."""
+        if self._phase_def is None:
+            raise ValueError("Phase definition not initialized")
         constraints_problem.add_phase_path_constraint(self._phase_def, constraint_expr)
         logger.debug("Path constraint added to phase %d", self.phase_id)
 
     def set_mesh(self, polynomial_degrees: list[int], mesh_points: NumericArrayLike) -> None:
         """Configure mesh for this phase."""
+        if self._phase_def is None:
+            raise ValueError("Phase definition not initialized")
         logger.info(
             "Setting mesh for phase %d: %d intervals", self.phase_id, len(polynomial_degrees)
         )

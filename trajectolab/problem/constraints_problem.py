@@ -286,31 +286,43 @@ def get_cross_phase_event_constraints_function(
             x0_vec = endpoint_data["x0"]
             xf_vec = endpoint_data["xf"]
 
-            # Check initial constraints
-            state_initial_constraints = [info.initial_constraint for info in phase_def.state_info]
-            for i, constraint in enumerate(state_initial_constraints):
+            # Check initial constraints - FIX TYPE ANNOTATION
+            state_initial_constraints: list[_BoundaryConstraint | None] = [
+                info.initial_constraint for info in phase_def.state_info
+            ]
+            for i, boundary_constraint in enumerate(state_initial_constraints):
                 if (
-                    constraint is not None
-                    and constraint.has_constraint()
-                    and not constraint.is_symbolic()
+                    boundary_constraint is not None
+                    and boundary_constraint.has_constraint()
+                    and not boundary_constraint.is_symbolic()
                 ):
                     if len(phase_def.state_info) == 1:
-                        result.extend(_boundary_constraint_to_constraints(constraint, x0_vec))
+                        result.extend(
+                            _boundary_constraint_to_constraints(boundary_constraint, x0_vec)
+                        )
                     else:
-                        result.extend(_boundary_constraint_to_constraints(constraint, x0_vec[i]))
+                        result.extend(
+                            _boundary_constraint_to_constraints(boundary_constraint, x0_vec[i])
+                        )
 
-            # Check final constraints
-            state_final_constraints = [info.final_constraint for info in phase_def.state_info]
-            for i, constraint in enumerate(state_final_constraints):
+            # Check final constraints - FIX TYPE ANNOTATION
+            state_final_constraints: list[_BoundaryConstraint | None] = [
+                info.final_constraint for info in phase_def.state_info
+            ]
+            for i, boundary_constraint in enumerate(state_final_constraints):
                 if (
-                    constraint is not None
-                    and constraint.has_constraint()
-                    and not constraint.is_symbolic()
+                    boundary_constraint is not None
+                    and boundary_constraint.has_constraint()
+                    and not boundary_constraint.is_symbolic()
                 ):
                     if len(phase_def.state_info) == 1:
-                        result.extend(_boundary_constraint_to_constraints(constraint, xf_vec))
+                        result.extend(
+                            _boundary_constraint_to_constraints(boundary_constraint, xf_vec)
+                        )
                     else:
-                        result.extend(_boundary_constraint_to_constraints(constraint, xf_vec[i]))
+                        result.extend(
+                            _boundary_constraint_to_constraints(boundary_constraint, xf_vec[i])
+                        )
 
         return result
 
