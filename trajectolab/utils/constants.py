@@ -1,7 +1,3 @@
-"""
-Numerical constants and tolerances used throughout TrajectoLab computations.
-"""
-
 from typing import TypeAlias
 
 

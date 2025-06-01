@@ -1,9 +1,3 @@
-"""
-Streamlined initial guess propagation and interpolation for multiphase adaptive mesh refinement.
-BLOAT ELIMINATED: Removed memory pooling, simplified validation, direct array allocation.
-DEAD CODE REMOVED: Eliminated verified dead code from Phase 1 verification.
-"""
-
 import logging
 from typing import cast
 
@@ -174,7 +168,7 @@ def _interpolate_phase_trajectory_to_new_mesh_streamlined(
     # Create polynomial interpolants for each interval in previous solution
     prev_interpolants = []
 
-    for k, (N_k, traj_k) in enumerate(
+    for _k, (N_k, traj_k) in enumerate(
         zip(prev_polynomial_degrees, prev_trajectory_per_interval, strict=False)
     ):
         # Get the appropriate nodes for this interval type

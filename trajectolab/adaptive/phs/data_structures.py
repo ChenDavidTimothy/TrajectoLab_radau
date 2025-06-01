@@ -1,8 +1,3 @@
-"""
-Streamlined data structures for multiphase PHS adaptive algorithm.
-BLOAT ELIMINATED: Removed over-engineered IntervalSimulationBundle and complex array reshaping.
-"""
-
 import logging
 from dataclasses import dataclass
 from typing import Any

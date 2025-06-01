@@ -1,9 +1,3 @@
-# trajectolab/direct_solver/constraints_solver.py
-"""
-Constraint application for multiphase collocation, path, and event constraints.
-OPTIMIZED: Updated to handle direct vector dynamics interface (eliminated list conversion).
-"""
-
 from collections.abc import Callable
 
 import casadi as ca

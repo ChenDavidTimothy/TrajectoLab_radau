@@ -1,9 +1,3 @@
-# trajectolab/solver.py
-"""
-Main solver interface for multiphase optimal control problems - .
-All redundancy eliminated, using centralized validation.
-"""
-
 import logging
 from typing import cast
 

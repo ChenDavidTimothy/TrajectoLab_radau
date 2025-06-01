@@ -1,9 +1,3 @@
-# trajectolab/problem/initial_guess_problem.py
-"""
-Initial guess validation and management for multiphase problems - .
-All redundancy eliminated, using centralized validation.
-"""
-
 from __future__ import annotations
 
 from collections.abc import Sequence

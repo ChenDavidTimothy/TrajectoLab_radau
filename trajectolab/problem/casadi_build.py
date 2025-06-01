@@ -1,7 +1,3 @@
-"""
-Unified CasADi function building utilities
-"""
-
 import casadi as ca
 
 from ..problem.state import PhaseDefinition

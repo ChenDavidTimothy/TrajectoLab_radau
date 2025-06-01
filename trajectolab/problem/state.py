@@ -1,9 +1,3 @@
-# trajectolab/problem/state.py
-"""
-State management classes for multiphase variables, constraints, and mesh configuration - .
-All redundancy eliminated, using centralized validation.
-"""
-
 from __future__ import annotations
 
 import threading
@@ -177,7 +171,7 @@ class PhaseDefinition:
             )
 
         with self._ordering_lock:
-            index = _register_variable_name(
+            _register_variable_name(
                 name, self.state_name_to_index, self.state_names, f"State in phase {self.phase_id}"
             )
 
@@ -226,7 +220,7 @@ class PhaseDefinition:
             )
 
         with self._ordering_lock:
-            index = _register_variable_name(
+            _register_variable_name(
                 name,
                 self.control_name_to_index,
                 self.control_names,
@@ -361,7 +355,7 @@ class StaticParameterState:
             )
 
         with self._ordering_lock:
-            index = _register_variable_name(
+            _register_variable_name(
                 name, self.parameter_name_to_index, self.parameter_names, "Parameter"
             )
 

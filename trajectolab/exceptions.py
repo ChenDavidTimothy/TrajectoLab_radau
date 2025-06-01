@@ -1,7 +1,3 @@
-"""
-TrajectoLab custom exceptions for fail-fast error handling.
-"""
-
 import logging
 
 

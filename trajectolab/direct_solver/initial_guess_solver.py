@@ -1,8 +1,3 @@
-# trajectolab/direct_solver/initial_guess_solver.py
-"""
-Initial guess application functions for multiphase optimization variables.
-"""
-
 from typing import cast
 
 import casadi as ca

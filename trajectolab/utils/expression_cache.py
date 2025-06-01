@@ -1,8 +1,3 @@
-# trajectolab/utils/expression_cache.py
-"""
-Expression caching system for CasADi functions to improve computational performance in multiphase problems.
-"""
-
 import hashlib
 import threading
 from collections.abc import Callable

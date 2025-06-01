@@ -1,9 +1,3 @@
-# trajectolab/input_validation.py
-"""
-CENTRALIZED validation for ALL multiphase user configuration.
-OPTIMIZED: Updated dynamics validation to handle direct vector interface efficiently.
-"""
-
 import logging
 import math
 from collections.abc import Sequence

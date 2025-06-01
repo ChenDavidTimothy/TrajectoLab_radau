@@ -8,7 +8,7 @@ IMPORTANT: This is NOT a control optimization problem. The control u is determin
 algebraically from static parameters p₁, p₂ and time t via: tan u = p₁ - p₂t
 
 Expected solution:
-- t_F* = 5.5457088 × 10^(-1) = 0.55457088
+- t_F* = 5.5457088 * 10^(-1) = 0.55457088
 - p1* = 1.4085084
 - p2* = 5.0796333
 

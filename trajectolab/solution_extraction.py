@@ -1,9 +1,3 @@
-# trajectolab/solution_extraction.py
-"""
-Solution data extraction and formatting from raw CasADi multiphase optimization results.
-OPTIMIZED: Consolidated duplicate extractions - 50% reduction in processing time.
-"""
-
 import logging
 
 import casadi as ca

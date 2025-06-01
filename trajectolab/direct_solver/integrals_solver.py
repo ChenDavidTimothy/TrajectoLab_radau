@@ -1,9 +1,3 @@
-# trajectolab/direct_solver/integrals_solver.py
-"""
-Integral constraint setup using quadrature rules for multiphase direct solver.
-OPTIMIZED: Uses vectorized coordinate transformations for efficient computation.
-"""
-
 from collections.abc import Callable
 
 import casadi as ca

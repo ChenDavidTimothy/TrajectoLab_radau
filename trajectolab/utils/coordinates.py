@@ -1,8 +1,3 @@
-# trajectolab/utils/coordinates.py
-"""
-Radically simplified coordinate transformation - ONE function for all cases.
-"""
-
 import casadi as ca
 
 from ..tl_types import FloatArray

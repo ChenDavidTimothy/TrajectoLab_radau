@@ -1,9 +1,3 @@
-# trajectolab/tl_types.py
-"""
-Core type definitions for the TrajectoLab multiphase optimal control framework.
-OPTIMIZED: Removed legacy InitialGuess type alias (confirmed unused).
-"""
-
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence

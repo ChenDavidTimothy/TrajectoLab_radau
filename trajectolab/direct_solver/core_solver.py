@@ -1,9 +1,3 @@
-# trajectolab/direct_solver/core_solver.py
-"""
-Core orchestration for the multiphase direct pseudospectral solver using Radau collocation.
-OPTIMIZED: Eliminated metadata duplication - use problem data directly.
-"""
-
 import logging
 
 import casadi as ca

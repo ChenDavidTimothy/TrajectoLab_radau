@@ -1,8 +1,3 @@
-"""
-Utility functions for CasADi integration, conversion, and numerical validation.
-FIXED: Fully compatible with optimized dynamics interface (ca.MX return type).
-"""
-
 import logging
 from typing import cast
 

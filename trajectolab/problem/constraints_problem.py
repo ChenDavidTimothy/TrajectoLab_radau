@@ -1,9 +1,3 @@
-# trajectolab/problem/constraints_problem.py
-"""
-Constraint processing and conversion for multiphase path and event constraints - .
-All redundancy eliminated, using centralized validation and conversion patterns.
-"""
-
 from __future__ import annotations
 
 from collections.abc import Callable

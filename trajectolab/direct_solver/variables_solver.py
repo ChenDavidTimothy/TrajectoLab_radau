@@ -1,8 +1,3 @@
-# trajectolab/direct_solver/variables_solver.py
-"""
-Optimization variable setup and configuration for the multiphase direct solver.
-"""
-
 import casadi as ca
 
 from ..exceptions import DataIntegrityError

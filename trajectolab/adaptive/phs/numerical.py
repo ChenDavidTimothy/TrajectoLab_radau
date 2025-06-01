@@ -1,7 +1,3 @@
-"""
-Numerical utilities for polynomial interpolation and coordinate transformations.
-"""
-
 import numpy as np
 
 from trajectolab.radau import (

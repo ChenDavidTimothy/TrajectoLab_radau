@@ -1,8 +1,3 @@
-"""
-Streamlined mesh refinement strategies for multiphase problems.
-FIXED: Updated to handle optimized dynamics interface (ca.MX instead of list[ca.MX]).
-"""
-
 import logging
 from collections.abc import Callable
 from typing import cast

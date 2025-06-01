@@ -1,9 +1,3 @@
-# trajectolab/direct_solver/types_solver.py
-"""
-Type definitions and data structure containers for the multiphase direct solver.
-OPTIMIZED: Eliminated redundant metadata storage - use problem data directly.
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field

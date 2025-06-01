@@ -1,9 +1,3 @@
-# trajectolab/problem/core_problem.py
-"""
-Core multiphase problem definition -  of all redundancies.
-Streamlined, modular organization with centralized validation.
-"""
-
 import logging
 from collections.abc import Sequence
 from typing import Any

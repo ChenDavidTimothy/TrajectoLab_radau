@@ -1,9 +1,3 @@
-# trajectolab/solution.py
-"""
-Solution interface for multiphase optimal control problem results.
-OPTIMIZED: Simplified subplot layout logic and extracted helper methods for readability.
-"""
-
 import logging
 from typing import TypeAlias
 

@@ -1,7 +1,3 @@
-"""
-Radau pseudospectral method implementation with cached basis function computation.
-"""
-
 import threading
 from dataclasses import dataclass, field
 from typing import ClassVar, Literal, cast, overload

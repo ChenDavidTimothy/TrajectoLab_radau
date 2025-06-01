@@ -1,9 +1,3 @@
-# trajectolab/problem/solver_interface.py
-"""
-Interface conversion between multiphase problem definition and solver requirements.
-OPTIMIZED: Eliminated vector→list→vector conversion inefficiency in dynamics interface.
-"""
-
 from __future__ import annotations
 
 import hashlib
