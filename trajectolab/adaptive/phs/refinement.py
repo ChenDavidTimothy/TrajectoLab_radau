@@ -99,10 +99,6 @@ def _calculate_trajectory_errors_with_gamma(
     return list(scaled_errors)
 
 
-# REMOVED: _convert_casadi_dynamics_result_to_numpy_for_refinement function
-# USING: _convert_casadi_dynamics_result_to_numpy from error_estimation.py instead
-
-
 # ========================================================================
 # REFINEMENT DECISION FUNCTIONS - Pure mathematical logic (UNCHANGED)
 # ========================================================================

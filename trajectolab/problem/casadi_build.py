@@ -1,7 +1,5 @@
-# trajectolab/problem/casadi_build.py - RADICALLY SIMPLIFIED
 """
-Unified CasADi function building utilities - SIMPLIFIED.
-REMOVED: All complex coordinate transformation abstractions.
+Unified CasADi function building utilities
 """
 
 import casadi as ca
@@ -162,14 +160,3 @@ def build_unified_symbol_substitution_map(
             phase_symbols_map[param_sym] = s_vec[i]
 
     return phase_symbols_map
-
-
-# REMOVED: All coordinate transformation functions
-# - transform_tau_to_physical_time()
-# - vectorized_tau_to_global_tau()
-# - vectorized_global_tau_to_physical_time()
-# - vectorized_tau_to_physical_time()
-# - build_coordinate_transformation_matrix()
-# - apply_precomputed_transformation()
-#
-# REPLACED WITH: Single tau_to_time() function in utils/coordinates.py

@@ -106,10 +106,6 @@ def extract_multiphase_integral_values(
         return None
 
 
-# REMOVED: vectorized_coordinate_transform function
-# USING: tau_to_time from utils.coordinates instead
-
-
 def consolidated_phase_trajectory_extraction(
     phase_id: PhaseID,
     casadi_solution_object: ca.OptiSol,

@@ -288,10 +288,6 @@ def propagate_multiphase_solution_to_new_meshes(
     phase_integrals = prev_solution.phase_integrals.copy()
     static_parameters = prev_solution.static_parameters
 
-    # DEAD CODE REMOVED: The conditional check and _extract_multiphase_solution_trajectories() call
-    # VERIFICATION CONFIRMED: prev_solution.phase_solved_state_trajectories_per_interval is ALWAYS populated
-    # by extract_and_format_multiphase_solution() in solve_multiphase_radau_collocation()
-
     # Interpolate trajectories for each phase
     phase_states = {}
     phase_controls = {}
