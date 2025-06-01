@@ -46,16 +46,3 @@ class MultiPhaseVariableReferences:
 
     phase_variables: dict[PhaseID, PhaseVariableReferences] = field(default_factory=dict)
     static_parameters: ca.MX | None = None
-
-
-@dataclass
-class MultiPhaseMetadataBundle:
-    """
-    OPTIMIZED: Minimal metadata container - removed redundant storage.
-
-    Contains only data that cannot be derived from problem definition.
-    Mesh nodes and other problem data accessed directly from problem object.
-    """
-
-    # Global objective expression (cannot be derived elsewhere)
-    objective_expression: ca.MX | None = None

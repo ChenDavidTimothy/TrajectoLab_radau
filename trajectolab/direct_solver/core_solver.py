@@ -23,7 +23,7 @@ from .constraints_solver import (
 )
 from .initial_guess_solver import apply_multiphase_initial_guess
 from .integrals_solver import apply_phase_integral_constraints, setup_phase_integrals
-from .types_solver import MultiPhaseMetadataBundle, MultiPhaseVariableReferences
+from .types_solver import MultiPhaseVariableReferences
 from .variables_solver import (
     setup_multiphase_optimization_variables,
     setup_phase_interval_state_variables,
@@ -80,16 +80,13 @@ def solve_multiphase_radau_collocation(problem: ProblemProtocol) -> OptimalContr
         logger.debug("Setting up multiphase optimization variables")
         variables = setup_multiphase_optimization_variables(opti, problem)
 
-        # OPTIMIZED: Minimal metadata container (no redundant storage)
-        metadata = MultiPhaseMetadataBundle()
-
         # Extract phase endpoint data once for reuse
         logger.debug("Extracting unified phase endpoint data")
         phase_endpoint_data = _extract_phase_endpoint_data(variables, problem)
 
         # Process all phases with unified data
         logger.debug("Processing %d phases", len(phase_ids))
-        _process_all_phases_unified(opti, variables, metadata, problem, phase_endpoint_data)
+        _process_all_phases_unified(opti, variables, problem, phase_endpoint_data)
 
         # Set up multiphase objective and constraints using shared endpoint data
         logger.debug("Setting up multiphase objective and cross-phase constraints")
@@ -101,7 +98,7 @@ def solve_multiphase_radau_collocation(problem: ProblemProtocol) -> OptimalContr
 
         # Configure solver with shared endpoint data
         logger.debug("Configuring NLP solver")
-        _configure_solver_unified(opti, variables, metadata, problem, phase_endpoint_data)
+        _configure_solver_unified(opti, variables, problem, phase_endpoint_data)
 
     except Exception as e:
         logger.error("Failed to set up multiphase optimization problem: %s", str(e))
@@ -122,7 +119,6 @@ def solve_multiphase_radau_collocation(problem: ProblemProtocol) -> OptimalContr
 def _process_all_phases_unified(
     opti: ca.Opti,
     variables: MultiPhaseVariableReferences,
-    metadata: MultiPhaseMetadataBundle,
     problem: ProblemProtocol,
     phase_endpoint_data: dict[PhaseID, dict[str, ca.MX]],
 ) -> None:
@@ -137,7 +133,6 @@ def _process_all_phases_unified(
         _process_single_phase_unified(
             opti,
             phase_vars,
-            metadata,
             problem,
             phase_id,
             variables.static_parameters,
@@ -148,7 +143,6 @@ def _process_all_phases_unified(
 def _process_single_phase_unified(
     opti: ca.Opti,
     phase_vars,
-    metadata: MultiPhaseMetadataBundle,
     problem: ProblemProtocol,
     phase_id: PhaseID,
     static_parameters_vec: ca.MX | None = None,
@@ -320,7 +314,6 @@ def _setup_objective_and_constraints_unified(
 def _configure_solver_unified(
     opti: ca.Opti,
     variables: MultiPhaseVariableReferences,
-    metadata: MultiPhaseMetadataBundle,
     problem: ProblemProtocol,
     phase_endpoint_data: dict[PhaseID, dict[str, ca.MX]],
 ) -> None:
@@ -337,7 +330,6 @@ def _configure_solver_unified(
 
     # Store references for solution extraction
     opti.multiphase_variables_reference = variables
-    opti.multiphase_metadata_reference = metadata
 
     # Store objective expression using shared endpoint data
     objective_function = problem.get_objective_function()
