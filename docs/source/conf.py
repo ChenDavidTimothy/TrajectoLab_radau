@@ -22,7 +22,7 @@ except ImportError:
     version = "0.2.1"
     release = version
 
-# Extensions - FIXED: Removed problematic sphinx_gallery
+# Extensions - Removed problematic sphinx_gallery
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
@@ -48,9 +48,9 @@ autodoc_member_order = "bysource"
 # HTML theme configuration
 html_theme = "sphinx_rtd_theme"
 html_static_path = ["_static"]
-html_css_files = ["custom.css"]  # FIXED: Load custom CSS
+html_css_files = ["custom.css"]  # Load custom CSS
 
-# Intersphinx mapping - FIXED: Added proper mappings
+# Intersphinx mapping - Added proper mappings
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
     "numpy": ("https://numpy.org/doc/stable/", None),

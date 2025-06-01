@@ -178,7 +178,7 @@ def consolidated_phase_trajectory_extraction(
         state_tau_nodes = basis_components.state_approximation_nodes
         control_tau_nodes = basis_components.collocation_nodes
 
-        # CHANGED: Use tau_to_time instead of vectorized_coordinate_transform
+        # Use tau_to_time instead of vectorized_coordinate_transform
         mesh_start = global_mesh_nodes[mesh_idx]
         mesh_end = global_mesh_nodes[mesh_idx + 1]
 
@@ -236,7 +236,7 @@ def extract_and_format_multiphase_solution(
     problem: ProblemProtocol,
 ) -> OptimalControlSolution:
     """
-    OPTIMIZED: Single extraction pass eliminates duplicate CasADi value calls.
+    Single extraction pass eliminates duplicate CasADi value calls.
 
     Consolidated solution extraction with 50% reduction in processing time.
     """
@@ -305,7 +305,7 @@ def extract_and_format_multiphase_solution(
             logger.warning(f"Failed to extract static parameters: {e}")
             solution.static_parameters = None
 
-    # OPTIMIZED: Consolidated extraction for each phase
+    # Consolidated extraction for each phase
     for phase_id in phase_ids:
         if phase_id not in variables.phase_variables:
             continue
@@ -343,7 +343,7 @@ def extract_and_format_multiphase_solution(
             casadi_solution_object, casadi_optimization_problem_object, phase_id, num_integrals
         )
 
-        # OPTIMIZED: Single consolidated extraction for trajectories and per-interval data
+        # Single consolidated extraction for trajectories and per-interval data
         try:
             trajectory_data, per_interval_states, per_interval_controls = (
                 consolidated_phase_trajectory_extraction(

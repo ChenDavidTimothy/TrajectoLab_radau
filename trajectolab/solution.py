@@ -167,7 +167,7 @@ class Solution:
             )
 
     def _get_by_tuple_key(self, key: tuple[PhaseID, str]) -> FloatArray:
-        """OPTIMIZED: Extracted helper method for tuple-based access."""
+        """Extracted helper method for tuple-based access."""
         if len(key) != 2:
             raise KeyError("Tuple key must have exactly 2 elements: (phase_id, variable_name)")
 
@@ -200,7 +200,7 @@ class Solution:
         raise KeyError(f"Variable '{var_name}' not found in phase {phase_id}")
 
     def _get_by_string_key(self, key: str) -> FloatArray:
-        """OPTIMIZED: Extracted helper method for string-based access."""
+        """Extracted helper method for string-based access."""
         # Search for variable in all phases
         for phase_id in self.get_phase_ids():
             try:
@@ -445,7 +445,7 @@ class Solution:
         if num_vars == 0:
             return plt.figure()
 
-        # OPTIMIZED: Simplified subplot layout determination
+        # subplot layout determination
         rows, cols = self._determine_subplot_layout(num_vars)
         fig, axes = plt.subplots(rows, cols, figsize=figsize, sharex=False)
         fig.suptitle(title)
@@ -530,7 +530,7 @@ class Solution:
 
     def _determine_subplot_layout(self, num_plots: int) -> tuple[int, int]:
         """
-        OPTIMIZED: Simplified mathematical approach to subplot layout.
+        mathematical approach to subplot layout.
 
         Eliminates hardcoded conditional logic with clean mathematical solution.
         """

@@ -19,7 +19,7 @@ __all__ = [
 class PolynomialInterpolant:
     """
     Callable class that implements Lagrange polynomial interpolation
-    using the barycentric formula - SIMPLIFIED to use unified types.
+    using the barycentric formula
     """
 
     values_at_nodes: FloatArray

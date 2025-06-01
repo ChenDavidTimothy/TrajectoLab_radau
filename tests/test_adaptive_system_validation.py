@@ -429,7 +429,7 @@ class TestAdaptiveSystemValidation:
         error exponentially with the degree.
         """
 
-        # Simplified smooth problem: minimize ∫u²dt subject to ẋ = u, x(0) = 0, x(1) = A
+        # smooth problem: minimize ∫u²dt subject to ẋ = u, x(0) = 0, x(1) = A
         # where A is chosen to make the solution smooth
         A = 0.5  # Small final condition
 

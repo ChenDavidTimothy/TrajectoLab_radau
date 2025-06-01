@@ -3,7 +3,7 @@
 Safety-critical tests for problem setup order independence and state management.
 Tests various scenarios of mesh/initial guess setting order.
 
-FIXED: Removed return values from test methods to eliminate pytest warnings.
+Removed return values from test methods to eliminate pytest warnings.
 Aligned with Grug's Pragmatic Testing Philosophy:
 - Integration tests that verify critical system behavior
 - Simple, focused tests that catch real problems

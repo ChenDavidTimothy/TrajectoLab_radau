@@ -23,7 +23,7 @@ def convert_casadi_to_numpy(
 ) -> FloatArray:
     """
     Convert CasADi dynamics function call to NumPy arrays with enhanced validation.
-    FIXED: Handles both optimized interface (ca.MX) and legacy interface (list[ca.MX]).
+    Handles both optimized interface (ca.MX) and legacy interface (list[ca.MX]).
     """
     # Guard clause: Validate function
     if not callable(casadi_dynamics_func):
@@ -78,7 +78,7 @@ def convert_casadi_to_numpy(
         # Call dynamics
         result_casadi = casadi_dynamics_func(state_dm, control_dm, time_dm)
 
-        # FIXED: Handle both optimized and legacy interfaces
+        # Handle both optimized and legacy interfaces
         if isinstance(result_casadi, ca.DM):
             # Direct DM result - convert to numpy
             result_np = np.array(result_casadi.full(), dtype=np.float64).flatten()

@@ -140,7 +140,7 @@ def _calculate_combined_error_estimate(
 
 def _convert_casadi_dynamics_result_to_numpy(dynamics_result: ca.MX, num_states: int) -> FloatArray:
     """
-    FIXED: Convert optimized dynamics result (ca.MX) to numpy array.
+    Convert optimized dynamics result (ca.MX) to numpy array.
 
     Handles the new dynamics interface where function returns ca.MX directly
     instead of list[ca.MX].
@@ -194,7 +194,7 @@ def simulate_dynamics_for_phase_interval_error_estimation(
     n_eval_points: int = 50,
 ) -> tuple[bool, FloatArray, FloatArray, FloatArray, FloatArray, FloatArray, FloatArray]:
     """
-    FIXED: Updated for optimized dynamics interface.
+    Updated for optimized dynamics interface.
     Returns: (success, fwd_tau_points, fwd_sim_traj, fwd_nlp_traj, bwd_tau_points, bwd_sim_traj, bwd_nlp_traj)
     """
     if not solution.success or solution.raw_solution is None:
@@ -257,12 +257,12 @@ def simulate_dynamics_for_phase_interval_error_estimation(
         global_tau = beta_k * tau + beta_k0
         physical_time = alpha * global_tau + alpha_0
 
-        # FIXED: Handle optimized dynamics interface (ca.MX result)
+        # Handle optimized dynamics interface (ca.MX result)
         dynamics_result = phase_dynamics_function(
             ca.MX(state), ca.MX(control), ca.MX(physical_time)
         )
 
-        # FIXED: Convert using new helper function that handles both interfaces
+        # Convert using new helper function that handles both interfaces
         state_deriv_np = _convert_casadi_dynamics_result_to_numpy(dynamics_result, num_states)
 
         if state_deriv_np.shape[0] != num_states:

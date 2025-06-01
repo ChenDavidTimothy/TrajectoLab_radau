@@ -39,7 +39,7 @@ class RadauNodesAndWeights:
 
 
 class RadauBasisCache:
-    """SIMPLIFIED thread-safe global cache for Radau basis components."""
+    """thread-safe global cache for Radau basis components."""
 
     _instance: ClassVar["RadauBasisCache | None"] = None
     _cache: ClassVar[dict[int, RadauBasisComponents]] = {}

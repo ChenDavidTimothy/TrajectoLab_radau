@@ -78,7 +78,7 @@ class ProblemProtocol(Protocol):
         ...
 
     def get_phase_dynamics_function(self, phase_id: PhaseID) -> Callable[..., ca.MX]:
-        """Get dynamics function for given phase (OPTIMIZED: returns ca.MX directly)"""
+        """Get dynamics function for given phase (returns ca.MX directly)"""
         ...
 
     def get_objective_function(self) -> Callable[..., ca.MX]:

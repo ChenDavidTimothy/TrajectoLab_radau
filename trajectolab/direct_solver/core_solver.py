@@ -34,7 +34,7 @@ def _extract_phase_endpoint_data(
     phase_endpoint_data = {}
 
     for phase_id, phase_vars in variables.phase_variables.items():
-        # OPTIMIZED: Use problem data directly instead of duplicated metadata
+        # Use problem data directly instead of duplicated metadata
         num_mesh_intervals = len(problem._phases[phase_id].collocation_points_per_interval)
 
         initial_state = phase_vars.state_at_mesh_nodes[0]
@@ -154,7 +154,7 @@ def _process_single_phase_unified(
     path_constraints_function = problem.get_phase_path_constraints_function(phase_id)
     integral_integrand_function = problem.get_phase_integrand_function(phase_id)
 
-    # OPTIMIZED: Use problem data directly (no duplication in metadata)
+    # Use problem data directly (no duplication in metadata)
     global_mesh_nodes = phase_def.global_normalized_mesh_nodes
 
     # Get static parameter symbols

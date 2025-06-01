@@ -58,7 +58,7 @@ except ImportError:
     version = '0.2.1'
     release = version
 
-# Extensions - FIXED: Removed problematic sphinx_gallery
+# Extensions - Removed problematic sphinx_gallery
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.autosummary',
@@ -84,9 +84,9 @@ autodoc_member_order = 'bysource'
 # HTML theme configuration
 html_theme = 'sphinx_rtd_theme'
 html_static_path = ['_static']
-html_css_files = ['custom.css']  # FIXED: Load custom CSS
+html_css_files = ['custom.css']  # Load custom CSS
 
-# Intersphinx mapping - FIXED: Added proper mappings
+# Intersphinx mapping - Added proper mappings
 intersphinx_mapping = {
     'python': ('https://docs.python.org/3', None),
     'numpy': ('https://numpy.org/doc/stable/', None),
@@ -152,7 +152,7 @@ def generate_api_docs():
     for importer, modname, ispkg in pkgutil.walk_packages(
         trajectolab.__path__, trajectolab.__name__ + "."
     ):
-        # FIXED: Better filtering of test/internal modules
+        # Better filtering of test/internal modules
         if not any(exclude in modname for exclude in ["test", "__pycache__", ".pytest"]):
             modules.append(modname)
 
@@ -163,7 +163,7 @@ def generate_api_docs():
         safe_name = module.replace(".", "_")
         rst_file = api_dir / f"{safe_name}.rst"
 
-        # FIXED: Better module documentation format
+        # Better module documentation format
         content = f"""
 {module}
 {"=" * len(module)}

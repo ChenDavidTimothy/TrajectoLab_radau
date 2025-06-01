@@ -13,7 +13,7 @@ from trajectolab.adaptive.phs.data_structures import (
     ensure_2d_array,
 )
 
-# CHANGED: Import from error_estimation instead of duplicate function
+# Import from error_estimation instead of duplicate function
 from trajectolab.adaptive.phs.error_estimation import _convert_casadi_dynamics_result_to_numpy
 from trajectolab.adaptive.phs.numerical import (
     map_local_interval_tau_to_global_normalized_tau,
@@ -199,7 +199,7 @@ def h_reduce_intervals(
     state_evaluator_second: Callable[[float | FloatArray], FloatArray],
     control_evaluator_second: Callable[[float | FloatArray], FloatArray] | None,
 ) -> bool:
-    """FIXED: Check if two adjacent intervals in a specific phase can be merged."""
+    """Check if two adjacent intervals in a specific phase can be merged."""
 
     error_tol = adaptive_params.error_tolerance
     ode_rtol = adaptive_params.ode_solver_tolerance
@@ -267,12 +267,12 @@ def h_reduce_intervals(
         )
         t_actual = alpha * global_tau + alpha_0
 
-        # FIXED: Handle optimized dynamics interface
+        # Handle optimized dynamics interface
         dynamics_result = phase_dynamics_function(
             ca.MX(state_clipped), ca.MX(u_val), ca.MX(t_actual)
         )
 
-        # CHANGED: Use shared function from error_estimation
+        # Use shared function from error_estimation
         f_rhs_np = _convert_casadi_dynamics_result_to_numpy(dynamics_result, num_states)
 
         return cast(FloatArray, scaling_k * f_rhs_np)
@@ -286,12 +286,12 @@ def h_reduce_intervals(
         )
         t_actual = alpha * global_tau + alpha_0
 
-        # FIXED: Handle optimized dynamics interface
+        # Handle optimized dynamics interface
         dynamics_result = phase_dynamics_function(
             ca.MX(state_clipped), ca.MX(u_val), ca.MX(t_actual)
         )
 
-        # CHANGED: Use shared function from error_estimation
+        # Use shared function from error_estimation
         f_rhs_np = _convert_casadi_dynamics_result_to_numpy(dynamics_result, num_states)
 
         return cast(FloatArray, scaling_kp1 * f_rhs_np)

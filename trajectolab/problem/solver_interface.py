@@ -75,7 +75,7 @@ def get_phase_dynamics_function(
         time: ca.MX,
         static_parameters_vec: ca.MX | None = None,
     ) -> ca.MX:
-        """OPTIMIZED: Direct vector return eliminates list conversion inefficiency."""
+        """Direct vector return eliminates list conversion inefficiency."""
         # Handle static parameters in function call
         num_static_params = len(static_parameter_symbols) if static_parameter_symbols else 0
 

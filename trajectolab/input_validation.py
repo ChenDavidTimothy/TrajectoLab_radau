@@ -411,14 +411,14 @@ def validate_adaptive_solver_parameters(
         )
 
 
-# ============================================================================
-# DYNAMICS OUTPUT VALIDATION - OPTIMIZED for direct vector interface
-# ============================================================================
+# ===========================
+# DYNAMICS OUTPUT VALIDATION
+# ===========================
 
 
 def validate_dynamics_output(output: Any, num_states: int) -> ca.MX:
     """
-    OPTIMIZED: Dynamics validation for both legacy list format and new direct vector format.
+    Dynamics validation for both legacy list format and new direct vector format.
 
     Handles backward compatibility while optimizing for the new direct ca.MX interface.
     """
