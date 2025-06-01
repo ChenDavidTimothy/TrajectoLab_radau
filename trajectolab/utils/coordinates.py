@@ -33,12 +33,9 @@ def tau_to_time(
     Returns:
         Physical time(s) corresponding to tau coordinate(s)
     """
-    # Single formula that combines both transformation steps
-    mesh_scale = (mesh_end - mesh_start) / 2
-    mesh_offset = (mesh_end + mesh_start) / 2
-    time_scale = (time_end - time_start) / 2
-    time_offset = (time_end + time_start) / 2
-
     # Combined transformation: tau → global_tau → physical_time
     # physical_time = time_scale * (mesh_scale * tau + mesh_offset) + time_offset
-    return time_scale * mesh_scale * tau + time_scale * mesh_offset + time_offset
+    return (
+        (time_end - time_start) * ((mesh_end - mesh_start) * tau + (mesh_end + mesh_start))
+        + 2 * (time_end + time_start)
+    ) / 4
