@@ -62,7 +62,7 @@ def solve_asymmetric_rigid_body_single_phase():
     # ========================================================================
 
     # Quaternion components (3 of 4 - q4 is algebraic)
-    q1 = phase.state("q1", initial=0.0, final=ca.sin(phi_rad/2), boundary=(-1.1, 1.1))
+    q1 = phase.state("q1", initial=0.0, final=ca.sin(phi_rad / 2), boundary=(-1.1, 1.1))
     q2 = phase.state("q2", initial=0.0, final=0.0, boundary=(-1.1, 1.1))
     q3 = phase.state("q3", initial=0.0, final=0.0, boundary=(-1.1, 1.1))
 
@@ -105,19 +105,21 @@ def solve_asymmetric_rigid_body_single_phase():
     q3_dot = 0.5 * (-omega1 * q2 + omega2 * q1 + omega3 * q4)
 
     # Euler's equations for rigid body rotation (equations 10.124-10.126)
-    omega1_dot = u1/Ix - ((Iz - Iy)/Ix) * omega2 * omega3
-    omega2_dot = u2/Iy - ((Ix - Iz)/Iy) * omega1 * omega3
-    omega3_dot = u3/Iz - ((Iy - Ix)/Iz) * omega1 * omega2
+    omega1_dot = u1 / Ix - ((Iz - Iy) / Ix) * omega2 * omega3
+    omega2_dot = u2 / Iy - ((Ix - Iz) / Iy) * omega1 * omega3
+    omega3_dot = u3 / Iz - ((Iy - Ix) / Iz) * omega1 * omega2
 
     # Set dynamics
-    phase.dynamics({
-        q1: q1_dot,
-        q2: q2_dot,
-        q3: q3_dot,
-        omega1: omega1_dot,
-        omega2: omega2_dot,
-        omega3: omega3_dot
-    })
+    phase.dynamics(
+        {
+            q1: q1_dot,
+            q2: q2_dot,
+            q3: q3_dot,
+            omega1: omega1_dot,
+            omega2: omega2_dot,
+            omega3: omega3_dot,
+        }
+    )
 
     # ========================================================================
     # Objective Function
@@ -146,7 +148,7 @@ def create_single_phase_initial_guess():
 
     # Target values
     phi_rad = 150.0 * np.pi / 180.0
-    q1_final = np.sin(phi_rad/2)
+    q1_final = np.sin(phi_rad / 2)
 
     # Estimate reasonable final time (should be close to optimal)
     estimated_final_time = 30.0
@@ -162,8 +164,8 @@ def create_single_phase_initial_guess():
 
         # Smooth quaternion trajectory (linear interpolation)
         q1_vals = q1_final * t_norm  # q1: 0 → q1_final
-        q2_vals = np.zeros(N + 1)    # q2: 0 → 0
-        q3_vals = np.zeros(N + 1)    # q3: 0 → 0
+        q2_vals = np.zeros(N + 1)  # q2: 0 → 0
+        q3_vals = np.zeros(N + 1)  # q3: 0 → 0
 
         # Angular velocity trajectory (smooth acceleration/deceleration)
         # Use sinusoidal profile for smooth motion
@@ -177,24 +179,23 @@ def create_single_phase_initial_guess():
         omega2_vals[-1] = 0.0
         omega3_vals[-1] = 0.0
 
-        states_guess.append(np.array([
-            q1_vals, q2_vals, q3_vals,
-            omega1_vals, omega2_vals, omega3_vals
-        ]))
+        states_guess.append(
+            np.array([q1_vals, q2_vals, q3_vals, omega1_vals, omega2_vals, omega3_vals])
+        )
 
         # Control guess: moderate torques that create the desired motion
         # Use profile that accelerates then decelerates
         control_profile = np.cos(np.pi * np.linspace(0, 1, N))
-        u1_vals = 10.0 * control_profile   # Primary control about x
-        u2_vals = 5.0 * control_profile    # Secondary control about y
-        u3_vals = 2.0 * control_profile    # Tertiary control about z
+        u1_vals = 10.0 * control_profile  # Primary control about x
+        u2_vals = 5.0 * control_profile  # Secondary control about y
+        u3_vals = 2.0 * control_profile  # Tertiary control about z
 
         controls_guess.append(np.array([u1_vals, u2_vals, u3_vals]))
 
     return {
         "phase_states": {1: states_guess},
         "phase_controls": {1: controls_guess},
-        "phase_terminal_times": {1: estimated_final_time}
+        "phase_terminal_times": {1: estimated_final_time},
     }
 
 
@@ -241,8 +242,8 @@ def main():
             "ipopt.tol": 1e-8,
             "ipopt.constr_viol_tol": 1e-8,
             "ipopt.mu_strategy": "adaptive",
-            "ipopt.linear_solver": "mumps"
-        }
+            "ipopt.linear_solver": "mumps",
+        },
     )
 
     # Display results
@@ -253,7 +254,7 @@ def main():
 
         final_time = solution.objective
         print(f"Optimal Final Time: {final_time:.7f}")
-        print(f"Benchmark Solution: 28.6304077")
+        print("Benchmark Solution: 28.6304077")
         error = abs(final_time - 28.6304077) / 28.6304077 * 100
         print(f"Relative Error: {error:.3f}%")
 
@@ -270,7 +271,7 @@ def main():
             q4_final = np.sqrt(1 - q1_final**2 - q2_final**2 - q3_final**2)
 
             print("\nFinal state values:")
-            print(f"q1(tF) = {q1_final:.6f} (target: {np.sin(150*np.pi/180/2):.6f})")
+            print(f"q1(tF) = {q1_final:.6f} (target: {np.sin(150 * np.pi / 180 / 2):.6f})")
             print(f"q2(tF) = {q2_final:.6f} (target: 0.0)")
             print(f"q3(tF) = {q3_final:.6f} (target: 0.0)")
             print(f"q4(tF) = {q4_final:.6f}")
@@ -284,7 +285,7 @@ def main():
             u2_data = solution[(1, "torque_y")]
             u3_data = solution[(1, "torque_z")]
 
-            print(f"\nControl torque ranges:")
+            print("\nControl torque ranges:")
             print(f"u1 ∈ [{np.min(u1_data):.1f}, {np.max(u1_data):.1f}] N⋅m")
             print(f"u2 ∈ [{np.min(u2_data):.1f}, {np.max(u2_data):.1f}] N⋅m")
             print(f"u3 ∈ [{np.min(u3_data):.1f}, {np.max(u3_data):.1f}] N⋅m")

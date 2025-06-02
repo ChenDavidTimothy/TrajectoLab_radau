@@ -174,7 +174,7 @@ def _convert_casadi_dynamics_result_to_numpy(dynamics_result: ca.MX, num_states:
     else:
         raise ValueError(f"Unsupported dynamics result type: {type(dynamics_result)}")
 
-    return cast(FloatArray, state_deriv_np)
+    return state_deriv_np
 
 
 # ========================================================================

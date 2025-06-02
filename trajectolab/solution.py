@@ -7,7 +7,6 @@ Comprehensive summary functionality is delegated to summary.py for separation of
 """
 
 import logging
-from typing import TypeAlias
 
 import numpy as np
 
@@ -15,6 +14,7 @@ from .tl_types import FloatArray, OptimalControlSolution, PhaseID, ProblemProtoc
 
 
 logger = logging.getLogger(__name__)
+
 
 class Solution:
     """User-friendly interface for multiphase optimal control problem solutions."""
@@ -24,7 +24,7 @@ class Solution:
     objective: float
     _problem: ProblemProtocol | None
 
-# trajectolab/solution.py - Updated __init__ method
+    # trajectolab/solution.py - Updated __init__ method
 
     def __init__(
         self,
@@ -126,12 +126,12 @@ class Solution:
         """Automatically display comprehensive solution summary."""
         try:
             from .summary import print_comprehensive_solution_summary
+
             print_comprehensive_solution_summary(self)
         except ImportError as e:
             logger.warning(f"Could not import comprehensive summary: {e}")
         except Exception as e:
             logger.warning(f"Error in comprehensive summary: {e}")
-
 
     def get_phase_ids(self) -> list[PhaseID]:
         """Get list of phase IDs in the solution."""
@@ -324,9 +324,7 @@ class Solution:
         # Import here to avoid circular imports
         from .plot import plot_multiphase_solution
 
-        plot_multiphase_solution(
-            self, phase_id, variable_names, figsize, show_phase_boundaries
-        )
+        plot_multiphase_solution(self, phase_id, variable_names, figsize, show_phase_boundaries)
 
     def summary(self, comprehensive: bool = True) -> None:
         """
@@ -343,6 +341,7 @@ class Solution:
         if comprehensive:
             try:
                 from .summary import print_comprehensive_solution_summary
+
                 print_comprehensive_solution_summary(self)
             except ImportError as e:
                 logger.warning(f"Could not import comprehensive summary: {e}")

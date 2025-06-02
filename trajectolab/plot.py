@@ -6,15 +6,15 @@ phase boundary visualization, and smart layout management for multiphase solutio
 """
 
 import logging
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.axes import Axes as MplAxes
 from matplotlib.figure import Figure as MplFigure
-from matplotlib.lines import Line2D
 
 from .tl_types import FloatArray, PhaseID
+
 
 if TYPE_CHECKING:
     from .solution import Solution
@@ -75,7 +75,10 @@ def _plot_single_phase(
     if variable_names:
         # Plot specific variables
         _create_variable_plot(
-            solution, f"Phase {phase_id} Variables", [(phase_id, var) for var in variable_names], figsize
+            solution,
+            f"Phase {phase_id} Variables",
+            [(phase_id, var) for var in variable_names],
+            figsize,
         )
     else:
         # Plot all variables for this phase
@@ -297,11 +300,17 @@ def _plot_single_variable_with_intervals(
 ) -> None:
     """Plot single variable for one phase with interval-based coloring."""
     # Determine variable type and get data
-    if phase_id in solution._phase_state_names and var_name in solution._phase_state_names[phase_id]:
+    if (
+        phase_id in solution._phase_state_names
+        and var_name in solution._phase_state_names[phase_id]
+    ):
         var_type = "state"
         time_data = solution[(phase_id, "time_states")]
         var_data = solution[(phase_id, var_name)]
-    elif phase_id in solution._phase_control_names and var_name in solution._phase_control_names[phase_id]:
+    elif (
+        phase_id in solution._phase_control_names
+        and var_name in solution._phase_control_names[phase_id]
+    ):
         var_type = "control"
         time_data = solution[(phase_id, "time_controls")]
         var_data = solution[(phase_id, var_name)]
@@ -383,13 +392,11 @@ def _plot_control_step_function_intervals(
             where="post",
             color=color,
             linewidth=1.5,
-            label=f"Phase {phase_id} Int {k+1}" if k == 0 else "",
+            label=f"Phase {phase_id} Int {k + 1}" if k == 0 else "",
         )
 
         # Plot nodes
-        ax.plot(
-            time_array[mask], values_array[mask], "o", color=color, markersize=4
-        )
+        ax.plot(time_array[mask], values_array[mask], "o", color=color, markersize=4)
 
 
 def _plot_state_linear_intervals(
@@ -422,7 +429,7 @@ def _plot_state_linear_intervals(
             linestyle="-",
             linewidth=1.5,
             markersize=7,
-            label=f"Phase {phase_id} Int {k+1}" if k == 0 else "",
+            label=f"Phase {phase_id} Int {k + 1}" if k == 0 else "",
         )
 
 
@@ -461,7 +468,7 @@ def _get_phase_interval_colors(solution: "Solution", phase_id: PhaseID) -> np.nd
     colormap = plt.get_cmap("viridis")
     color_values = np.linspace(0, 1, num_intervals, dtype=np.float64)
     colors = colormap(color_values)
-    return cast(np.ndarray, colors)
+    return colors
 
 
 def _get_phase_mesh_intervals(solution: "Solution", phase_id: PhaseID) -> list[tuple[float, float]]:

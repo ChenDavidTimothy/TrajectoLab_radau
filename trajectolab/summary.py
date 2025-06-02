@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from .tl_types import PhaseID
 
 if TYPE_CHECKING:
     from .solution import Solution
@@ -21,7 +20,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def print_comprehensive_solution_summary(solution: "Solution") -> None:
+def print_comprehensive_solution_summary(solution: Solution) -> None:
     """
     Present factual solution data without analysis or interpretation.
 
@@ -58,14 +57,14 @@ def print_comprehensive_solution_summary(solution: "Solution") -> None:
     print("=" * 80 + "\n")
 
 
-def _print_problem_structure_section(solution: "Solution") -> None:
+def _print_problem_structure_section(solution: Solution) -> None:
     """Present basic problem structure data."""
     print("\n┌─ PROBLEM STRUCTURE")
     print("│")
 
     # Problem name
     if solution._problem is not None:
-        problem_name = getattr(solution._problem, 'name', 'Optimal Control Problem')
+        problem_name = getattr(solution._problem, "name", "Optimal Control Problem")
         print(f"│  Name: {problem_name}")
     else:
         print("│  Name: Not available")
@@ -95,7 +94,7 @@ def _print_problem_structure_section(solution: "Solution") -> None:
     print("│")
 
 
-def _print_solution_status_section(solution: "Solution") -> None:
+def _print_solution_status_section(solution: Solution) -> None:
     """Present raw solution status data."""
     print("┌─ SOLUTION STATUS")
     print("│")
@@ -106,18 +105,18 @@ def _print_solution_status_section(solution: "Solution") -> None:
     if solution.success:
         print(f"│  Objective: {solution.objective:.12e}")
     else:
-        print(f"│  Objective: Not available")
+        print("│  Objective: Not available")
 
     print("│")
 
 
-def _print_solver_information_section(solution: "Solution") -> None:
+def _print_solver_information_section(solution: Solution) -> None:
     """Present solver configuration data."""
     print("┌─ SOLVER INFORMATION")
     print("│")
 
     # Solver options if available
-    if solution._problem is not None and hasattr(solution._problem, 'solver_options'):
+    if solution._problem is not None and hasattr(solution._problem, "solver_options"):
         solver_opts = solution._problem.solver_options
         if solver_opts:
             print("│  NLP Solver Options:")
@@ -131,7 +130,7 @@ def _print_solver_information_section(solution: "Solution") -> None:
     print("│")
 
 
-def _print_phase_data_section(solution: "Solution") -> None:
+def _print_phase_data_section(solution: Solution) -> None:
     """Present phase data without analysis."""
     print("┌─ PHASE DATA")
     print("│")
@@ -172,7 +171,7 @@ def _print_phase_data_section(solution: "Solution") -> None:
         # Integral values (raw data)
         if phase_id in solution.phase_integrals:
             integral_val = solution.phase_integrals[phase_id]
-            if isinstance(integral_val, (int, float)):
+            if isinstance(integral_val, int | float):
                 print(f"│    Integral: {integral_val:.12e}")
             else:
                 print(f"│    Integrals: {integral_val}")
@@ -182,7 +181,7 @@ def _print_phase_data_section(solution: "Solution") -> None:
         print("│")
 
 
-def _print_static_parameters_section(solution: "Solution") -> None:
+def _print_static_parameters_section(solution: Solution) -> None:
     """Present static parameter data."""
     if solution.static_parameters is None or len(solution.static_parameters) == 0:
         return
@@ -195,23 +194,25 @@ def _print_static_parameters_section(solution: "Solution") -> None:
 
     # Parameter names if available
     param_names = None
-    if solution._problem is not None and hasattr(solution._problem, '_static_parameters'):
+    if solution._problem is not None and hasattr(solution._problem, "_static_parameters"):
         try:
             static_params = solution._problem._static_parameters
-            if hasattr(static_params, 'parameter_names'):
+            if hasattr(static_params, "parameter_names"):
                 param_names = static_params.parameter_names
         except (AttributeError, IndexError):
             pass
 
     print("│  Values:")
     for i, value in enumerate(params):
-        param_name = f"param_{i+1}" if param_names is None or i >= len(param_names) else param_names[i]
+        param_name = (
+            f"param_{i + 1}" if param_names is None or i >= len(param_names) else param_names[i]
+        )
         print(f"│    {param_name}: {value:.12e}")
 
     print("│")
 
 
-def _print_mesh_configuration_section(solution: "Solution") -> None:
+def _print_mesh_configuration_section(solution: Solution) -> None:
     """Present mesh configuration data."""
     print("┌─ MESH CONFIGURATION")
     print("│")
@@ -242,21 +243,26 @@ def _print_mesh_configuration_section(solution: "Solution") -> None:
 
             # Mesh bounds
             mesh_bounds = "Not available"
-            if phase_id in solution.phase_mesh_nodes and solution.phase_mesh_nodes[phase_id] is not None:
+            if (
+                phase_id in solution.phase_mesh_nodes
+                and solution.phase_mesh_nodes[phase_id] is not None
+            ):
                 mesh_nodes = solution.phase_mesh_nodes[phase_id]
                 mesh_bounds = f"[{mesh_nodes[0]:.3f}, {mesh_nodes[-1]:.3f}]"
 
-            print(f"│  │ {phase_id:7d} │ {num_intervals:9d} │ {degrees_str:11s} │ {mesh_bounds:12s}")
+            print(
+                f"│  │ {phase_id:7d} │ {num_intervals:9d} │ {degrees_str:11s} │ {mesh_bounds:12s}"
+            )
 
     print("│  └─────────┴───────────┴─────────────┴──────────────")
     print(f"│  Total Intervals: {total_intervals}")
     print("│")
 
 
-def _print_adaptive_algorithm_data_section(solution: "Solution") -> None:
+def _print_adaptive_algorithm_data_section(solution: Solution) -> None:
     """Present adaptive algorithm data if available."""
     # Check if adaptive data is stored in solution
-    if not hasattr(solution, 'adaptive_data') or solution.adaptive_data is None:
+    if not hasattr(solution, "adaptive_data") or solution.adaptive_data is None:
         return
 
     adaptive_data = solution.adaptive_data
@@ -307,6 +313,6 @@ def _print_adaptive_algorithm_data_section(solution: "Solution") -> None:
         global_max = max(all_finite_errors)
         print(f"│  Global Maximum Error: {global_max:.3e}")
     else:
-        print(f"│  Global Maximum Error: No finite errors")
+        print("│  Global Maximum Error: No finite errors")
 
     print("│")
