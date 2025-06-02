@@ -325,39 +325,6 @@ def _process_refinement_intervals(
     return refinement_actions
 
 
-def _can_intervals_merge(
-    k: int,
-    intervals_for_reduction: set[int],
-    num_intervals: int,
-    state_evaluators: list[Callable[[float | FloatArray], FloatArray] | None],
-    control_evaluators: list[Callable[[float | FloatArray], FloatArray] | None],
-    problem: ProblemProtocol,
-    phase_id: PhaseID,
-) -> bool:
-    """EXTRACTED: Check if two intervals can be merged."""
-    # INVERSION: Early returns for conditions that prevent merging
-    if (k + 1) not in intervals_for_reduction:
-        return False
-
-    if (k + 1) >= num_intervals:
-        return False
-
-    state_eval_first = state_evaluators[k]
-    state_eval_second = state_evaluators[k + 1]
-    control_eval_first = control_evaluators[k]
-    control_eval_second = control_evaluators[k + 1]
-
-    if state_eval_first is None or state_eval_second is None:
-        return False
-
-    num_states, num_controls = problem.get_phase_variable_counts(phase_id)
-    if num_controls > 0:
-        if control_eval_first is None or control_eval_second is None:
-            return False
-
-    return True
-
-
 def _create_merge_candidate(
     k: int, errors: list[float], polynomial_degrees: list[int], adaptive_params: AdaptiveParameters
 ):
@@ -388,6 +355,56 @@ def _create_merge_candidate(
     )
 
 
+def _check_full_merge_feasibility(
+    k: int,
+    intervals_for_reduction: set[int],
+    num_intervals: int,
+    state_evaluators: list[Callable[[float | FloatArray], FloatArray] | None],
+    control_evaluators: list[Callable[[float | FloatArray], FloatArray] | None],
+    problem: ProblemProtocol,
+    phase_id: PhaseID,
+    solution: OptimalControlSolution,
+    adaptive_params: AdaptiveParameters,
+    gamma_factors: FloatArray,
+) -> bool:
+    """MERGED: Complete merge feasibility check - structural + mathematical."""
+    # INVERSION: Early returns for structural conditions that prevent merging
+    if (k + 1) not in intervals_for_reduction:
+        return False
+
+    if (k + 1) >= num_intervals:
+        return False
+
+    # INVERSION: Early return if evaluators are None
+    state_eval_k = state_evaluators[k]
+    state_eval_k_plus_1 = state_evaluators[k + 1]
+    control_eval_k = control_evaluators[k]
+    control_eval_k_plus_1 = control_evaluators[k + 1]
+
+    if state_eval_k is None or state_eval_k_plus_1 is None:
+        return False
+
+    # INVERSION: Early return if controls are required but missing
+    num_states, num_controls = problem.get_phase_variable_counts(phase_id)
+    if num_controls > 0:
+        if control_eval_k is None or control_eval_k_plus_1 is None:
+            return False
+
+    # Happy path: test mathematical merge feasibility
+    return h_reduce_intervals(
+        phase_id,
+        k,
+        solution,
+        problem,
+        adaptive_params,
+        gamma_factors,
+        state_eval_k,  # Guaranteed non-None
+        control_eval_k,
+        state_eval_k_plus_1,  # Guaranteed non-None
+        control_eval_k_plus_1,
+    )
+
+
 def _identify_merge_candidates(
     intervals_for_reduction: set[int],
     polynomial_degrees: list[int],
@@ -400,40 +417,28 @@ def _identify_merge_candidates(
     control_evaluators: list[Callable[[float | FloatArray], FloatArray] | None],
     gamma_factors: FloatArray,
 ):
-    """EXTRACTED: Identify h-reduction merge candidates."""
+    """NEVER-NESTER REFACTORED: Identify h-reduction merge candidates."""
     merge_candidates = []
-    num_intervals = len(polynomial_degrees)
 
     for k in intervals_for_reduction:
-        # Check if merge is possible
-        if not _can_intervals_merge(
+        # MERGED: Complete feasibility check (structural + mathematical)
+        if not _check_full_merge_feasibility(
             k,
             intervals_for_reduction,
-            num_intervals,
+            len(polynomial_degrees),
             state_evaluators,
             control_evaluators,
             problem,
             phase_id,
+            solution,
+            adaptive_params,
+            gamma_factors,
         ):
             continue
 
-        # Test actual merge feasibility
-        can_merge = h_reduce_intervals(
-            phase_id,
-            k,
-            solution,
-            problem,
-            adaptive_params,
-            gamma_factors,
-            state_evaluators[k],
-            control_evaluators[k],
-            state_evaluators[k + 1],
-            control_evaluators[k + 1],
-        )
-
-        if can_merge:
-            candidate = _create_merge_candidate(k, errors, polynomial_degrees, adaptive_params)
-            merge_candidates.append(candidate)
+        # Happy path: create merge candidate
+        candidate = _create_merge_candidate(k, errors, polynomial_degrees, adaptive_params)
+        merge_candidates.append(candidate)
 
     return merge_candidates
 
@@ -545,6 +550,30 @@ def _apply_standard_processing(
     return k + 1
 
 
+def _process_refinement_action(
+    k: int,
+    action_data: int | list[int],  # Type tells us what to do!
+    mesh_points: FloatArray,
+    next_polynomial_degrees: list[int],
+    next_mesh_points: list[float],
+) -> int:
+    """NEVER-NESTER: Use type discrimination instead of string matching."""
+    # INVERSION: Handle p-refinement first (int type)
+    if isinstance(action_data, int):
+        return _apply_p_refinement(
+            k, action_data, mesh_points, next_polynomial_degrees, next_mesh_points
+        )
+
+    # INVERSION: Handle h-refinement (list type)
+    if isinstance(action_data, list):
+        return _apply_h_refinement(
+            k, action_data, mesh_points, next_polynomial_degrees, next_mesh_points
+        )
+
+    # Should never happen with proper typing, but defensive programming
+    raise ValueError(f"Unexpected action_data type: {type(action_data)}")
+
+
 def _build_new_mesh_configuration(
     polynomial_degrees: list[int],
     mesh_points: FloatArray,
@@ -552,41 +581,38 @@ def _build_new_mesh_configuration(
     approved_merges,
     reduction_actions: dict[int, int],
 ) -> tuple[list[int], FloatArray]:
-    """EXTRACTED: Build new mesh configuration by applying all actions."""
+    """NEVER-NESTER REFACTORED: Build new mesh configuration."""
     next_polynomial_degrees: list[int] = []
     next_mesh_points = [mesh_points[0]]
     num_intervals = len(polynomial_degrees)
 
     k = 0
     while k < num_intervals:
+        # INVERSION: Handle refinement actions first
         if k in refinement_actions:
-            # Apply refinement
-            action_type, action_data = refinement_actions[k]
-            if action_type == "p":
-                k = _apply_p_refinement(
-                    k, action_data, mesh_points, next_polynomial_degrees, next_mesh_points
-                )
-            else:  # h-refinement
-                k = _apply_h_refinement(
-                    k, action_data, mesh_points, next_polynomial_degrees, next_mesh_points
-                )
+            _, action_data = refinement_actions[k]  # Ignore string, use type discrimination
+            # DIRECT TYPE DISCRIMINATION - Type tells us what to do!
+            k = _process_refinement_action(
+                k, action_data, mesh_points, next_polynomial_degrees, next_mesh_points
+            )
+            continue
 
-        elif any(merge.first_idx == k for merge in approved_merges):
-            # Apply h-reduction merge
+        # INVERSION: Handle merges next
+        if any(merge.first_idx == k for merge in approved_merges):
             k = _apply_h_reduction_merge(
                 k, approved_merges, mesh_points, next_polynomial_degrees, next_mesh_points
             )
+            continue
 
-        else:
-            # Apply p-reduction or keep unchanged
-            k = _apply_standard_processing(
-                k,
-                reduction_actions,
-                polynomial_degrees,
-                mesh_points,
-                next_polynomial_degrees,
-                next_mesh_points,
-            )
+        # Default case: standard processing
+        k = _apply_standard_processing(
+            k,
+            reduction_actions,
+            polynomial_degrees,
+            mesh_points,
+            next_polynomial_degrees,
+            next_mesh_points,
+        )
 
     return next_polynomial_degrees, np.array(next_mesh_points, dtype=np.float64)
 
