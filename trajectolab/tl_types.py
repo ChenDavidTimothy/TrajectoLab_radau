@@ -51,10 +51,11 @@ class ProblemProtocol(Protocol):
     """Protocol defining the expected interface of a multiphase Problem object for solver."""
 
     # Essential multiphase properties
-    _phases: dict[PhaseID, Any]  # PhaseDefinition
-    _static_parameters: Any  # StaticParameterState
+    _phases: dict[PhaseID, Any]
+    _static_parameters: Any
     _cross_phase_constraints: list[ca.MX]
     _num_phases: int
+    _multiphase_state: Any
 
     # ADD MISSING ATTRIBUTES
     initial_guess: MultiPhaseInitialGuess | None

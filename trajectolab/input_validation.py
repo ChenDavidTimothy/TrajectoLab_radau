@@ -445,7 +445,7 @@ def validate_dynamics_output(output: Any, num_states: int) -> ca.MX:
                 f"Dynamics list length mismatch: got {len(output)}, expected {num_states}"
             )
         result = ca.vertcat(*output) if output else ca.MX(num_states, 1)
-        return result
+        return ca.MX(result)
 
     # Handle CasADi DM
     if isinstance(output, ca.DM):
