@@ -12,16 +12,16 @@ import trajectolab as tl
 # Create new problem instance for fixed mesh
 problem_fixed = tl.Problem("Hypersensitive Fixed Mesh")
 
-with problem_fixed.phase(1) as phase1_fixed:
-    # Same problem definition
-    t_fixed = phase1_fixed.time(initial=0, final=10000)
-    x_fixed = phase1_fixed.state("x", initial=1.5, final=1.0)
-    u_fixed = phase1_fixed.control("u")
-    phase1_fixed.dynamics({x_fixed: -(x_fixed**3) + u_fixed})
-    integrand_fixed = 0.5 * (x_fixed**2 + u_fixed**2)
-    integral_var_fixed = phase1_fixed.add_integral(integrand_fixed)
-    # Refined fixed mesh
-    phase1_fixed.set_mesh([20, 12, 20], [-1.0, -1 / 3, 1 / 3, 1.0])
+phase1_fixed = problem_fixed.add_phase(1)
+# Same problem definition
+t_fixed = phase1_fixed.time(initial=0, final=10000)
+x_fixed = phase1_fixed.state("x", initial=1.5, final=1.0)
+u_fixed = phase1_fixed.control("u")
+phase1_fixed.dynamics({x_fixed: -(x_fixed**3) + u_fixed})
+integrand_fixed = 0.5 * (x_fixed**2 + u_fixed**2)
+integral_var_fixed = phase1_fixed.add_integral(integrand_fixed)
+# Refined fixed mesh
+phase1_fixed.set_mesh([20, 12, 20], [-1.0, -1 / 3, 1 / 3, 1.0])
 
 problem_fixed.minimize(integral_var_fixed)
 # Set detailed initial guess for fixed mesh using multiphase format
