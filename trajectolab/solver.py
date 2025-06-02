@@ -26,13 +26,18 @@ DEFAULT_NLP_OPTIONS: dict[str, object] = {
 }
 
 
-def solve_fixed_mesh(problem: Problem, nlp_options: dict[str, object] | None = None) -> Solution:
+def solve_fixed_mesh(
+    problem: Problem,
+    nlp_options: dict[str, object] | None = None,
+    show_summary: bool = True,
+) -> Solution:
     """
     Solve a multiphase optimal control problem using fixed pseudospectral meshes.
 
     Args:
         problem: Multiphase Problem instance with configured meshes, dynamics, and objective
         nlp_options: Optional IPOPT solver options
+        show_summary: Whether to display comprehensive solution summary (default: True)
 
     Returns:
         Solution object containing optimization results, trajectories, and metadata.
@@ -74,7 +79,8 @@ def solve_fixed_mesh(problem: Problem, nlp_options: dict[str, object] | None = N
     else:
         logger.warning("Fixed-mesh solve failed: %s", solution_data.message)
 
-    return Solution(solution_data, protocol_problem)
+    # Create solution object (will automatically show summary unless disabled)
+    return Solution(solution_data, protocol_problem, auto_summary=show_summary)
 
 
 def solve_adaptive(
@@ -90,6 +96,7 @@ def solve_adaptive(
     ode_solver: ODESolverCallable | None = None,
     nlp_options: dict[str, object] | None = None,
     initial_guess: MultiPhaseInitialGuess | None = None,
+    show_summary: bool = True,
 ) -> Solution:
     """
     Solve a multiphase optimal control problem using adaptive mesh refinement.
@@ -107,6 +114,7 @@ def solve_adaptive(
         ode_solver: Custom ODE solver function (default: scipy.integrate.solve_ivp)
         nlp_options: Optional IPOPT solver options for each NLP solve
         initial_guess: Initial guess for first iteration (overrides problem guess)
+        show_summary: Whether to display comprehensive solution summary (default: True)
 
     Returns:
         Solution object with final refined meshes and high-accuracy results.
@@ -194,4 +202,5 @@ def solve_adaptive(
     else:
         logger.warning("Multiphase adaptive solve failed: %s", solution_data.message)
 
-    return Solution(solution_data, protocol_problem)
+    # Create solution object (will automatically show summary unless disabled)
+    return Solution(solution_data, protocol_problem, auto_summary=show_summary)

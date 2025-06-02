@@ -2,8 +2,8 @@
 Solution interface for optimal control problem results.
 
 This module provides the Solution class that wraps optimization results
-in a user-friendly interface with trajectory access and summary capabilities.
-Plotting functionality has been extracted to plot.py for separation of concerns.
+in a user-friendly interface with trajectory access capabilities.
+Comprehensive summary functionality is delegated to summary.py for separation of concerns.
 """
 
 import logging
@@ -28,9 +28,19 @@ class Solution:
     _problem: ProblemProtocol | None
 
     def __init__(
-        self, raw_solution: OptimalControlSolution | None, problem: ProblemProtocol | None
+        self,
+        raw_solution: OptimalControlSolution | None,
+        problem: ProblemProtocol | None,
+        auto_summary: bool = True,
     ) -> None:
-        """Initialize solution wrapper from raw multiphase optimization results."""
+        """
+        Initialize solution wrapper from raw multiphase optimization results.
+
+        Args:
+            raw_solution: Raw optimization results from solver
+            problem: Problem protocol instance
+            auto_summary: Whether to automatically display comprehensive summary (default: True)
+        """
         if raw_solution is not None:
             self.success = raw_solution.success
             self.message = raw_solution.message
@@ -101,6 +111,24 @@ class Solution:
             self._problem = None
             self._phase_state_names = {}
             self._phase_control_names = {}
+
+        # Automatically show comprehensive summary by default
+        if auto_summary:
+            self._show_comprehensive_summary()
+
+    def _show_comprehensive_summary(self) -> None:
+        """Automatically display comprehensive solution summary."""
+        try:
+            from .summary import print_comprehensive_solution_summary
+            print_comprehensive_solution_summary(self)
+        except ImportError as e:
+            logger.warning(f"Could not import comprehensive summary: {e}")
+            # Fallback to simple summary
+            self._print_simple_summary()
+        except Exception as e:
+            logger.warning(f"Error in comprehensive summary: {e}")
+            # Fallback to simple summary
+            self._print_simple_summary()
 
     def get_phase_ids(self) -> list[PhaseID]:
         """Get list of phase IDs in the solution."""
@@ -297,8 +325,33 @@ class Solution:
             self, phase_id, variable_names, figsize, show_phase_boundaries
         )
 
-    def summary(self) -> None:
-        """Print a summary of the multiphase solution results."""
+    def summary(self, comprehensive: bool = True) -> None:
+        """
+        Print solution summary.
+
+        Args:
+            comprehensive: If True (default), show exhaustive summary.
+                          If False, show simple summary.
+
+        Examples:
+            >>> solution.summary()  # Comprehensive summary (default)
+            >>> solution.summary(comprehensive=False)  # Simple summary
+        """
+        if comprehensive:
+            try:
+                from .summary import print_comprehensive_solution_summary
+                print_comprehensive_solution_summary(self)
+            except ImportError as e:
+                logger.warning(f"Could not import comprehensive summary: {e}")
+                self._print_simple_summary()
+            except Exception as e:
+                logger.warning(f"Error in comprehensive summary: {e}")
+                self._print_simple_summary()
+        else:
+            self._print_simple_summary()
+
+    def _print_simple_summary(self) -> None:
+        """Print simple solution summary (fallback)."""
         print(f"Multiphase Solution Status: {'Success' if self.success else 'Failed'}")
 
         if self.success:
