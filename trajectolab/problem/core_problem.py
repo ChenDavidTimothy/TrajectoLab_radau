@@ -53,7 +53,7 @@ class Phase:
 
     def dynamics(
         self,
-        dynamics_dict: dict[ca.MX | StateVariableImpl, ca.MX | float | int],
+        dynamics_dict: dict[ca.MX | StateVariableImpl, ca.MX | float | int | StateVariableImpl],
     ) -> None:
         """Define dynamics for this phase."""
         variables_problem.set_phase_dynamics(self._phase_def, dynamics_dict)

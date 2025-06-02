@@ -248,7 +248,8 @@ def create_static_parameter(
 
 
 def set_phase_dynamics(
-    phase_def: PhaseDefinition, dynamics_dict: dict[ca.MX | StateVariableImpl, ca.MX | float | int]
+    phase_def: PhaseDefinition,
+    dynamics_dict: dict[ca.MX | StateVariableImpl, ca.MX | float | int | StateVariableImpl],
 ) -> None:
     """Set dynamics expressions for a specific phase."""
     ordered_state_symbols = phase_def.get_ordered_state_symbols()
@@ -276,6 +277,8 @@ def set_phase_dynamics(
         try:
             if isinstance(value, ca.MX):
                 storage_value = value
+            elif isinstance(value, StateVariableImpl):
+                storage_value = _extract_casadi_symbol(value)
             else:
                 storage_value = ca.MX(value)
         except Exception as e:

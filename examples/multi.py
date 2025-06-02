@@ -34,7 +34,7 @@ def solve_two_phase_hypersensitive_debug():
     # ========================================================================
     phase2 = problem_phase.add_phase(2)
 
-    t2 = phase2.time(initial=t1.final, final=10000.0)
+    _t2 = phase2.time(initial=t1.final, final=10000.0)
     x2 = phase2.state("x", initial=x1.final, final=1.0)  # Automatic continuity
     u2 = phase2.control("u")
     phase2.dynamics({x2: -(x2**3) + u2})
