@@ -67,7 +67,7 @@ def solve_linear_tangent_steering_problem():
     # ========================================================================
     # Phase 1: t ∈ [0, t_F^(1)]
     # ========================================================================
-    phase1 = problem.add_phase(1)
+    phase1 = problem.set_phase(1)
 
     # Time variable with initial time fixed at 0
     t1 = phase1.time(initial=0.0)
@@ -108,7 +108,7 @@ def solve_linear_tangent_steering_problem():
     # ========================================================================
     # Phase 2: t ∈ [t_F^(1), t_F^(2)]
     # ========================================================================
-    phase2 = problem.add_phase(2)
+    phase2 = problem.set_phase(2)
 
     # Time variable continuing from Phase 1
     t2 = phase2.time(initial=t1.final)
@@ -148,7 +148,7 @@ def solve_linear_tangent_steering_problem():
     # ========================================================================
     # Phase 3: t ∈ [t_F^(2), t_F^(3)]
     # ========================================================================
-    phase3 = problem.add_phase(3)
+    phase3 = problem.set_phase(3)
 
     # Time variable continuing from Phase 2
     t3 = phase3.time(initial=t2.final)
@@ -315,7 +315,7 @@ def main():
     problem.set_initial_guess(**initial_guess)
 
     print("\nNEW API FEATURES:")
-    print("✓ Direct phase objects: phase1 = problem.add_phase(1)")
+    print("✓ Direct phase objects: phase1 = problem.set_phase(1)")
     print("✓ No context manager indentation")
     print("✓ Natural OOP feel: phase1.state(), phase1.dynamics()")
     print("✓ Clean cross-phase continuity: initial=x1_1.final")

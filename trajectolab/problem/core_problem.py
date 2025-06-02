@@ -27,7 +27,7 @@ class Phase:
     def __init__(self, problem: "Problem", phase_id: PhaseID) -> None:
         self.problem = problem
         self.phase_id = phase_id
-        self._phase_def = self.problem._multiphase_state.add_phase(self.phase_id)
+        self._phase_def = self.problem._multiphase_state.set_phase(self.phase_id)
 
     def time(
         self, initial: ConstraintInput = 0.0, final: ConstraintInput = None
@@ -65,11 +65,11 @@ class Phase:
 
     def add_integral(self, integrand_expr: ca.MX | float | int) -> ca.MX:
         """Add integral expression for this phase."""
-        return variables_problem.add_phase_integral(self._phase_def, integrand_expr)
+        return variables_problem.set_phase_integral(self._phase_def, integrand_expr)
 
     def subject_to(self, constraint_expr: ca.MX | float | int) -> None:
         """Add path constraint for this phase."""
-        constraints_problem.add_phase_path_constraint(self._phase_def, constraint_expr)
+        constraints_problem.set_phase_path_constraint(self._phase_def, constraint_expr)
         logger.debug("Path constraint added to phase %d", self.phase_id)
 
     def set_mesh(self, polynomial_degrees: list[int], mesh_points: NumericArrayLike) -> None:
@@ -94,7 +94,7 @@ class Problem:
         self._initial_guess_container = [None]
         self.solver_options: dict[str, Any] = {}
 
-    def add_phase(self, phase_id: PhaseID) -> Phase:
+    def set_phase(self, phase_id: PhaseID) -> Phase:
         """Add a new phase and return the phase object for direct manipulation."""
         if phase_id in self._multiphase_state.phases:
             raise ValueError(f"Phase {phase_id} already exists")

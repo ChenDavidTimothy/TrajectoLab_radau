@@ -18,7 +18,7 @@ t_final = 50.0
 problem = tl.Problem("HIV Immunology")
 
 # Single phase using new API
-phase = problem.add_phase(1)
+phase = problem.set_phase(1)
 
 # Time (fixed final time)
 t = phase.time(initial=0.0, final=t_final)

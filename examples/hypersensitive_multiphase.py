@@ -12,7 +12,7 @@ import trajectolab as tl
 # Create new problem instance for fixed mesh
 problem_fixed = tl.Problem("Hypersensitive Fixed Mesh")
 
-phase1_fixed = problem_fixed.add_phase(1)
+phase1_fixed = problem_fixed.set_phase(1)
 # Same problem definition
 t_fixed = phase1_fixed.time(initial=0, final=10000)
 x_fixed = phase1_fixed.state("x", initial=1.5, final=1.0)

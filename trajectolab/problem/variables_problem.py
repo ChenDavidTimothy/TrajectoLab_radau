@@ -296,7 +296,7 @@ def set_phase_dynamics(
     phase_def.dynamics_expressions = converted_dict
 
 
-def add_phase_integral(phase_def: PhaseDefinition, integrand_expr: ca.MX | float | int) -> ca.MX:
+def set_phase_integral(phase_def: PhaseDefinition, integrand_expr: ca.MX | float | int) -> ca.MX:
     """Add an integral expression for a specific phase."""
     integral_name = f"integral_{len(phase_def.integral_expressions)}_p{phase_def.phase_id}"
     integral_sym = ca.MX.sym(integral_name, 1)  # type: ignore[arg-type]

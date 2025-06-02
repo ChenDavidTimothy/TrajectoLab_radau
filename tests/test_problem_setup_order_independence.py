@@ -27,7 +27,7 @@ class TestProblemSetupOrderIndependence:
         problem = Problem("Order Test Problem")
 
         # NEW API: Create phase first
-        phase = problem.add_phase(1)
+        phase = problem.set_phase(1)
 
         # NEW API: Define variables on phase
         _t = phase.time(initial=0.0, final=1.0)
@@ -237,7 +237,7 @@ class TestProblemSetupOrderIndependence:
             problem = Problem("Multi-Interval Test")
 
             # NEW API: Create phase
-            phase = problem.add_phase(1)
+            phase = problem.set_phase(1)
 
             # NEW API: Define variables on phase
             _t = phase.time(initial=0.0, final=2.0)

@@ -29,7 +29,7 @@ V_SCALE = 1e4  # velocity scaling
 problem = tl.Problem("Shuttle Reentry")
 
 # Single phase using new API
-phase = problem.add_phase(1)
+phase = problem.set_phase(1)
 
 # Free final time
 t = phase.time(initial=0.0)

@@ -399,7 +399,7 @@ class MultiPhaseVariableState:
     cross_phase_constraints: list[ca.MX] = field(default_factory=list)
     objective_expression: ca.MX | None = None
 
-    def add_phase(self, phase_id: PhaseID) -> PhaseDefinition:
+    def set_phase(self, phase_id: PhaseID) -> PhaseDefinition:
         """Add new phase to multiphase problem."""
         if phase_id in self.phases:
             raise DataIntegrityError(

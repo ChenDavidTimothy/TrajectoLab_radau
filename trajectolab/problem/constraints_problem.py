@@ -8,7 +8,7 @@ from ..tl_types import Constraint, PhaseID
 from .state import MultiPhaseVariableState, PhaseDefinition, _BoundaryConstraint
 
 
-def add_phase_path_constraint(
+def set_phase_path_constraint(
     phase_def: PhaseDefinition, constraint_expr: ca.MX | float | int
 ) -> None:
     """Add a path constraint expression to a specific phase."""

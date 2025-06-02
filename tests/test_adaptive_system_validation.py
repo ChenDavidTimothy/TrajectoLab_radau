@@ -47,7 +47,7 @@ class TestAdaptiveSystemValidation:
         problem = tl.Problem("Brachistochrone Validation")
 
         # NEW API: Create phase first
-        phase = problem.add_phase(1)
+        phase = problem.set_phase(1)
 
         # NEW API: Define variables on phase
         # Free final time (this is what we're minimizing)
@@ -155,7 +155,7 @@ class TestAdaptiveSystemValidation:
         problem = tl.Problem("Two-Point BVP Validation")
 
         # NEW API: Create phase first
-        phase = problem.add_phase(1)
+        phase = problem.set_phase(1)
 
         # NEW API: Define variables on phase
         # Fixed time horizon
@@ -246,7 +246,7 @@ class TestAdaptiveSystemValidation:
         problem = tl.Problem("Simple LQR Validation")
 
         # NEW API: Create phase first
-        phase = problem.add_phase(1)
+        phase = problem.set_phase(1)
 
         # NEW API: Define variables on phase
         # Fixed time horizon
@@ -324,7 +324,7 @@ class TestAdaptiveSystemValidation:
             problem = tl.Problem("Error Tolerance Honesty")
 
             # NEW API: Create phase first
-            phase = problem.add_phase(1)
+            phase = problem.set_phase(1)
 
             # NEW API: Define variables on phase
             # Simple problem: minimize ∫u²dt subject to ẋ = u, x(0) = 0, x(1) = 1
@@ -388,7 +388,7 @@ class TestAdaptiveSystemValidation:
         """
         # Use hypersensitive problem (known to need adaptive refinement)
         coarse_problem = tl.Problem("Mesh Refinement Validation - Coarse")
-        coarse_phase = coarse_problem.add_phase(1)
+        coarse_phase = coarse_problem.set_phase(1)
 
         # Hypersensitive problem parameters
         _t_coarse = coarse_phase.time(initial=0, final=40)
@@ -410,7 +410,7 @@ class TestAdaptiveSystemValidation:
 
         # Solve with medium mesh
         medium_problem = tl.Problem("Mesh Refinement Validation - Medium")
-        medium_phase = medium_problem.add_phase(1)
+        medium_phase = medium_problem.set_phase(1)
 
         _t_medium = medium_phase.time(initial=0, final=40)
         x_medium = medium_phase.state("x", initial=1.5, final=1.0)
@@ -430,7 +430,7 @@ class TestAdaptiveSystemValidation:
 
         # Solve with adaptive refinement
         adaptive_problem = tl.Problem("Mesh Refinement Validation - Adaptive")
-        adaptive_phase = adaptive_problem.add_phase(1)
+        adaptive_phase = adaptive_problem.set_phase(1)
 
         _t_adaptive = adaptive_phase.time(initial=0, final=40)
         x_adaptive = adaptive_phase.state("x", initial=1.5, final=1.0)
@@ -497,7 +497,7 @@ class TestAdaptiveSystemValidation:
 
         for degree in degrees_to_test:
             problem_simple = tl.Problem("Simple Smooth Test")
-            phase_simple = problem_simple.add_phase(1)
+            phase_simple = problem_simple.set_phase(1)
 
             _t_simple = phase_simple.time(initial=0.0, final=1.0)
             x_simple = phase_simple.state("x", initial=0.0, final=A)
@@ -549,7 +549,7 @@ class TestAdaptiveSystemValidation:
             # Problem with sharp transition: minimize ∫u²dt subject to ẋ = u, x(0) = 0, x(1) = 1
             # But with a penalty that creates a sharp corner
             problem = tl.Problem("Algebraic Convergence Test")
-            phase = problem.add_phase(1)
+            phase = problem.set_phase(1)
 
             _t = phase.time(initial=0.0, final=1.0)
             x = phase.state("x", initial=0.0, final=1.0)
@@ -619,7 +619,7 @@ class TestAdaptiveSystemValidation:
         # Boundary layer problem: minimize ∫u²dt subject to εẍ + ẋ = u, x(0) = 0, x(1) = 1
         # where ε is small (creates boundary layer near x = 1)
         problem = tl.Problem("Boundary Layer Test")
-        phase = problem.add_phase(1)
+        phase = problem.set_phase(1)
 
         epsilon = 0.01  # Small parameter creates boundary layer
 
@@ -694,7 +694,7 @@ class TestAdaptiveSystemValidation:
         """
         # Use a challenging problem that might cause mesh degeneracy
         problem = tl.Problem("Mesh Degeneracy Test")
-        phase = problem.add_phase(1)
+        phase = problem.set_phase(1)
 
         # Problem with multiple time scales
         _t = phase.time(initial=0.0, final=1.0)

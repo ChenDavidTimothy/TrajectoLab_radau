@@ -12,7 +12,7 @@ import trajectolab as tl
 problem = tl.Problem("Car Race")
 
 # Single phase using new API
-phase = problem.add_phase(1)
+phase = problem.set_phase(1)
 
 # Time is free (we want to minimize it)
 t = phase.time(initial=0.0)

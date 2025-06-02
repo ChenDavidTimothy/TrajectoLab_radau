@@ -20,7 +20,7 @@ def solve_two_phase_hypersensitive_debug():
     # ========================================================================
     # Phase 1: [0, 5000] - Using NEW direct phase API
     # ========================================================================
-    phase1 = problem_phase.add_phase(1)
+    phase1 = problem_phase.set_phase(1)
 
     t1 = phase1.time(initial=0.0, final=5000.0)  # Fixed intermediate time
     x1 = phase1.state("x", initial=1.5)
@@ -32,7 +32,7 @@ def solve_two_phase_hypersensitive_debug():
     # ========================================================================
     # Phase 2: [5000, 10000] - Cleaner syntax with direct phase access
     # ========================================================================
-    phase2 = problem_phase.add_phase(2)
+    phase2 = problem_phase.set_phase(2)
 
     _t2 = phase2.time(initial=t1.final, final=10000.0)
     x2 = phase2.state("x", initial=x1.final, final=1.0)  # Automatic continuity
@@ -194,7 +194,7 @@ def demonstrate_api_comparison():
     print("    # Context manager complexity")
 
     print("\n🟢 NEW DIRECT PHASE API:")
-    print("phase1 = problem.add_phase(1)")
+    print("phase1 = problem.set_phase(1)")
     print("t1 = phase1.time(initial=0.0)")
     print("x1 = phase1.state('x', initial=1.5)")
     print("u1 = phase1.control('u')")

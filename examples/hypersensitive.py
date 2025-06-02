@@ -11,7 +11,7 @@ import trajectolab as tl
 problem = tl.Problem("Hypersensitive Problem")
 
 # Single phase using new API
-phase = problem.add_phase(1)
+phase = problem.set_phase(1)
 
 # Fixed time horizon
 t = phase.time(initial=0, final=40)

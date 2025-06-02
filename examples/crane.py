@@ -20,7 +20,7 @@ t_final = 9.0
 problem = tl.Problem("Container Crane")
 
 # Single phase using new API
-phase = problem.add_phase(1)
+phase = problem.set_phase(1)
 
 # Fixed final time
 t = phase.time(initial=0.0, final=t_final)
