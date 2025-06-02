@@ -17,25 +17,28 @@ c5 = 27.0756
 t_final = 9.0
 
 # Create chemical reactor problem
-problem = tl.Problem("Chemical Reactor")
+problem = tl.Problem("Container Crane")
+
+# Single phase using new API
+phase = problem.add_phase(1)
 
 # Fixed final time
-t = problem.time(initial=0.0, final=t_final)
+t = phase.time(initial=0.0, final=t_final)
 
 # States
-x1 = problem.state("x1", initial=0.0, final=10.0)
-x2 = problem.state("x2", initial=22.0, final=14.0)
-x3 = problem.state("x3", initial=0.0, final=0.0)
-x4 = problem.state("x4", initial=0, final=2.5, boundary=(-2.5, 2.5))
-x5 = problem.state("x5", initial=-1, final=0.0, boundary=(-1.0, 1.0))
-x6 = problem.state("x6", initial=0.0, final=0.0)
+x1 = phase.state("x1", initial=0.0, final=10.0)
+x2 = phase.state("x2", initial=22.0, final=14.0)
+x3 = phase.state("x3", initial=0.0, final=0.0)
+x4 = phase.state("x4", initial=0, final=2.5, boundary=(-2.5, 2.5))
+x5 = phase.state("x5", initial=-1, final=0.0, boundary=(-1.0, 1.0))
+x6 = phase.state("x6", initial=0.0, final=0.0)
 
 # Controls
-u1 = problem.control("u1", boundary=(-c1, c1))
-u2 = problem.control("u2", boundary=(c2, c3))
+u1 = phase.control("u1", boundary=(-c1, c1))
+u2 = phase.control("u2", boundary=(c2, c3))
 
 # System dynamics
-problem.dynamics(
+phase.dynamics(
     {
         x1: x4,
         x2: x5,
@@ -48,11 +51,11 @@ problem.dynamics(
 
 # Objective: quadratic cost
 integrand = 0.5 * (x3**2 + x6**2 + p_rho * (u1**2 + u2**2))
-integral_var = problem.add_integral(integrand)
+integral_var = phase.add_integral(integrand)
 problem.minimize(integral_var)
 
 # Mesh and initial guess
-problem.set_mesh([6, 6, 6], [-1.0, -1 / 3, 1 / 3, 1.0])
+phase.set_mesh([6, 6, 6], [-1.0, -1 / 3, 1 / 3, 1.0])
 
 # Simple initial guess: linear interpolation between boundary conditions
 states_guess = []
@@ -76,7 +79,9 @@ for N in [6, 6, 6]:
     u2_mid = (c2 + c3) / 2.0
     controls_guess.append(np.vstack([np.full(N, u1_mid), np.full(N, u2_mid)]))
 
-problem.set_initial_guess(states=states_guess, controls=controls_guess, integrals=0.1)
+problem.set_initial_guess(
+    phase_states={1: states_guess}, phase_controls={1: controls_guess}, phase_integrals={1: 0.1}
+)
 
 # Solve with adaptive mesh (good for stiff chemical systems)
 solution = tl.solve_adaptive(

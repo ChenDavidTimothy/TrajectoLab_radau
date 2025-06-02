@@ -11,29 +11,32 @@ import trajectolab as tl
 # Create the car race problem - minimize time to complete the track
 problem = tl.Problem("Car Race")
 
+# Single phase using new API
+phase = problem.add_phase(1)
+
 # Time is free (we want to minimize it)
-t = problem.time(initial=0.0)
+t = phase.time(initial=0.0)
 
 # States: position (0 to 1) and speed (start from rest)
-pos = problem.state("position", initial=0.0, final=1.0)
-speed = problem.state("speed", initial=0.0)
+pos = phase.state("position", initial=0.0, final=1.0)
+speed = phase.state("speed", initial=0.0)
 
 # Control: throttle (0 to 1)
-throttle = problem.control("throttle", boundary=(0.0, 1.0))
+throttle = phase.control("throttle", boundary=(0.0, 1.0))
 
 # Dynamics: position changes with speed, speed changes with throttle minus drag
-problem.dynamics({pos: speed, speed: throttle - speed})
+phase.dynamics({pos: speed, speed: throttle - speed})
 
 # Speed limit varies with position: limit = 1 - sin(2*pi*pos)/2
 speed_limit = 1 - ca.sin(2 * ca.pi * pos) / 2
-problem.subject_to(speed <= speed_limit)
+phase.subject_to(speed <= speed_limit)
 
 # Minimize lap time
 problem.minimize(t.final)
 
 # Set up mesh and initial guess
-problem.set_mesh([8, 8, 8], np.array([-1.0, -0.3, 0.3, 1.0]))
-problem.set_initial_guess(terminal_time=2.0)
+phase.set_mesh([8, 8, 8], np.array([-1.0, -0.3, 0.3, 1.0]))
+problem.set_initial_guess(phase_terminal_times={1: 2.0})
 
 # Solve with adaptive mesh
 solution = tl.solve_adaptive(

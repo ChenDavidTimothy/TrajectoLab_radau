@@ -17,30 +17,33 @@ t_final = 50.0
 # Create HIV immunology problem
 problem = tl.Problem("HIV Immunology")
 
+# Single phase using new API
+phase = problem.add_phase(1)
+
 # Time (fixed final time)
-t = problem.time(initial=0.0, final=t_final)
+t = phase.time(initial=0.0, final=t_final)
 
 # States: T-cells and viral load
-T = problem.state("T_cells", initial=400.0, boundary=(0, 1200))
-V = problem.state("viral_load", initial=3.0, boundary=(0.05, 5))
+T = phase.state("T_cells", initial=400.0, boundary=(0, 1200))
+V = phase.state("viral_load", initial=3.0, boundary=(0.05, 5))
 
 # Controls: treatment levels
-u1 = problem.control("treatment_1", boundary=(0, 0.02))
-u2 = problem.control("treatment_2", boundary=(0, 0.9))
+u1 = phase.control("treatment_1", boundary=(0, 0.02))
+u2 = phase.control("treatment_2", boundary=(0, 0.9))
 
 # System dynamics (HIV immunology model)
 T_dot = s1 - (s2 * V) / (b1 + V) - mu * T - k * V * T + u1 * T
 V_dot = (g * (1 - u2) * V) / (b2 + V) - c * V * T
 
-problem.dynamics({T: T_dot, V: V_dot})
+phase.dynamics({T: T_dot, V: V_dot})
 
 # Objective: maximize T-cells minus treatment costs
 integrand = T - (A1 * u1**2 + A2 * u2**2)
-integral_var = problem.add_integral(integrand)
+integral_var = phase.add_integral(integrand)
 problem.minimize(-integral_var)  # Maximize
 
 # Mesh and initial guess
-problem.set_mesh([20, 20, 20], [-1.0, -1 / 3, 1 / 3, 1.0])
+phase.set_mesh([20, 20, 20], [-1.0, -1 / 3, 1 / 3, 1.0])
 
 # Simple initial guess: linear interpolation
 states_guess = []
@@ -62,7 +65,9 @@ for N in [20, 20, 20]:
         )
     )
 
-problem.set_initial_guess(states=states_guess, controls=controls_guess, integrals=25000.0)
+problem.set_initial_guess(
+    phase_states={1: states_guess}, phase_controls={1: controls_guess}, phase_integrals={1: 25000.0}
+)
 
 # Solve
 solution = tl.solve_fixed_mesh(

@@ -1,5 +1,5 @@
 """
-TrajectoLab Example: Space Shuttle Reentry - Updated with Dictionary Access
+TrajectoLab Example: Space Shuttle Reentry
 """
 
 import casadi as ca
@@ -28,25 +28,28 @@ V_SCALE = 1e4  # velocity scaling
 # Create shuttle reentry problem
 problem = tl.Problem("Shuttle Reentry")
 
+# Single phase using new API
+phase = problem.add_phase(1)
+
 # Free final time
-t = problem.time(initial=0.0)
+t = phase.time(initial=0.0)
 
 # Scaled state variables
-h_s = problem.state("altitude_scaled", initial=2.6, final=0.8, boundary=(0, None))
-phi = problem.state("longitude", initial=0.0)
-theta = problem.state("latitude", initial=0.0, boundary=(-89 * DEG2RAD, 89 * DEG2RAD))
-v_s = problem.state("velocity_scaled", initial=2.56, final=0.25, boundary=(1e-4, None))
-gamma = problem.state(
+h_s = phase.state("altitude_scaled", initial=2.6, final=0.8, boundary=(0, None))
+phi = phase.state("longitude", initial=0.0)
+theta = phase.state("latitude", initial=0.0, boundary=(-89 * DEG2RAD, 89 * DEG2RAD))
+v_s = phase.state("velocity_scaled", initial=2.56, final=0.25, boundary=(1e-4, None))
+gamma = phase.state(
     "flight_path_angle",
     initial=-1 * DEG2RAD,
     final=-5 * DEG2RAD,
     boundary=(-89 * DEG2RAD, 89 * DEG2RAD),
 )
-psi = problem.state("heading_angle", initial=90 * DEG2RAD)
+psi = phase.state("heading_angle", initial=90 * DEG2RAD)
 
 # Controls
-alpha = problem.control("angle_of_attack", boundary=(-90 * DEG2RAD, 90 * DEG2RAD))
-beta = problem.control("bank_angle", boundary=(-90 * DEG2RAD, 1 * DEG2RAD))
+alpha = phase.control("angle_of_attack", boundary=(-90 * DEG2RAD, 90 * DEG2RAD))
+beta = phase.control("bank_angle", boundary=(-90 * DEG2RAD, 1 * DEG2RAD))
 
 # Convert scaled variables to physical units
 h = h_s * H_SCALE  # altitude in feet
@@ -69,7 +72,7 @@ D = q * CD * S_REF
 eps = 1e-10
 
 # Scaled dynamics (divide physical rates by scaling factors)
-problem.dynamics(
+phase.dynamics(
     {
         h_s: (v * ca.sin(gamma)) / H_SCALE,
         phi: (v / r) * ca.cos(gamma) * ca.sin(psi) / (ca.cos(theta) + eps),
@@ -85,7 +88,7 @@ problem.dynamics(
 problem.minimize(-theta.final)
 
 # Mesh and initial guess
-problem.set_mesh([8] * 3, np.linspace(-1.0, 1.0, 4))
+phase.set_mesh([8] * 3, np.linspace(-1.0, 1.0, 4))
 
 # Simple initial guess: linear interpolation
 states_guess = []
@@ -112,7 +115,11 @@ for N in [8] * 3:
         )
     )
 
-problem.set_initial_guess(states=states_guess, controls=controls_guess, terminal_time=2000.0)
+problem.set_initial_guess(
+    phase_states={1: states_guess},
+    phase_controls={1: controls_guess},
+    phase_terminal_times={1: 2000.0},
+)
 
 # Solve
 solution = tl.solve_adaptive(
@@ -129,13 +136,13 @@ solution = tl.solve_adaptive(
 if solution.success:
     crossrange_deg = -solution.objective * 180.0 / np.pi
     print("Shuttle reentry solved successfully!")
-    print(f"Final time: {solution.final_time:.1f} seconds")
+    print(f"Final time: {solution.get_phase_final_time(1):.1f} seconds")
     print(f"Crossrange: {crossrange_deg:.2f} degrees")
     print()
 
-    # Access trajectory data directly - no function calls needed!
-    time_states = solution["time_states"]  # State time grid
-    time_controls = solution["time_controls"]  # Control time grid (different!)
+    # Access trajectory data directly
+    time_states = solution["time_states"]
+    time_controls = solution["time_controls"]
 
     # Physical trajectory data (convert from scaled variables)
     altitude_scaled = solution["altitude_scaled"]
@@ -174,51 +181,6 @@ if solution.success:
     beta_deg = bank_angle * 180 / np.pi
     print(f"Angle of attack range: [{np.min(alpha_deg):.1f}, {np.max(alpha_deg):.1f}] deg")
     print(f"Bank angle range: [{np.min(beta_deg):.1f}, {np.max(beta_deg):.1f}] deg")
-    print()
-
-    # =============================================================================
-    # Demonstrate programmatic variable access
-    # =============================================================================
-
-    print("=== AVAILABLE VARIABLES ===")
-    print(f"States: {solution.state_names}")
-    print(f"Controls: {solution.control_names}")
-    print()
-
-    # Check for specific variables programmatically
-    critical_variables = ["altitude_scaled", "velocity_scaled", "angle_of_attack"]
-    print("Critical variables available:")
-    for var in critical_variables:
-        if var in solution:
-            data = solution[var]
-            print(
-                f"  {var}: {len(data)} data points, range [{np.min(data):.3f}, {np.max(data):.3f}]"
-            )
-        else:
-            print(f"  {var}: NOT AVAILABLE")
-    print()
-
-    # =============================================================================
-    # Export data for external analysis (common engineering workflow)
-    # =============================================================================
-
-    # Create data dictionary for easy export to MATLAB, pandas, etc.
-    trajectory_data = {}
-
-    # Add time arrays (different grids!)
-    trajectory_data["time_states"] = solution["time_states"]
-    trajectory_data["time_controls"] = solution["time_controls"]
-
-    # Add all state variables
-    for state_name in solution.state_names:
-        trajectory_data[state_name] = solution[state_name]
-
-    # Add all control variables
-    for control_name in solution.control_names:
-        trajectory_data[control_name] = solution[control_name]
-
-    print(f"Trajectory data dictionary created with {len(trajectory_data)} arrays")
-    print("Ready for export to MATLAB, pandas DataFrame, plotting tools, etc.")
     print()
 
     # Plot the solution

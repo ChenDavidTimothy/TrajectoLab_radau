@@ -10,26 +10,28 @@ import trajectolab as tl
 # Create hypersensitive problem
 problem = tl.Problem("Hypersensitive Problem")
 
+# Single phase using new API
+phase = problem.add_phase(1)
+
 # Fixed time horizon
-t = problem.time(initial=0, final=40)
+t = phase.time(initial=0, final=40)
 
 # State with boundary conditions
-x = problem.state("x", initial=1.5, final=1.0)
+x = phase.state("x", initial=1.5, final=1.0)
 
 # Control (unbounded)
-u = problem.control("u")
+u = phase.control("u")
 
 # System dynamics
-problem.dynamics({x: -(x**3) + u})
+phase.dynamics({x: -(x**3) + u})
 
 # Objective: quadratic cost
 integrand = 0.5 * (x**2 + u**2)
-integral_var = problem.add_integral(integrand)
+integral_var = phase.add_integral(integrand)
 problem.minimize(integral_var)
 
 # Mesh and initial guess for adaptive solving
-problem.set_mesh([8, 8, 8], [-1.0, -1 / 3, 1 / 3, 1.0])
-# problem.set_initial_guess(integrals=0.1)
+phase.set_mesh([8, 8, 8], [-1.0, -1 / 3, 1 / 3, 1.0])
 
 # Solve with adaptive mesh
 solution = tl.solve_adaptive(
@@ -54,7 +56,7 @@ if solution.success:
     print("\nSolving with fixed mesh...")
 
     # Refined fixed mesh
-    problem.set_mesh([20, 12, 20], [-1.0, -1 / 3, 1 / 3, 1.0])
+    phase.set_mesh([20, 12, 20], [-1.0, -1 / 3, 1 / 3, 1.0])
 
     # More detailed initial guess for fixed mesh
     states_guess = []
@@ -66,11 +68,11 @@ if solution.success:
         controls_guess.append(np.zeros((1, N)))
 
     problem.set_initial_guess(
-        states=states_guess,
-        controls=controls_guess,
-        initial_time=0.0,
-        terminal_time=40.0,
-        integrals=0.1,
+        phase_states={1: states_guess},
+        phase_controls={1: controls_guess},
+        phase_initial_times={1: 0.0},
+        phase_terminal_times={1: 40.0},
+        phase_integrals={1: 0.1},
     )
 
     fixed_solution = tl.solve_fixed_mesh(
