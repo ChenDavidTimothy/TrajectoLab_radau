@@ -12,73 +12,106 @@ from .utils.coordinates import tau_to_time
 logger = logging.getLogger(__name__)
 
 
+def _process_single_integral_dm_value(
+    raw_value: ca.DM, num_integrals: int, phase_id: PhaseID
+) -> float | FloatArray | None:
+    """EXTRACTED: Process single DM integral value to reduce nesting."""
+    np_array_value = np.asarray(raw_value.toarray())
+
+    if num_integrals == 1:
+        return _process_single_integral_scalar(np_array_value, phase_id)
+    else:
+        return _process_multiple_integrals_array(np_array_value, phase_id)
+
+
+def _process_single_integral_scalar(np_array_value: np.ndarray, phase_id: PhaseID) -> float:
+    """EXTRACTED: Process single integral scalar value."""
+    if np_array_value.size == 1:
+        result = float(np_array_value.item())
+        validate_array_numerical_integrity(
+            np.array([result]),
+            f"Phase {phase_id} integral value",
+            "integral extraction",
+        )
+        return result
+    else:
+        logger.warning(
+            f"Phase {phase_id}: For num_integrals=1, unexpected array shape {np_array_value.shape}"
+        )
+        if np_array_value.size > 0:
+            return float(np_array_value.flatten()[0])
+        else:
+            logger.warning(f"Phase {phase_id}: Empty integral value array")
+            return np.nan
+
+
+def _process_multiple_integrals_array(np_array_value: np.ndarray, phase_id: PhaseID) -> FloatArray:
+    """EXTRACTED: Process multiple integrals array value."""
+    result_array = np_array_value.flatten().astype(np.float64)
+    validate_array_numerical_integrity(
+        result_array, f"Phase {phase_id} integral array", "integral extraction"
+    )
+    return result_array
+
+
+def _process_scalar_integral_value(
+    raw_value: float | int, num_integrals: int, phase_id: PhaseID
+) -> float | FloatArray:
+    """EXTRACTED: Process scalar integral value to reduce nesting."""
+    if num_integrals == 1:
+        result = float(raw_value)
+        validate_array_numerical_integrity(
+            np.array([result]), f"Phase {phase_id} integral value", "integral extraction"
+        )
+        return result
+    else:
+        logger.warning(
+            f"Phase {phase_id}: Expected array for {num_integrals} integrals, got scalar {raw_value}"
+        )
+        return np.full(num_integrals, np.nan, dtype=np.float64)
+
+
 def extract_multiphase_integral_values(
     casadi_solution_object: ca.OptiSol | None,
     opti_object: ca.Opti,
     phase_id: PhaseID,
     num_integrals: int,
 ) -> float | FloatArray | None:
-    """SINGLE SOURCE for extracting integral values for a specific phase from the CasADi solution."""
-    if (
-        num_integrals == 0
-        or not hasattr(opti_object, "multiphase_variables_reference")
-        or opti_object.multiphase_variables_reference is None
-        or casadi_solution_object is None
-    ):
+    """
+    SINGLE SOURCE for extracting integral values for a specific phase from the CasADi solution.
+    REFACTORED using EXTRACTION and INVERSION to eliminate 4+ level nesting.
+    """
+    # INVERSION: Early returns for simple cases (guard clauses)
+    if num_integrals == 0:
         return None
 
+    if not hasattr(opti_object, "multiphase_variables_reference"):
+        return None
+
+    if opti_object.multiphase_variables_reference is None:
+        return None
+
+    if casadi_solution_object is None:
+        return None
+
+    # INVERSION: Early return for missing phase
+    variables = opti_object.multiphase_variables_reference
+    if phase_id not in variables.phase_variables:
+        return None
+
+    phase_vars = variables.phase_variables[phase_id]
+    if phase_vars.integral_variables is None:
+        return None
+
+    # Main extraction logic (now at max 3 levels)
     try:
-        variables = opti_object.multiphase_variables_reference
-        if phase_id not in variables.phase_variables:
-            return None
-
-        phase_vars = variables.phase_variables[phase_id]
-        if phase_vars.integral_variables is None:
-            return None
-
         raw_value = casadi_solution_object.value(phase_vars.integral_variables)
 
+        # EXTRACTION: Complex type processing moved to separate functions
         if isinstance(raw_value, ca.DM):
-            np_array_value = np.asarray(raw_value.toarray())
-            if num_integrals == 1:
-                if np_array_value.size == 1:
-                    result = float(np_array_value.item())
-                    # SINGLE validation call
-                    validate_array_numerical_integrity(
-                        np.array([result]),
-                        f"Phase {phase_id} integral value",
-                        "integral extraction",
-                    )
-                    return result
-                else:
-                    logger.warning(
-                        f"Phase {phase_id}: For num_integrals=1, unexpected array shape {np_array_value.shape}"
-                    )
-                    if np_array_value.size > 0:
-                        return float(np_array_value.flatten()[0])
-                    else:
-                        logger.warning(f"Phase {phase_id}: Empty integral value array")
-                        return np.nan
-            else:
-                result_array = np_array_value.flatten().astype(np.float64)
-                # SINGLE validation call
-                validate_array_numerical_integrity(
-                    result_array, f"Phase {phase_id} integral array", "integral extraction"
-                )
-                return result_array
-
+            return _process_single_integral_dm_value(raw_value, num_integrals, phase_id)
         elif isinstance(raw_value, float | int):
-            if num_integrals == 1:
-                result = float(raw_value)
-                validate_array_numerical_integrity(
-                    np.array([result]), f"Phase {phase_id} integral value", "integral extraction"
-                )
-                return result
-            else:
-                logger.warning(
-                    f"Phase {phase_id}: Expected array for {num_integrals} integrals, got scalar {raw_value}"
-                )
-                return np.full(num_integrals, np.nan, dtype=np.float64)
+            return _process_scalar_integral_value(raw_value, num_integrals, phase_id)
         else:
             logger.warning(
                 f"Phase {phase_id}: Unexpected CasADi value type: {type(raw_value)}, value: {raw_value}"
@@ -100,6 +133,151 @@ def extract_multiphase_integral_values(
         return None
 
 
+def _build_state_trajectory_for_interval(
+    state_vals: np.ndarray,
+    state_physical_times: np.ndarray,
+    num_states: int,
+    state_trajectory_times: list[float],
+    state_trajectory_values: list[list[float]],
+    mesh_idx: int,
+    phase_id: PhaseID,
+) -> None:
+    """EXTRACTED: Build state trajectory for single mesh interval to reduce nesting."""
+    for node_idx in range(len(state_physical_times)):
+        physical_time = state_physical_times[node_idx]
+        state_trajectory_times.append(physical_time)
+
+        for var_idx in range(num_states):
+            value = state_vals[var_idx, node_idx]
+            validate_array_numerical_integrity(
+                np.array([value]),
+                f"Phase {phase_id} state trajectory value at interval {mesh_idx}, node {node_idx}",
+            )
+            state_trajectory_values[var_idx].append(value)
+
+
+def _build_control_trajectory_for_interval(
+    control_vals: np.ndarray,
+    control_physical_times: np.ndarray,
+    num_controls: int,
+    control_trajectory_times: list[float],
+    control_trajectory_values: list[list[float]],
+    mesh_idx: int,
+    phase_id: PhaseID,
+) -> None:
+    """EXTRACTED: Build control trajectory for single mesh interval to reduce nesting."""
+    for node_idx in range(len(control_physical_times)):
+        physical_time = control_physical_times[node_idx]
+        control_trajectory_times.append(physical_time)
+
+        for var_idx in range(num_controls):
+            value = control_vals[var_idx, node_idx]
+            validate_array_numerical_integrity(
+                np.array([value]),
+                f"Phase {phase_id} control trajectory value at interval {mesh_idx}, node {node_idx}",
+            )
+            control_trajectory_values[var_idx].append(value)
+
+
+def _extract_and_validate_state_data(
+    casadi_solution_object: ca.OptiSol,
+    phase_vars,
+    mesh_idx: int,
+    num_states: int,
+    phase_id: PhaseID,
+) -> np.ndarray:
+    """EXTRACTED: Extract and validate state data for mesh interval."""
+    state_vars = phase_vars.state_matrices[mesh_idx]
+    state_vals = casadi_solution_object.value(state_vars)
+
+    if isinstance(state_vals, ca.DM | ca.MX):
+        state_vals = np.array(state_vals.full())
+    else:
+        state_vals = np.array(state_vals)
+
+    if num_states == 1 and state_vals.ndim == 1:
+        state_vals = state_vals.reshape(1, -1)
+    elif num_states > 1 and state_vals.ndim == 1:
+        num_points = len(state_vals) // num_states
+        if num_points * num_states == len(state_vals):
+            state_vals = state_vals.reshape(num_states, num_points)
+
+    validate_array_numerical_integrity(
+        state_vals, f"Phase {phase_id} state values for interval {mesh_idx}"
+    )
+
+    return state_vals
+
+
+def _extract_and_validate_control_data(
+    casadi_solution_object: ca.OptiSol,
+    phase_vars,
+    mesh_idx: int,
+    num_controls: int,
+    phase_id: PhaseID,
+) -> np.ndarray:
+    """EXTRACTED: Extract and validate control data for mesh interval."""
+    control_vars = phase_vars.control_variables[mesh_idx]
+    control_vals = casadi_solution_object.value(control_vars)
+
+    if isinstance(control_vals, ca.DM | ca.MX):
+        control_vals = np.array(control_vals.full())
+    else:
+        control_vals = np.array(control_vals)
+
+    if num_controls == 1 and control_vals.ndim == 1:
+        control_vals = control_vals.reshape(1, -1)
+    elif num_controls > 1 and control_vals.ndim == 1:
+        num_points = len(control_vals) // num_controls
+        if num_points * num_controls == len(control_vals):
+            control_vals = control_vals.reshape(num_controls, num_points)
+
+    validate_array_numerical_integrity(
+        control_vals, f"Phase {phase_id} control values for interval {mesh_idx}"
+    )
+
+    return control_vals
+
+
+def _compute_physical_times_for_interval(
+    collocation_points: int,
+    global_mesh_nodes: FloatArray,
+    mesh_idx: int,
+    initial_time: float,
+    terminal_time: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    """EXTRACTED: Compute physical times for state and control nodes in mesh interval."""
+    from .radau import compute_radau_collocation_components
+
+    basis_components = compute_radau_collocation_components(collocation_points)
+    state_tau_nodes = basis_components.state_approximation_nodes
+    control_tau_nodes = basis_components.collocation_nodes
+
+    mesh_start = global_mesh_nodes[mesh_idx]
+    mesh_end = global_mesh_nodes[mesh_idx + 1]
+
+    # Use tau_to_time instead of vectorized_coordinate_transform
+    state_physical_times_result = tau_to_time(
+        state_tau_nodes, mesh_start, mesh_end, initial_time, terminal_time
+    )
+    control_physical_times_result = tau_to_time(
+        control_tau_nodes, mesh_start, mesh_end, initial_time, terminal_time
+    )
+
+    # Since basis components provide arrays, ensure we have arrays
+    if not isinstance(state_physical_times_result, np.ndarray):
+        state_physical_times = np.asarray(state_physical_times_result, dtype=np.float64)
+    else:
+        state_physical_times = state_physical_times_result
+
+    if not isinstance(control_physical_times_result, np.ndarray):
+        control_physical_times = np.asarray(control_physical_times_result, dtype=np.float64)
+    else:
+        control_physical_times = control_physical_times_result
+
+    return state_physical_times, control_physical_times
+
+
 def consolidated_phase_trajectory_extraction(
     phase_id: PhaseID,
     casadi_solution_object: ca.OptiSol,
@@ -112,13 +290,14 @@ def consolidated_phase_trajectory_extraction(
 ]:
     """
     SIMPLIFIED: Single extraction pass with simple coordinate transformation.
+    REFACTORED using EXTRACTION to eliminate 6+ level nesting - now max 3 levels.
     """
     phase_def = problem._phases[phase_id]
     num_states, num_controls = problem.get_phase_variable_counts(phase_id)
     num_mesh_intervals = len(phase_def.collocation_points_per_interval)
     global_mesh_nodes = phase_def.global_normalized_mesh_nodes
 
-    # Initialize storage - ADD TYPE ANNOTATIONS
+    # Initialize storage with type annotations
     state_trajectory_times: list[float] = []
     state_trajectory_values: list[list[float]] = [[] for _ in range(num_states)]
     control_trajectory_times: list[float] = []
@@ -126,106 +305,49 @@ def consolidated_phase_trajectory_extraction(
     per_interval_states: list[FloatArray] = []
     per_interval_controls: list[FloatArray] = []
 
+    # EXTRACTION: Main loop simplified by moving complex logic to separate functions
     for mesh_idx in range(num_mesh_intervals):
         collocation_points = phase_def.collocation_points_per_interval[mesh_idx]
 
-        # Extract state/control data (same as before)
-        state_vars = phase_vars.state_matrices[mesh_idx]
-        state_vals = casadi_solution_object.value(state_vars)
-
-        if isinstance(state_vals, ca.DM | ca.MX):
-            state_vals = np.array(state_vals.full())
-        else:
-            state_vals = np.array(state_vals)
-
-        if num_states == 1 and state_vals.ndim == 1:
-            state_vals = state_vals.reshape(1, -1)
-        elif num_states > 1 and state_vals.ndim == 1:
-            num_points = len(state_vals) // num_states
-            if num_points * num_states == len(state_vals):
-                state_vals = state_vals.reshape(num_states, num_points)
-
-        validate_array_numerical_integrity(
-            state_vals, f"Phase {phase_id} state values for interval {mesh_idx}"
+        # EXTRACTION: State data processing moved to separate function
+        state_vals = _extract_and_validate_state_data(
+            casadi_solution_object, phase_vars, mesh_idx, num_states, phase_id
         )
         per_interval_states.append(state_vals)
 
-        # Extract control data if exists
+        # EXTRACTION: Control data processing moved to separate function (if needed)
         if num_controls > 0:
-            control_vars = phase_vars.control_variables[mesh_idx]
-            control_vals = casadi_solution_object.value(control_vars)
-
-            if isinstance(control_vals, ca.DM | ca.MX):
-                control_vals = np.array(control_vals.full())
-            else:
-                control_vals = np.array(control_vals)
-
-            if num_controls == 1 and control_vals.ndim == 1:
-                control_vals = control_vals.reshape(1, -1)
-            elif num_controls > 1 and control_vals.ndim == 1:
-                num_points = len(control_vals) // num_controls
-                if num_points * num_controls == len(control_vals):
-                    control_vals = control_vals.reshape(num_controls, num_points)
-
-            validate_array_numerical_integrity(
-                control_vals, f"Phase {phase_id} control values for interval {mesh_idx}"
+            control_vals = _extract_and_validate_control_data(
+                casadi_solution_object, phase_vars, mesh_idx, num_controls, phase_id
             )
             per_interval_controls.append(control_vals)
 
-        # SIMPLIFIED: Get tau nodes and convert to time
-        from .radau import compute_radau_collocation_components
-
-        basis_components = compute_radau_collocation_components(collocation_points)
-
-        state_tau_nodes = basis_components.state_approximation_nodes
-        control_tau_nodes = basis_components.collocation_nodes
-
-        # Use tau_to_time instead of vectorized_coordinate_transform
-        mesh_start = global_mesh_nodes[mesh_idx]
-        mesh_end = global_mesh_nodes[mesh_idx + 1]
-
-        # Type-safe conversion ensuring array outputs for array inputs
-        state_physical_times_result = tau_to_time(
-            state_tau_nodes, mesh_start, mesh_end, initial_time, terminal_time
-        )
-        control_physical_times_result = tau_to_time(
-            control_tau_nodes, mesh_start, mesh_end, initial_time, terminal_time
+        # EXTRACTION: Time computation moved to separate function
+        state_physical_times, control_physical_times = _compute_physical_times_for_interval(
+            collocation_points, global_mesh_nodes, mesh_idx, initial_time, terminal_time
         )
 
-        # Since basis components provide arrays, ensure we have arrays
-        if not isinstance(state_physical_times_result, np.ndarray):
-            state_physical_times = np.asarray(state_physical_times_result, dtype=np.float64)
-        else:
-            state_physical_times = state_physical_times_result
-
-        if not isinstance(control_physical_times_result, np.ndarray):
-            control_physical_times = np.asarray(control_physical_times_result, dtype=np.float64)
-        else:
-            control_physical_times = control_physical_times_result
-
-        # Build trajectories (same logic as before)
-        for node_idx in range(len(state_physical_times)):
-            physical_time = state_physical_times[node_idx]
-            state_trajectory_times.append(physical_time)
-            for var_idx in range(num_states):
-                value = state_vals[var_idx, node_idx]
-                validate_array_numerical_integrity(
-                    np.array([value]),
-                    f"Phase {phase_id} state trajectory value at interval {mesh_idx}, node {node_idx}",
-                )
-                state_trajectory_values[var_idx].append(value)
+        # EXTRACTION: Trajectory building moved to separate functions
+        _build_state_trajectory_for_interval(
+            state_vals,
+            state_physical_times,
+            num_states,
+            state_trajectory_times,
+            state_trajectory_values,
+            mesh_idx,
+            phase_id,
+        )
 
         if num_controls > 0:
-            for node_idx in range(len(control_physical_times)):
-                physical_time = control_physical_times[node_idx]
-                control_trajectory_times.append(physical_time)
-                for var_idx in range(num_controls):
-                    value = control_vals[var_idx, node_idx]
-                    validate_array_numerical_integrity(
-                        np.array([value]),
-                        f"Phase {phase_id} control trajectory value at interval {mesh_idx}, node {node_idx}",
-                    )
-                    control_trajectory_values[var_idx].append(value)
+            _build_control_trajectory_for_interval(
+                control_vals,
+                control_physical_times,
+                num_controls,
+                control_trajectory_times,
+                control_trajectory_values,
+                mesh_idx,
+                phase_id,
+            )
 
     # Return trajectory data with proper typing
     trajectory_data: dict[str, FloatArray] = {

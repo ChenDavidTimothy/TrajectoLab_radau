@@ -78,6 +78,34 @@ def _setup_phase_optimization_variables(
     )
 
 
+def _create_interior_state_variables(
+    opti: ca.Opti,
+    num_states: int,
+    num_interior_nodes: int,
+    phase_id: PhaseID,
+) -> ca.MX:
+    """Create interior state variables for mesh interval. EXTRACTED to reduce nesting."""
+    interior_nodes_var = opti.variable(num_states, num_interior_nodes)
+
+    if interior_nodes_var is None:
+        raise DataIntegrityError(
+            f"Failed to create interior_nodes_var for phase {phase_id}",
+            "CasADi variable creation failure",
+        )
+
+    return interior_nodes_var
+
+
+def _populate_interior_state_columns(
+    state_columns: list[ca.MX],
+    interior_nodes_var: ca.MX,
+    num_interior_nodes: int,
+) -> None:
+    """Populate state columns with interior node variables. EXTRACTED to reduce nesting."""
+    for i in range(num_interior_nodes):
+        state_columns[i + 1] = interior_nodes_var[:, i]
+
+
 def setup_phase_interval_state_variables(
     opti: ca.Opti,
     phase_id: PhaseID,
@@ -88,14 +116,15 @@ def setup_phase_interval_state_variables(
 ) -> _PhaseIntervalBundle:
     """
     Set up state variables for a single mesh interval within a phase.
+    REFACTORED using EXTRACTION and INVERSION to eliminate 4+ level nesting.
     """
+    # INVERSION: Early returns for validation (guard clauses)
     if mesh_interval_index < 0:
         raise DataIntegrityError(
             f"Phase {phase_id} mesh interval index cannot be negative: {mesh_interval_index}",
             "TrajectoLab interval setup error",
         )
 
-    # Data integrity checks
     if mesh_interval_index >= len(state_at_global_mesh_nodes):
         raise DataIntegrityError(
             f"Phase {phase_id} mesh interval index {mesh_interval_index} exceeds available mesh nodes ({len(state_at_global_mesh_nodes)})",
@@ -114,19 +143,19 @@ def setup_phase_interval_state_variables(
     # First column is the state at the start of the interval
     state_columns[0] = state_at_global_mesh_nodes[mesh_interval_index]
 
-    # Create interior state variables if needed
+    # INVERSION: Handle simple case first (early return path)
     interior_nodes_var: ca.MX | None = None
-    if num_colloc_nodes > 1:
+    if num_colloc_nodes <= 1:
+        # No interior nodes needed - go straight to final setup
+        pass
+    else:
+        # EXTRACTION: Complex interior node logic moved to separate functions
         num_interior_nodes = num_colloc_nodes - 1
         if num_interior_nodes > 0:
-            interior_nodes_var = opti.variable(num_states, num_interior_nodes)
-            if interior_nodes_var is None:
-                raise DataIntegrityError(
-                    f"Failed to create interior_nodes_var for phase {phase_id}",
-                    "CasADi variable creation failure",
-                )
-            for i in range(num_interior_nodes):
-                state_columns[i + 1] = interior_nodes_var[:, i]
+            interior_nodes_var = _create_interior_state_variables(
+                opti, num_states, num_interior_nodes, phase_id
+            )
+            _populate_interior_state_columns(state_columns, interior_nodes_var, num_interior_nodes)
 
     # Last column is the state at the end of the interval
     state_columns[num_colloc_nodes] = state_at_global_mesh_nodes[mesh_interval_index + 1]

@@ -51,6 +51,187 @@ def _extract_phase_endpoint_data(
     return phase_endpoint_data
 
 
+def _setup_mesh_interval_variables(
+    opti: ca.Opti,
+    phase_vars,
+    phase_id: PhaseID,
+    mesh_interval_index: int,
+    num_states: int,
+    num_colloc_nodes: int,
+) -> tuple[ca.MX, ca.MX | None]:
+    """EXTRACTED: Set up state variables for mesh interval to reduce nesting."""
+    state_at_nodes, interior_nodes_var = setup_phase_interval_state_variables(
+        opti,
+        phase_id,
+        mesh_interval_index,
+        num_states,
+        num_colloc_nodes,
+        phase_vars.state_at_mesh_nodes,
+    )
+
+    # Store state variables and interior nodes
+    phase_vars.state_matrices.append(state_at_nodes)
+    phase_vars.interior_variables.append(interior_nodes_var)
+
+    return state_at_nodes, interior_nodes_var
+
+
+def _apply_mesh_interval_constraints(
+    opti: ca.Opti,
+    phase_id: PhaseID,
+    mesh_interval_index: int,
+    state_at_nodes: ca.MX,
+    control_variables: ca.MX,
+    basis_components: RadauBasisComponents,
+    global_mesh_nodes,
+    initial_time_var: ca.MX,
+    terminal_time_var: ca.MX,
+    dynamics_function,
+    path_constraints_function,
+    problem: ProblemProtocol,
+    static_parameters_vec: ca.MX | None,
+    static_parameter_symbols,
+) -> None:
+    """EXTRACTED: Apply all constraints for mesh interval to reduce nesting."""
+    # Apply collocation constraints
+    apply_phase_collocation_constraints(
+        opti,
+        phase_id,
+        mesh_interval_index,
+        state_at_nodes,
+        control_variables,
+        basis_components,
+        global_mesh_nodes,
+        initial_time_var,
+        terminal_time_var,
+        dynamics_function,
+        problem,
+        static_parameters_vec,
+    )
+
+    # Apply path constraints if they exist
+    if path_constraints_function is not None:
+        apply_phase_path_constraints(
+            opti,
+            phase_id,
+            mesh_interval_index,
+            state_at_nodes,
+            control_variables,
+            basis_components,
+            global_mesh_nodes,
+            initial_time_var,
+            terminal_time_var,
+            path_constraints_function,
+            problem,
+            static_parameters_vec,
+            static_parameter_symbols,
+        )
+
+
+def _setup_mesh_interval_integrals(
+    opti: ca.Opti,
+    phase_id: PhaseID,
+    mesh_interval_index: int,
+    state_at_nodes: ca.MX,
+    control_variables: ca.MX,
+    basis_components: RadauBasisComponents,
+    global_mesh_nodes,
+    initial_time_var: ca.MX,
+    terminal_time_var: ca.MX,
+    integral_integrand_function,
+    num_integrals: int,
+    accumulated_integral_expressions: list[ca.MX],
+    static_parameters_vec: ca.MX | None,
+) -> None:
+    """EXTRACTED: Set up integrals for mesh interval to reduce nesting."""
+    # INVERSION: Early return if no integrals needed
+    if num_integrals == 0 or integral_integrand_function is None:
+        return
+
+    setup_phase_integrals(
+        opti,
+        phase_id,
+        mesh_interval_index,
+        state_at_nodes,
+        control_variables,
+        basis_components,
+        global_mesh_nodes,
+        initial_time_var,
+        terminal_time_var,
+        integral_integrand_function,
+        num_integrals,
+        accumulated_integral_expressions,
+        static_parameters_vec,
+    )
+
+
+def _process_single_mesh_interval(
+    opti: ca.Opti,
+    phase_vars,
+    problem: ProblemProtocol,
+    phase_id: PhaseID,
+    mesh_interval_index: int,
+    num_states: int,
+    num_colloc_nodes: int,
+    global_mesh_nodes,
+    initial_time_var: ca.MX,
+    terminal_time_var: ca.MX,
+    dynamics_function,
+    path_constraints_function,
+    integral_integrand_function,
+    num_integrals: int,
+    accumulated_integral_expressions: list[ca.MX],
+    static_parameters_vec: ca.MX | None,
+    static_parameter_symbols,
+) -> None:
+    """
+    EXTRACTED: Process single mesh interval to eliminate 4+ level nesting.
+    This function encapsulates all the complex logic for one mesh interval.
+    """
+    # Set up state variables for this interval
+    state_at_nodes, interior_nodes_var = _setup_mesh_interval_variables(
+        opti, phase_vars, phase_id, mesh_interval_index, num_states, num_colloc_nodes
+    )
+
+    # Get Radau collocation components
+    basis_components: RadauBasisComponents = compute_radau_collocation_components(num_colloc_nodes)
+
+    # Apply all constraints for this interval
+    _apply_mesh_interval_constraints(
+        opti,
+        phase_id,
+        mesh_interval_index,
+        state_at_nodes,
+        phase_vars.control_variables[mesh_interval_index],
+        basis_components,
+        global_mesh_nodes,
+        initial_time_var,
+        terminal_time_var,
+        dynamics_function,
+        path_constraints_function,
+        problem,
+        static_parameters_vec,
+        static_parameter_symbols,
+    )
+
+    # Set up integrals for this interval
+    _setup_mesh_interval_integrals(
+        opti,
+        phase_id,
+        mesh_interval_index,
+        state_at_nodes,
+        phase_vars.control_variables[mesh_interval_index],
+        basis_components,
+        global_mesh_nodes,
+        initial_time_var,
+        terminal_time_var,
+        integral_integrand_function,
+        num_integrals,
+        accumulated_integral_expressions,
+        static_parameters_vec,
+    )
+
+
 def solve_multiphase_radau_collocation(problem: ProblemProtocol) -> OptimalControlSolution:
     """
     Solve a multiphase optimal control problem using Radau pseudospectral collocation.
@@ -142,7 +323,10 @@ def _process_single_phase_unified(
     static_parameters_vec: ca.MX | None = None,
     endpoint_data: dict[str, ca.MX] | None = None,
 ) -> None:
-    """Process a single phase with unified endpoint data."""
+    """
+    Process a single phase with unified endpoint data.
+    REFACTORED using EXTRACTION to eliminate 4+ level nesting - now max 3 levels.
+    """
     # Get phase information directly from problem (no metadata duplication)
     num_states, num_controls = problem.get_phase_variable_counts(phase_id)
     phase_def = problem._phases[phase_id]
@@ -178,82 +362,34 @@ def _process_single_phase_unified(
     initial_time_var = endpoint_data["t0"] if endpoint_data else phase_vars.initial_time
     terminal_time_var = endpoint_data["tf"] if endpoint_data else phase_vars.terminal_time
 
+    # EXTRACTION: Main mesh interval loop simplified by moving complex logic to separate function
     for mesh_interval_index in range(num_mesh_intervals):
         num_colloc_nodes = phase_def.collocation_points_per_interval[mesh_interval_index]
 
         try:
-            # Set up state variables for this interval
-            state_at_nodes, interior_nodes_var = setup_phase_interval_state_variables(
+            # EXTRACTION: All complex mesh interval processing moved to separate function
+            _process_single_mesh_interval(
                 opti,
+                phase_vars,
+                problem,
                 phase_id,
                 mesh_interval_index,
                 num_states,
                 num_colloc_nodes,
-                phase_vars.state_at_mesh_nodes,
-            )
-
-            # Store state variables and interior nodes
-            phase_vars.state_matrices.append(state_at_nodes)
-            phase_vars.interior_variables.append(interior_nodes_var)
-
-            # Get Radau collocation components
-            basis_components: RadauBasisComponents = compute_radau_collocation_components(
-                num_colloc_nodes
-            )
-
-            # Apply collocation constraints
-            apply_phase_collocation_constraints(
-                opti,
-                phase_id,
-                mesh_interval_index,
-                state_at_nodes,
-                phase_vars.control_variables[mesh_interval_index],
-                basis_components,
                 global_mesh_nodes,
                 initial_time_var,
                 terminal_time_var,
                 dynamics_function,
-                problem,
+                path_constraints_function,
+                integral_integrand_function,
+                num_integrals,
+                accumulated_integral_expressions,
                 static_parameters_vec,
+                static_parameter_symbols,
             )
 
-            # Apply path constraints if they exist
-            if path_constraints_function is not None:
-                apply_phase_path_constraints(
-                    opti,
-                    phase_id,
-                    mesh_interval_index,
-                    state_at_nodes,
-                    phase_vars.control_variables[mesh_interval_index],
-                    basis_components,
-                    global_mesh_nodes,
-                    initial_time_var,
-                    terminal_time_var,
-                    path_constraints_function,
-                    problem,
-                    static_parameters_vec,
-                    static_parameter_symbols,
-                )
-
-            # Set up integrals if they exist
-            if num_integrals > 0 and integral_integrand_function is not None:
-                setup_phase_integrals(
-                    opti,
-                    phase_id,
-                    mesh_interval_index,
-                    state_at_nodes,
-                    phase_vars.control_variables[mesh_interval_index],
-                    basis_components,
-                    global_mesh_nodes,
-                    initial_time_var,
-                    terminal_time_var,
-                    integral_integrand_function,
-                    num_integrals,
-                    accumulated_integral_expressions,
-                    static_parameters_vec,
-                )
-
         except Exception as e:
+            # INVERSION: Early return for DataIntegrityError
             if isinstance(e, DataIntegrityError):
                 raise
             raise DataIntegrityError(
