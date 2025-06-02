@@ -1,4 +1,4 @@
-# trajectolab/adaptive/phs/algorithm.py - Updated imports section
+# trajectolab/adaptive/phs/algorithm.py - PURGED WRAPPER FUNCTIONS + Never Nester Style
 
 import logging
 from collections.abc import Callable
@@ -92,47 +92,21 @@ def _extract_control_variables_for_phase(
     return control_trajectories
 
 
-def _extract_trajectories_for_single_phase(
-    solution: OptimalControlSolution,
-    problem: ProblemProtocol,
-    phase_id: PhaseID,
-    variables,
-    raw_sol,
-) -> None:
-    """EXTRACTED: Extract trajectories for a single phase."""
-    # INVERSION: Early return if phase not in variables
-    if phase_id not in variables.phase_variables:
-        return
-
-    num_states, num_controls = problem.get_phase_variable_counts(phase_id)
-    phase_def = problem._phases[phase_id]
-    polynomial_degrees = phase_def.collocation_points_per_interval
-    phase_vars = variables.phase_variables[phase_id]
-
-    # Extract state trajectories
-    state_trajectories = _extract_state_matrices_for_phase(
-        phase_vars, polynomial_degrees, raw_sol, num_states, phase_id
-    )
-    solution.phase_solved_state_trajectories_per_interval[phase_id] = state_trajectories
-
-    # Extract control trajectories
-    control_trajectories = _extract_control_variables_for_phase(
-        phase_vars, polynomial_degrees, raw_sol, num_controls, phase_id
-    )
-    solution.phase_solved_control_trajectories_per_interval[phase_id] = control_trajectories
-
-
 def _extract_multiphase_solution_trajectories(
     solution: OptimalControlSolution, problem: ProblemProtocol
 ) -> None:
-    """NEVER-NESTER REFACTORED: Extract trajectories with early returns and extraction."""
+    """NEVER-NESTER REFACTORED: Extract trajectories with inlined logic, no wrapper functions."""
     # INVERSION: Early returns for missing data
-    if solution.raw_solution is None or solution.opti_object is None:
-        raise ValueError("Missing raw solution or opti object")
+    if solution.raw_solution is None:
+        raise ValueError("Raw solution is None")
+
+    if solution.opti_object is None:
+        raise ValueError("Opti object is None")
 
     if not hasattr(solution.opti_object, "multiphase_variables_reference"):
         raise ValueError("Missing multiphase variables reference")
 
+    # INLINED: No wrapper function needed
     opti = solution.opti_object
     raw_sol = solution.raw_solution
     variables = opti.multiphase_variables_reference
@@ -141,9 +115,27 @@ def _extract_multiphase_solution_trajectories(
     solution.phase_solved_state_trajectories_per_interval = {}
     solution.phase_solved_control_trajectories_per_interval = {}
 
-    # EXTRACTION: Process each phase in separate function
+    # INLINED: Process each phase directly without wrapper function
     for phase_id in problem.get_phase_ids():
-        _extract_trajectories_for_single_phase(solution, problem, phase_id, variables, raw_sol)
+        # INVERSION: Skip missing phases early
+        if phase_id not in variables.phase_variables:
+            continue
+
+        num_states, num_controls = problem.get_phase_variable_counts(phase_id)
+        phase_def = problem._phases[phase_id]
+        polynomial_degrees = phase_def.collocation_points_per_interval
+        phase_vars = variables.phase_variables[phase_id]
+
+        # INLINED: Direct extraction calls without wrapper delegation
+        state_trajectories = _extract_state_matrices_for_phase(
+            phase_vars, polynomial_degrees, raw_sol, num_states, phase_id
+        )
+        solution.phase_solved_state_trajectories_per_interval[phase_id] = state_trajectories
+
+        control_trajectories = _extract_control_variables_for_phase(
+            phase_vars, polynomial_degrees, raw_sol, num_controls, phase_id
+        )
+        solution.phase_solved_control_trajectories_per_interval[phase_id] = control_trajectories
 
 
 def _create_phase_interpolants(
@@ -684,7 +676,7 @@ def solve_multiphase_phs_adaptive_internal(
 ) -> OptimalControlSolution:
     """
     STREAMLINED multiphase PHS-Adaptive mesh refinement algorithm implementation.
-    Now stores adaptive algorithm data in solution.
+    PURGED of wrapper functions, following Never Nester philosophy.
     """
 
     # Log algorithm start
@@ -743,10 +735,17 @@ def solve_multiphase_phs_adaptive_internal(
         # Configure all phase meshes in the unified problem
         adaptive_state.configure_problem_meshes(problem)
 
-        # Handle initial guess
+        # INLINED: Handle initial guess without wrapper function
         if iteration == 0:
-            _handle_first_iteration_initial_guess(problem, initial_guess)
+            # INVERSION: Check existing guess first (early return pattern)
+            if problem.initial_guess is not None:
+                pass  # Use existing guess
+            elif initial_guess is not None:
+                problem.initial_guess = initial_guess
+            else:
+                problem.initial_guess = None
         else:
+            # INVERSION: Validate previous solution exists
             if adaptive_state.most_recent_unified_solution is None:
                 raise ValueError("No previous unified solution available for propagation")
 
@@ -761,6 +760,7 @@ def solve_multiphase_phs_adaptive_internal(
         # Solve unified multiphase NLP
         solution = solve_multiphase_radau_collocation(problem)
 
+        # INVERSION: Handle failure early
         if not solution.success:
             logger.warning(
                 "Unified NLP solve failed in iteration %d: %s", iteration + 1, solution.message
@@ -787,7 +787,7 @@ def solve_multiphase_phs_adaptive_internal(
             )
             solution.phase_mesh_nodes[phase_id] = phase_def.global_normalized_mesh_nodes.copy()
 
-        # Extract trajectories from unified solution for all phases
+        # Extract trajectories from unified solution for all phases (NO WRAPPER FUNCTIONS)
         _extract_multiphase_solution_trajectories(solution, problem)
 
         # Update most recent successful solution
@@ -800,6 +800,8 @@ def solve_multiphase_phs_adaptive_internal(
             # Calculate gamma normalization factors for this phase
             gamma_factors = calculate_gamma_normalizers_for_phase(solution, problem, phase_id)
             num_states, _ = problem.get_phase_variable_counts(phase_id)
+
+            # INVERSION: Handle gamma calculation failure early
             if gamma_factors is None and num_states > 0:
                 solution.message = f"Failed to calculate gamma normalizers for phase {phase_id} at iteration {iteration + 1}"
                 solution.success = False
@@ -841,6 +843,7 @@ def solve_multiphase_phs_adaptive_internal(
 
             adaptive_state.phase_converged[phase_id] = phase_converged
 
+            # INVERSION: Handle non-converged phases
             if not phase_converged:
                 any_phase_needs_refinement = True
 
@@ -864,7 +867,7 @@ def solve_multiphase_phs_adaptive_internal(
                     safe_gamma,
                 )
 
-        # Check global convergence
+        # INVERSION: Handle convergence early (happy path)
         if not any_phase_needs_refinement:
             logger.info("Multiphase adaptive refinement converged in %d iterations", iteration + 1)
 
@@ -884,12 +887,13 @@ def solve_multiphase_phs_adaptive_internal(
             )
             return solution
 
-    # Maximum iterations reached
+    # Maximum iterations reached (unhappy path)
     logger.warning(
         "Multiphase adaptive refinement reached maximum iterations (%d) without convergence",
         max_iterations,
     )
 
+    # INVERSION: Handle case with previous solution vs no solution
     if adaptive_state.most_recent_unified_solution is not None:
         # Store adaptive data for non-converged solution
         adaptive_state.most_recent_unified_solution.adaptive_data = AdaptiveAlgorithmData(
@@ -915,17 +919,3 @@ def solve_multiphase_phs_adaptive_internal(
             f"No successful unified solution obtained in {max_iterations} iterations"
         )
         return failed_solution
-
-
-def _handle_first_iteration_initial_guess(
-    problem: ProblemProtocol,
-    initial_guess: MultiPhaseInitialGuess | None,
-) -> None:
-    """Handle initial guess for the first iteration of multiphase adaptive."""
-    if problem.initial_guess is not None:
-        # STREAMLINED: Basic validation only
-        pass
-    elif initial_guess is not None:
-        problem.initial_guess = initial_guess
-    else:
-        problem.initial_guess = None

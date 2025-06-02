@@ -183,31 +183,43 @@ def p_reduce_interval(
 
 
 # ========================================================================
-# NEVER-NESTER REFACTORED H-REDUCTION IMPLEMENTATION
+# STREAMLINED H-REDUCTION IMPLEMENTATION
 # ========================================================================
 
 
-def _validate_h_reduction_inputs(
-    solution: OptimalControlSolution, phase_id: PhaseID, first_idx: int
-) -> tuple[FloatArray, float, float, float, float, float, float]:
-    """EXTRACTED: Validate inputs and extract basic parameters."""
-    # INVERSION: Early return checks
+def h_reduce_intervals(
+    phase_id: PhaseID,
+    first_idx: int,
+    solution: OptimalControlSolution,
+    problem: ProblemProtocol,
+    adaptive_params: AdaptiveParameters,
+    gamma_factors: FloatArray,
+    state_evaluator_first: Callable[[float | FloatArray], FloatArray],
+    control_evaluator_first: Callable[[float | FloatArray], FloatArray] | None,
+    state_evaluator_second: Callable[[float | FloatArray], FloatArray],
+    control_evaluator_second: Callable[[float | FloatArray], FloatArray] | None,
+) -> bool:
+    """Check if two adjacent intervals in a specific phase can be merged."""
+
+    error_tol = adaptive_params.error_tolerance
+    ode_rtol = adaptive_params.ode_solver_tolerance
+    ode_atol = ode_rtol * DEFAULT_ODE_ATOL_FACTOR
+    num_sim_points = adaptive_params.num_error_sim_points
+
+    # Get variable counts for this phase
+    num_states, _ = problem.get_phase_variable_counts(phase_id)
+    phase_dynamics_function = problem.get_phase_dynamics_function(phase_id)
+
     if solution.raw_solution is None:
-        raise ValueError("Raw solution is None")
+        return False
 
+    # Extract mesh and time information for this phase
     if phase_id not in solution.phase_mesh_nodes:
-        raise ValueError(f"Phase {phase_id} not in mesh nodes")
+        return False
 
-    if (
-        phase_id not in solution.phase_initial_times
-        or phase_id not in solution.phase_terminal_times
-    ):
-        raise ValueError(f"Missing time variables for phase {phase_id}")
-
-    # Extract mesh and time information
     global_mesh = solution.phase_mesh_nodes[phase_id]
     if first_idx + 2 >= len(global_mesh):
-        raise ValueError(f"Invalid interval index {first_idx} for phase {phase_id}")
+        return False
 
     tau_start_k = global_mesh[first_idx]
     tau_shared = global_mesh[first_idx + 1]
@@ -217,45 +229,42 @@ def _validate_h_reduction_inputs(
     beta_kp1 = (tau_end_kp1 - tau_shared) / 2.0
 
     if abs(beta_k) < 1e-12 or abs(beta_kp1) < 1e-12:
-        raise ValueError(f"Zero length interval for phase {phase_id}")
+        return False
 
-    # Time transformation parameters
+    # Time transformation parameters for this phase
+    if (
+        phase_id not in solution.phase_initial_times
+        or phase_id not in solution.phase_terminal_times
+    ):
+        return False
+
     t0 = solution.phase_initial_times[phase_id]
     tf = solution.phase_terminal_times[phase_id]
+
     alpha = (tf - t0) / 2.0
-    (tf + t0) / 2.0
+    alpha_0 = (tf + t0) / 2.0
 
-    return global_mesh, tau_start_k, tau_shared, tau_end_kp1, beta_k, beta_kp1, alpha
+    scaling_k = alpha * beta_k
+    scaling_kp1 = alpha * beta_kp1
 
+    def _get_control_value(
+        control_evaluator: Callable[[float | FloatArray], FloatArray] | None, local_tau: float
+    ) -> FloatArray:
+        """Get control value from evaluator, with clipping to handle boundary conditions."""
+        if control_evaluator is None:
+            return np.array([], dtype=np.float64)
 
-def _get_control_value(
-    control_evaluator: Callable[[float | FloatArray], FloatArray] | None, local_tau: float
-) -> FloatArray:
-    """EXTRACTED: Get control value from evaluator with boundary handling."""
-    if control_evaluator is None:
-        return np.array([], dtype=np.float64)
+        clipped_tau = np.clip(local_tau, -1.0, 1.0)
+        u_val = control_evaluator(clipped_tau)
+        return np.atleast_1d(u_val.squeeze())
 
-    clipped_tau = np.clip(local_tau, -1.0, 1.0)
-    u_val = control_evaluator(clipped_tau)
-    return np.atleast_1d(u_val.squeeze())
-
-
-def _create_merged_dynamics_rhs(
-    phase_dynamics_function,
-    control_evaluator: Callable[[float | FloatArray], FloatArray] | None,
-    tau_start: float,
-    tau_end: float,
-    alpha: float,
-    alpha_0: float,
-    scaling: float,
-    num_states: int,
-) -> Callable[[float, FloatArray], FloatArray]:
-    """EXTRACTED: Create RHS function for merged domain simulation."""
-
-    def dynamics_rhs(local_tau: float, state: FloatArray) -> FloatArray:
-        u_val = _get_control_value(control_evaluator, local_tau)
+    def merged_fwd_rhs(local_tau_k: float, state: FloatArray) -> FloatArray:
+        """RHS for merged domain forward simulation."""
+        u_val = _get_control_value(control_evaluator_first, local_tau_k)
         state_clipped = np.clip(state, -1e6, 1e6)
-        global_tau = map_local_interval_tau_to_global_normalized_tau(local_tau, tau_start, tau_end)
+        global_tau = map_local_interval_tau_to_global_normalized_tau(
+            local_tau_k, tau_start_k, tau_shared
+        )
         t_actual = alpha * global_tau + alpha_0
 
         # Handle optimized dynamics interface
@@ -266,27 +275,71 @@ def _create_merged_dynamics_rhs(
         # Use shared function from error_estimation
         f_rhs_np = _convert_casadi_dynamics_result_to_numpy(dynamics_result, num_states)
 
-        return cast(FloatArray, scaling * f_rhs_np)
+        return cast(FloatArray, scaling_k * f_rhs_np)
 
-    return dynamics_rhs
+    def merged_bwd_rhs(local_tau_kp1: float, state: FloatArray) -> FloatArray:
+        """RHS for merged domain backward simulation."""
+        u_val = _get_control_value(control_evaluator_second, local_tau_kp1)
+        state_clipped = np.clip(state, -1e6, 1e6)
+        global_tau = map_local_interval_tau_to_global_normalized_tau(
+            local_tau_kp1, tau_shared, tau_end_kp1
+        )
+        t_actual = alpha * global_tau + alpha_0
 
+        # Handle optimized dynamics interface
+        dynamics_result = phase_dynamics_function(
+            ca.MX(state_clipped), ca.MX(u_val), ca.MX(t_actual)
+        )
 
-def _run_forward_simulation(
-    merged_fwd_rhs: Callable[[float, FloatArray], FloatArray],
-    initial_state_fwd: FloatArray,
-    target_end_tau_k: float,
-    num_sim_points: int,
-    ode_rtol: float,
-    ode_atol: float,
-    phase_id: PhaseID,
-    first_idx: int,
-) -> tuple[FloatArray, bool]:
-    """EXTRACTED: Run forward simulation with error handling."""
+        # Use shared function from error_estimation
+        f_rhs_np = _convert_casadi_dynamics_result_to_numpy(dynamics_result, num_states)
+
+        return cast(FloatArray, scaling_kp1 * f_rhs_np)
+
+    # Get state values at interval endpoints for this phase
+    try:
+        if phase_id in solution.phase_solved_state_trajectories_per_interval and first_idx < len(
+            solution.phase_solved_state_trajectories_per_interval[phase_id]
+        ):
+            Xk_nlp = solution.phase_solved_state_trajectories_per_interval[phase_id][first_idx]
+        else:
+            # STREAMLINED: Fallback to raw extraction with less validation
+            opti = solution.opti_object
+            raw_sol = solution.raw_solution
+            if opti is None or raw_sol is None:
+                return False
+
+            variables = opti.multiphase_variables_reference
+            if phase_id not in variables.phase_variables or first_idx >= len(
+                variables.phase_variables[phase_id].state_matrices
+            ):
+                return False
+
+            phase_def = problem._phases[phase_id]
+            Nk_k = phase_def.collocation_points_per_interval[first_idx]
+
+            Xk_nlp_raw = raw_sol.value(
+                variables.phase_variables[phase_id].state_matrices[first_idx]
+            )
+            Xk_nlp = ensure_2d_array(Xk_nlp_raw, num_states, Nk_k + 1)
+
+        initial_state_fwd = Xk_nlp[:, 0].flatten()
+    except Exception:
+        return False
+
+    # Forward simulation through merged domain
+    target_end_tau_k = map_local_tau_from_interval_k_plus_1_to_equivalent_in_interval_k(
+        1.0, tau_start_k, tau_shared, tau_end_kp1
+    )
     num_fwd_pts = max(2, num_sim_points // 2)
     fwd_tau_points = np.linspace(-1.0, target_end_tau_k, num_fwd_pts, dtype=np.float64)
 
     # Import here to avoid circular imports
     from scipy.integrate import solve_ivp
+
+    # Define these upfront to ensure they're bound in all code paths
+    fwd_trajectory = np.full((num_states, num_fwd_pts), np.nan, dtype=np.float64)
+    fwd_sim_success = False
 
     try:
         fwd_sim = solve_ivp(
@@ -300,33 +353,57 @@ def _run_forward_simulation(
         )
 
         if fwd_sim.success:
-            return fwd_sim.y, True
+            fwd_trajectory = fwd_sim.y
+            fwd_sim_success = True
     except Exception as e:
         logger.debug(
             f"Forward simulation failed for phase {phase_id} intervals {first_idx}-{first_idx + 1}: {e}"
         )
 
-    # Return NaN array on failure
-    num_states = len(initial_state_fwd)
-    return np.full((num_states, num_fwd_pts), np.nan, dtype=np.float64), False
+    # Get terminal state for backward simulation
+    try:
+        if phase_id in solution.phase_solved_state_trajectories_per_interval and (
+            first_idx + 1
+        ) < len(solution.phase_solved_state_trajectories_per_interval[phase_id]):
+            Xkp1_nlp = solution.phase_solved_state_trajectories_per_interval[phase_id][
+                first_idx + 1
+            ]
+        else:
+            # STREAMLINED: Fallback to raw extraction with less validation
+            opti = solution.opti_object
+            raw_sol = solution.raw_solution
+            if opti is None or raw_sol is None:
+                return False
 
+            variables = opti.multiphase_variables_reference
+            if phase_id not in variables.phase_variables or (first_idx + 1) >= len(
+                variables.phase_variables[phase_id].state_matrices
+            ):
+                return False
 
-def _run_backward_simulation(
-    merged_bwd_rhs: Callable[[float, FloatArray], FloatArray],
-    terminal_state_bwd: FloatArray,
-    target_end_tau_kp1: float,
-    num_sim_points: int,
-    ode_rtol: float,
-    ode_atol: float,
-    phase_id: PhaseID,
-    first_idx: int,
-) -> tuple[FloatArray, bool]:
-    """EXTRACTED: Run backward simulation with error handling."""
+            phase_def = problem._phases[phase_id]
+            Nk_kp1 = phase_def.collocation_points_per_interval[first_idx + 1]
+
+            Xkp1_nlp_raw = raw_sol.value(
+                variables.phase_variables[phase_id].state_matrices[first_idx + 1]
+            )
+            Xkp1_nlp = ensure_2d_array(Xkp1_nlp_raw, num_states, Nk_kp1 + 1)
+
+        terminal_state_bwd = Xkp1_nlp[:, -1].flatten()
+    except Exception:
+        return False
+
+    # Backward simulation through merged domain
+    target_end_tau_kp1 = map_local_tau_from_interval_k_to_equivalent_in_interval_k_plus_1(
+        -1.0, tau_start_k, tau_shared, tau_end_kp1
+    )
     num_bwd_pts = max(2, num_sim_points // 2)
     bwd_tau_points = np.linspace(1.0, target_end_tau_kp1, num_bwd_pts, dtype=np.float64)
+    sorted_bwd_tau_points = np.flip(bwd_tau_points)
 
-    # Import here to avoid circular imports
-    from scipy.integrate import solve_ivp
+    # Define these upfront to ensure they're bound in all code paths
+    bwd_trajectory = np.full((num_states, num_bwd_pts), np.nan, dtype=np.float64)
+    bwd_sim_success = False
 
     try:
         bwd_sim = solve_ivp(
@@ -342,109 +419,23 @@ def _run_backward_simulation(
         if bwd_sim.success:
             # Create a new array with explicit 2D shape
             flipped_data = bwd_sim.y[:, ::-1]
+            # First ensure we have the right dimensions by accessing shape components
             rows, cols = flipped_data.shape[0], flipped_data.shape[1]
+            # Then create a new array with explicit type
             bwd_trajectory = np.array(flipped_data, dtype=np.float64).reshape(rows, cols)
-            return bwd_trajectory, True
+            bwd_sim_success = True
     except Exception as e:
         logger.debug(
             f"Backward simulation failed for phase {phase_id} intervals {first_idx}-{first_idx + 1}: {e}"
         )
 
-    # Return NaN array on failure
-    num_states = len(terminal_state_bwd)
-    return np.full((num_states, num_bwd_pts), np.nan, dtype=np.float64), False
+    # For problems with no states, just check if simulations were successful
+    if num_states == 0:
+        can_merge = fwd_sim_success and bwd_sim_success
+        return can_merge
 
-
-def _extract_initial_and_terminal_states(
-    solution: OptimalControlSolution,
-    problem: ProblemProtocol,
-    phase_id: PhaseID,
-    first_idx: int,
-    num_states: int,
-) -> tuple[FloatArray, FloatArray]:
-    """EXTRACTED: Extract initial and terminal states for the intervals."""
-    # Get initial state for first interval
-    try:
-        if phase_id in solution.phase_solved_state_trajectories_per_interval and first_idx < len(
-            solution.phase_solved_state_trajectories_per_interval[phase_id]
-        ):
-            Xk_nlp = solution.phase_solved_state_trajectories_per_interval[phase_id][first_idx]
-        else:
-            # Fallback to raw extraction
-            opti = solution.opti_object
-            raw_sol = solution.raw_solution
-            if opti is None or raw_sol is None:
-                raise ValueError("Missing opti or raw solution")
-
-            variables = opti.multiphase_variables_reference
-            if phase_id not in variables.phase_variables or first_idx >= len(
-                variables.phase_variables[phase_id].state_matrices
-            ):
-                raise ValueError("Invalid phase or interval index")
-
-            phase_def = problem._phases[phase_id]
-            Nk_k = phase_def.collocation_points_per_interval[first_idx]
-
-            Xk_nlp_raw = raw_sol.value(
-                variables.phase_variables[phase_id].state_matrices[first_idx]
-            )
-            Xk_nlp = ensure_2d_array(Xk_nlp_raw, num_states, Nk_k + 1)
-
-        initial_state_fwd = Xk_nlp[:, 0].flatten()
-    except Exception as e:
-        logger.error(f"Failed to extract initial state: {e}")
-        raise
-
-    # Get terminal state for second interval
-    try:
-        if phase_id in solution.phase_solved_state_trajectories_per_interval and (
-            first_idx + 1
-        ) < len(solution.phase_solved_state_trajectories_per_interval[phase_id]):
-            Xkp1_nlp = solution.phase_solved_state_trajectories_per_interval[phase_id][
-                first_idx + 1
-            ]
-        else:
-            # Fallback to raw extraction
-            opti = solution.opti_object
-            raw_sol = solution.raw_solution
-            if opti is None or raw_sol is None:
-                raise ValueError("Missing opti or raw solution")
-
-            variables = opti.multiphase_variables_reference
-            if phase_id not in variables.phase_variables or (first_idx + 1) >= len(
-                variables.phase_variables[phase_id].state_matrices
-            ):
-                raise ValueError("Invalid phase or interval index")
-
-            phase_def = problem._phases[phase_id]
-            Nk_kp1 = phase_def.collocation_points_per_interval[first_idx + 1]
-
-            Xkp1_nlp_raw = raw_sol.value(
-                variables.phase_variables[phase_id].state_matrices[first_idx + 1]
-            )
-            Xkp1_nlp = ensure_2d_array(Xkp1_nlp_raw, num_states, Nk_kp1 + 1)
-
-        terminal_state_bwd = Xkp1_nlp[:, -1].flatten()
-    except Exception as e:
-        logger.error(f"Failed to extract terminal state: {e}")
-        raise
-
-    return initial_state_fwd, terminal_state_bwd
-
-
-def _calculate_forward_errors(
-    fwd_trajectory: FloatArray,
-    fwd_tau_points: FloatArray,
-    state_evaluator_first: Callable[[float | FloatArray], FloatArray],
-    state_evaluator_second: Callable[[float | FloatArray], FloatArray],
-    gamma_factors: FloatArray,
-    tau_start_k: float,
-    tau_shared: float,
-    tau_end_kp1: float,
-) -> list[float]:
-    """EXTRACTED: Calculate forward trajectory errors."""
+    # Calculate errors for merged domain using MATHEMATICAL CORE
     all_fwd_errors: list[float] = []
-
     for i, zeta_k in enumerate(fwd_tau_points):
         X_sim = fwd_trajectory[:, i]
 
@@ -461,22 +452,7 @@ def _calculate_forward_errors(
         trajectory_errors = _calculate_trajectory_errors_with_gamma(X_sim, X_nlp, gamma_factors)
         all_fwd_errors.extend(trajectory_errors)
 
-    return all_fwd_errors
-
-
-def _calculate_backward_errors(
-    bwd_trajectory: FloatArray,
-    sorted_bwd_tau_points: FloatArray,
-    state_evaluator_first: Callable[[float | FloatArray], FloatArray],
-    state_evaluator_second: Callable[[float | FloatArray], FloatArray],
-    gamma_factors: FloatArray,
-    tau_start_k: float,
-    tau_shared: float,
-    tau_end_kp1: float,
-) -> list[float]:
-    """EXTRACTED: Calculate backward trajectory errors."""
     all_bwd_errors: list[float] = []
-
     for i, zeta_kp1 in enumerate(sorted_bwd_tau_points):
         X_sim = bwd_trajectory[:, i]
 
@@ -494,146 +470,6 @@ def _calculate_backward_errors(
         # Use mathematical core function for error calculation
         trajectory_errors = _calculate_trajectory_errors_with_gamma(X_sim, X_nlp, gamma_factors)
         all_bwd_errors.extend(trajectory_errors)
-
-    return all_bwd_errors
-
-
-def h_reduce_intervals(
-    phase_id: PhaseID,
-    first_idx: int,
-    solution: OptimalControlSolution,
-    problem: ProblemProtocol,
-    adaptive_params: AdaptiveParameters,
-    gamma_factors: FloatArray,
-    state_evaluator_first: Callable[[float | FloatArray], FloatArray],
-    control_evaluator_first: Callable[[float | FloatArray], FloatArray] | None,
-    state_evaluator_second: Callable[[float | FloatArray], FloatArray],
-    control_evaluator_second: Callable[[float | FloatArray], FloatArray] | None,
-) -> bool:
-    """NEVER-NESTER REFACTORED: Check if two adjacent intervals can be merged."""
-
-    # EXTRACTION: Validate inputs and extract parameters
-    try:
-        (global_mesh, tau_start_k, tau_shared, tau_end_kp1, beta_k, beta_kp1, alpha) = (
-            _validate_h_reduction_inputs(solution, phase_id, first_idx)
-        )
-    except (ValueError, KeyError) as e:
-        logger.debug(f"Validation failed for phase {phase_id}: {e}")
-        return False
-
-    error_tol = adaptive_params.error_tolerance
-    ode_rtol = adaptive_params.ode_solver_tolerance
-    ode_atol = ode_rtol * DEFAULT_ODE_ATOL_FACTOR
-    num_sim_points = adaptive_params.num_error_sim_points
-
-    # Get variable counts and dynamics function
-    num_states, _ = problem.get_phase_variable_counts(phase_id)
-    phase_dynamics_function = problem.get_phase_dynamics_function(phase_id)
-
-    # Time transformation parameters
-    t0 = solution.phase_initial_times[phase_id]
-    tf = solution.phase_terminal_times[phase_id]
-    alpha_0 = (tf + t0) / 2.0
-
-    scaling_k = alpha * beta_k
-    scaling_kp1 = alpha * beta_kp1
-
-    # EXTRACTION: Create RHS functions
-    merged_fwd_rhs = _create_merged_dynamics_rhs(
-        phase_dynamics_function,
-        control_evaluator_first,
-        tau_start_k,
-        tau_shared,
-        alpha,
-        alpha_0,
-        scaling_k,
-        num_states,
-    )
-
-    merged_bwd_rhs = _create_merged_dynamics_rhs(
-        phase_dynamics_function,
-        control_evaluator_second,
-        tau_shared,
-        tau_end_kp1,
-        alpha,
-        alpha_0,
-        scaling_kp1,
-        num_states,
-    )
-
-    # EXTRACTION: Get initial and terminal states
-    try:
-        initial_state_fwd, terminal_state_bwd = _extract_initial_and_terminal_states(
-            solution, problem, phase_id, first_idx, num_states
-        )
-    except Exception:
-        return False
-
-    # EXTRACTION: Forward simulation
-    target_end_tau_k = map_local_tau_from_interval_k_plus_1_to_equivalent_in_interval_k(
-        1.0, tau_start_k, tau_shared, tau_end_kp1
-    )
-
-    fwd_trajectory, fwd_sim_success = _run_forward_simulation(
-        merged_fwd_rhs,
-        initial_state_fwd,
-        target_end_tau_k,
-        num_sim_points,
-        ode_rtol,
-        ode_atol,
-        phase_id,
-        first_idx,
-    )
-
-    # EXTRACTION: Backward simulation
-    target_end_tau_kp1 = map_local_tau_from_interval_k_to_equivalent_in_interval_k_plus_1(
-        -1.0, tau_start_k, tau_shared, tau_end_kp1
-    )
-
-    bwd_trajectory, bwd_sim_success = _run_backward_simulation(
-        merged_bwd_rhs,
-        terminal_state_bwd,
-        target_end_tau_kp1,
-        num_sim_points,
-        ode_rtol,
-        ode_atol,
-        phase_id,
-        first_idx,
-    )
-
-    # For problems with no states, just check if simulations were successful
-    if num_states == 0:
-        return fwd_sim_success and bwd_sim_success
-
-    # EXTRACTION: Calculate errors
-    num_fwd_pts = max(2, num_sim_points // 2)
-    fwd_tau_points = np.linspace(-1.0, target_end_tau_k, num_fwd_pts, dtype=np.float64)
-
-    all_fwd_errors = _calculate_forward_errors(
-        fwd_trajectory,
-        fwd_tau_points,
-        state_evaluator_first,
-        state_evaluator_second,
-        gamma_factors,
-        tau_start_k,
-        tau_shared,
-        tau_end_kp1,
-    )
-
-    num_bwd_pts = max(2, num_sim_points // 2)
-    bwd_tau_points = np.linspace(1.0, target_end_tau_kp1, num_bwd_pts, dtype=np.float64)
-    sorted_bwd_tau_points = np.flip(bwd_tau_points)
-
-    all_bwd_errors = _calculate_backward_errors(
-        bwd_trajectory,
-        sorted_bwd_tau_points,
-        state_evaluator_first,
-        state_evaluator_second,
-        gamma_factors,
-        tau_start_k,
-        tau_shared,
-        tau_end_kp1,
-    )
 
     # Use mathematical core function for merge decision
     can_merge, max_error = _calculate_merge_feasibility_from_errors(
