@@ -1,9 +1,15 @@
+"""
+Solution interface for optimal control problem results.
+
+This module provides the Solution class that wraps optimization results
+in a user-friendly interface with trajectory access and summary capabilities.
+Plotting functionality has been extracted to plot.py for separation of concerns.
+"""
+
 import logging
 from typing import TypeAlias
 
-import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.figure import Figure as MplFigure
 
 from .tl_types import FloatArray, OptimalControlSolution, PhaseID, ProblemProtocol
 
@@ -270,7 +276,7 @@ class Solution:
         show_phase_boundaries: bool = True,
     ) -> None:
         """
-        Plot multiphase trajectories with smart layout and phase visualization.
+        Plot multiphase trajectories with interval coloring and phase boundaries.
 
         Args:
             phase_id: Specific phase to plot (None plots all phases)
@@ -279,273 +285,17 @@ class Solution:
             show_phase_boundaries: Whether to show vertical lines at phase boundaries
 
         Examples:
-            >>> solution.plot()  # Plot all phases, separate windows for states/controls
+            >>> solution.plot()  # Plot all phases with interval colors
             >>> solution.plot(1)  # Plot only phase 1
-            >>> solution.plot(phase_id=None, "position", "velocity")  # Specific variables, all phases
+            >>> solution.plot(phase_id=None, "position", "velocity")  # Specific variables
             >>> solution.plot(1, "thrust")  # Specific variable for specific phase
         """
-        if not self.success:
-            logger.warning("Cannot plot: Solution not successful")
-            return
+        # Import here to avoid circular imports
+        from .plot import plot_multiphase_solution
 
-        if phase_id is not None:
-            # Plot specific phase
-            if phase_id not in self.get_phase_ids():
-                raise ValueError(f"Phase {phase_id} not found in solution")
-            self._plot_single_phase(phase_id, variable_names, figsize)
-        else:
-            # Plot all phases
-            if variable_names:
-                self._plot_multiphase_variables(variable_names, figsize, show_phase_boundaries)
-            else:
-                self._plot_multiphase_default(figsize, show_phase_boundaries)
-
-    def _plot_single_phase(
-        self, phase_id: PhaseID, variable_names: tuple[str, ...], figsize: tuple[float, float]
-    ) -> None:
-        """Plot trajectories for a single phase."""
-        phase_state_names = self._phase_state_names.get(phase_id, [])
-        phase_control_names = self._phase_control_names.get(phase_id, [])
-
-        if variable_names:
-            # Plot specific variables
-            self._create_variable_plot(
-                f"Phase {phase_id} Variables", [(phase_id, var) for var in variable_names], figsize
-            )
-        else:
-            # Plot all variables for this phase
-            figures_created = []
-
-            if phase_state_names:
-                fig = self._create_variable_plot(
-                    f"Phase {phase_id} States",
-                    [(phase_id, var) for var in phase_state_names],
-                    figsize,
-                    show_immediately=False,
-                )
-                figures_created.append(fig)
-
-            if phase_control_names:
-                fig = self._create_variable_plot(
-                    f"Phase {phase_id} Controls",
-                    [(phase_id, var) for var in phase_control_names],
-                    figsize,
-                    show_immediately=False,
-                )
-                figures_created.append(fig)
-
-            # Show all figures
-            for fig in figures_created:
-                plt.figure(fig.number)
-                plt.show(block=False)
-
-            if figures_created:
-                plt.figure(figures_created[-1].number)
-                plt.show()
-
-    def _plot_multiphase_variables(
-        self,
-        variable_names: tuple[str, ...],
-        figsize: tuple[float, float],
-        show_phase_boundaries: bool,
-    ) -> None:
-        """Plot specific variables across all phases."""
-        # Find which phases have each variable
-        phase_var_pairs = []
-        for var_name in variable_names:
-            for phase_id in self.get_phase_ids():
-                if (phase_id, var_name) in self:
-                    phase_var_pairs.append((phase_id, var_name))
-
-        if not phase_var_pairs:
-            logger.warning("None of the requested variables found in any phase")
-            return
-
-        self._create_multiphase_variable_plot(
-            "Multiphase Variables", phase_var_pairs, figsize, show_phase_boundaries
+        plot_multiphase_solution(
+            self, phase_id, variable_names, figsize, show_phase_boundaries
         )
-
-    def _plot_multiphase_default(
-        self, figsize: tuple[float, float], show_phase_boundaries: bool
-    ) -> None:
-        """Plot all variables with states and controls in separate windows."""
-        figures_created = []
-
-        # Collect all unique state variables across phases
-        all_state_vars = set()
-        all_control_vars = set()
-
-        for phase_id in self.get_phase_ids():
-            all_state_vars.update(self._phase_state_names.get(phase_id, []))
-            all_control_vars.update(self._phase_control_names.get(phase_id, []))
-
-        # Plot states
-        if all_state_vars:
-            state_pairs = []
-            for var_name in sorted(all_state_vars):
-                for phase_id in self.get_phase_ids():
-                    if (phase_id, var_name) in self:
-                        state_pairs.append((phase_id, var_name))
-
-            if state_pairs:
-                fig = self._create_multiphase_variable_plot(
-                    "Multiphase States",
-                    state_pairs,
-                    figsize,
-                    show_phase_boundaries,
-                    show_immediately=False,
-                )
-                figures_created.append(fig)
-
-        # Plot controls
-        if all_control_vars:
-            control_pairs = []
-            for var_name in sorted(all_control_vars):
-                for phase_id in self.get_phase_ids():
-                    if (phase_id, var_name) in self:
-                        control_pairs.append((phase_id, var_name))
-
-            if control_pairs:
-                fig = self._create_multiphase_variable_plot(
-                    "Multiphase Controls",
-                    control_pairs,
-                    figsize,
-                    show_phase_boundaries,
-                    show_immediately=False,
-                )
-                figures_created.append(fig)
-
-        # Show all figures
-        for fig in figures_created:
-            plt.figure(fig.number)
-            plt.show(block=False)
-
-        if figures_created:
-            plt.figure(figures_created[-1].number)
-            plt.show()
-
-    def _create_variable_plot(
-        self,
-        title: str,
-        phase_var_pairs: list[tuple[PhaseID, str]],
-        figsize: tuple[float, float],
-        show_immediately: bool = True,
-    ) -> MplFigure:
-        """Create a plot for specific phase-variable pairs."""
-        if not phase_var_pairs:
-            return plt.figure()
-
-        # Group by variable name for subplots
-        var_groups: dict[str, list[PhaseID]] = {}
-        for phase_id, var_name in phase_var_pairs:
-            if var_name not in var_groups:
-                var_groups[var_name] = []
-            var_groups[var_name].append(phase_id)
-
-        num_vars = len(var_groups)
-        if num_vars == 0:
-            return plt.figure()
-
-        # subplot layout determination
-        rows, cols = self._determine_subplot_layout(num_vars)
-        fig, axes = plt.subplots(rows, cols, figsize=figsize, sharex=False)
-        fig.suptitle(title)
-
-        if num_vars == 1:
-            axes = [axes]
-        elif isinstance(axes, np.ndarray):
-            axes = axes.flatten()
-
-        # Plot each variable
-        for i, (var_name, phase_ids) in enumerate(var_groups.items()):
-            ax = axes[i]
-
-            for phase_id in phase_ids:
-                try:
-                    time_data = self[
-                        (
-                            phase_id,
-                            "time_states"
-                            if self._is_state_variable(phase_id, var_name)
-                            else "time_controls",
-                        )
-                    ]
-                    var_data = self[(phase_id, var_name)]
-
-                    if len(time_data) > 0 and len(var_data) > 0:
-                        ax.plot(time_data, var_data, label=f"Phase {phase_id}", linewidth=1.5)
-
-                except KeyError:
-                    continue
-
-            ax.set_ylabel(var_name)
-            ax.set_xlabel("Time")
-            ax.grid(True, alpha=0.3)
-            ax.legend()
-
-        # Hide unused subplots
-        for i in range(num_vars, len(axes)):
-            axes[i].set_visible(False)
-
-        plt.tight_layout()
-
-        if show_immediately:
-            plt.show()
-
-        return fig
-
-    def _create_multiphase_variable_plot(
-        self,
-        title: str,
-        phase_var_pairs: list[tuple[PhaseID, str]],
-        figsize: tuple[float, float],
-        show_phase_boundaries: bool,
-        show_immediately: bool = True,
-    ) -> MplFigure:
-        """Create a multiphase plot with phase boundaries."""
-        fig = self._create_variable_plot(title, phase_var_pairs, figsize, show_immediately=False)
-
-        if show_phase_boundaries and len(self.get_phase_ids()) > 1:
-            # Add phase boundary lines
-            for ax in fig.get_axes():
-                if ax.get_visible():
-                    for phase_id in self.get_phase_ids()[:-1]:  # Exclude last phase
-                        final_time = self.get_phase_final_time(phase_id)
-                        ax.axvline(
-                            final_time,
-                            color="red",
-                            linestyle="--",
-                            alpha=0.7,
-                            label="Phase Boundary" if phase_id == self.get_phase_ids()[0] else "",
-                        )
-
-                    # Update legend if phase boundaries were added
-                    handles, labels = ax.get_legend_handles_labels()
-                    if "Phase Boundary" in labels:
-                        ax.legend()
-
-        if show_immediately:
-            plt.show()
-
-        return fig
-
-    def _determine_subplot_layout(self, num_plots: int) -> tuple[int, int]:
-        """
-        mathematical approach to subplot layout.
-
-        Eliminates hardcoded conditional logic with clean mathematical solution.
-        """
-        if num_plots <= 1:
-            return (1, 1)
-
-        # Pure mathematical approach - always works
-        rows = int(np.ceil(np.sqrt(num_plots)))
-        cols = int(np.ceil(num_plots / rows))
-        return (rows, cols)
-
-    def _is_state_variable(self, phase_id: PhaseID, var_name: str) -> bool:
-        """Check if a variable is a state variable in the given phase."""
-        return phase_id in self._phase_state_names and var_name in self._phase_state_names[phase_id]
 
     def summary(self) -> None:
         """Print a summary of the multiphase solution results."""
