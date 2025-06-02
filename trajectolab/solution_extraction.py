@@ -20,29 +20,29 @@ def _process_single_integral_dm_value(
 
     if num_integrals == 1:
         return _process_single_integral_scalar(np_array_value, phase_id)
-    else:
-        return _process_multiple_integrals_array(np_array_value, phase_id)
+
+    return _process_multiple_integrals_array(np_array_value, phase_id)
 
 
 def _process_single_integral_scalar(np_array_value: np.ndarray, phase_id: PhaseID) -> float:
     """EXTRACTED: Process single integral scalar value."""
-    if np_array_value.size == 1:
-        result = float(np_array_value.item())
-        validate_array_numerical_integrity(
-            np.array([result]),
-            f"Phase {phase_id} integral value",
-            "integral extraction",
-        )
-        return result
-    else:
+    if np_array_value.size != 1:
         logger.warning(
             f"Phase {phase_id}: For num_integrals=1, unexpected array shape {np_array_value.shape}"
         )
         if np_array_value.size > 0:
             return float(np_array_value.flatten()[0])
-        else:
-            logger.warning(f"Phase {phase_id}: Empty integral value array")
-            return np.nan
+
+        logger.warning(f"Phase {phase_id}: Empty integral value array")
+        return np.nan
+
+    result = float(np_array_value.item())
+    validate_array_numerical_integrity(
+        np.array([result]),
+        f"Phase {phase_id} integral value",
+        "integral extraction",
+    )
+    return result
 
 
 def _process_multiple_integrals_array(np_array_value: np.ndarray, phase_id: PhaseID) -> FloatArray:
@@ -64,11 +64,40 @@ def _process_scalar_integral_value(
             np.array([result]), f"Phase {phase_id} integral value", "integral extraction"
         )
         return result
-    else:
-        logger.warning(
-            f"Phase {phase_id}: Expected array for {num_integrals} integrals, got scalar {raw_value}"
-        )
+
+    logger.warning(
+        f"Phase {phase_id}: Expected array for {num_integrals} integrals, got scalar {raw_value}"
+    )
+    return np.full(num_integrals, np.nan, dtype=np.float64)
+
+
+def _handle_dm_integral_extraction(
+    raw_value: ca.DM, num_integrals: int, phase_id: PhaseID
+) -> float | FloatArray | None:
+    """EXTRACTED: Handle CasADi DM integral value extraction."""
+    return _process_single_integral_dm_value(raw_value, num_integrals, phase_id)
+
+
+def _handle_scalar_integral_extraction(
+    raw_value: float | int, num_integrals: int, phase_id: PhaseID
+) -> float | FloatArray:
+    """EXTRACTED: Handle scalar integral value extraction."""
+    return _process_scalar_integral_value(raw_value, num_integrals, phase_id)
+
+
+def _handle_unexpected_integral_type(
+    raw_value, num_integrals: int, phase_id: PhaseID
+) -> float | FloatArray | None:
+    """EXTRACTED: Handle unexpected integral value types."""
+    logger.warning(
+        f"Phase {phase_id}: Unexpected CasADi value type: {type(raw_value)}, value: {raw_value}"
+    )
+
+    if num_integrals > 1:
         return np.full(num_integrals, np.nan, dtype=np.float64)
+    if num_integrals == 1:
+        return np.nan
+    return None
 
 
 def extract_multiphase_integral_values(
@@ -78,10 +107,9 @@ def extract_multiphase_integral_values(
     num_integrals: int,
 ) -> float | FloatArray | None:
     """
-    SINGLE SOURCE for extracting integral values for a specific phase from the CasADi solution.
-    REFACTORED using EXTRACTION and INVERSION to eliminate 4+ level nesting.
+    NEVER-NESTER REFACTORED: Extract integral values with early returns and extraction.
     """
-    # INVERSION: Early returns for simple cases (guard clauses)
+    # INVERSION: Early returns for simple cases
     if num_integrals == 0:
         return None
 
@@ -103,32 +131,27 @@ def extract_multiphase_integral_values(
     if phase_vars.integral_variables is None:
         return None
 
-    # Main extraction logic (now at max 3 levels)
+    # Main extraction logic - now flattened with extraction
     try:
         raw_value = casadi_solution_object.value(phase_vars.integral_variables)
 
         # EXTRACTION: Complex type processing moved to separate functions
         if isinstance(raw_value, ca.DM):
-            return _process_single_integral_dm_value(raw_value, num_integrals, phase_id)
-        elif isinstance(raw_value, float | int):
-            return _process_scalar_integral_value(raw_value, num_integrals, phase_id)
-        else:
-            logger.warning(
-                f"Phase {phase_id}: Unexpected CasADi value type: {type(raw_value)}, value: {raw_value}"
-            )
-            if num_integrals > 1:
-                return np.full(num_integrals, np.nan, dtype=np.float64)
-            elif num_integrals == 1:
-                return np.nan
-            return None
+            return _handle_dm_integral_extraction(raw_value, num_integrals, phase_id)
+
+        if isinstance(raw_value, float | int):
+            return _handle_scalar_integral_extraction(raw_value, num_integrals, phase_id)
+
+        return _handle_unexpected_integral_type(raw_value, num_integrals, phase_id)
 
     except Exception as e:
         if isinstance(e, DataIntegrityError):
             raise
         logger.warning(f"Could not extract integral values for phase {phase_id}: {e}")
+
         if num_integrals > 1:
             return np.full(num_integrals, np.nan, dtype=np.float64)
-        elif num_integrals == 1:
+        if num_integrals == 1:
             return np.nan
         return None
 
@@ -278,6 +301,68 @@ def _compute_physical_times_for_interval(
     return state_physical_times, control_physical_times
 
 
+def _process_single_mesh_interval(
+    mesh_idx: int,
+    phase_def,
+    casadi_solution_object: ca.OptiSol,
+    phase_vars,
+    num_states: int,
+    num_controls: int,
+    global_mesh_nodes: FloatArray,
+    initial_time: float,
+    terminal_time: float,
+    state_trajectory_times: list[float],
+    state_trajectory_values: list[list[float]],
+    control_trajectory_times: list[float],
+    control_trajectory_values: list[list[float]],
+    per_interval_states: list[FloatArray],
+    per_interval_controls: list[FloatArray],
+    phase_id: PhaseID,
+) -> None:
+    """EXTRACTED: Process a single mesh interval to reduce nesting."""
+    collocation_points = phase_def.collocation_points_per_interval[mesh_idx]
+
+    # Extract state data
+    state_vals = _extract_and_validate_state_data(
+        casadi_solution_object, phase_vars, mesh_idx, num_states, phase_id
+    )
+    per_interval_states.append(state_vals)
+
+    # Extract control data if needed
+    if num_controls > 0:
+        control_vals = _extract_and_validate_control_data(
+            casadi_solution_object, phase_vars, mesh_idx, num_controls, phase_id
+        )
+        per_interval_controls.append(control_vals)
+
+    # Compute physical times
+    state_physical_times, control_physical_times = _compute_physical_times_for_interval(
+        collocation_points, global_mesh_nodes, mesh_idx, initial_time, terminal_time
+    )
+
+    # Build trajectories
+    _build_state_trajectory_for_interval(
+        state_vals,
+        state_physical_times,
+        num_states,
+        state_trajectory_times,
+        state_trajectory_values,
+        mesh_idx,
+        phase_id,
+    )
+
+    if num_controls > 0:
+        _build_control_trajectory_for_interval(
+            control_vals,
+            control_physical_times,
+            num_controls,
+            control_trajectory_times,
+            control_trajectory_values,
+            mesh_idx,
+            phase_id,
+        )
+
+
 def consolidated_phase_trajectory_extraction(
     phase_id: PhaseID,
     casadi_solution_object: ca.OptiSol,
@@ -289,8 +374,7 @@ def consolidated_phase_trajectory_extraction(
     dict[str, FloatArray], list[FloatArray], list[FloatArray], list[FloatArray], list[FloatArray]
 ]:
     """
-    SIMPLIFIED: Single extraction pass with simple coordinate transformation.
-    REFACTORED using EXTRACTION to eliminate 6+ level nesting - now max 3 levels.
+    NEVER-NESTER REFACTORED: Single extraction pass with EXTRACTION pattern.
     """
     phase_def = problem._phases[phase_id]
     num_states, num_controls = problem.get_phase_variable_counts(phase_id)
@@ -305,49 +389,26 @@ def consolidated_phase_trajectory_extraction(
     per_interval_states: list[FloatArray] = []
     per_interval_controls: list[FloatArray] = []
 
-    # EXTRACTION: Main loop simplified by moving complex logic to separate functions
+    # EXTRACTION: Main loop simplified by moving complex logic to separate function
     for mesh_idx in range(num_mesh_intervals):
-        collocation_points = phase_def.collocation_points_per_interval[mesh_idx]
-
-        # EXTRACTION: State data processing moved to separate function
-        state_vals = _extract_and_validate_state_data(
-            casadi_solution_object, phase_vars, mesh_idx, num_states, phase_id
-        )
-        per_interval_states.append(state_vals)
-
-        # EXTRACTION: Control data processing moved to separate function (if needed)
-        if num_controls > 0:
-            control_vals = _extract_and_validate_control_data(
-                casadi_solution_object, phase_vars, mesh_idx, num_controls, phase_id
-            )
-            per_interval_controls.append(control_vals)
-
-        # EXTRACTION: Time computation moved to separate function
-        state_physical_times, control_physical_times = _compute_physical_times_for_interval(
-            collocation_points, global_mesh_nodes, mesh_idx, initial_time, terminal_time
-        )
-
-        # EXTRACTION: Trajectory building moved to separate functions
-        _build_state_trajectory_for_interval(
-            state_vals,
-            state_physical_times,
+        _process_single_mesh_interval(
+            mesh_idx,
+            phase_def,
+            casadi_solution_object,
+            phase_vars,
             num_states,
+            num_controls,
+            global_mesh_nodes,
+            initial_time,
+            terminal_time,
             state_trajectory_times,
             state_trajectory_values,
-            mesh_idx,
+            control_trajectory_times,
+            control_trajectory_values,
+            per_interval_states,
+            per_interval_controls,
             phase_id,
         )
-
-        if num_controls > 0:
-            _build_control_trajectory_for_interval(
-                control_vals,
-                control_physical_times,
-                num_controls,
-                control_trajectory_times,
-                control_trajectory_values,
-                mesh_idx,
-                phase_id,
-            )
 
     # Return trajectory data with proper typing
     trajectory_data: dict[str, FloatArray] = {
@@ -374,33 +435,155 @@ def consolidated_phase_trajectory_extraction(
     )
 
 
+def _extract_phase_times(
+    casadi_solution_object: ca.OptiSol, phase_vars, phase_id: PhaseID
+) -> tuple[float, float]:
+    """EXTRACTED: Extract and validate phase initial and terminal times."""
+    initial_time = float(casadi_solution_object.value(phase_vars.initial_time))
+    terminal_time = float(casadi_solution_object.value(phase_vars.terminal_time))
+
+    # Validation
+    validate_array_numerical_integrity(
+        np.array([initial_time, terminal_time]),
+        f"Phase {phase_id} times",
+        "phase time extraction",
+    )
+
+    return initial_time, terminal_time
+
+
+def _extract_phase_trajectories(
+    phase_id: PhaseID,
+    casadi_solution_object: ca.OptiSol,
+    phase_vars,
+    problem: ProblemProtocol,
+    initial_time: float,
+    terminal_time: float,
+    solution: OptimalControlSolution,
+) -> None:
+    """EXTRACTED: Extract trajectories for a single phase."""
+    try:
+        (
+            trajectory_data,
+            state_values_arrays,
+            control_values_arrays,
+            per_interval_states,
+            per_interval_controls,
+        ) = consolidated_phase_trajectory_extraction(
+            phase_id,
+            casadi_solution_object,
+            phase_vars,
+            problem,
+            initial_time,
+            terminal_time,
+        )
+
+        # Store trajectory data with proper types
+        solution.phase_time_states[phase_id] = trajectory_data["state_times"]
+        solution.phase_states[phase_id] = state_values_arrays
+
+        solution.phase_time_controls[phase_id] = trajectory_data["control_times"]
+        solution.phase_controls[phase_id] = control_values_arrays
+
+        # Store per-interval data
+        solution.phase_solved_state_trajectories_per_interval[phase_id] = per_interval_states
+        num_states, num_controls = problem.get_phase_variable_counts(phase_id)
+        if num_controls > 0:
+            solution.phase_solved_control_trajectories_per_interval[phase_id] = (
+                per_interval_controls
+            )
+
+    except Exception as e:
+        if isinstance(e, SolutionExtractionError | DataIntegrityError):
+            raise
+        raise SolutionExtractionError(
+            f"Failed to extract phase {phase_id} trajectory data: {e}",
+            "Consolidated trajectory processing error",
+        ) from e
+
+
+def _process_single_phase_extraction(
+    phase_id: PhaseID,
+    variables,
+    problem: ProblemProtocol,
+    casadi_solution_object: ca.OptiSol,
+    casadi_optimization_problem_object: ca.Opti,
+    solution: OptimalControlSolution,
+) -> None:
+    """EXTRACTED: Process extraction for a single phase."""
+    if phase_id not in variables.phase_variables:
+        return
+
+    phase_vars = variables.phase_variables[phase_id]
+    phase_def = problem._phases[phase_id]
+    num_states, num_controls = problem.get_phase_variable_counts(phase_id)
+    num_integrals = phase_def.num_integrals
+
+    try:
+        # Extract phase times
+        initial_time, terminal_time = _extract_phase_times(
+            casadi_solution_object, phase_vars, phase_id
+        )
+        solution.phase_initial_times[phase_id] = initial_time
+        solution.phase_terminal_times[phase_id] = terminal_time
+
+    except Exception as e:
+        if isinstance(e, DataIntegrityError):
+            raise
+        logger.error(f"Failed to extract phase {phase_id} times: {e}")
+        solution.phase_initial_times[phase_id] = float("nan")
+        solution.phase_terminal_times[phase_id] = float("nan")
+        return
+
+    # Extract phase integrals
+    integral_result = extract_multiphase_integral_values(
+        casadi_solution_object, casadi_optimization_problem_object, phase_id, num_integrals
+    )
+    if integral_result is not None:
+        solution.phase_integrals[phase_id] = integral_result
+
+    # Extract trajectories
+    _extract_phase_trajectories(
+        phase_id,
+        casadi_solution_object,
+        phase_vars,
+        problem,
+        initial_time,
+        terminal_time,
+        solution,
+    )
+
+    # Store mesh information for this phase
+    solution.phase_mesh_intervals[phase_id] = phase_def.collocation_points_per_interval.copy()
+    solution.phase_mesh_nodes[phase_id] = phase_def.global_normalized_mesh_nodes.copy()
+
+
 def extract_and_format_multiphase_solution(
     casadi_solution_object: ca.OptiSol | None,
     casadi_optimization_problem_object: ca.Opti,
     problem: ProblemProtocol,
 ) -> OptimalControlSolution:
     """
-    Single extraction pass eliminates duplicate CasADi value calls.
-
-    Consolidated solution extraction with 50% reduction in processing time.
+    NEVER-NESTER REFACTORED: Extraction with early returns and simplified structure.
     """
     solution = OptimalControlSolution()
     solution.opti_object = casadi_optimization_problem_object
 
+    # INVERSION: Early return for missing solution
     if casadi_solution_object is None:
         solution.success = False
         solution.message = "Multiphase solver did not find a solution or was not run."
         return solution
 
-    # Get multiphase structure
-    phase_ids = problem.get_phase_ids()
-    total_states, total_controls, num_static_params = problem.get_total_variable_counts()
-
+    # INVERSION: Early return for missing variables reference
     if not hasattr(casadi_optimization_problem_object, "multiphase_variables_reference"):
         solution.success = False
         solution.message = "Missing multiphase variables reference in optimization object."
         return solution
 
+    # Get multiphase structure
+    phase_ids = problem.get_phase_ids()
+    total_states, total_controls, num_static_params = problem.get_total_variable_counts()
     variables = casadi_optimization_problem_object.multiphase_variables_reference
 
     # Extract core solution values with validation
@@ -412,7 +595,7 @@ def extract_and_format_multiphase_solution(
             )
         )
 
-        # SINGLE validation call
+        # Validation
         validate_array_numerical_integrity(
             np.array([objective]), "multiphase objective value", "core solution extraction"
         )
@@ -438,7 +621,6 @@ def extract_and_format_multiphase_solution(
             else:
                 static_params_array = np.array(static_params_raw).flatten()
 
-            # SINGLE validation call
             validate_array_numerical_integrity(
                 static_params_array, "static parameters", "static parameter extraction"
             )
@@ -449,88 +631,16 @@ def extract_and_format_multiphase_solution(
             logger.warning(f"Failed to extract static parameters: {e}")
             solution.static_parameters = None
 
-    # Consolidated extraction for each phase
+    # EXTRACTION: Process each phase in separate function
     for phase_id in phase_ids:
-        if phase_id not in variables.phase_variables:
-            continue
-
-        phase_vars = variables.phase_variables[phase_id]
-        phase_def = problem._phases[phase_id]
-        num_states, num_controls = problem.get_phase_variable_counts(phase_id)
-        num_integrals = phase_def.num_integrals
-
-        try:
-            # Extract phase times
-            initial_time = float(casadi_solution_object.value(phase_vars.initial_time))
-            terminal_time = float(casadi_solution_object.value(phase_vars.terminal_time))
-
-            # SINGLE validation call for times
-            validate_array_numerical_integrity(
-                np.array([initial_time, terminal_time]),
-                f"Phase {phase_id} times",
-                "phase time extraction",
-            )
-
-            solution.phase_initial_times[phase_id] = initial_time
-            solution.phase_terminal_times[phase_id] = terminal_time
-
-        except Exception as e:
-            if isinstance(e, DataIntegrityError):
-                raise
-            logger.error(f"Failed to extract phase {phase_id} times: {e}")
-            solution.phase_initial_times[phase_id] = float("nan")
-            solution.phase_terminal_times[phase_id] = float("nan")
-            continue
-
-        # Extract phase integrals - FIX TYPE ANNOTATION
-        integral_result = extract_multiphase_integral_values(
-            casadi_solution_object, casadi_optimization_problem_object, phase_id, num_integrals
+        _process_single_phase_extraction(
+            phase_id,
+            variables,
+            problem,
+            casadi_solution_object,
+            casadi_optimization_problem_object,
+            solution,
         )
-        if integral_result is not None:
-            solution.phase_integrals[phase_id] = integral_result
-
-        # Single consolidated extraction for trajectories and per-interval data
-        try:
-            (
-                trajectory_data,
-                state_values_arrays,
-                control_values_arrays,
-                per_interval_states,
-                per_interval_controls,
-            ) = consolidated_phase_trajectory_extraction(
-                phase_id,
-                casadi_solution_object,
-                phase_vars,
-                problem,
-                initial_time,
-                terminal_time,
-            )
-
-            # Store trajectory data with proper types
-            solution.phase_time_states[phase_id] = trajectory_data["state_times"]
-            solution.phase_states[phase_id] = state_values_arrays
-
-            solution.phase_time_controls[phase_id] = trajectory_data["control_times"]
-            solution.phase_controls[phase_id] = control_values_arrays
-
-            # Store per-interval data
-            solution.phase_solved_state_trajectories_per_interval[phase_id] = per_interval_states
-            if num_controls > 0:
-                solution.phase_solved_control_trajectories_per_interval[phase_id] = (
-                    per_interval_controls
-                )
-
-        except Exception as e:
-            if isinstance(e, SolutionExtractionError | DataIntegrityError):
-                raise
-            raise SolutionExtractionError(
-                f"Failed to extract phase {phase_id} trajectory data: {e}",
-                "Consolidated trajectory processing error",
-            ) from e
-
-        # Store mesh information for this phase (use problem data directly)
-        solution.phase_mesh_intervals[phase_id] = phase_def.collocation_points_per_interval.copy()
-        solution.phase_mesh_nodes[phase_id] = phase_def.global_normalized_mesh_nodes.copy()
 
     # Finalize solution
     solution.success = True

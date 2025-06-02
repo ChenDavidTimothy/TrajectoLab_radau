@@ -106,6 +106,40 @@ def _populate_interior_state_columns(
         state_columns[i + 1] = interior_nodes_var[:, i]
 
 
+def _setup_interior_nodes_for_interval(
+    opti: ca.Opti,
+    state_columns: list[ca.MX],
+    num_colloc_nodes: int,
+    num_states: int,
+    phase_id: PhaseID,
+) -> ca.MX | None:
+    """
+    EXTRACTED: Set up interior nodes for mesh interval to eliminate 4+ level nesting.
+
+    This function handles the complex interior node creation and population logic
+    that was previously nested 4+ levels deep.
+    """
+    # INVERSION: Early return for simple case (no interior nodes needed)
+    if num_colloc_nodes <= 1:
+        return None
+
+    num_interior_nodes = num_colloc_nodes - 1
+
+    # INVERSION: Early return if no interior nodes needed
+    if num_interior_nodes <= 0:
+        return None
+
+    # Create interior variables
+    interior_nodes_var = _create_interior_state_variables(
+        opti, num_states, num_interior_nodes, phase_id
+    )
+
+    # Populate state columns with interior node variables
+    _populate_interior_state_columns(state_columns, interior_nodes_var, num_interior_nodes)
+
+    return interior_nodes_var
+
+
 def setup_phase_interval_state_variables(
     opti: ca.Opti,
     phase_id: PhaseID,
@@ -143,19 +177,10 @@ def setup_phase_interval_state_variables(
     # First column is the state at the start of the interval
     state_columns[0] = state_at_global_mesh_nodes[mesh_interval_index]
 
-    # INVERSION: Handle simple case first (early return path)
-    interior_nodes_var: ca.MX | None = None
-    if num_colloc_nodes <= 1:
-        # No interior nodes needed - go straight to final setup
-        pass
-    else:
-        # EXTRACTION: Complex interior node logic moved to separate functions
-        num_interior_nodes = num_colloc_nodes - 1
-        if num_interior_nodes > 0:
-            interior_nodes_var = _create_interior_state_variables(
-                opti, num_states, num_interior_nodes, phase_id
-            )
-            _populate_interior_state_columns(state_columns, interior_nodes_var, num_interior_nodes)
+    # EXTRACTION: Complex interior node logic moved to separate function
+    interior_nodes_var = _setup_interior_nodes_for_interval(
+        opti, state_columns, num_colloc_nodes, num_states, phase_id
+    )
 
     # Last column is the state at the end of the interval
     state_columns[num_colloc_nodes] = state_at_global_mesh_nodes[mesh_interval_index + 1]

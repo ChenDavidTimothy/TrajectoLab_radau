@@ -47,72 +47,103 @@ from trajectolab.tl_types import (
 logger = logging.getLogger(__name__)
 
 
+def _extract_state_matrices_for_phase(
+    phase_vars, polynomial_degrees: list[int], raw_sol, num_states: int, phase_id: PhaseID
+) -> list[FloatArray]:
+    """EXTRACTED: Extract state matrices for a single phase."""
+    if len(phase_vars.state_matrices) != len(polynomial_degrees):
+        raise DataIntegrityError(
+            f"Phase {phase_id} state matrices count ({len(phase_vars.state_matrices)}) != polynomial degrees count ({len(polynomial_degrees)})",
+            "Solution extraction state matrix mismatch",
+        )
+
+    state_trajectories = []
+    for k, state_matrix in enumerate(phase_vars.state_matrices):
+        state_vals = raw_sol.value(state_matrix)
+        state_array = ensure_2d_array(state_vals, num_states, polynomial_degrees[k] + 1)
+        state_trajectories.append(state_array)
+
+    return state_trajectories
+
+
+def _extract_control_variables_for_phase(
+    phase_vars, polynomial_degrees: list[int], raw_sol, num_controls: int, phase_id: PhaseID
+) -> list[FloatArray]:
+    """EXTRACTED: Extract control variables for a single phase."""
+    if num_controls == 0:
+        # No controls for this phase
+        return [
+            np.empty((0, polynomial_degrees[k]), dtype=np.float64)
+            for k in range(len(polynomial_degrees))
+        ]
+
+    if len(phase_vars.control_variables) != len(polynomial_degrees):
+        raise DataIntegrityError(
+            f"Phase {phase_id} control variables count ({len(phase_vars.control_variables)}) != polynomial degrees count ({len(polynomial_degrees)})",
+            "Solution extraction control matrix mismatch",
+        )
+
+    control_trajectories = []
+    for k, control_var in enumerate(phase_vars.control_variables):
+        control_vals = raw_sol.value(control_var)
+        control_array = ensure_2d_array(control_vals, num_controls, polynomial_degrees[k])
+        control_trajectories.append(control_array)
+
+    return control_trajectories
+
+
+def _extract_trajectories_for_single_phase(
+    solution: OptimalControlSolution,
+    problem: ProblemProtocol,
+    phase_id: PhaseID,
+    variables,
+    raw_sol,
+) -> None:
+    """EXTRACTED: Extract trajectories for a single phase."""
+    # INVERSION: Early return if phase not in variables
+    if phase_id not in variables.phase_variables:
+        return
+
+    num_states, num_controls = problem.get_phase_variable_counts(phase_id)
+    phase_def = problem._phases[phase_id]
+    polynomial_degrees = phase_def.collocation_points_per_interval
+    phase_vars = variables.phase_variables[phase_id]
+
+    # Extract state trajectories
+    state_trajectories = _extract_state_matrices_for_phase(
+        phase_vars, polynomial_degrees, raw_sol, num_states, phase_id
+    )
+    solution.phase_solved_state_trajectories_per_interval[phase_id] = state_trajectories
+
+    # Extract control trajectories
+    control_trajectories = _extract_control_variables_for_phase(
+        phase_vars, polynomial_degrees, raw_sol, num_controls, phase_id
+    )
+    solution.phase_solved_control_trajectories_per_interval[phase_id] = control_trajectories
+
+
 def _extract_multiphase_solution_trajectories(
     solution: OptimalControlSolution, problem: ProblemProtocol
 ) -> None:
-    """STREAMLINED extraction of state and control trajectories for all phases."""
+    """NEVER-NESTER REFACTORED: Extract trajectories with early returns and extraction."""
+    # INVERSION: Early returns for missing data
     if solution.raw_solution is None or solution.opti_object is None:
         raise ValueError("Missing raw solution or opti object")
 
+    if not hasattr(solution.opti_object, "multiphase_variables_reference"):
+        raise ValueError("Missing multiphase variables reference")
+
     opti = solution.opti_object
     raw_sol = solution.raw_solution
+    variables = opti.multiphase_variables_reference
 
     # Initialize solution data structures
     solution.phase_solved_state_trajectories_per_interval = {}
     solution.phase_solved_control_trajectories_per_interval = {}
 
-    # Extract trajectories for each phase independently
+    # EXTRACTION: Process each phase in separate function
     for phase_id in problem.get_phase_ids():
-        num_states, num_controls = problem.get_phase_variable_counts(phase_id)
-        phase_def = problem._phases[phase_id]
-        polynomial_degrees = phase_def.collocation_points_per_interval
-
-        # Initialize phase trajectory storage
-        solution.phase_solved_state_trajectories_per_interval[phase_id] = []
-        solution.phase_solved_control_trajectories_per_interval[phase_id] = []
-
-        # Extract trajectories using multiphase variables reference
-        if hasattr(opti, "multiphase_variables_reference"):
-            variables = opti.multiphase_variables_reference
-            if phase_id in variables.phase_variables:
-                phase_vars = variables.phase_variables[phase_id]
-
-                # Extract state matrices for each interval in this phase
-                if len(phase_vars.state_matrices) != len(polynomial_degrees):
-                    raise DataIntegrityError(
-                        f"Phase {phase_id} state matrices count ({len(phase_vars.state_matrices)}) != polynomial degrees count ({len(polynomial_degrees)})",
-                        "Solution extraction state matrix mismatch",
-                    )
-
-                for k, state_matrix in enumerate(phase_vars.state_matrices):
-                    state_vals = raw_sol.value(state_matrix)
-                    state_array = ensure_2d_array(state_vals, num_states, polynomial_degrees[k] + 1)
-                    solution.phase_solved_state_trajectories_per_interval[phase_id].append(
-                        state_array
-                    )
-
-                # Extract control trajectories for this phase
-                if num_controls > 0:
-                    if len(phase_vars.control_variables) != len(polynomial_degrees):
-                        raise DataIntegrityError(
-                            f"Phase {phase_id} control variables count ({len(phase_vars.control_variables)}) != polynomial degrees count ({len(polynomial_degrees)})",
-                            "Solution extraction control matrix mismatch",
-                        )
-
-                    for k, control_var in enumerate(phase_vars.control_variables):
-                        control_vals = raw_sol.value(control_var)
-                        control_array = ensure_2d_array(
-                            control_vals, num_controls, polynomial_degrees[k]
-                        )
-                        solution.phase_solved_control_trajectories_per_interval[phase_id].append(
-                            control_array
-                        )
-                else:
-                    # No controls for this phase
-                    for k in range(len(polynomial_degrees)):
-                        solution.phase_solved_control_trajectories_per_interval[phase_id].append(
-                            np.empty((0, polynomial_degrees[k]), dtype=np.float64)
-                        )
+        _extract_trajectories_for_single_phase(solution, problem, phase_id, variables, raw_sol)
 
 
 def _create_phase_interpolants(
@@ -246,30 +277,10 @@ def _estimate_phase_errors(
     return errors
 
 
-def _refine_phase_mesh(
-    phase_id: PhaseID,
-    polynomial_degrees: list[int],
-    mesh_points: FloatArray,
-    errors: list[float],
-    adaptive_params: AdaptiveParameters,
-    solution: OptimalControlSolution,
-    problem: ProblemProtocol,
-    state_evaluators: list[Callable[[float | FloatArray], FloatArray] | None],
-    control_evaluators: list[Callable[[float | FloatArray], FloatArray] | None],
-    gamma_factors: FloatArray,
-) -> tuple[list[int], FloatArray]:
-    """Refine mesh for a specific phase with correct h-reduction ordering."""
-    from typing import NamedTuple
-
-    class MergeCandidate(NamedTuple):
-        """Candidate for h-reduction merge."""
-
-        first_idx: int
-        second_idx: int
-        overall_max_error: float
-        merged_degree: int
-
-    # Step 1: Identify intervals needing refinement vs reduction
+def _identify_refinement_intervals(
+    polynomial_degrees: list[int], errors: list[float], adaptive_params: AdaptiveParameters
+) -> tuple[set[int], set[int]]:
+    """EXTRACTED: Identify intervals that need refinement vs reduction."""
     num_intervals = len(polynomial_degrees)
     intervals_needing_refinement = set()
     intervals_for_reduction = set()
@@ -281,7 +292,16 @@ def _refine_phase_mesh(
         else:
             intervals_for_reduction.add(k)
 
-    # Step 2: Process refinement intervals (p-refine or h-refine)
+    return intervals_needing_refinement, intervals_for_reduction
+
+
+def _process_refinement_intervals(
+    intervals_needing_refinement: set[int],
+    polynomial_degrees: list[int],
+    errors: list[float],
+    adaptive_params: AdaptiveParameters,
+) -> dict[int, tuple[str, int] | tuple[str, list[int]]]:
+    """EXTRACTED: Process intervals that need refinement."""
     refinement_actions: dict[int, tuple[str, int] | tuple[str, list[int]]] = {}
 
     for k in intervals_needing_refinement:
@@ -302,66 +322,128 @@ def _refine_phase_mesh(
             )
             refinement_actions[k] = ("h", h_result.collocation_nodes_for_new_subintervals)
 
-    # Step 3: Identify h-reduction candidates (CRITICAL: Error-based ordering)
-    merge_candidates: list[MergeCandidate] = []
+    return refinement_actions
+
+
+def _can_intervals_merge(
+    k: int,
+    intervals_for_reduction: set[int],
+    num_intervals: int,
+    state_evaluators: list[Callable[[float | FloatArray], FloatArray] | None],
+    control_evaluators: list[Callable[[float | FloatArray], FloatArray] | None],
+    problem: ProblemProtocol,
+    phase_id: PhaseID,
+) -> bool:
+    """EXTRACTED: Check if two intervals can be merged."""
+    # INVERSION: Early returns for conditions that prevent merging
+    if (k + 1) not in intervals_for_reduction:
+        return False
+
+    if (k + 1) >= num_intervals:
+        return False
+
+    state_eval_first = state_evaluators[k]
+    state_eval_second = state_evaluators[k + 1]
+    control_eval_first = control_evaluators[k]
+    control_eval_second = control_evaluators[k + 1]
+
+    if state_eval_first is None or state_eval_second is None:
+        return False
+
+    num_states, num_controls = problem.get_phase_variable_counts(phase_id)
+    if num_controls > 0:
+        if control_eval_first is None or control_eval_second is None:
+            return False
+
+    return True
+
+
+def _create_merge_candidate(
+    k: int, errors: list[float], polynomial_degrees: list[int], adaptive_params: AdaptiveParameters
+):
+    """EXTRACTED: Create a merge candidate."""
+    from typing import NamedTuple
+
+    class MergeCandidate(NamedTuple):
+        first_idx: int
+        second_idx: int
+        overall_max_error: float
+        merged_degree: int
+
+    error_k = errors[k]
+    error_k_plus_1 = errors[k + 1]
+    overall_max_error = max(error_k, error_k_plus_1)
+
+    merged_degree = max(polynomial_degrees[k], polynomial_degrees[k + 1])
+    merged_degree = max(
+        adaptive_params.min_polynomial_degree,
+        min(adaptive_params.max_polynomial_degree, merged_degree),
+    )
+
+    return MergeCandidate(
+        first_idx=k,
+        second_idx=k + 1,
+        overall_max_error=overall_max_error,
+        merged_degree=merged_degree,
+    )
+
+
+def _identify_merge_candidates(
+    intervals_for_reduction: set[int],
+    polynomial_degrees: list[int],
+    errors: list[float],
+    adaptive_params: AdaptiveParameters,
+    solution: OptimalControlSolution,
+    problem: ProblemProtocol,
+    phase_id: PhaseID,
+    state_evaluators: list[Callable[[float | FloatArray], FloatArray] | None],
+    control_evaluators: list[Callable[[float | FloatArray], FloatArray] | None],
+    gamma_factors: FloatArray,
+):
+    """EXTRACTED: Identify h-reduction merge candidates."""
+    merge_candidates = []
+    num_intervals = len(polynomial_degrees)
 
     for k in intervals_for_reduction:
-        if (k + 1) in intervals_for_reduction and (k + 1) < num_intervals:
-            # Both intervals are candidates for reduction
-            state_eval_first = state_evaluators[k]
-            state_eval_second = state_evaluators[k + 1]
-            control_eval_first = control_evaluators[k]
-            control_eval_second = control_evaluators[k + 1]
+        # Check if merge is possible
+        if not _can_intervals_merge(
+            k,
+            intervals_for_reduction,
+            num_intervals,
+            state_evaluators,
+            control_evaluators,
+            problem,
+            phase_id,
+        ):
+            continue
 
-            # Check if merge is possible
-            num_states, num_controls = problem.get_phase_variable_counts(phase_id)
-            if (
-                state_eval_first is not None
-                and state_eval_second is not None
-                and (
-                    num_controls == 0
-                    or (control_eval_first is not None and control_eval_second is not None)
-                )
-            ):
-                can_merge = h_reduce_intervals(
-                    phase_id,
-                    k,
-                    solution,
-                    problem,
-                    adaptive_params,
-                    gamma_factors,
-                    state_eval_first,
-                    control_eval_first,
-                    state_eval_second,
-                    control_eval_second,
-                )
+        # Test actual merge feasibility
+        can_merge = h_reduce_intervals(
+            phase_id,
+            k,
+            solution,
+            problem,
+            adaptive_params,
+            gamma_factors,
+            state_evaluators[k],
+            control_evaluators[k],
+            state_evaluators[k + 1],
+            control_evaluators[k + 1],
+        )
 
-                if can_merge:
-                    # Calculate overall maximum error as per specification
-                    error_k = errors[k]
-                    error_k_plus_1 = errors[k + 1]
-                    overall_max_error = max(error_k, error_k_plus_1)
+        if can_merge:
+            candidate = _create_merge_candidate(k, errors, polynomial_degrees, adaptive_params)
+            merge_candidates.append(candidate)
 
-                    merged_degree = max(polynomial_degrees[k], polynomial_degrees[k + 1])
-                    merged_degree = max(
-                        adaptive_params.min_polynomial_degree,
-                        min(adaptive_params.max_polynomial_degree, merged_degree),
-                    )
+    return merge_candidates
 
-                    merge_candidates.append(
-                        MergeCandidate(
-                            first_idx=k,
-                            second_idx=k + 1,
-                            overall_max_error=overall_max_error,
-                            merged_degree=merged_degree,
-                        )
-                    )
 
-    # CRITICAL: Sort merge candidates by overall maximum relative error (ascending order)
+def _select_approved_merges(merge_candidates):
+    """EXTRACTED: Select merges without conflicts."""
+    # Sort by overall maximum relative error (ascending order)
     merge_candidates.sort(key=lambda x: x.overall_max_error)
 
-    # Step 4: Process merges in error-based order, checking for conflicts
-    merged_intervals = set()  # Track which intervals have been merged
+    merged_intervals = set()
     approved_merges = []
 
     for candidate in merge_candidates:
@@ -374,8 +456,18 @@ def _refine_phase_mesh(
             merged_intervals.add(candidate.first_idx)
             merged_intervals.add(candidate.second_idx)
 
-    # Step 5: Apply p-reduction to remaining intervals
-    reduction_actions = {}  # k -> new_N
+    return approved_merges, merged_intervals
+
+
+def _apply_p_reduction(
+    intervals_for_reduction: set[int],
+    merged_intervals: set[int],
+    polynomial_degrees: list[int],
+    errors: list[float],
+    adaptive_params: AdaptiveParameters,
+) -> dict[int, int]:
+    """EXTRACTED: Apply p-reduction to remaining intervals."""
+    reduction_actions = {}
 
     for k in intervals_for_reduction:
         if k not in merged_intervals:  # Not merged
@@ -388,9 +480,82 @@ def _refine_phase_mesh(
             )
             reduction_actions[k] = p_reduce.new_num_collocation_nodes
 
-    # Step 6: Build new mesh configuration
+    return reduction_actions
+
+
+def _apply_p_refinement(
+    k: int,
+    action_data: int,
+    mesh_points: FloatArray,
+    next_polynomial_degrees: list[int],
+    next_mesh_points: list[float],
+) -> int:
+    """EXTRACTED: Apply p-refinement to interval."""
+    next_polynomial_degrees.append(action_data)
+    next_mesh_points.append(mesh_points[k + 1])
+    return k + 1
+
+
+def _apply_h_refinement(
+    k: int,
+    action_data: list[int],
+    mesh_points: FloatArray,
+    next_polynomial_degrees: list[int],
+    next_mesh_points: list[float],
+) -> int:
+    """EXTRACTED: Apply h-refinement to interval."""
+    next_polynomial_degrees.extend(action_data)
+    # Create new mesh nodes for subintervals
+    tau_start = mesh_points[k]
+    tau_end = mesh_points[k + 1]
+    num_subintervals = len(action_data)
+    new_nodes = np.linspace(tau_start, tau_end, num_subintervals + 1, dtype=np.float64)
+    next_mesh_points.extend(list(new_nodes[1:]))
+    return k + 1
+
+
+def _apply_h_reduction_merge(
+    k: int,
+    approved_merges,
+    mesh_points: FloatArray,
+    next_polynomial_degrees: list[int],
+    next_mesh_points: list[float],
+) -> int:
+    """EXTRACTED: Apply h-reduction merge."""
+    merge = next(merge for merge in approved_merges if merge.first_idx == k)
+    next_polynomial_degrees.append(merge.merged_degree)
+    next_mesh_points.append(mesh_points[k + 2])  # Skip shared mesh point
+    return k + 2  # Skip both merged intervals
+
+
+def _apply_standard_processing(
+    k: int,
+    reduction_actions: dict[int, int],
+    polynomial_degrees: list[int],
+    mesh_points: FloatArray,
+    next_polynomial_degrees: list[int],
+    next_mesh_points: list[float],
+) -> int:
+    """EXTRACTED: Apply standard processing (p-reduction or keep unchanged)."""
+    if k in reduction_actions:
+        next_polynomial_degrees.append(reduction_actions[k])
+    else:
+        next_polynomial_degrees.append(polynomial_degrees[k])
+    next_mesh_points.append(mesh_points[k + 1])
+    return k + 1
+
+
+def _build_new_mesh_configuration(
+    polynomial_degrees: list[int],
+    mesh_points: FloatArray,
+    refinement_actions: dict[int, tuple[str, int] | tuple[str, list[int]]],
+    approved_merges,
+    reduction_actions: dict[int, int],
+) -> tuple[list[int], FloatArray]:
+    """EXTRACTED: Build new mesh configuration by applying all actions."""
     next_polynomial_degrees: list[int] = []
     next_mesh_points = [mesh_points[0]]
+    num_intervals = len(polynomial_degrees)
 
     k = 0
     while k < num_intervals:
@@ -398,39 +563,84 @@ def _refine_phase_mesh(
             # Apply refinement
             action_type, action_data = refinement_actions[k]
             if action_type == "p":
-                # Handle p-refinement (single integer)
-                assert isinstance(action_data, int)
-                next_polynomial_degrees.append(action_data)
-                next_mesh_points.append(mesh_points[k + 1])
+                k = _apply_p_refinement(
+                    k, action_data, mesh_points, next_polynomial_degrees, next_mesh_points
+                )
             else:  # h-refinement
-                # Handle h-refinement (list of integers)
-                assert isinstance(action_data, list)
-                next_polynomial_degrees.extend(action_data)
-                # Create new mesh nodes for subintervals
-                tau_start = mesh_points[k]
-                tau_end = mesh_points[k + 1]
-                num_subintervals = len(action_data)
-                new_nodes = np.linspace(tau_start, tau_end, num_subintervals + 1, dtype=np.float64)
-                next_mesh_points.extend(list(new_nodes[1:]))
-            k += 1
+                k = _apply_h_refinement(
+                    k, action_data, mesh_points, next_polynomial_degrees, next_mesh_points
+                )
 
         elif any(merge.first_idx == k for merge in approved_merges):
             # Apply h-reduction merge
-            merge = next(merge for merge in approved_merges if merge.first_idx == k)
-            next_polynomial_degrees.append(merge.merged_degree)
-            next_mesh_points.append(mesh_points[k + 2])  # Skip shared mesh point
-            k += 2  # Skip both merged intervals
+            k = _apply_h_reduction_merge(
+                k, approved_merges, mesh_points, next_polynomial_degrees, next_mesh_points
+            )
 
         else:
             # Apply p-reduction or keep unchanged
-            if k in reduction_actions:
-                next_polynomial_degrees.append(reduction_actions[k])
-            else:
-                next_polynomial_degrees.append(polynomial_degrees[k])
-            next_mesh_points.append(mesh_points[k + 1])
-            k += 1
+            k = _apply_standard_processing(
+                k,
+                reduction_actions,
+                polynomial_degrees,
+                mesh_points,
+                next_polynomial_degrees,
+                next_mesh_points,
+            )
 
     return next_polynomial_degrees, np.array(next_mesh_points, dtype=np.float64)
+
+
+def _refine_phase_mesh(
+    phase_id: PhaseID,
+    polynomial_degrees: list[int],
+    mesh_points: FloatArray,
+    errors: list[float],
+    adaptive_params: AdaptiveParameters,
+    solution: OptimalControlSolution,
+    problem: ProblemProtocol,
+    state_evaluators: list[Callable[[float | FloatArray], FloatArray] | None],
+    control_evaluators: list[Callable[[float | FloatArray], FloatArray] | None],
+    gamma_factors: FloatArray,
+) -> tuple[list[int], FloatArray]:
+    """NEVER-NESTER REFACTORED: Refine mesh using extraction pattern."""
+
+    # Step 1: Identify intervals needing refinement vs reduction
+    intervals_needing_refinement, intervals_for_reduction = _identify_refinement_intervals(
+        polynomial_degrees, errors, adaptive_params
+    )
+
+    # Step 2: Process refinement intervals (p-refine or h-refine)
+    refinement_actions = _process_refinement_intervals(
+        intervals_needing_refinement, polynomial_degrees, errors, adaptive_params
+    )
+
+    # Step 3: Identify h-reduction candidates
+    merge_candidates = _identify_merge_candidates(
+        intervals_for_reduction,
+        polynomial_degrees,
+        errors,
+        adaptive_params,
+        solution,
+        problem,
+        phase_id,
+        state_evaluators,
+        control_evaluators,
+        gamma_factors,
+    )
+
+    # Step 4: Process merges in error-based order, checking for conflicts
+    approved_merges, merged_intervals = _select_approved_merges(merge_candidates)
+
+    # Step 5: Apply p-reduction to remaining intervals
+    reduction_actions = _apply_p_reduction(
+        intervals_for_reduction, merged_intervals, polynomial_degrees, errors, adaptive_params
+    )
+
+    # Step 6: Build new mesh configuration
+    return _build_new_mesh_configuration(
+        polynomial_degrees, mesh_points, refinement_actions, approved_merges, reduction_actions
+    )
 
 
 def solve_multiphase_phs_adaptive_internal(
