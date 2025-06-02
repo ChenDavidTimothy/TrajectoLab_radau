@@ -59,7 +59,7 @@ def _setup_mesh_interval_variables(
     num_states: int,
     num_colloc_nodes: int,
 ) -> tuple[ca.MX, ca.MX | None]:
-    """EXTRACTED: Set up state variables for mesh interval to reduce nesting."""
+    """Set up state variables for mesh interval to reduce nesting."""
     state_at_nodes, interior_nodes_var = setup_phase_interval_state_variables(
         opti,
         phase_id,
@@ -92,7 +92,7 @@ def _apply_mesh_interval_constraints(
     static_parameters_vec: ca.MX | None,
     static_parameter_symbols,
 ) -> None:
-    """EXTRACTED: Apply all constraints for mesh interval to reduce nesting."""
+    """Apply all constraints for mesh interval to reduce nesting."""
     # Apply collocation constraints
     apply_phase_collocation_constraints(
         opti,
@@ -143,8 +143,8 @@ def _setup_mesh_interval_integrals(
     accumulated_integral_expressions: list[ca.MX],
     static_parameters_vec: ca.MX | None,
 ) -> None:
-    """EXTRACTED: Set up integrals for mesh interval to reduce nesting."""
-    # INVERSION: Early return if no integrals needed
+    """Set up integrals for mesh interval to reduce nesting."""
+    # Early return if no integrals needed
     if num_integrals == 0 or integral_integrand_function is None:
         return
 
@@ -185,7 +185,7 @@ def _process_single_mesh_interval(
     static_parameter_symbols,
 ) -> None:
     """
-    EXTRACTED: Process single mesh interval to eliminate 4+ level nesting.
+    Process single mesh interval to eliminate 4+ level nesting.
     This function encapsulates all the complex logic for one mesh interval.
     """
     # Set up state variables for this interval
@@ -389,7 +389,7 @@ def _process_single_phase_unified(
             )
 
         except Exception as e:
-            # INVERSION: Early return for DataIntegrityError
+            # Early return for DataIntegrityError
             if isinstance(e, DataIntegrityError):
                 raise
             raise DataIntegrityError(

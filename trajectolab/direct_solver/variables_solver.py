@@ -114,18 +114,18 @@ def _setup_interior_nodes_for_interval(
     phase_id: PhaseID,
 ) -> ca.MX | None:
     """
-    EXTRACTED: Set up interior nodes for mesh interval to eliminate 4+ level nesting.
+    Set up interior nodes for mesh interval to eliminate 4+ level nesting.
 
     This function handles the complex interior node creation and population logic
     that was previously nested 4+ levels deep.
     """
-    # INVERSION: Early return for simple case (no interior nodes needed)
+    # Early return for simple case (no interior nodes needed)
     if num_colloc_nodes <= 1:
         return None
 
     num_interior_nodes = num_colloc_nodes - 1
 
-    # INVERSION: Early return if no interior nodes needed
+    # Early return if no interior nodes needed
     if num_interior_nodes <= 0:
         return None
 
@@ -152,7 +152,7 @@ def setup_phase_interval_state_variables(
     Set up state variables for a single mesh interval within a phase.
     REFACTORED using EXTRACTION and INVERSION to eliminate 4+ level nesting.
     """
-    # INVERSION: Early returns for validation (guard clauses)
+    # Early returns for validation (guard clauses)
     if mesh_interval_index < 0:
         raise DataIntegrityError(
             f"Phase {phase_id} mesh interval index cannot be negative: {mesh_interval_index}",

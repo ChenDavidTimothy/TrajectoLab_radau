@@ -50,7 +50,7 @@ logger = logging.getLogger(__name__)
 def _extract_state_matrices_for_phase(
     phase_vars, polynomial_degrees: list[int], raw_sol, num_states: int, phase_id: PhaseID
 ) -> list[FloatArray]:
-    """EXTRACTED: Extract state matrices for a single phase."""
+    """Extract state matrices for a single phase."""
     if len(phase_vars.state_matrices) != len(polynomial_degrees):
         raise DataIntegrityError(
             f"Phase {phase_id} state matrices count ({len(phase_vars.state_matrices)}) != polynomial degrees count ({len(polynomial_degrees)})",
@@ -69,7 +69,7 @@ def _extract_state_matrices_for_phase(
 def _extract_control_variables_for_phase(
     phase_vars, polynomial_degrees: list[int], raw_sol, num_controls: int, phase_id: PhaseID
 ) -> list[FloatArray]:
-    """EXTRACTED: Extract control variables for a single phase."""
+    """Extract control variables for a single phase."""
     if num_controls == 0:
         # No controls for this phase
         return [
@@ -95,8 +95,8 @@ def _extract_control_variables_for_phase(
 def _extract_multiphase_solution_trajectories(
     solution: OptimalControlSolution, problem: ProblemProtocol
 ) -> None:
-    """NEVER-NESTER REFACTORED: Extract trajectories with inlined logic, no wrapper functions."""
-    # INVERSION: Early returns for missing data
+    """Extract trajectories with inlined logic, no wrapper functions."""
+    # Early returns for missing data
     if solution.raw_solution is None:
         raise ValueError("Raw solution is None")
 
@@ -117,7 +117,7 @@ def _extract_multiphase_solution_trajectories(
 
     # INLINED: Process each phase directly without wrapper function
     for phase_id in problem.get_phase_ids():
-        # INVERSION: Skip missing phases early
+        # Skip missing phases early
         if phase_id not in variables.phase_variables:
             continue
 
@@ -272,7 +272,7 @@ def _estimate_phase_errors(
 def _identify_refinement_intervals(
     polynomial_degrees: list[int], errors: list[float], adaptive_params: AdaptiveParameters
 ) -> tuple[set[int], set[int]]:
-    """EXTRACTED: Identify intervals that need refinement vs reduction."""
+    """Identify intervals that need refinement vs reduction."""
     num_intervals = len(polynomial_degrees)
     intervals_needing_refinement = set()
     intervals_for_reduction = set()
@@ -293,7 +293,7 @@ def _process_refinement_intervals(
     errors: list[float],
     adaptive_params: AdaptiveParameters,
 ) -> dict[int, tuple[str, int] | tuple[str, list[int]]]:
-    """EXTRACTED: Process intervals that need refinement."""
+    """Process intervals that need refinement."""
     refinement_actions: dict[int, tuple[str, int] | tuple[str, list[int]]] = {}
 
     for k in intervals_needing_refinement:
@@ -320,7 +320,7 @@ def _process_refinement_intervals(
 def _create_merge_candidate(
     k: int, errors: list[float], polynomial_degrees: list[int], adaptive_params: AdaptiveParameters
 ):
-    """EXTRACTED: Create a merge candidate."""
+    """Create a merge candidate."""
     from typing import NamedTuple
 
     class MergeCandidate(NamedTuple):
@@ -359,15 +359,15 @@ def _check_full_merge_feasibility(
     adaptive_params: AdaptiveParameters,
     gamma_factors: FloatArray,
 ) -> bool:
-    """MERGED: Complete merge feasibility check - structural + mathematical."""
-    # INVERSION: Early returns for structural conditions that prevent merging
+    """Complete merge feasibility check - structural + mathematical."""
+    # Early returns for structural conditions that prevent merging
     if (k + 1) not in intervals_for_reduction:
         return False
 
     if (k + 1) >= num_intervals:
         return False
 
-    # INVERSION: Early return if evaluators are None
+    # Early return if evaluators are None
     state_eval_k = state_evaluators[k]
     state_eval_k_plus_1 = state_evaluators[k + 1]
     control_eval_k = control_evaluators[k]
@@ -376,7 +376,7 @@ def _check_full_merge_feasibility(
     if state_eval_k is None or state_eval_k_plus_1 is None:
         return False
 
-    # INVERSION: Early return if controls are required but missing
+    # Early return if controls are required but missing
     num_states, num_controls = problem.get_phase_variable_counts(phase_id)
     if num_controls > 0:
         if control_eval_k is None or control_eval_k_plus_1 is None:
@@ -390,9 +390,9 @@ def _check_full_merge_feasibility(
         problem,
         adaptive_params,
         gamma_factors,
-        state_eval_k,  # Guaranteed non-None
+        state_eval_k,
         control_eval_k,
-        state_eval_k_plus_1,  # Guaranteed non-None
+        state_eval_k_plus_1,
         control_eval_k_plus_1,
     )
 
@@ -409,11 +409,11 @@ def _identify_merge_candidates(
     control_evaluators: list[Callable[[float | FloatArray], FloatArray] | None],
     gamma_factors: FloatArray,
 ):
-    """NEVER-NESTER REFACTORED: Identify h-reduction merge candidates."""
+    """Identify h-reduction merge candidates."""
     merge_candidates = []
 
     for k in intervals_for_reduction:
-        # MERGED: Complete feasibility check (structural + mathematical)
+        # Complete feasibility check (structural + mathematical)
         if not _check_full_merge_feasibility(
             k,
             intervals_for_reduction,
@@ -436,7 +436,7 @@ def _identify_merge_candidates(
 
 
 def _select_approved_merges(merge_candidates):
-    """EXTRACTED: Select merges without conflicts."""
+    """Select merges without conflicts."""
     # Sort by overall maximum relative error (ascending order)
     merge_candidates.sort(key=lambda x: x.overall_max_error)
 
@@ -463,7 +463,7 @@ def _apply_p_reduction(
     errors: list[float],
     adaptive_params: AdaptiveParameters,
 ) -> dict[int, int]:
-    """EXTRACTED: Apply p-reduction to remaining intervals."""
+    """Apply p-reduction to remaining intervals."""
     reduction_actions = {}
 
     for k in intervals_for_reduction:
@@ -487,7 +487,7 @@ def _apply_p_refinement(
     next_polynomial_degrees: list[int],
     next_mesh_points: list[float],
 ) -> int:
-    """EXTRACTED: Apply p-refinement to interval."""
+    """Apply p-refinement to interval."""
     next_polynomial_degrees.append(action_data)
     next_mesh_points.append(mesh_points[k + 1])
     return k + 1
@@ -500,7 +500,7 @@ def _apply_h_refinement(
     next_polynomial_degrees: list[int],
     next_mesh_points: list[float],
 ) -> int:
-    """EXTRACTED: Apply h-refinement to interval."""
+    """Apply h-refinement to interval."""
     next_polynomial_degrees.extend(action_data)
     # Create new mesh nodes for subintervals
     tau_start = mesh_points[k]
@@ -518,7 +518,7 @@ def _apply_h_reduction_merge(
     next_polynomial_degrees: list[int],
     next_mesh_points: list[float],
 ) -> int:
-    """EXTRACTED: Apply h-reduction merge."""
+    """Apply h-reduction merge."""
     merge = next(merge for merge in approved_merges if merge.first_idx == k)
     next_polynomial_degrees.append(merge.merged_degree)
     next_mesh_points.append(mesh_points[k + 2])  # Skip shared mesh point
@@ -533,7 +533,7 @@ def _apply_standard_processing(
     next_polynomial_degrees: list[int],
     next_mesh_points: list[float],
 ) -> int:
-    """EXTRACTED: Apply standard processing (p-reduction or keep unchanged)."""
+    """Apply standard processing (p-reduction or keep unchanged)."""
     if k in reduction_actions:
         next_polynomial_degrees.append(reduction_actions[k])
     else:
@@ -550,13 +550,13 @@ def _process_refinement_action(
     next_mesh_points: list[float],
 ) -> int:
     """NEVER-NESTER: Use type discrimination instead of string matching."""
-    # INVERSION: Handle p-refinement first (int type)
+    # Handle p-refinement first (int type)
     if isinstance(action_data, int):
         return _apply_p_refinement(
             k, action_data, mesh_points, next_polynomial_degrees, next_mesh_points
         )
 
-    # INVERSION: Handle h-refinement (list type)
+    # Handle h-refinement (list type)
     if isinstance(action_data, list):
         return _apply_h_refinement(
             k, action_data, mesh_points, next_polynomial_degrees, next_mesh_points
@@ -573,14 +573,14 @@ def _build_new_mesh_configuration(
     approved_merges,
     reduction_actions: dict[int, int],
 ) -> tuple[list[int], FloatArray]:
-    """NEVER-NESTER REFACTORED: Build new mesh configuration."""
+    """Build new mesh configuration."""
     next_polynomial_degrees: list[int] = []
     next_mesh_points = [mesh_points[0]]
     num_intervals = len(polynomial_degrees)
 
     k = 0
     while k < num_intervals:
-        # INVERSION: Handle refinement actions first
+        # Handle refinement actions first
         if k in refinement_actions:
             _, action_data = refinement_actions[k]  # Ignore string, use type discrimination
             # DIRECT TYPE DISCRIMINATION - Type tells us what to do!
@@ -589,7 +589,7 @@ def _build_new_mesh_configuration(
             )
             continue
 
-        # INVERSION: Handle merges next
+        # Handle merges next
         if any(merge.first_idx == k for merge in approved_merges):
             k = _apply_h_reduction_merge(
                 k, approved_merges, mesh_points, next_polynomial_degrees, next_mesh_points
@@ -621,7 +621,7 @@ def _refine_phase_mesh(
     control_evaluators: list[Callable[[float | FloatArray], FloatArray] | None],
     gamma_factors: FloatArray,
 ) -> tuple[list[int], FloatArray]:
-    """NEVER-NESTER REFACTORED: Refine mesh using extraction pattern."""
+    """Refine mesh using extraction pattern."""
 
     # Step 1: Identify intervals needing refinement vs reduction
     intervals_needing_refinement, intervals_for_reduction = _identify_refinement_intervals(
@@ -737,7 +737,7 @@ def solve_multiphase_phs_adaptive_internal(
 
         # INLINED: Handle initial guess without wrapper function
         if iteration == 0:
-            # INVERSION: Check existing guess first (early return pattern)
+            # Check existing guess first (early return pattern)
             if problem.initial_guess is not None:
                 pass  # Use existing guess
             elif initial_guess is not None:
@@ -745,7 +745,7 @@ def solve_multiphase_phs_adaptive_internal(
             else:
                 problem.initial_guess = None
         else:
-            # INVERSION: Validate previous solution exists
+            # Validate previous solution exists
             if adaptive_state.most_recent_unified_solution is None:
                 raise ValueError("No previous unified solution available for propagation")
 
@@ -760,7 +760,7 @@ def solve_multiphase_phs_adaptive_internal(
         # Solve unified multiphase NLP
         solution = solve_multiphase_radau_collocation(problem)
 
-        # INVERSION: Handle failure early
+        # Handle failure early
         if not solution.success:
             logger.warning(
                 "Unified NLP solve failed in iteration %d: %s", iteration + 1, solution.message
@@ -801,7 +801,7 @@ def solve_multiphase_phs_adaptive_internal(
             gamma_factors = calculate_gamma_normalizers_for_phase(solution, problem, phase_id)
             num_states, _ = problem.get_phase_variable_counts(phase_id)
 
-            # INVERSION: Handle gamma calculation failure early
+            # Handle gamma calculation failure early
             if gamma_factors is None and num_states > 0:
                 solution.message = f"Failed to calculate gamma normalizers for phase {phase_id} at iteration {iteration + 1}"
                 solution.success = False
@@ -843,7 +843,7 @@ def solve_multiphase_phs_adaptive_internal(
 
             adaptive_state.phase_converged[phase_id] = phase_converged
 
-            # INVERSION: Handle non-converged phases
+            # Handle non-converged phases
             if not phase_converged:
                 any_phase_needs_refinement = True
 
@@ -867,7 +867,7 @@ def solve_multiphase_phs_adaptive_internal(
                     safe_gamma,
                 )
 
-        # INVERSION: Handle convergence early (happy path)
+        # Handle convergence early (happy path)
         if not any_phase_needs_refinement:
             logger.info("Multiphase adaptive refinement converged in %d iterations", iteration + 1)
 
@@ -893,7 +893,7 @@ def solve_multiphase_phs_adaptive_internal(
         max_iterations,
     )
 
-    # INVERSION: Handle case with previous solution vs no solution
+    # Handle case with previous solution vs no solution
     if adaptive_state.most_recent_unified_solution is not None:
         # Store adaptive data for non-converged solution
         adaptive_state.most_recent_unified_solution.adaptive_data = AdaptiveAlgorithmData(

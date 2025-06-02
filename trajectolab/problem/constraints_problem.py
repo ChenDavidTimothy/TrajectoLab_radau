@@ -94,9 +94,9 @@ def _process_state_boundary_constraints(
     states_vec: ca.MX,
     result: list[Constraint],
 ) -> None:
-    """EXTRACTED: Process state boundary constraints to reduce nesting."""
+    """Process state boundary constraints to reduce nesting."""
     for i, boundary_constraint in enumerate(state_boundary_constraints):
-        # INVERSION: Early continue for empty constraints
+        # Early continue for empty constraints
         if boundary_constraint is None or not boundary_constraint.has_constraint():
             continue
 
@@ -108,9 +108,9 @@ def _process_control_boundary_constraints(
     controls_vec: ca.MX,
     result: list[Constraint],
 ) -> None:
-    """EXTRACTED: Process control boundary constraints to reduce nesting."""
+    """Process control boundary constraints to reduce nesting."""
     for i, boundary_constraint in enumerate(control_boundary_constraints):
-        # INVERSION: Early continue for empty constraints
+        # Early continue for empty constraints
         if boundary_constraint is None or not boundary_constraint.has_constraint():
             continue
 
@@ -122,7 +122,7 @@ def _process_symbolic_path_constraints(
     subs_map: dict[ca.MX, ca.MX],
     result: list[Constraint],
 ) -> None:
-    """EXTRACTED: Process symbolic path constraints to reduce nesting."""
+    """Process symbolic path constraints to reduce nesting."""
     for expr in path_constraints:
         substituted_expr = ca.substitute([expr], list(subs_map.keys()), list(subs_map.values()))[0]
         result.append(_symbolic_constraint_to_constraint(substituted_expr))
@@ -138,7 +138,7 @@ def _build_substitution_map(
     initial_time_variable: ca.MX | None,
     terminal_time_variable: ca.MX | None,
 ) -> dict[ca.MX, ca.MX]:
-    """EXTRACTED: Build complete substitution map for path constraints."""
+    """Build complete substitution map for path constraints."""
     subs_map = {}
 
     # Map state symbols to current state values
@@ -196,7 +196,7 @@ def get_phase_path_constraints_function(
         for constraint in control_boundary_constraints
     )
 
-    # INVERSION: Early return if no constraints exist
+    # Early return if no constraints exist
     if not has_path_constraints and not has_state_boundary and not has_control_boundary:
         return None
 
@@ -244,7 +244,7 @@ def _process_cross_phase_substitution_map(
     phase_endpoint_vectors: dict[PhaseID, dict[str, ca.MX]],
     static_parameters_vec: ca.MX | None,
 ) -> dict[ca.MX, ca.MX]:
-    """EXTRACTED: Build substitution map for cross-phase constraints."""
+    """Build substitution map for cross-phase constraints."""
     subs_map = {}
 
     # Map phase variables to endpoint values
@@ -305,7 +305,7 @@ def _process_cross_phase_symbolic_constraints(
     subs_map: dict[ca.MX, ca.MX],
     result: list[Constraint],
 ) -> None:
-    """EXTRACTED: Process cross-phase symbolic constraints."""
+    """Process cross-phase symbolic constraints."""
     for expr in multiphase_state.cross_phase_constraints:
         substituted_expr = ca.substitute([expr], list(subs_map.keys()), list(subs_map.values()))[0]
         constraint = _symbolic_constraint_to_constraint(substituted_expr)
@@ -317,7 +317,7 @@ def _process_phase_initial_boundary_constraints(
     phase_endpoint_vectors: dict[PhaseID, dict[str, ca.MX]],
     result: list[Constraint],
 ) -> None:
-    """EXTRACTED: Process phase initial boundary constraints."""
+    """Process phase initial boundary constraints."""
     for phase_id, phase_def in multiphase_state.phases.items():
         if phase_id not in phase_endpoint_vectors:
             continue
@@ -330,7 +330,7 @@ def _process_phase_initial_boundary_constraints(
         ]
 
         for i, boundary_constraint in enumerate(state_initial_constraints):
-            # INVERSION: Early continue for empty constraints
+            # Early continue for empty constraints
             if (
                 boundary_constraint is None
                 or not boundary_constraint.has_constraint()
@@ -349,7 +349,7 @@ def _process_phase_final_boundary_constraints(
     phase_endpoint_vectors: dict[PhaseID, dict[str, ca.MX]],
     result: list[Constraint],
 ) -> None:
-    """EXTRACTED: Process phase final boundary constraints."""
+    """Process phase final boundary constraints."""
     for phase_id, phase_def in multiphase_state.phases.items():
         if phase_id not in phase_endpoint_vectors:
             continue
@@ -362,7 +362,7 @@ def _process_phase_final_boundary_constraints(
         ]
 
         for i, boundary_constraint in enumerate(state_final_constraints):
-            # INVERSION: Early continue for empty constraints
+            # Early continue for empty constraints
             if (
                 boundary_constraint is None
                 or not boundary_constraint.has_constraint()
@@ -400,7 +400,7 @@ def get_cross_phase_event_constraints_function(
             has_phase_event_constraints = True
             break
 
-    # INVERSION: Early return if no event constraints exist
+    # Early return if no event constraints exist
     if not has_cross_phase_constraints and not has_phase_event_constraints:
         return None
 
