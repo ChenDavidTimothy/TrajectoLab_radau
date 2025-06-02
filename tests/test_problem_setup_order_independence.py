@@ -15,13 +15,14 @@ import numpy as np
 import pytest
 
 from trajectolab import ConfigurationError, DataIntegrityError, Problem, solve_fixed_mesh
+from trajectolab.problem.core_problem import Phase
 from trajectolab.tl_types import FloatArray
 
 
 class TestProblemSetupOrderIndependence:
     """Test that problem setup works correctly regardless of order of operations."""
 
-    def create_standard_problem(self) -> tuple[Problem, object]:
+    def create_standard_problem(self) -> tuple[Problem, Phase]:
         """Create a standard test problem for order testing using NEW DIRECT PHASE API."""
         problem = Problem("Order Test Problem")
 
@@ -82,8 +83,8 @@ class TestProblemSetupOrderIndependence:
         solution = solve_fixed_mesh(problem)
         assert solution.success, f"Guess→Mesh→Solve failed: {solution.message}"
 
-        # NEW API: Access results by phase
-        return solution.objective, solution[(1, "x")][-1]
+        x_trajectory = solution[(1, "x")]
+        return solution.objective, float(x_trajectory[-1])
 
     def test_mesh_first_then_guess_then_solve(self):
         """Test: set_mesh() → set_initial_guess() → solve() - Integration Test"""
