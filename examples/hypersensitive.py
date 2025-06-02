@@ -67,7 +67,7 @@ if solution.success:
         states_guess.append(x_vals.reshape(1, -1))
         controls_guess.append(np.zeros((1, N)))
 
-    problem.set_initial_guess(
+    problem.guess(
         phase_states={1: states_guess},
         phase_controls={1: controls_guess},
         phase_initial_times={1: 0.0},

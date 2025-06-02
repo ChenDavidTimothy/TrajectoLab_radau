@@ -77,7 +77,7 @@ def solve_two_phase_hypersensitive_debug():
         controls_guess_p2.append(np.zeros((1, N)))
 
     # Set the multiphase initial guess
-    problem_phase.set_initial_guess(
+    problem_phase.guess(
         phase_states={1: states_guess_p1, 2: states_guess_p2},
         phase_controls={1: controls_guess_p1, 2: controls_guess_p2},
         phase_initial_times={1: 0.0, 2: 5000.0},

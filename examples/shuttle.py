@@ -115,7 +115,7 @@ for N in [8] * 3:
         )
     )
 
-problem.set_initial_guess(
+problem.guess(
     phase_states={1: states_guess},
     phase_controls={1: controls_guess},
     phase_terminal_times={1: 2000.0},

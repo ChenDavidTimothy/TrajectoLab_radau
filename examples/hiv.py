@@ -65,7 +65,7 @@ for N in [20, 20, 20]:
         )
     )
 
-problem.set_initial_guess(
+problem.guess(
     phase_states={1: states_guess}, phase_controls={1: controls_guess}, phase_integrals={1: 25000.0}
 )
 

@@ -79,7 +79,7 @@ for N in [6, 6, 6]:
     u2_mid = (c2 + c3) / 2.0
     controls_guess.append(np.vstack([np.full(N, u1_mid), np.full(N, u2_mid)]))
 
-problem.set_initial_guess(
+problem.guess(
     phase_states={1: states_guess}, phase_controls={1: controls_guess}, phase_integrals={1: 0.1}
 )
 

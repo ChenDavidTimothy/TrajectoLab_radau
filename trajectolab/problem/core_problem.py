@@ -126,7 +126,7 @@ class Problem:
             len(self._multiphase_state.cross_phase_constraints),
         )
 
-    def set_initial_guess(
+    def guess(
         self,
         phase_states: dict[PhaseID, Sequence[FloatArray]] | None = None,
         phase_controls: dict[PhaseID, Sequence[FloatArray]] | None = None,

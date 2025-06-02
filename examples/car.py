@@ -36,7 +36,7 @@ problem.minimize(t.final)
 
 # Set up mesh and initial guess
 phase.mesh([8, 8, 8], np.array([-1.0, -0.3, 0.3, 1.0]))
-problem.set_initial_guess(phase_terminal_times={1: 2.0})
+problem.guess(phase_terminal_times={1: 2.0})
 
 # Solve with adaptive mesh
 solution = tl.solve_adaptive(

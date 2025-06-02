@@ -312,7 +312,7 @@ def main():
 
     # Set initial guess to aid convergence
     initial_guess = create_initial_guess()
-    problem.set_initial_guess(**initial_guess)
+    problem.guess(**initial_guess)
 
     print("\nNEW API FEATURES:")
     print("✓ Direct phase objects: phase1 = problem.set_phase(1)")

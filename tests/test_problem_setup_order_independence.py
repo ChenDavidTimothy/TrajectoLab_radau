@@ -51,7 +51,7 @@ class TestProblemSetupOrderIndependence:
         return states, controls
 
     def _solve_with_mesh_first_order(self) -> tuple[float, float]:
-        """Helper method: mesh() → set_initial_guess() → solve()"""
+        """Helper method: mesh() → guess() → solve()"""
         problem, phase = self.create_standard_problem()
         states, controls = self.create_initial_guess()
 
@@ -60,7 +60,7 @@ class TestProblemSetupOrderIndependence:
         phase.mesh([3], [-1.0, 1.0])
 
         # NEW API: Set initial guess using multiphase format
-        problem.set_initial_guess(phase_states={1: states}, phase_controls={1: controls})
+        problem.guess(phase_states={1: states}, phase_controls={1: controls})
 
         solution = solve_fixed_mesh(problem)
         assert solution.success, f"Mesh→Guess→Solve failed: {solution.message}"
@@ -69,13 +69,13 @@ class TestProblemSetupOrderIndependence:
         return solution.objective, solution[(1, "x")][-1]
 
     def _solve_with_guess_first_order(self) -> tuple[float, float]:
-        """Helper method: set_initial_guess() → mesh() → solve()"""
+        """Helper method: guess() → mesh() → solve()"""
         problem, phase = self.create_standard_problem()
         states, controls = self.create_initial_guess()
 
         # Order: guess first, then mesh, then solve
         # NEW API: Set initial guess using multiphase format
-        problem.set_initial_guess(phase_states={1: states}, phase_controls={1: controls})
+        problem.guess(phase_states={1: states}, phase_controls={1: controls})
 
         # NEW API: Set mesh on phase
         phase.mesh([3], [-1.0, 1.0])
@@ -87,7 +87,7 @@ class TestProblemSetupOrderIndependence:
         return solution.objective, float(x_trajectory[-1])
 
     def test_mesh_first_then_guess_then_solve(self):
-        """Test: mesh() → set_initial_guess() → solve() - Integration Test"""
+        """Test: mesh() → guess() → solve() - Integration Test"""
         # This is a focused integration test that verifies the mesh-first workflow
         objective, final_state = self._solve_with_mesh_first_order()
 
@@ -96,7 +96,7 @@ class TestProblemSetupOrderIndependence:
         assert abs(final_state - 1.0) < 1e-6, "Final state should match boundary condition"
 
     def test_guess_first_then_mesh_then_solve(self):
-        """Test: set_initial_guess() → mesh() → solve() - Integration Test"""
+        """Test: guess() → mesh() → solve() - Integration Test"""
         # This is a focused integration test that verifies the guess-first workflow
         objective, final_state = self._solve_with_guess_first_order()
 
@@ -136,7 +136,7 @@ class TestProblemSetupOrderIndependence:
 
         # Initial solve
         phase1.mesh([3], [-1.0, 1.0])
-        problem1.set_initial_guess(phase_states={1: states1}, phase_controls={1: controls1})
+        problem1.guess(phase_states={1: states1}, phase_controls={1: controls1})
         solution1a = solve_fixed_mesh(problem1)
         assert solution1a.success, "Initial solve failed"
 
@@ -145,9 +145,7 @@ class TestProblemSetupOrderIndependence:
         controls1_refined = [np.array([[1.0, 1.0, 1.0, 1.0]])]
 
         phase1.mesh([4], [-1.0, 1.0])  # Finer mesh
-        problem1.set_initial_guess(
-            phase_states={1: states1_refined}, phase_controls={1: controls1_refined}
-        )
+        problem1.guess(phase_states={1: states1_refined}, phase_controls={1: controls1_refined})
         solution1b = solve_fixed_mesh(problem1)
         assert solution1b.success, "Refined solve failed"
 
@@ -164,7 +162,7 @@ class TestProblemSetupOrderIndependence:
 
         # Initial setup and solve
         phase.mesh([3], [-1.0, 1.0])
-        problem.set_initial_guess(phase_states={1: states}, phase_controls={1: controls})
+        problem.guess(phase_states={1: states}, phase_controls={1: controls})
         solution1 = solve_fixed_mesh(problem)
         assert solution1.success, "Initial solve failed"
 
@@ -174,7 +172,7 @@ class TestProblemSetupOrderIndependence:
         states_new = [np.array([[0.0, 0.2, 0.4, 0.6, 0.8, 1.0]])]  # 6 state points for N=5
         controls_new = [np.array([[1.0, 1.0, 1.0, 1.0, 1.0]])]  # 5 control points for N=5
 
-        problem.set_initial_guess(phase_states={1: states_new}, phase_controls={1: controls_new})
+        problem.guess(phase_states={1: states_new}, phase_controls={1: controls_new})
         solution2 = solve_fixed_mesh(problem)
         assert solution2.success, "Modified mesh solve failed"
 
@@ -182,9 +180,7 @@ class TestProblemSetupOrderIndependence:
         problem3, phase3 = self.create_standard_problem()
 
         phase3.mesh([2], [-1.0, 1.0])
-        problem3.set_initial_guess(
-            phase_states={1: states}, phase_controls={1: controls}
-        )  # Wrong size for N=2
+        problem3.guess(phase_states={1: states}, phase_controls={1: controls})  # Wrong size for N=2
 
         # This should fail gracefully with informative error
         with pytest.raises(DataIntegrityError) as exc_info:
@@ -216,7 +212,7 @@ class TestProblemSetupOrderIndependence:
         problem2, _phase2 = self.create_standard_problem()
         states, controls = self.create_initial_guess()
 
-        problem2.set_initial_guess(phase_states={1: states}, phase_controls={1: controls})
+        problem2.guess(phase_states={1: states}, phase_controls={1: controls})
         # No mesh set
 
         with pytest.raises(ConfigurationError, match="mesh") as exc_info:
@@ -268,7 +264,7 @@ class TestProblemSetupOrderIndependence:
         states, controls = create_multi_interval_guess()
 
         phase1.mesh([2, 3], [-1.0, 0.0, 1.0])
-        problem1.set_initial_guess(phase_states={1: states}, phase_controls={1: controls})
+        problem1.guess(phase_states={1: states}, phase_controls={1: controls})
         solution1 = solve_fixed_mesh(problem1)
         assert solution1.success, "Multi-interval mesh-first failed"
 
@@ -276,7 +272,7 @@ class TestProblemSetupOrderIndependence:
         problem2, phase2 = create_multi_interval_problem()
         states2, controls2 = create_multi_interval_guess()
 
-        problem2.set_initial_guess(phase_states={1: states2}, phase_controls={1: controls2})
+        problem2.guess(phase_states={1: states2}, phase_controls={1: controls2})
         phase2.mesh([2, 3], [-1.0, 0.0, 1.0])
         solution2 = solve_fixed_mesh(problem2)
         assert solution2.success, "Multi-interval guess-first failed"
@@ -303,10 +299,8 @@ class TestProblemSetupOrderIndependence:
         wrong_states = [np.array([[0.0, 1.0]])]  # Wrong size: should be (1, 4)
         wrong_controls = [np.array([[1.0]])]  # Wrong size: should be (1, 3)
 
-        # This should be caught at solve time, not at set_initial_guess time
-        problem.set_initial_guess(
-            phase_states={1: wrong_states}, phase_controls={1: wrong_controls}
-        )
+        # This should be caught at solve time, not at guess time
+        problem.guess(phase_states={1: wrong_states}, phase_controls={1: wrong_controls})
 
         # Solve should fail with clear error message
         with pytest.raises(DataIntegrityError) as exc_info:
@@ -319,9 +313,7 @@ class TestProblemSetupOrderIndependence:
 
         # System should recover - set correct initial guess
         correct_states, correct_controls = self.create_initial_guess()
-        problem.set_initial_guess(
-            phase_states={1: correct_states}, phase_controls={1: correct_controls}
-        )
+        problem.guess(phase_states={1: correct_states}, phase_controls={1: correct_controls})
 
         solution = solve_fixed_mesh(problem)
         assert solution.success, "System should recover after fixing initial guess"

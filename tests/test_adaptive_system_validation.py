@@ -100,7 +100,7 @@ class TestAdaptiveSystemValidation:
             controls_guess.append(theta_vals.reshape(1, -1))
 
         # NEW API: Set initial guess using multiphase format
-        problem.set_initial_guess(
+        problem.guess(
             phase_states={1: states_guess},
             phase_controls={1: controls_guess},
             phase_terminal_times={1: 2.0},
