@@ -435,7 +435,7 @@ class Solution:
             return plt.figure()
 
         # Group by variable name for subplots
-        var_groups = {}
+        var_groups: dict[str, list[PhaseID]] = {}
         for phase_id, var_name in phase_var_pairs:
             if var_name not in var_groups:
                 var_groups[var_name] = []

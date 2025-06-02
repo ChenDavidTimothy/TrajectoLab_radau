@@ -80,8 +80,8 @@ def convert_casadi_to_numpy(
 
         # Handle both optimized and legacy interfaces
         if isinstance(result_casadi, ca.DM):
-            # Direct DM result - convert to numpy - FIX TYPE ANNOTATION
-            result_np = np.array(result_casadi.full(), dtype=np.float64).flatten()
+            # Direct DM result - convert to numpy - FIX: Add cast for FloatArray
+            result_np = cast(FloatArray, np.array(result_casadi.full(), dtype=np.float64).flatten())
         elif isinstance(result_casadi, ca.MX):
             # MX result (new optimized interface) - evaluate and convert
             result_dm = ca.evalf(result_casadi)
@@ -90,8 +90,12 @@ def convert_casadi_to_numpy(
             else:
                 # Fallback: evaluate each element
                 num_states = result_casadi.shape[0]
-                result_np = np.array(
-                    [float(ca.evalf(result_casadi[i])) for i in range(num_states)], dtype=np.float64
+                result_np = cast(
+                    FloatArray,
+                    np.array(
+                        [float(ca.evalf(result_casadi[i])) for i in range(num_states)],
+                        dtype=np.float64,
+                    ),
                 )
         elif isinstance(result_casadi, list | tuple):
             # Legacy list interface - handle array of CasADi objects
@@ -110,7 +114,7 @@ def convert_casadi_to_numpy(
                 except Exception as e:
                     raise CasadiConversionError(f"Failed to evaluate item {i}: {e}") from e
 
-            result_np = np.array(result_values, dtype=np.float64)
+            result_np = cast(FloatArray, np.array(result_values, dtype=np.float64))
         else:
             # Try direct conversion
             try:
@@ -127,7 +131,7 @@ def convert_casadi_to_numpy(
                 "Numerical corruption in dynamics result",
             )
 
-        return cast(FloatArray, result_np)
+        return result_np
 
     except CasadiConversionError:
         raise

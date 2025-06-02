@@ -1,5 +1,6 @@
 import logging
 from collections.abc import Callable
+from typing import cast
 
 import numpy as np
 
@@ -524,12 +525,12 @@ def solve_multiphase_phs_adaptive_internal(
             if adaptive_state.most_recent_unified_solution is not None:
                 adaptive_state.most_recent_unified_solution.message = f"Adaptive stopped due to solver failure in iteration {iteration + 1}: {solution.message}"
                 adaptive_state.most_recent_unified_solution.success = False
-                return adaptive_state.most_recent_unified_solution
+                return cast(OptimalControlSolution, adaptive_state.most_recent_unified_solution)
             else:
                 solution.message = (
                     f"Multiphase adaptive failed in first iteration: {solution.message}"
                 )
-                return solution
+                return cast(OptimalControlSolution, solution)
 
         # Store the mesh information that was ACTUALLY used for this solve
         solution.phase_mesh_intervals = {}
@@ -634,7 +635,7 @@ def solve_multiphase_phs_adaptive_internal(
             f"to tolerance {adaptive_params.error_tolerance:.1e}"
         )
         adaptive_state.most_recent_unified_solution.message = max_iter_msg
-        return adaptive_state.most_recent_unified_solution
+        return cast(OptimalControlSolution, adaptive_state.most_recent_unified_solution)
     else:
         # Create failure solution
         failed_solution = OptimalControlSolution()
@@ -642,7 +643,7 @@ def solve_multiphase_phs_adaptive_internal(
         failed_solution.message = (
             f"No successful unified solution obtained in {max_iterations} iterations"
         )
-        return failed_solution
+        return cast(OptimalControlSolution, failed_solution)
 
 
 def _handle_first_iteration_initial_guess(
