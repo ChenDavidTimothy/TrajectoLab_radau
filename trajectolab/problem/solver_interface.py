@@ -80,7 +80,7 @@ def get_phase_dynamics_function(
         num_static_params = len(static_parameter_symbols) if static_parameter_symbols else 0
 
         if static_parameters_vec is None or num_static_params == 0:
-            static_params_input = ca.DM.zeros(max(1, num_static_params), 1)
+            static_params_input = ca.DM(max(1, num_static_params), 1)
         else:
             static_params_input = static_parameters_vec
 
@@ -142,7 +142,7 @@ def get_multiphase_objective_function(
                 q_val = (
                     data["q"]
                     if data["q"] is not None
-                    else ca.DM.zeros(max(1, phase_def.num_integrals), 1)
+                    else ca.DM(max(1, phase_def.num_integrals), 1)
                 )
 
                 inputs.extend([data["t0"], data["tf"], data["x0"], data["xf"], q_val])
@@ -152,11 +152,11 @@ def get_multiphase_objective_function(
                 num_states = len(phase_def.state_info)
                 inputs.extend(
                     [
-                        ca.DM.zeros(1, 1),  # t0
-                        ca.DM.zeros(1, 1),  # tf
-                        ca.DM.zeros(num_states, 1),  # x0
-                        ca.DM.zeros(num_states, 1),  # xf
-                        ca.DM.zeros(max(1, phase_def.num_integrals), 1),  # q
+                        ca.DM(1, 1),  # t0
+                        ca.DM(1, 1),  # tf
+                        ca.DM(num_states, 1),  # x0
+                        ca.DM(num_states, 1),  # xf
+                        ca.DM(max(1, phase_def.num_integrals), 1),  # q
                     ]
                 )
 
@@ -233,7 +233,7 @@ def get_phase_integrand_function(
         num_static_params = len(static_parameter_symbols) if static_parameter_symbols else 0
 
         if static_parameters_vec is None or num_static_params == 0:
-            static_params_input = ca.DM.zeros(max(1, num_static_params), 1)
+            static_params_input = ca.DM(max(1, num_static_params), 1)
         else:
             static_params_input = static_parameters_vec
 
