@@ -107,7 +107,7 @@ class PReduceResult:
 
 def ensure_2d_array(casadi_value: Any, expected_rows: int, expected_cols: int) -> FloatArray:
     """
-    STREAMLINED: Simple array conversion without over-engineering.
+     Simple array conversion without over-engineering.
     Converts CasADi value to 2D numpy array with expected shape.
     """
     # Convert to numpy array

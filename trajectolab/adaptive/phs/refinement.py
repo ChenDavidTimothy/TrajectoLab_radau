@@ -183,7 +183,7 @@ def p_reduce_interval(
 
 
 # ========================================================================
-# STREAMLINED H-REDUCTION IMPLEMENTATION
+#  H-REDUCTION IMPLEMENTATION
 # ========================================================================
 
 
@@ -303,7 +303,7 @@ def h_reduce_intervals(
         ):
             Xk_nlp = solution.phase_solved_state_trajectories_per_interval[phase_id][first_idx]
         else:
-            # STREAMLINED: Fallback to raw extraction with less validation
+            #  Fallback to raw extraction with less validation
             opti = solution.opti_object
             raw_sol = solution.raw_solution
             if opti is None or raw_sol is None:
@@ -369,7 +369,7 @@ def h_reduce_intervals(
                 first_idx + 1
             ]
         else:
-            # STREAMLINED: Fallback to raw extraction with less validation
+            #  Fallback to raw extraction with less validation
             opti = solution.opti_object
             raw_sol = solution.raw_solution
             if opti is None or raw_sol is None:

@@ -178,7 +178,7 @@ def _convert_casadi_dynamics_result_to_numpy(dynamics_result: ca.MX, num_states:
 
 
 # ========================================================================
-# STREAMLINED SIMULATION FUNCTIONS
+#  SIMULATION FUNCTIONS
 # ========================================================================
 
 
@@ -355,7 +355,7 @@ def calculate_relative_error_estimate(
     bwd_nlp_traj: FloatArray,
     gamma_factors: FloatArray,
 ) -> float:
-    """STREAMLINED: Direct parameters instead of complex bundle object."""
+    """Direct parameters instead of complex bundle object."""
     # Check for failed simulations
     if not success or fwd_sim_traj.size == 0 or bwd_sim_traj.size == 0:
         logger.warning(

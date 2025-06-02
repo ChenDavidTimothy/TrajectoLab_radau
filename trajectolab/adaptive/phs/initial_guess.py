@@ -130,7 +130,7 @@ def _determine_interpolation_parameters(
 
 
 # ========================================================================
-# STREAMLINED INTERPOLATION - Memory pooling removed
+#  INTERPOLATION - Memory pooling removed
 # ========================================================================
 
 
@@ -145,12 +145,10 @@ def _interpolate_phase_trajectory_to_new_mesh_streamlined(
     is_state_trajectory: bool = True,
 ) -> list[FloatArray]:
     """
-    STREAMLINED interpolation with direct allocation - NO MEMORY POOLING.
+    interpolation with direct allocation - NO MEMORY POOLING.
     """
     trajectory_type = "state" if is_state_trajectory else "control"
-    logger.info(
-        f"    STREAMLINED interpolation of phase {phase_id} {trajectory_type} trajectories:"
-    )
+    logger.info(f"     interpolation of phase {phase_id} {trajectory_type} trajectories:")
 
     # Validate input consistency
     if len(prev_trajectory_per_interval) != len(prev_polynomial_degrees):
@@ -205,7 +203,7 @@ def _interpolate_phase_trajectory_to_new_mesh_streamlined(
             target_local_nodes = target_basis.collocation_nodes
             num_target_nodes = N_k_target
 
-        # STREAMLINED: Direct allocation instead of memory pooling
+        #  Direct allocation instead of memory pooling
         target_traj_k = np.zeros((num_variables, num_target_nodes), dtype=np.float64)
 
         # Global interval boundaries for target interval k
@@ -229,7 +227,7 @@ def _interpolate_phase_trajectory_to_new_mesh_streamlined(
             if interpolated_values.ndim > 1:
                 interpolated_values = interpolated_values.flatten()
 
-            # STREAMLINED: Simple NaN check instead of complex validation
+            #  Simple NaN check instead of complex validation
             if np.any(np.isnan(interpolated_values)) or np.any(np.isinf(interpolated_values)):
                 raise DataIntegrityError(
                     f"Numerical corruption in interpolation result for phase {phase_id}",
@@ -248,11 +246,11 @@ def _interpolate_phase_trajectory_to_new_mesh_streamlined(
                     "Interpolation output dimension error",
                 )
 
-        # STREAMLINED: No copy needed since we allocated directly
+        #  No copy needed since we allocated directly
         target_trajectories.append(target_traj_k)
 
     logger.info(
-        f"    ✓ Successfully interpolated phase {phase_id} {trajectory_type} trajectories (STREAMLINED)"
+        f"    ✓ Successfully interpolated phase {phase_id} {trajectory_type} trajectories ()"
     )
     return cast(list[FloatArray], target_trajectories)
 
@@ -264,10 +262,10 @@ def propagate_multiphase_solution_to_new_meshes(
     target_phase_mesh_points: dict[PhaseID, FloatArray],
 ) -> MultiPhaseInitialGuess:
     """
-    STREAMLINED multiphase solution propagation with direct allocation.
+     multiphase solution propagation with direct allocation.
     DEAD CODE REMOVED: Eliminated verified conditional extraction logic.
     """
-    logger.info("  Starting STREAMLINED multiphase interpolation-based propagation...")
+    logger.info("  Starting  multiphase interpolation-based propagation...")
 
     # Validate previous solution
     if not prev_solution.success:
@@ -368,10 +366,10 @@ def propagate_multiphase_solution_to_new_meshes(
         static_parameters=static_parameters,
     )
 
-    # STREAMLINED: Simple validation instead of complex validation infrastructure
+    #  Simple validation instead of complex validation infrastructure
     logger.info("  Validating interpolated multiphase initial guess...")
     _validate_interpolated_guess(initial_guess, problem)
-    logger.info("  ✓ Completed STREAMLINED multiphase interpolation-based propagation successfully")
+    logger.info("  ✓ Completed  multiphase interpolation-based propagation successfully")
 
     return initial_guess
 
@@ -379,7 +377,7 @@ def propagate_multiphase_solution_to_new_meshes(
 def _validate_interpolated_guess(
     initial_guess: MultiPhaseInitialGuess, problem: ProblemProtocol
 ) -> None:
-    """STREAMLINED validation - essential checks only."""
+    """validation - essential checks only."""
     # Check that all required phases have data
     for phase_id in problem.get_phase_ids():
         if (

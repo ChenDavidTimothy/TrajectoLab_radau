@@ -1,5 +1,3 @@
-# trajectolab/adaptive/phs/algorithm.py - PURGED WRAPPER FUNCTIONS + Never Nester Style
-
 import logging
 from collections.abc import Callable
 from typing import cast
@@ -156,7 +154,7 @@ def _create_phase_interpolants(
 
     num_states, num_controls = problem.get_phase_variable_counts(phase_id)
 
-    # STREAMLINED: Simple caching without complex patterns
+    #  Simple caching without complex patterns
     basis_cache: dict[int, RadauBasisComponents] = {}
     control_weights_cache: dict[int, FloatArray] = {}
 
@@ -232,7 +230,7 @@ def _estimate_phase_errors(
             errors[k] = np.inf
             continue
 
-        # STREAMLINED: Direct tuple unpacking instead of complex bundle
+        #  Direct tuple unpacking instead of complex bundle
         (
             success,
             fwd_tau_points,
@@ -675,8 +673,7 @@ def solve_multiphase_phs_adaptive_internal(
     initial_guess: MultiPhaseInitialGuess | None = None,
 ) -> OptimalControlSolution:
     """
-    STREAMLINED multiphase PHS-Adaptive mesh refinement algorithm implementation.
-    PURGED of wrapper functions, following Never Nester philosophy.
+    multiphase PHS-Adaptive mesh refinement algorithm implementation.
     """
 
     # Log algorithm start
