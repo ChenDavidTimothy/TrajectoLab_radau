@@ -1,3 +1,5 @@
+# trajectolab/adaptive/phs/algorithm.py - Updated imports section
+
 import logging
 from collections.abc import Callable
 from typing import cast
@@ -33,6 +35,7 @@ from trajectolab.radau import (
     compute_radau_collocation_components,
 )
 from trajectolab.tl_types import (
+    AdaptiveAlgorithmData,
     FloatArray,
     MultiPhaseInitialGuess,
     OptimalControlSolution,
@@ -445,6 +448,7 @@ def solve_multiphase_phs_adaptive_internal(
 ) -> OptimalControlSolution:
     """
     STREAMLINED multiphase PHS-Adaptive mesh refinement algorithm implementation.
+    Now stores adaptive algorithm data in solution.
     """
 
     # Log algorithm start
@@ -489,6 +493,10 @@ def solve_multiphase_phs_adaptive_internal(
 
     # Import unified multiphase solver
     from trajectolab.direct_solver import solve_multiphase_radau_collocation
+
+    # Variables to store final adaptive data
+    final_phase_errors: dict[PhaseID, list[float]] = {}
+    final_gamma_factors: dict[PhaseID, FloatArray | None] = {}
 
     # Main adaptive refinement loop
     for iteration in range(max_iterations):
@@ -567,6 +575,9 @@ def solve_multiphase_phs_adaptive_internal(
                 else np.ones((num_states, 1), dtype=np.float64)
             )
 
+            # Store gamma factors for final iteration
+            final_gamma_factors[phase_id] = gamma_factors
+
             # Create interpolants and calculate errors for this phase
             state_evaluators, control_evaluators = _create_phase_interpolants(
                 solution, problem, phase_id
@@ -581,6 +592,9 @@ def solve_multiphase_phs_adaptive_internal(
                 adaptive_params,
                 safe_gamma,
             )
+
+            # Store phase errors for final iteration
+            final_phase_errors[phase_id] = phase_errors.copy()
 
             # Check phase convergence
             phase_converged = all(
@@ -617,6 +631,17 @@ def solve_multiphase_phs_adaptive_internal(
         # Check global convergence
         if not any_phase_needs_refinement:
             logger.info("Multiphase adaptive refinement converged in %d iterations", iteration + 1)
+
+            # Store adaptive data in solution
+            solution.adaptive_data = AdaptiveAlgorithmData(
+                target_tolerance=adaptive_params.error_tolerance,
+                total_iterations=iteration + 1,
+                converged=True,
+                phase_converged=adaptive_state.phase_converged.copy(),
+                final_phase_error_estimates=final_phase_errors,
+                phase_gamma_factors=final_gamma_factors,
+            )
+
             solution.message = (
                 f"Multiphase adaptive mesh converged to tolerance {adaptive_params.error_tolerance:.1e} "
                 f"in {iteration + 1} iterations"
@@ -630,6 +655,16 @@ def solve_multiphase_phs_adaptive_internal(
     )
 
     if adaptive_state.most_recent_unified_solution is not None:
+        # Store adaptive data for non-converged solution
+        adaptive_state.most_recent_unified_solution.adaptive_data = AdaptiveAlgorithmData(
+            target_tolerance=adaptive_params.error_tolerance,
+            total_iterations=max_iterations,
+            converged=False,
+            phase_converged=adaptive_state.phase_converged.copy(),
+            final_phase_error_estimates=final_phase_errors,
+            phase_gamma_factors=final_gamma_factors,
+        )
+
         max_iter_msg = (
             f"Reached maximum iterations ({max_iterations}) without full convergence "
             f"to tolerance {adaptive_params.error_tolerance:.1e}"

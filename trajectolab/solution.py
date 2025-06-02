@@ -16,9 +16,6 @@ from .tl_types import FloatArray, OptimalControlSolution, PhaseID, ProblemProtoc
 
 logger = logging.getLogger(__name__)
 
-_TrajectoryTuple: TypeAlias = tuple[FloatArray, FloatArray]
-
-
 class Solution:
     """User-friendly interface for multiphase optimal control problem solutions."""
 
@@ -26,6 +23,8 @@ class Solution:
     success: bool
     objective: float
     _problem: ProblemProtocol | None
+
+# trajectolab/solution.py - Updated __init__ method
 
     def __init__(
         self,
@@ -75,6 +74,10 @@ class Solution:
             self.phase_solved_control_trajectories_per_interval = (
                 raw_solution.phase_solved_control_trajectories_per_interval
             )
+
+            # Adaptive algorithm data
+            self.adaptive_data = raw_solution.adaptive_data
+
         else:
             self.success = False
             self.message = "No multiphase solution"
@@ -96,6 +99,9 @@ class Solution:
             self.phase_mesh_nodes = {}
             self.phase_solved_state_trajectories_per_interval = {}
             self.phase_solved_control_trajectories_per_interval = {}
+
+            # Initialize adaptive data as None for failed solutions
+            self.adaptive_data = None
 
         if problem is not None:
             self._problem = problem

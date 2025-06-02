@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass, field
 from typing import Any, Protocol, TypeAlias
 
 import casadi as ca
@@ -145,6 +146,19 @@ class Constraint:
         return f"Constraint({' '.join(bounds)})"
 
 
+# --- ADAPTIVE ALGORITHM DATA ---
+@dataclass
+class AdaptiveAlgorithmData:
+    """Data from adaptive mesh refinement algorithm."""
+
+    target_tolerance: float
+    total_iterations: int
+    converged: bool
+    phase_converged: dict[PhaseID, bool]
+    final_phase_error_estimates: dict[PhaseID, list[float]]
+    phase_gamma_factors: dict[PhaseID, FloatArray | None] = field(default_factory=dict)
+
+
 # --- MULTIPHASE DATA CONTAINERS ---
 class MultiPhaseInitialGuess:
     """Initial guess for multiphase optimal control problems."""
@@ -195,3 +209,6 @@ class OptimalControlSolution:
         # Per-interval solution data per phase
         self.phase_solved_state_trajectories_per_interval: dict[PhaseID, list[FloatArray]] = {}
         self.phase_solved_control_trajectories_per_interval: dict[PhaseID, list[FloatArray]] = {}
+
+        # Adaptive algorithm data
+        self.adaptive_data: AdaptiveAlgorithmData | None = None
