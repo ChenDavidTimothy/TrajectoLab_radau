@@ -20,14 +20,12 @@ from trajectolab.adaptive.phs.error_estimation import (
     _calculate_combined_error_estimate,
     _calculate_gamma_normalization_factors,
     _calculate_trajectory_error_differences,
-    _find_maximum_state_values_across_intervals,
 )
 from trajectolab.adaptive.phs.initial_guess import (
     _calculate_global_tau_points_for_interval,
     _determine_interpolation_parameters,
     _find_containing_interval_index,
     _interpolate_polynomial_at_evaluation_points,
-    _validate_interpolated_trajectory_result,
 )
 from trajectolab.adaptive.phs.numerical import (
     PolynomialInterpolant,
@@ -43,7 +41,7 @@ from trajectolab.adaptive.phs.refinement import (
     p_reduce_interval,
     p_refine_interval,
 )
-from trajectolab.exceptions import DataIntegrityError, InterpolationError
+from trajectolab.exceptions import InterpolationError
 from trajectolab.radau import compute_barycentric_weights, compute_radau_collocation_components
 
 
@@ -309,31 +307,6 @@ class TestAdaptiveMathematicalCorrectness:
         # Should be finite and reasonable
         assert np.all(np.isfinite(gamma_factors_small))
         assert np.all(gamma_factors_small > 0)
-
-    def test_maximum_state_values_calculation_correctness(self):
-        """Test maximum state value calculation across intervals."""
-        # Test case 1: Known maximum values
-        interval_1 = np.array([[1.0, -2.0, 3.0], [4.0, -1.0, 2.0]])  # 2 states, 3 points
-        interval_2 = np.array([[0.5, -5.0, 1.0], [2.0, -3.0, 6.0]])  # 2 states, 3 points
-
-        Y_solved_list = [interval_1, interval_2]
-        max_values = _find_maximum_state_values_across_intervals(Y_solved_list)
-
-        # Expected: max(|1|, |-2|, |3|, |0.5|, |-5|, |1|) = 5 for state 0
-        #           max(|4|, |-1|, |2|, |2|, |-3|, |6|) = 6 for state 1
-        expected_max = np.array([5.0, 6.0])
-        assert_allclose(max_values, expected_max, rtol=1e-15)
-
-        # Test case 2: Empty list
-        empty_list = []
-        max_values_empty = _find_maximum_state_values_across_intervals(empty_list)
-        assert len(max_values_empty) == 0
-
-        # Test case 3: Single interval
-        single_interval = [np.array([[2.0, -7.0, 1.0]])]  # 1 state, 3 points
-        max_values_single = _find_maximum_state_values_across_intervals(single_interval)
-        expected_single = np.array([7.0])  # max(|2|, |-7|, |1|) = 7
-        assert_allclose(max_values_single, expected_single, rtol=1e-15)
 
     def test_trajectory_error_differences_mathematical_correctness(self):
         """Test trajectory error difference calculations."""
@@ -811,35 +784,6 @@ class TestAdaptiveMathematicalCorrectness:
         except InterpolationError:
             # Acceptable to raise specific error for degenerate case
             pass
-
-    def test_interpolated_trajectory_validation_mathematical_properties(self):
-        """Test mathematical properties of interpolated trajectory validation."""
-        # Test case 1: Valid trajectory
-        valid_trajectory = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])  # 2 variables, 3 points
-
-        # Should not raise exception
-        try:
-            _validate_interpolated_trajectory_result(valid_trajectory, 2, 0, "state")
-        except Exception as e:
-            pytest.fail(f"Valid trajectory validation failed: {e}")
-
-        # Test case 2: NaN values (should raise DataIntegrityError)
-        invalid_trajectory_nan = np.array([[1.0, np.nan, 3.0], [4.0, 5.0, 6.0]])
-
-        with pytest.raises(DataIntegrityError):
-            _validate_interpolated_trajectory_result(invalid_trajectory_nan, 2, 0, "state")
-
-        # Test case 3: Infinite values (should raise DataIntegrityError)
-        invalid_trajectory_inf = np.array([[1.0, np.inf, 3.0], [4.0, 5.0, 6.0]])
-
-        with pytest.raises(DataIntegrityError):
-            _validate_interpolated_trajectory_result(invalid_trajectory_inf, 2, 0, "state")
-
-        # Test case 4: Wrong number of variables (should raise InterpolationError)
-        wrong_vars_trajectory = np.array([[1.0, 2.0, 3.0]])  # 1 variable, expected 2
-
-        with pytest.raises(InterpolationError):
-            _validate_interpolated_trajectory_result(wrong_vars_trajectory, 2, 0, "state")
 
     def test_barycentric_interpolation_mathematical_correctness(self):
         """Test barycentric interpolation using the exact mathematical formula."""

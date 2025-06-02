@@ -3,6 +3,8 @@
 SAFETY-CRITICAL system-level validation tests for adaptive mesh refinement.
 Tests the complete adaptive algorithm against known analytical solutions.
 
+UPDATED: Now uses the NEW DIRECT PHASE API while preserving all mathematical validation.
+
 These tests address the critical gaps in mathematical component testing:
 - End-to-end algorithmic validation against known solutions
 - Error tolerance honesty verification
@@ -44,24 +46,29 @@ class TestAdaptiveSystemValidation:
         # Create brachistochrone problem: particle slides from (0,0) to (1,-1) in minimum time
         problem = tl.Problem("Brachistochrone Validation")
 
+        # NEW API: Create phase first
+        phase = problem.add_phase(1)
+
+        # NEW API: Define variables on phase
         # Free final time (this is what we're minimizing)
-        t = problem.time(initial=0.0)
+        t = phase.time(initial=0.0)
 
         # States: position (x, y) and velocity components (vx, vy)
-        x = problem.state("x", initial=0.0, final=1.0)
-        y = problem.state("y", initial=0.0, final=-1.0)
-        vx = problem.state("vx", initial=0.0)
-        vy = problem.state("vy", initial=0.0)
+        x = phase.state("x", initial=0.0, final=1.0)
+        y = phase.state("y", initial=0.0, final=-1.0)
+        vx = phase.state("vx", initial=0.0)
+        vy = phase.state("vy", initial=0.0)
 
         # Control: direction angle θ
-        theta = problem.control("theta", boundary=(-np.pi / 2, np.pi / 2))
+        theta = phase.control("theta", boundary=(-np.pi / 2, np.pi / 2))
 
         # Dynamics: dx/dt = vx, dy/dt = vy, conservation of energy gives velocity magnitude
         # v = sqrt(2*g*(-y)) where g = 1 for dimensionless problem
         g = 1.0
         v_magnitude = ca.sqrt(2 * g * ca.fmax(-y, 1e-8))  # Avoid sqrt of negative
 
-        problem.dynamics(
+        # NEW API: Define dynamics on phase
+        phase.dynamics(
             {
                 x: v_magnitude * ca.cos(theta),
                 y: v_magnitude * ca.sin(theta),
@@ -73,8 +80,8 @@ class TestAdaptiveSystemValidation:
         # Objective: minimize time
         problem.minimize(t.final)
 
-        # Initial mesh
-        problem.set_mesh([4, 4, 4], np.array([-1.0, -0.2, 0.3, 1.0]))
+        # NEW API: Set mesh on phase
+        phase.set_mesh([4, 4, 4], np.array([-1.0, -0.2, 0.3, 1.0]))
 
         # Initial guess
         states_guess = []
@@ -92,7 +99,12 @@ class TestAdaptiveSystemValidation:
             theta_vals = -np.pi / 4 * np.ones(N)
             controls_guess.append(theta_vals.reshape(1, -1))
 
-        problem.set_initial_guess(states=states_guess, controls=controls_guess, terminal_time=2.0)
+        # NEW API: Set initial guess using multiphase format
+        problem.set_initial_guess(
+            phase_states={1: states_guess},
+            phase_controls={1: controls_guess},
+            phase_terminal_times={1: 2.0},
+        )
 
         # Solve with adaptive refinement
         solution = tl.solve_adaptive(
@@ -109,17 +121,18 @@ class TestAdaptiveSystemValidation:
         # For (0,0) to (1,-1), analytical minimum time ≈ 1.8138 (depends on exact cycloid parameters)
         # We allow some tolerance due to discretization, but should be in the right ballpark
         analytical_time_approx = 1.8138
-        relative_error = abs(solution.final_time - analytical_time_approx) / analytical_time_approx
+        final_time = solution.get_phase_final_time(1)
+        relative_error = abs(final_time - analytical_time_approx) / analytical_time_approx
 
         # Allow more tolerance since this is a complex problem
         assert relative_error < 0.15, (
-            f"Brachistochrone time error too large: computed={solution.final_time:.4f}, "
+            f"Brachistochrone time error too large: computed={final_time:.4f}, "
             f"expected≈{analytical_time_approx:.4f}, relative_error={relative_error:.3f}"
         )
 
         # CRITICAL VALIDATION: Solution should satisfy basic physics
-        x_traj = solution["x"]
-        y_traj = solution["y"]
+        x_traj = solution[(1, "x")]
+        y_traj = solution[(1, "y")]
 
         # Check boundary conditions are satisfied
         assert abs(x_traj[0] - 0.0) < 1e-6, f"Initial x condition violated: {x_traj[0]}"
@@ -141,25 +154,31 @@ class TestAdaptiveSystemValidation:
         # Analytical solution: u(t) = constant = 1, cost = 1
         problem = tl.Problem("Two-Point BVP Validation")
 
+        # NEW API: Create phase first
+        phase = problem.add_phase(1)
+
+        # NEW API: Define variables on phase
         # Fixed time horizon
-        _t = problem.time(initial=0.0, final=1.0)
+        _t = phase.time(initial=0.0, final=1.0)
 
         # State with boundary conditions
-        x = problem.state("x", initial=0.0, final=1.0)
+        x = phase.state("x", initial=0.0, final=1.0)
 
         # Control (unbounded)
-        u = problem.control("u")
+        u = phase.control("u")
 
+        # NEW API: Define dynamics on phase
         # Integrator dynamics: ẋ = u
-        problem.dynamics({x: u})
+        phase.dynamics({x: u})
 
+        # NEW API: Define objective on phase
         # Energy cost: ∫u²dt
         integrand = u**2
-        integral_var = problem.add_integral(integrand)
+        integral_var = phase.add_integral(integrand)
         problem.minimize(integral_var)
 
-        # Initial mesh
-        problem.set_mesh([3, 3, 3], np.array([-1.0, -0.3, 0.5, 1.0]))
+        # NEW API: Set mesh on phase
+        phase.set_mesh([3, 3, 3], np.array([-1.0, -0.3, 0.5, 1.0]))
 
         # Solve with adaptive refinement
         solution = tl.solve_adaptive(
@@ -184,7 +203,7 @@ class TestAdaptiveSystemValidation:
         )
 
         # CRITICAL VALIDATION: Control should be approximately constant
-        u_traj = solution["u"]
+        u_traj = solution[(1, "u")]
         control_mean = np.mean(u_traj)
         control_std = np.std(u_traj)
 
@@ -203,8 +222,8 @@ class TestAdaptiveSystemValidation:
         )
 
         # CRITICAL VALIDATION: State trajectory should be linear
-        x_traj = solution["x"]
-        time_states = solution["time_states"]
+        x_traj = solution[(1, "x")]
+        time_states = solution[(1, "time_states")]
 
         # Check boundary conditions
         assert abs(x_traj[0] - 0.0) < 1e-6, f"Initial condition violated: {x_traj[0]}"
@@ -226,25 +245,31 @@ class TestAdaptiveSystemValidation:
         # Simple problem: minimize ∫(x² + u²)dt subject to ẋ = u, x(0) = 1, x(2) = 0
         problem = tl.Problem("Simple LQR Validation")
 
+        # NEW API: Create phase first
+        phase = problem.add_phase(1)
+
+        # NEW API: Define variables on phase
         # Fixed time horizon
-        _t = problem.time(initial=0.0, final=2.0)
+        _t = phase.time(initial=0.0, final=2.0)
 
         # State with boundary conditions
-        x = problem.state("x", initial=1.0, final=0.0)
+        x = phase.state("x", initial=1.0, final=0.0)
 
         # Control (unbounded)
-        u = problem.control("u")
+        u = phase.control("u")
 
+        # NEW API: Define dynamics on phase
         # Integrator dynamics: ẋ = u
-        problem.dynamics({x: u})
+        phase.dynamics({x: u})
 
+        # NEW API: Define objective on phase
         # Quadratic cost: ∫(x² + u²)dt
         integrand = x**2 + u**2
-        integral_var = problem.add_integral(integrand)
+        integral_var = phase.add_integral(integrand)
         problem.minimize(integral_var)
 
-        # Initial mesh
-        problem.set_mesh([4, 4], np.array([-1.0, 0.0, 1.0]))
+        # NEW API: Set mesh on phase
+        phase.set_mesh([4, 4], np.array([-1.0, 0.0, 1.0]))
 
         # Solve with adaptive refinement
         solution = tl.solve_adaptive(
@@ -258,8 +283,8 @@ class TestAdaptiveSystemValidation:
         assert solution.success, f"Simple LQR adaptive solution failed: {solution.message}"
 
         # CRITICAL VALIDATION: Solution should be reasonable
-        x_traj = solution["x"]
-        u_traj = solution["u"]
+        x_traj = solution[(1, "x")]
+        u_traj = solution[(1, "u")]
 
         # Check boundary conditions
         assert abs(x_traj[0] - 1.0) < 1e-5, f"Initial condition violated: {x_traj[0]}"
@@ -290,27 +315,33 @@ class TestAdaptiveSystemValidation:
         This is THE most important test for adaptive algorithms.
         The algorithm must be honest about its error tolerance claims.
         """
-        # Use a problem with known solution for error verification
-        problem = tl.Problem("Error Tolerance Honesty")
-
-        # Simple problem: minimize ∫u²dt subject to ẋ = u, x(0) = 0, x(1) = 1
-        _t = problem.time(initial=0.0, final=1.0)
-        x = problem.state("x", initial=0.0, final=1.0)
-        u = problem.control("u")
-
-        problem.dynamics({x: u})
-        integrand = u**2
-        integral_var = problem.add_integral(integrand)
-        problem.minimize(integral_var)
-
         # Test multiple error tolerances
         test_tolerances = [1e-3, 1e-4, 1e-5]
         previous_error = float("inf")
 
         for tolerance in test_tolerances:
-            # Solve with specific error tolerance
-            problem.set_mesh([3, 3], np.array([-1.0, 0.0, 1.0]))
+            # Use a problem with known solution for error verification
+            problem = tl.Problem("Error Tolerance Honesty")
 
+            # NEW API: Create phase first
+            phase = problem.add_phase(1)
+
+            # NEW API: Define variables on phase
+            # Simple problem: minimize ∫u²dt subject to ẋ = u, x(0) = 0, x(1) = 1
+            _t = phase.time(initial=0.0, final=1.0)
+            x = phase.state("x", initial=0.0, final=1.0)
+            u = phase.control("u")
+
+            # NEW API: Define dynamics and objective on phase
+            phase.dynamics({x: u})
+            integrand = u**2
+            integral_var = phase.add_integral(integrand)
+            problem.minimize(integral_var)
+
+            # NEW API: Set mesh on phase
+            phase.set_mesh([3, 3], np.array([-1.0, 0.0, 1.0]))
+
+            # Solve with specific error tolerance
             solution = tl.solve_adaptive(
                 problem,
                 error_tolerance=tolerance,
@@ -356,37 +387,64 @@ class TestAdaptiveSystemValidation:
         This validates that each adaptive iteration actually improves the solution.
         """
         # Use hypersensitive problem (known to need adaptive refinement)
-        problem = tl.Problem("Mesh Refinement Validation")
+        coarse_problem = tl.Problem("Mesh Refinement Validation - Coarse")
+        coarse_phase = coarse_problem.add_phase(1)
 
         # Hypersensitive problem parameters
-        _t = problem.time(initial=0, final=40)
-        x = problem.state("x", initial=1.5, final=1.0)
-        u = problem.control("u")
+        _t_coarse = coarse_phase.time(initial=0, final=40)
+        x_coarse = coarse_phase.state("x", initial=1.5, final=1.0)
+        u_coarse = coarse_phase.control("u")
 
-        problem.dynamics({x: -(x**3) + u})
-        integrand = 0.5 * (x**2 + u**2)
-        integral_var = problem.add_integral(integrand)
-        problem.minimize(integral_var)
+        coarse_phase.dynamics({x_coarse: -(x_coarse**3) + u_coarse})
+        integrand_coarse = 0.5 * (x_coarse**2 + u_coarse**2)
+        integral_var_coarse = coarse_phase.add_integral(integrand_coarse)
+        coarse_problem.minimize(integral_var_coarse)
 
         # Solve with coarse mesh first
-        problem.set_mesh([3, 3], np.array([-1.0, 0.0, 1.0]))
+        coarse_phase.set_mesh([3, 3], np.array([-1.0, 0.0, 1.0]))
 
         coarse_solution = tl.solve_fixed_mesh(
-            problem, nlp_options={"ipopt.print_level": 0, "ipopt.max_iter": 500, "ipopt.tol": 1e-8}
+            coarse_problem,
+            nlp_options={"ipopt.print_level": 0, "ipopt.max_iter": 500, "ipopt.tol": 1e-8},
         )
 
         # Solve with medium mesh
-        problem.set_mesh([6, 6, 6], np.array([-1.0, -0.3, 0.4, 1.0]))
+        medium_problem = tl.Problem("Mesh Refinement Validation - Medium")
+        medium_phase = medium_problem.add_phase(1)
+
+        _t_medium = medium_phase.time(initial=0, final=40)
+        x_medium = medium_phase.state("x", initial=1.5, final=1.0)
+        u_medium = medium_phase.control("u")
+
+        medium_phase.dynamics({x_medium: -(x_medium**3) + u_medium})
+        integrand_medium = 0.5 * (x_medium**2 + u_medium**2)
+        integral_var_medium = medium_phase.add_integral(integrand_medium)
+        medium_problem.minimize(integral_var_medium)
+
+        medium_phase.set_mesh([6, 6, 6], np.array([-1.0, -0.3, 0.4, 1.0]))
 
         medium_solution = tl.solve_fixed_mesh(
-            problem, nlp_options={"ipopt.print_level": 0, "ipopt.max_iter": 500, "ipopt.tol": 1e-8}
+            medium_problem,
+            nlp_options={"ipopt.print_level": 0, "ipopt.max_iter": 500, "ipopt.tol": 1e-8},
         )
 
         # Solve with adaptive refinement
-        problem.set_mesh([3, 3], np.array([-1.0, 0.0, 1.0]))  # Start coarse
+        adaptive_problem = tl.Problem("Mesh Refinement Validation - Adaptive")
+        adaptive_phase = adaptive_problem.add_phase(1)
+
+        _t_adaptive = adaptive_phase.time(initial=0, final=40)
+        x_adaptive = adaptive_phase.state("x", initial=1.5, final=1.0)
+        u_adaptive = adaptive_phase.control("u")
+
+        adaptive_phase.dynamics({x_adaptive: -(x_adaptive**3) + u_adaptive})
+        integrand_adaptive = 0.5 * (x_adaptive**2 + u_adaptive**2)
+        integral_var_adaptive = adaptive_phase.add_integral(integrand_adaptive)
+        adaptive_problem.minimize(integral_var_adaptive)
+
+        adaptive_phase.set_mesh([3, 3], np.array([-1.0, 0.0, 1.0]))  # Start coarse
 
         adaptive_solution = tl.solve_adaptive(
-            problem,
+            adaptive_problem,
             error_tolerance=1e-6,
             max_iterations=10,
             nlp_options={"ipopt.print_level": 0, "ipopt.max_iter": 500, "ipopt.tol": 1e-8},
@@ -433,23 +491,25 @@ class TestAdaptiveSystemValidation:
         # where A is chosen to make the solution smooth
         A = 0.5  # Small final condition
 
-        problem_simple = tl.Problem("Simple Smooth Test")
-        _t_simple = problem_simple.time(initial=0.0, final=1.0)
-        x_simple = problem_simple.state("x", initial=0.0, final=A)
-        u_simple = problem_simple.control("u")
-
-        problem_simple.dynamics({x_simple: u_simple})
-        integrand_simple = u_simple**2
-        integral_simple = problem_simple.add_integral(integrand_simple)
-        problem_simple.minimize(integral_simple)
-
         # Test convergence with increasing polynomial degree
         degrees_to_test = [3, 5, 7, 9]
         errors = []
 
         for degree in degrees_to_test:
+            problem_simple = tl.Problem("Simple Smooth Test")
+            phase_simple = problem_simple.add_phase(1)
+
+            _t_simple = phase_simple.time(initial=0.0, final=1.0)
+            x_simple = phase_simple.state("x", initial=0.0, final=A)
+            u_simple = phase_simple.control("u")
+
+            phase_simple.dynamics({x_simple: u_simple})
+            integrand_simple = u_simple**2
+            integral_simple = phase_simple.add_integral(integrand_simple)
+            problem_simple.minimize(integral_simple)
+
             # Single interval with given degree
-            problem_simple.set_mesh([degree], np.array([-1.0, 1.0]))
+            phase_simple.set_mesh([degree], np.array([-1.0, 1.0]))
 
             solution = tl.solve_fixed_mesh(
                 problem_simple,
@@ -480,34 +540,35 @@ class TestAdaptiveSystemValidation:
         When solution has singularities, mesh refinement should decrease error
         algebraically as O(h^p) where h is mesh size and p is polynomial degree.
         """
-        # Problem with sharp transition: minimize ∫u²dt subject to ẋ = u, x(0) = 0, x(1) = 1
-        # But with a penalty that creates a sharp corner
-        problem = tl.Problem("Algebraic Convergence Test")
-
-        _t = problem.time(initial=0.0, final=1.0)
-        x = problem.state("x", initial=0.0, final=1.0)
-        u = problem.control("u")
-
-        problem.dynamics({x: u})
-
-        # Add a penalty term that creates a corner at the midpoint
-        # This is tricky without explicit time dependence, so we'll use a different approach
-        # Just use the regular quadratic cost but create sharp mesh refinement
-        integrand = u**2 + 100.0 * (x - 0.5) ** 2  # Penalty keeps x near 0.5
-        integral_var = problem.add_integral(integrand)
-        problem.minimize(integral_var)
-
         # Test convergence with increasing mesh density
         mesh_sizes = [2, 4, 8]  # Number of intervals
         errors = []
         reference_solution = None
 
         for n_intervals in mesh_sizes:
+            # Problem with sharp transition: minimize ∫u²dt subject to ẋ = u, x(0) = 0, x(1) = 1
+            # But with a penalty that creates a sharp corner
+            problem = tl.Problem("Algebraic Convergence Test")
+            phase = problem.add_phase(1)
+
+            _t = phase.time(initial=0.0, final=1.0)
+            x = phase.state("x", initial=0.0, final=1.0)
+            u = phase.control("u")
+
+            phase.dynamics({x: u})
+
+            # Add a penalty term that creates a corner at the midpoint
+            # This is tricky without explicit time dependence, so we'll use a different approach
+            # Just use the regular quadratic cost but create sharp mesh refinement
+            integrand = u**2 + 100.0 * (x - 0.5) ** 2  # Penalty keeps x near 0.5
+            integral_var = phase.add_integral(integrand)
+            problem.minimize(integral_var)
+
             # Create uniform mesh
             mesh_points = np.linspace(-1.0, 1.0, n_intervals + 1)
             degrees = [4] * n_intervals  # Fixed polynomial degree
 
-            problem.set_mesh(degrees, mesh_points)
+            phase.set_mesh(degrees, mesh_points)
 
             solution = tl.solve_fixed_mesh(
                 problem,
@@ -558,25 +619,26 @@ class TestAdaptiveSystemValidation:
         # Boundary layer problem: minimize ∫u²dt subject to εẍ + ẋ = u, x(0) = 0, x(1) = 1
         # where ε is small (creates boundary layer near x = 1)
         problem = tl.Problem("Boundary Layer Test")
+        phase = problem.add_phase(1)
 
         epsilon = 0.01  # Small parameter creates boundary layer
 
-        _t = problem.time(initial=0.0, final=1.0)
-        x = problem.state("x", initial=0.0, final=1.0)
-        v = problem.state("v", initial=0.0)  # velocity ẋ
-        u = problem.control("u")
+        _t = phase.time(initial=0.0, final=1.0)
+        x = phase.state("x", initial=0.0, final=1.0)
+        v = phase.state("v", initial=0.0)  # velocity ẋ
+        u = phase.control("u")
 
         # Second-order dynamics: εẍ + ẋ = u
         # Convert to first-order system: ẋ = v, ε*v̇ = u - v
-        problem.dynamics({x: v, v: (u - v) / epsilon})
+        phase.dynamics({x: v, v: (u - v) / epsilon})
 
         # Cost: ∫u²dt
         integrand = u**2
-        integral_var = problem.add_integral(integrand)
+        integral_var = phase.add_integral(integrand)
         problem.minimize(integral_var)
 
         # Start with coarse uniform mesh
-        problem.set_mesh([3, 3, 3], np.array([-1.0, -0.2, 0.3, 1.0]))
+        phase.set_mesh([3, 3, 3], np.array([-1.0, -0.2, 0.3, 1.0]))
 
         # Solve with adaptive refinement
         solution = tl.solve_adaptive(
@@ -592,9 +654,9 @@ class TestAdaptiveSystemValidation:
         assert solution.success, f"Boundary layer solution failed: {solution.message}"
 
         # CRITICAL VALIDATION: Solution should have boundary layer characteristics
-        x_traj = solution["x"]
-        v_traj = solution["v"]
-        time_states = solution["time_states"]
+        x_traj = solution[(1, "x")]
+        v_traj = solution[(1, "v")]
+        time_states = solution[(1, "time_states")]
 
         # Check boundary conditions
         assert abs(x_traj[0] - 0.0) < 1e-5, f"Initial x condition violated: {x_traj[0]}"
@@ -632,19 +694,20 @@ class TestAdaptiveSystemValidation:
         """
         # Use a challenging problem that might cause mesh degeneracy
         problem = tl.Problem("Mesh Degeneracy Test")
+        phase = problem.add_phase(1)
 
         # Problem with multiple time scales
-        _t = problem.time(initial=0.0, final=1.0)
-        x1 = problem.state("x1", initial=1.0, final=0.0)  # Fast variable
-        x2 = problem.state("x2", initial=0.0, final=1.0)  # Slow variable
-        u1 = problem.control("u1")  # Control for fast dynamics
-        u2 = problem.control("u2")  # Control for slow dynamics
+        _t = phase.time(initial=0.0, final=1.0)
+        x1 = phase.state("x1", initial=1.0, final=0.0)  # Fast variable
+        x2 = phase.state("x2", initial=0.0, final=1.0)  # Slow variable
+        u1 = phase.control("u1")  # Control for fast dynamics
+        u2 = phase.control("u2")  # Control for slow dynamics
 
         # Multi-scale dynamics
         fast_time_scale = 0.1
         slow_time_scale = 10.0
 
-        problem.dynamics(
+        phase.dynamics(
             {
                 x1: -x1 / fast_time_scale + u1,  # Fast dynamics
                 x2: x2 / slow_time_scale + u2,  # Slow dynamics
@@ -653,11 +716,11 @@ class TestAdaptiveSystemValidation:
 
         # Cost function
         integrand = u1**2 + u2**2 + 0.1 * (x1**2 + x2**2)
-        integral_var = problem.add_integral(integrand)
+        integral_var = phase.add_integral(integrand)
         problem.minimize(integral_var)
 
         # Start with coarse mesh
-        problem.set_mesh([4, 4], np.array([-1.0, 0.0, 1.0]))
+        phase.set_mesh([4, 4], np.array([-1.0, 0.0, 1.0]))
 
         # Solve with adaptive refinement
         solution = tl.solve_adaptive(
@@ -673,8 +736,8 @@ class TestAdaptiveSystemValidation:
         assert solution.success, f"Multi-scale solution failed: {solution.message}"
 
         # CRITICAL VALIDATION: Check solution quality
-        x1_traj = solution["x1"]
-        x2_traj = solution["x2"]
+        x1_traj = solution[(1, "x1")]
+        x2_traj = solution[(1, "x2")]
 
         # Check boundary conditions
         assert abs(x1_traj[0] - 1.0) < 1e-4, f"Initial x1 condition violated: {x1_traj[0]}"
@@ -728,32 +791,31 @@ def _verify_solution_basic_properties(solution, problem_name: str):
     )
 
     # Time should be reasonable
-    if hasattr(solution, "final_time") and solution.final_time is not None:
-        assert solution.final_time > 0, (
-            f"{problem_name}: Negative final time: {solution.final_time}"
-        )
-        assert np.isfinite(solution.final_time), (
-            f"{problem_name}: Final time not finite: {solution.final_time}"
-        )
+    if hasattr(solution, "get_phase_final_time"):
+        final_time = solution.get_phase_final_time(1)
+        assert final_time > 0, f"{problem_name}: Negative final time: {final_time}"
+        assert np.isfinite(final_time), f"{problem_name}: Final time not finite: {final_time}"
 
     # State and control trajectories should exist and be finite
-    if hasattr(solution, "state_names"):
-        for state_name in solution.state_names:
-            if state_name in solution:
-                state_traj = solution[state_name]
-                assert len(state_traj) > 0, f"{problem_name}: Empty {state_name} trajectory"
-                assert np.all(np.isfinite(state_traj)), (
-                    f"{problem_name}: Non-finite values in {state_name}"
-                )
+    if hasattr(solution, "phase_state_names"):
+        for phase_id, state_names in solution.phase_state_names.items():
+            for state_name in state_names:
+                if (phase_id, state_name) in solution:
+                    state_traj = solution[(phase_id, state_name)]
+                    assert len(state_traj) > 0, f"{problem_name}: Empty {state_name} trajectory"
+                    assert np.all(np.isfinite(state_traj)), (
+                        f"{problem_name}: Non-finite values in {state_name}"
+                    )
 
-    if hasattr(solution, "control_names"):
-        for control_name in solution.control_names:
-            if control_name in solution:
-                control_traj = solution[control_name]
-                assert len(control_traj) > 0, f"{problem_name}: Empty {control_name} trajectory"
-                assert np.all(np.isfinite(control_traj)), (
-                    f"{problem_name}: Non-finite values in {control_name}"
-                )
+    if hasattr(solution, "phase_control_names"):
+        for phase_id, control_names in solution.phase_control_names.items():
+            for control_name in control_names:
+                if (phase_id, control_name) in solution:
+                    control_traj = solution[(phase_id, control_name)]
+                    assert len(control_traj) > 0, f"{problem_name}: Empty {control_name} trajectory"
+                    assert np.all(np.isfinite(control_traj)), (
+                        f"{problem_name}: Non-finite values in {control_name}"
+                    )
 
 
 def _calculate_solution_convergence_metrics(solutions_list, analytical_value=None):
