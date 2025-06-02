@@ -88,7 +88,7 @@ phase.dynamics(
 problem.minimize(-theta.final)
 
 # Mesh and initial guess
-phase.set_mesh([8] * 3, np.linspace(-1.0, 1.0, 4))
+phase.mesh([8] * 3, np.linspace(-1.0, 1.0, 4))
 
 # Simple initial guess: linear interpolation
 states_guess = []

@@ -26,7 +26,7 @@ TrajectoLab is a Python framework for solving optimal control problems using the
     problem.minimize(t.final)
 
     # Solve
-    problem.set_mesh([8, 8], np.linspace(-1, 1, 3))
+    problem.mesh([8, 8], np.linspace(-1, 1, 3))
     solution = tl.solve_adaptive(problem)
 
     if solution.success:

@@ -55,7 +55,7 @@ integral_var = phase.add_integral(integrand)
 problem.minimize(integral_var)
 
 # Mesh and initial guess
-phase.set_mesh([6, 6, 6], [-1.0, -1 / 3, 1 / 3, 1.0])
+phase.mesh([6, 6, 6], [-1.0, -1 / 3, 1 / 3, 1.0])
 
 # Simple initial guess: linear interpolation between boundary conditions
 states_guess = []

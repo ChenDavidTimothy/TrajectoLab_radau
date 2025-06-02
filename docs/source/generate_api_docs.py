@@ -129,7 +129,7 @@ Quick Start
    problem.minimize(u**2)
 
    # Set mesh and solve
-   problem.set_mesh([5], [-1, 1])
+   problem.mesh([5], [-1, 1])
    solution = tl.solve_fixed_mesh(problem)
    solution.plot()
 

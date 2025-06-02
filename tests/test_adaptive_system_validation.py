@@ -81,7 +81,7 @@ class TestAdaptiveSystemValidation:
         problem.minimize(t.final)
 
         # NEW API: Set mesh on phase
-        phase.set_mesh([4, 4, 4], np.array([-1.0, -0.2, 0.3, 1.0]))
+        phase.mesh([4, 4, 4], np.array([-1.0, -0.2, 0.3, 1.0]))
 
         # Initial guess
         states_guess = []
@@ -178,7 +178,7 @@ class TestAdaptiveSystemValidation:
         problem.minimize(integral_var)
 
         # NEW API: Set mesh on phase
-        phase.set_mesh([3, 3, 3], np.array([-1.0, -0.3, 0.5, 1.0]))
+        phase.mesh([3, 3, 3], np.array([-1.0, -0.3, 0.5, 1.0]))
 
         # Solve with adaptive refinement
         solution = tl.solve_adaptive(
@@ -269,7 +269,7 @@ class TestAdaptiveSystemValidation:
         problem.minimize(integral_var)
 
         # NEW API: Set mesh on phase
-        phase.set_mesh([4, 4], np.array([-1.0, 0.0, 1.0]))
+        phase.mesh([4, 4], np.array([-1.0, 0.0, 1.0]))
 
         # Solve with adaptive refinement
         solution = tl.solve_adaptive(
@@ -339,7 +339,7 @@ class TestAdaptiveSystemValidation:
             problem.minimize(integral_var)
 
             # NEW API: Set mesh on phase
-            phase.set_mesh([3, 3], np.array([-1.0, 0.0, 1.0]))
+            phase.mesh([3, 3], np.array([-1.0, 0.0, 1.0]))
 
             # Solve with specific error tolerance
             solution = tl.solve_adaptive(
@@ -401,7 +401,7 @@ class TestAdaptiveSystemValidation:
         coarse_problem.minimize(integral_var_coarse)
 
         # Solve with coarse mesh first
-        coarse_phase.set_mesh([3, 3], np.array([-1.0, 0.0, 1.0]))
+        coarse_phase.mesh([3, 3], np.array([-1.0, 0.0, 1.0]))
 
         coarse_solution = tl.solve_fixed_mesh(
             coarse_problem,
@@ -421,7 +421,7 @@ class TestAdaptiveSystemValidation:
         integral_var_medium = medium_phase.add_integral(integrand_medium)
         medium_problem.minimize(integral_var_medium)
 
-        medium_phase.set_mesh([6, 6, 6], np.array([-1.0, -0.3, 0.4, 1.0]))
+        medium_phase.mesh([6, 6, 6], np.array([-1.0, -0.3, 0.4, 1.0]))
 
         medium_solution = tl.solve_fixed_mesh(
             medium_problem,
@@ -441,7 +441,7 @@ class TestAdaptiveSystemValidation:
         integral_var_adaptive = adaptive_phase.add_integral(integrand_adaptive)
         adaptive_problem.minimize(integral_var_adaptive)
 
-        adaptive_phase.set_mesh([3, 3], np.array([-1.0, 0.0, 1.0]))  # Start coarse
+        adaptive_phase.mesh([3, 3], np.array([-1.0, 0.0, 1.0]))  # Start coarse
 
         adaptive_solution = tl.solve_adaptive(
             adaptive_problem,
@@ -509,7 +509,7 @@ class TestAdaptiveSystemValidation:
             problem_simple.minimize(integral_simple)
 
             # Single interval with given degree
-            phase_simple.set_mesh([degree], np.array([-1.0, 1.0]))
+            phase_simple.mesh([degree], np.array([-1.0, 1.0]))
 
             solution = tl.solve_fixed_mesh(
                 problem_simple,
@@ -568,7 +568,7 @@ class TestAdaptiveSystemValidation:
             mesh_points = np.linspace(-1.0, 1.0, n_intervals + 1)
             degrees = [4] * n_intervals  # Fixed polynomial degree
 
-            phase.set_mesh(degrees, mesh_points)
+            phase.mesh(degrees, mesh_points)
 
             solution = tl.solve_fixed_mesh(
                 problem,
@@ -638,7 +638,7 @@ class TestAdaptiveSystemValidation:
         problem.minimize(integral_var)
 
         # Start with coarse uniform mesh
-        phase.set_mesh([3, 3, 3], np.array([-1.0, -0.2, 0.3, 1.0]))
+        phase.mesh([3, 3, 3], np.array([-1.0, -0.2, 0.3, 1.0]))
 
         # Solve with adaptive refinement
         solution = tl.solve_adaptive(
@@ -720,7 +720,7 @@ class TestAdaptiveSystemValidation:
         problem.minimize(integral_var)
 
         # Start with coarse mesh
-        phase.set_mesh([4, 4], np.array([-1.0, 0.0, 1.0]))
+        phase.mesh([4, 4], np.array([-1.0, 0.0, 1.0]))
 
         # Solve with adaptive refinement
         solution = tl.solve_adaptive(

@@ -31,7 +31,7 @@ integral_var = phase.add_integral(integrand)
 problem.minimize(integral_var)
 
 # Mesh and initial guess for adaptive solving
-phase.set_mesh([8, 8, 8], [-1.0, -1 / 3, 1 / 3, 1.0])
+phase.mesh([8, 8, 8], [-1.0, -1 / 3, 1 / 3, 1.0])
 
 # Solve with adaptive mesh
 solution = tl.solve_adaptive(
@@ -56,7 +56,7 @@ if solution.success:
     print("\nSolving with fixed mesh...")
 
     # Refined fixed mesh
-    phase.set_mesh([20, 12, 20], [-1.0, -1 / 3, 1 / 3, 1.0])
+    phase.mesh([20, 12, 20], [-1.0, -1 / 3, 1 / 3, 1.0])
 
     # More detailed initial guess for fixed mesh
     states_guess = []

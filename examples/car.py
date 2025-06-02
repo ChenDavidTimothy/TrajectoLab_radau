@@ -35,7 +35,7 @@ phase.subject_to(speed <= speed_limit)
 problem.minimize(t.final)
 
 # Set up mesh and initial guess
-phase.set_mesh([8, 8, 8], np.array([-1.0, -0.3, 0.3, 1.0]))
+phase.mesh([8, 8, 8], np.array([-1.0, -0.3, 0.3, 1.0]))
 problem.set_initial_guess(phase_terminal_times={1: 2.0})
 
 # Solve with adaptive mesh

@@ -27,7 +27,7 @@ def solve_two_phase_hypersensitive_debug():
     u1 = phase1.control("u")
     phase1.dynamics({x1: -(x1**3) + u1})
     integral1 = phase1.add_integral(0.5 * (x1**2 + u1**2))
-    phase1.set_mesh([4, 4, 4], [-1.0, -1 / 3, 1 / 3, 1.0])
+    phase1.mesh([4, 4, 4], [-1.0, -1 / 3, 1 / 3, 1.0])
 
     # ========================================================================
     # Phase 2: [5000, 10000] - Cleaner syntax with direct phase access
@@ -39,7 +39,7 @@ def solve_two_phase_hypersensitive_debug():
     u2 = phase2.control("u")
     phase2.dynamics({x2: -(x2**3) + u2})
     integral2 = phase2.add_integral(0.5 * (x2**2 + u2**2))
-    phase2.set_mesh([4, 4, 4], [-1.0, -1 / 3, 1 / 3, 1.0])
+    phase2.mesh([4, 4, 4], [-1.0, -1 / 3, 1 / 3, 1.0])
 
     # ========================================================================
     # Objective - Much cleaner cross-phase reference

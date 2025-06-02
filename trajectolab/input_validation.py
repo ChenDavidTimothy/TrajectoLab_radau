@@ -203,9 +203,7 @@ def validate_phase_configuration(problem: ProblemProtocol, phase_id: PhaseID) ->
 
     # Mesh validation
     if not phase_def.mesh_configured:
-        raise ConfigurationError(
-            f"Phase {phase_id} mesh must be configured - call phase.set_mesh()"
-        )
+        raise ConfigurationError(f"Phase {phase_id} mesh must be configured - call phase.mesh()")
 
     validate_mesh_configuration(
         phase_def.collocation_points_per_interval,

@@ -43,7 +43,7 @@ integral_var = phase.add_integral(integrand)
 problem.minimize(-integral_var)  # Maximize
 
 # Mesh and initial guess
-phase.set_mesh([20, 20, 20], [-1.0, -1 / 3, 1 / 3, 1.0])
+phase.mesh([20, 20, 20], [-1.0, -1 / 3, 1 / 3, 1.0])
 
 # Simple initial guess: linear interpolation
 states_guess = []

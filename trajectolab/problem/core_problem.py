@@ -72,7 +72,7 @@ class Phase:
         constraints_problem.set_phase_path_constraint(self._phase_def, constraint_expr)
         logger.debug("Path constraint added to phase %d", self.phase_id)
 
-    def set_mesh(self, polynomial_degrees: list[int], mesh_points: NumericArrayLike) -> None:
+    def mesh(self, polynomial_degrees: list[int], mesh_points: NumericArrayLike) -> None:
         """Configure mesh for this phase."""
         logger.info(
             "Setting mesh for phase %d: %d intervals", self.phase_id, len(polynomial_degrees)

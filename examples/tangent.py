@@ -103,7 +103,7 @@ def solve_linear_tangent_steering_problem():
     )
 
     # Set mesh for Phase 1
-    phase1.set_mesh([4, 4], [-1.0, 0.0, 1.0])
+    phase1.mesh([4, 4], [-1.0, 0.0, 1.0])
 
     # ========================================================================
     # Phase 2: t ∈ [t_F^(1), t_F^(2)]
@@ -143,7 +143,7 @@ def solve_linear_tangent_steering_problem():
     )
 
     # Set mesh for Phase 2
-    phase2.set_mesh([4, 4], [-1.0, 0.0, 1.0])
+    phase2.mesh([4, 4], [-1.0, 0.0, 1.0])
 
     # ========================================================================
     # Phase 3: t ∈ [t_F^(2), t_F^(3)]
@@ -183,7 +183,7 @@ def solve_linear_tangent_steering_problem():
     )
 
     # Set mesh for Phase 3
-    phase3.set_mesh([4, 4], [-1.0, 0.0, 1.0])
+    phase3.mesh([4, 4], [-1.0, 0.0, 1.0])
 
     # ========================================================================
     # Objective Function
