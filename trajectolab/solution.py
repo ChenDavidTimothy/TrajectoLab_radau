@@ -123,12 +123,9 @@ class Solution:
             print_comprehensive_solution_summary(self)
         except ImportError as e:
             logger.warning(f"Could not import comprehensive summary: {e}")
-            # Fallback to simple summary
-            self._print_simple_summary()
         except Exception as e:
             logger.warning(f"Error in comprehensive summary: {e}")
-            # Fallback to simple summary
-            self._print_simple_summary()
+
 
     def get_phase_ids(self) -> list[PhaseID]:
         """Get list of phase IDs in the solution."""
@@ -343,38 +340,7 @@ class Solution:
                 print_comprehensive_solution_summary(self)
             except ImportError as e:
                 logger.warning(f"Could not import comprehensive summary: {e}")
-                self._print_simple_summary()
             except Exception as e:
                 logger.warning(f"Error in comprehensive summary: {e}")
-                self._print_simple_summary()
         else:
-            self._print_simple_summary()
-
-    def _print_simple_summary(self) -> None:
-        """Print simple solution summary (fallback)."""
-        print(f"Multiphase Solution Status: {'Success' if self.success else 'Failed'}")
-
-        if self.success:
-            print(f"  Objective: {self.objective}")
-            print(f"  Total Mission Time: {self.get_total_mission_time():.6f}")
-            print(f"  Number of Phases: {len(self.get_phase_ids())}")
-
-            for phase_id in self.get_phase_ids():
-                print(f"  Phase {phase_id}:")
-                print(
-                    f"    Time: {self.get_phase_initial_time(phase_id):.6f} → {self.get_phase_final_time(phase_id):.6f}"
-                )
-                print(f"    Duration: {self.get_phase_duration(phase_id):.6f}")
-                print(
-                    f"    States: {len(self._phase_state_names.get(phase_id, []))} {self._phase_state_names.get(phase_id, [])}"
-                )
-                print(
-                    f"    Controls: {len(self._phase_control_names.get(phase_id, []))} {self._phase_control_names.get(phase_id, [])}"
-                )
-                if phase_id in self.phase_mesh_intervals:
-                    print(f"    Mesh intervals: {len(self.phase_mesh_intervals[phase_id])}")
-
-            if self.static_parameters is not None:
-                print(f"  Static Parameters: {len(self.static_parameters)}")
-        else:
-            print(f"  Message: {self.message}")
+            pass
