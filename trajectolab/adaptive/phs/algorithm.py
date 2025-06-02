@@ -530,7 +530,7 @@ def solve_multiphase_phs_adaptive_internal(
                 solution.message = (
                     f"Multiphase adaptive failed in first iteration: {solution.message}"
                 )
-                return cast(OptimalControlSolution, solution)
+                return solution
 
         # Store the mesh information that was ACTUALLY used for this solve
         solution.phase_mesh_intervals = {}
@@ -643,7 +643,7 @@ def solve_multiphase_phs_adaptive_internal(
         failed_solution.message = (
             f"No successful unified solution obtained in {max_iterations} iterations"
         )
-        return cast(OptimalControlSolution, failed_solution)
+        return failed_solution
 
 
 def _handle_first_iteration_initial_guess(

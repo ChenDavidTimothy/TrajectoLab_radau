@@ -18,7 +18,8 @@ class Solution:
 
     # Type hints for key attributes to ensure proper type inference
     success: bool
-    objective: float  # Always a float - NaN for failed solutions
+    objective: float
+    _problem: ProblemProtocol | None
 
     def __init__(
         self, raw_solution: OptimalControlSolution | None, problem: ProblemProtocol | None

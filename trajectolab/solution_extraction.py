@@ -184,12 +184,24 @@ def consolidated_phase_trajectory_extraction(
         mesh_start = global_mesh_nodes[mesh_idx]
         mesh_end = global_mesh_nodes[mesh_idx + 1]
 
-        state_physical_times = tau_to_time(
+        # Type-safe conversion ensuring array outputs for array inputs
+        state_physical_times_result = tau_to_time(
             state_tau_nodes, mesh_start, mesh_end, initial_time, terminal_time
         )
-        control_physical_times = tau_to_time(
+        control_physical_times_result = tau_to_time(
             control_tau_nodes, mesh_start, mesh_end, initial_time, terminal_time
         )
+
+        # Since basis components provide arrays, ensure we have arrays
+        if not isinstance(state_physical_times_result, np.ndarray):
+            state_physical_times = np.asarray(state_physical_times_result, dtype=np.float64)
+        else:
+            state_physical_times = state_physical_times_result
+
+        if not isinstance(control_physical_times_result, np.ndarray):
+            control_physical_times = np.asarray(control_physical_times_result, dtype=np.float64)
+        else:
+            control_physical_times = control_physical_times_result
 
         # Build trajectories (same logic as before)
         for node_idx in range(len(state_physical_times)):
