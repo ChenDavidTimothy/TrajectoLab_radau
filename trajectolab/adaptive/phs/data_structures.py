@@ -31,6 +31,7 @@ class AdaptiveParameters:
     num_error_sim_points: int = 50
     ode_method: str = "RK45"
     ode_max_step: float | None = None
+    ode_atol_factor: float = 1e-2
     ode_solver: ODESolverCallable | None = None
 
     def get_ode_solver(self) -> ODESolverCallable:
@@ -41,9 +42,10 @@ class AdaptiveParameters:
         from scipy.integrate import solve_ivp
 
         def configured_solver(fun, t_span, y0, t_eval=None, **kwargs):
+            # Set defaults only if not already provided
             kwargs.setdefault("method", self.ode_method)
             kwargs.setdefault("rtol", self.ode_solver_tolerance)
-            kwargs.setdefault("atol", self.ode_solver_tolerance * 1e-2)
+            kwargs.setdefault("atol", self.ode_solver_tolerance * self.ode_atol_factor)
 
             if self.ode_max_step is not None:
                 kwargs.setdefault("max_step", self.ode_max_step)

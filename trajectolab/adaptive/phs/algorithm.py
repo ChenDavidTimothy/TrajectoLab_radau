@@ -668,6 +668,7 @@ def solve_multiphase_phs_adaptive_internal(
     ode_solver_tolerance: float,
     ode_method: str,
     ode_max_step: float | None,
+    ode_atol_factor: float,
     ode_solver,
     num_error_sim_points: int,
     initial_guess: MultiPhaseInitialGuess | None = None,
@@ -693,6 +694,7 @@ def solve_multiphase_phs_adaptive_internal(
         num_error_sim_points=num_error_sim_points,
         ode_method=ode_method,
         ode_max_step=ode_max_step,
+        ode_atol_factor=ode_atol_factor,
         ode_solver=ode_solver,
     )
 

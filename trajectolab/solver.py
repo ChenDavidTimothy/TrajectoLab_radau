@@ -92,6 +92,7 @@ def solve_adaptive(
     ode_solver_tolerance: float = 1e-7,
     ode_method: str = "RK45",
     ode_max_step: float | None = None,
+    ode_atol_factor: float = 1e-2,
     num_error_sim_points: int = 50,
     ode_solver: ODESolverCallable | None = None,
     nlp_options: dict[str, object] | None = None,
@@ -107,9 +108,10 @@ def solve_adaptive(
         max_iterations: Maximum refinement iterations (default: 10)
         min_polynomial_degree: Minimum polynomial degree per interval (default: 3)
         max_polynomial_degree: Maximum polynomial degree per interval (default: 10)
-        ode_solver_tolerance: Tolerance for error estimation ODE solver (default: 1e-7)
+        ode_solver_tolerance: Relative tolerance for error estimation ODE solver (default: 1e-7)
         ode_method: ODE integration method for error estimation (default: "RK45")
         ode_max_step: Maximum step size for ODE solver (default: None)
+        ode_atol_factor: Factor for absolute tolerance calculation (atol = rtol * factor) (default: 1e-2)
         num_error_sim_points: Number of points for error simulation (default: 50)
         ode_solver: Custom ODE solver function (default: scipy.integrate.solve_ivp)
         nlp_options: Optional IPOPT solver options for each NLP solve
@@ -184,6 +186,7 @@ def solve_adaptive(
         ode_solver_tolerance=ode_solver_tolerance,
         ode_method=ode_method,
         ode_max_step=ode_max_step,
+        ode_atol_factor=ode_atol_factor,
         ode_solver=ode_solver,
         num_error_sim_points=num_error_sim_points,
         initial_guess=initial_guess,

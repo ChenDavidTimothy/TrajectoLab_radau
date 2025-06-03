@@ -26,7 +26,6 @@ from trajectolab.tl_types import (
     PhaseID,
     ProblemProtocol,
 )
-from trajectolab.utils.constants import DEFAULT_ODE_ATOL_FACTOR
 
 
 __all__ = ["h_reduce_intervals", "h_refine_params", "p_reduce_interval", "p_refine_interval"]
@@ -202,8 +201,6 @@ def h_reduce_intervals(
     """Check if two adjacent intervals in a specific phase can be merged."""
 
     error_tol = adaptive_params.error_tolerance
-    ode_rtol = adaptive_params.ode_solver_tolerance
-    ode_atol = ode_rtol * DEFAULT_ODE_ATOL_FACTOR
     num_sim_points = adaptive_params.num_error_sim_points
 
     # Get variable counts for this phase
@@ -334,22 +331,19 @@ def h_reduce_intervals(
     num_fwd_pts = max(2, num_sim_points // 2)
     fwd_tau_points = np.linspace(-1.0, target_end_tau_k, num_fwd_pts, dtype=np.float64)
 
-    # Import here to avoid circular imports
-    from scipy.integrate import solve_ivp
+    # Use configured ODE solver from adaptive_params
+    configured_ode_solver = adaptive_params.get_ode_solver()
 
     # Define these upfront to ensure they're bound in all code paths
     fwd_trajectory = np.full((num_states, num_fwd_pts), np.nan, dtype=np.float64)
     fwd_sim_success = False
 
     try:
-        fwd_sim = solve_ivp(
+        fwd_sim = configured_ode_solver(
             merged_fwd_rhs,
             t_span=(-1.0, target_end_tau_k),
             y0=initial_state_fwd,
             t_eval=fwd_tau_points,
-            method="RK45",
-            rtol=ode_rtol,
-            atol=ode_atol,
         )
 
         if fwd_sim.success:
@@ -406,14 +400,11 @@ def h_reduce_intervals(
     bwd_sim_success = False
 
     try:
-        bwd_sim = solve_ivp(
+        bwd_sim = configured_ode_solver(
             merged_bwd_rhs,
             t_span=(1.0, target_end_tau_kp1),
             y0=terminal_state_bwd,
             t_eval=bwd_tau_points,
-            method="RK45",
-            rtol=ode_rtol,
-            atol=ode_atol,
         )
 
         if bwd_sim.success:

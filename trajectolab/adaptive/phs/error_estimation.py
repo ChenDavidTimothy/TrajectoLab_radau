@@ -12,7 +12,6 @@ from trajectolab.tl_types import (
     PhaseID,
     ProblemProtocol,
 )
-from trajectolab.utils.constants import DEFAULT_ODE_RTOL
 
 
 __all__ = [
@@ -190,7 +189,7 @@ def simulate_dynamics_for_phase_interval_error_estimation(
     state_evaluator: Callable[[float | FloatArray], FloatArray],
     control_evaluator: Callable[[float | FloatArray], FloatArray],
     ode_solver: ODESolverCallable,
-    ode_rtol: float = DEFAULT_ODE_RTOL,
+    ode_rtol: float = 1e-7,
     n_eval_points: int = 50,
 ) -> tuple[bool, FloatArray, FloatArray, FloatArray, FloatArray, FloatArray, FloatArray]:
     """
@@ -285,9 +284,6 @@ def simulate_dynamics_for_phase_interval_error_estimation(
             t_span=(-1, 1),
             y0=initial_state,
             t_eval=fwd_tau_points,
-            method="RK45",
-            rtol=ode_rtol,
-            atol=ode_rtol * 1e-2,
         )
         fwd_success = fwd_sim.success
         fwd_trajectory = (
@@ -315,9 +311,6 @@ def simulate_dynamics_for_phase_interval_error_estimation(
             t_span=(1, -1),
             y0=terminal_state,
             t_eval=bwd_tau_points,
-            method="RK45",
-            rtol=ode_rtol,
-            atol=ode_rtol * 1e-2,
         )
         bwd_success = bwd_sim.success
         bwd_trajectory = (
