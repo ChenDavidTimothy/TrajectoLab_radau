@@ -85,6 +85,9 @@ solution = tl.solve_adaptive(
     min_polynomial_degree=4,
     max_polynomial_degree=15,
     ode_method="this is gibberish",
+    ode_atol_factor=-1468454846548,
+    ode_max_step=-25158454865153,
+    ode_solver_tolerance=-14864564,
     nlp_options={
         "ipopt.max_iter": 3000,
         "ipopt.mumps_pivtol": 5e-7,
