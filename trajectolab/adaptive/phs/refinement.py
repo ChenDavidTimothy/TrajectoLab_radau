@@ -338,6 +338,7 @@ def h_reduce_intervals(
     fwd_trajectory = np.full((num_states, num_fwd_pts), np.nan, dtype=np.float64)
     fwd_sim_success = False
 
+    # Let scipy configuration errors bubble up immediately, only catch numerical convergence issues
     try:
         fwd_sim = configured_ode_solver(
             merged_fwd_rhs,
@@ -349,9 +350,10 @@ def h_reduce_intervals(
         if fwd_sim.success:
             fwd_trajectory = fwd_sim.y
             fwd_sim_success = True
-    except Exception as e:
+    except (RuntimeError, OverflowError, FloatingPointError) as e:
+        # Only catch numerical convergence/overflow issues, let configuration errors bubble up
         logger.debug(
-            f"Forward simulation failed for phase {phase_id} intervals {first_idx}-{first_idx + 1}: {e}"
+            f"Forward simulation numerical failure for phase {phase_id} intervals {first_idx}-{first_idx + 1}: {e}"
         )
 
     # Get terminal state for backward simulation
@@ -399,6 +401,7 @@ def h_reduce_intervals(
     bwd_trajectory = np.full((num_states, num_bwd_pts), np.nan, dtype=np.float64)
     bwd_sim_success = False
 
+    # Let scipy configuration errors bubble up immediately, only catch numerical convergence issues
     try:
         bwd_sim = configured_ode_solver(
             merged_bwd_rhs,
@@ -415,9 +418,10 @@ def h_reduce_intervals(
             # Then create a new array with explicit type
             bwd_trajectory = np.array(flipped_data, dtype=np.float64).reshape(rows, cols)
             bwd_sim_success = True
-    except Exception as e:
+    except (RuntimeError, OverflowError, FloatingPointError) as e:
+        # Only catch numerical convergence/overflow issues, let configuration errors bubble up
         logger.debug(
-            f"Backward simulation failed for phase {phase_id} intervals {first_idx}-{first_idx + 1}: {e}"
+            f"Backward simulation numerical failure for phase {phase_id} intervals {first_idx}-{first_idx + 1}: {e}"
         )
 
     # For problems with no states, just check if simulations were successful

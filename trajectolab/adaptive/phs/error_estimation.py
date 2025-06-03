@@ -278,6 +278,7 @@ def simulate_dynamics_for_phase_interval_error_estimation(
 
     fwd_tau_points = np.linspace(-1, 1, n_eval_points, dtype=np.float64)
 
+    # Let scipy configuration errors bubble up immediately, only catch numerical convergence issues
     try:
         fwd_sim = ode_solver(
             dynamics_rhs,
@@ -291,8 +292,11 @@ def simulate_dynamics_for_phase_interval_error_estimation(
             if fwd_success
             else np.full((num_states, len(fwd_tau_points)), np.nan, dtype=np.float64)
         )
-    except Exception as e:
-        logger.error(f"Forward simulation failed: {e}")
+    except (RuntimeError, OverflowError, FloatingPointError) as e:
+        # Only catch numerical convergence/overflow issues, let configuration errors bubble up
+        logger.error(
+            f"Forward simulation numerical failure for phase {phase_id} interval {interval_idx}: {e}"
+        )
         fwd_success = False
         fwd_trajectory = np.full((num_states, len(fwd_tau_points)), np.nan, dtype=np.float64)
 
@@ -305,6 +309,7 @@ def simulate_dynamics_for_phase_interval_error_estimation(
 
     bwd_tau_points = np.linspace(1, -1, n_eval_points, dtype=np.float64)
 
+    # Let scipy configuration errors bubble up immediately, only catch numerical convergence issues
     try:
         bwd_sim = ode_solver(
             dynamics_rhs,
@@ -318,8 +323,11 @@ def simulate_dynamics_for_phase_interval_error_estimation(
             if bwd_success
             else np.full((num_states, len(bwd_tau_points)), np.nan, dtype=np.float64)
         )
-    except Exception as e:
-        logger.error(f"Backward simulation failed: {e}")
+    except (RuntimeError, OverflowError, FloatingPointError) as e:
+        # Only catch numerical convergence/overflow issues, let configuration errors bubble up
+        logger.error(
+            f"Backward simulation numerical failure for phase {phase_id} interval {interval_idx}: {e}"
+        )
         bwd_success = False
         bwd_trajectory = np.full((num_states, len(bwd_tau_points)), np.nan, dtype=np.float64)
 

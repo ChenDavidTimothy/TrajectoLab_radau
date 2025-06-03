@@ -2,11 +2,125 @@
 TrajectoLab Example: Alp Rider Problem
 """
 
+# ===============================================================================
+# DEBUG CODE - Add this at the very top, before any trajectolab imports
+# ===============================================================================
+import logging
+
+
+# Set up detailed logging to see what's happening
+logging.basicConfig(level=logging.DEBUG, format="%(name)s - %(levelname)s - %(message)s")
+
+
+# Create a debug wrapper for the ODE solver to trace when it's called
+class DebugODESolverWrapper:
+    def __init__(self, actual_solver, name="ODE Solver"):
+        self.actual_solver = actual_solver
+        self.name = name
+        self.call_count = 0
+
+    def __call__(self, fun, t_span, y0, t_eval=None, **kwargs):
+        self.call_count += 1
+        print(f"\n{'=' * 80}")
+        print(f"🚨 {self.name} CALLED (Call #{self.call_count})")
+        print(f"{'=' * 80}")
+        print(f"t_span: {t_span}")
+        print(f"y0: {y0}")
+        print(f"t_eval: {t_eval}")
+        print(f"kwargs: {kwargs}")
+
+        # Check for our invalid settings
+        method = kwargs.get("method", "DEFAULT")
+        rtol = kwargs.get("rtol", "DEFAULT")
+        atol = kwargs.get("atol", "DEFAULT")
+        max_step = kwargs.get("max_step", "DEFAULT")
+
+        print("\n🔍 PARAMETER ANALYSIS:")
+        print(f"   method: {method}")
+        print(f"   rtol: {rtol}")
+        print(f"   atol: {atol}")
+        print(f"   max_step: {max_step}")
+
+        # Check if our invalid values made it through
+        if method == "this is gibberish":
+            print("✅ INVALID METHOD DETECTED! Should fail now...")
+        if isinstance(rtol, (int, float)) and rtol < 0:
+            print("✅ NEGATIVE RTOL DETECTED! Should fail now...")
+        if isinstance(atol, (int, float)) and atol < 0:
+            print("✅ NEGATIVE ATOL DETECTED! Should fail now...")
+        if isinstance(max_step, (int, float)) and max_step < 0:
+            print("✅ NEGATIVE MAX_STEP DETECTED! Should fail now...")
+
+        print("\n🏃 Calling actual scipy.integrate.solve_ivp...")
+        print(f"{'=' * 80}")
+
+        # Call the actual solver - any configuration errors should happen here
+        try:
+            result = self.actual_solver(fun, t_span, y0, t_eval=t_eval, **kwargs)
+            print("✅ ODE solve completed successfully")
+            return result
+        except Exception as e:
+            print(f"💥 ODE solve FAILED with: {type(e).__name__}: {e}")
+            raise  # Re-raise to let the error bubble up
+
+
+print("🔍 Debug instrumentation ready!")
+
+# ===============================================================================
+# END DEBUG CODE - Now import trajectolab
+# ===============================================================================
+
 import casadi as ca
 import numpy as np
 
 import trajectolab as tl
 
+# NOW monkey patch after trajectolab is imported
+from trajectolab.adaptive.phs.data_structures import AdaptiveParameters
+
+
+# Monkey patch the AdaptiveParameters.get_ode_solver method
+original_get_ode_solver = AdaptiveParameters.get_ode_solver
+
+
+def debug_get_ode_solver(self):
+    print("\n🔧 AdaptiveParameters.get_ode_solver() called")
+    print(f"   ode_method: {self.ode_method}")
+    print(f"   ode_solver_tolerance: {self.ode_solver_tolerance}")
+    print(f"   ode_atol_factor: {self.ode_atol_factor}")
+    print(f"   ode_max_step: {self.ode_max_step}")
+
+    # Call original method to get the configured solver
+    configured_solver = original_get_ode_solver(self)
+
+    # Wrap it with our debug wrapper
+    return DebugODESolverWrapper(configured_solver, "Configured ODE Solver")
+
+
+# Apply the monkey patch
+AdaptiveParameters.get_ode_solver = debug_get_ode_solver
+
+# Also add a way to check if error estimation is being called at all
+import trajectolab.adaptive.phs.error_estimation as error_est
+
+
+original_simulate = error_est.simulate_dynamics_for_phase_interval_error_estimation
+
+
+def debug_simulate_dynamics(*args, **kwargs):
+    print("\n📊 ERROR ESTIMATION CALLED!")
+    print("   Function: simulate_dynamics_for_phase_interval_error_estimation")
+    print(f"   Args: {len(args)} arguments")
+    return original_simulate(*args, **kwargs)
+
+
+error_est.simulate_dynamics_for_phase_interval_error_estimation = debug_simulate_dynamics
+
+print("🔍 Debug instrumentation installed!")
+
+# ===============================================================================
+# ORIGINAL CODE CONTINUES HERE
+# ===============================================================================
 
 # Problem setup
 problem = tl.Problem("Alp Rider")
@@ -94,7 +208,7 @@ solution = tl.solve_adaptive(
         "ipopt.mumps_mem_percent": 50000,
         "ipopt.linear_solver": "mumps",
         "ipopt.constr_viol_tol": 1e-7,
-        "ipopt.print_level": 5,
+        "ipopt.print_level": 0,
         "ipopt.nlp_scaling_method": "gradient-based",
         "ipopt.mu_strategy": "adaptive",
         "ipopt.check_derivatives_for_naninf": "yes",

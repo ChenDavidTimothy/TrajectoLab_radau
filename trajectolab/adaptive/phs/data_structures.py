@@ -42,13 +42,36 @@ class AdaptiveParameters:
         from scipy.integrate import solve_ivp
 
         def configured_solver(fun, t_span, y0, t_eval=None, **kwargs):
-            # Set defaults only if not already provided
-            kwargs.setdefault("method", self.ode_method)
-            kwargs.setdefault("rtol", self.ode_solver_tolerance)
-            kwargs.setdefault("atol", self.ode_solver_tolerance * self.ode_atol_factor)
+            print("\n🔧 INSIDE configured_solver function")
+            print(f"   Input kwargs: {kwargs}")
+            print("   User settings to apply:")
+            print(f"     ode_method: {self.ode_method}")
+            print(f"     ode_solver_tolerance: {self.ode_solver_tolerance}")
+            print(f"     ode_atol_factor: {self.ode_atol_factor}")
+            print(f"     ode_max_step: {self.ode_max_step}")
+
+            # FIXED: Explicitly set user parameters instead of using setdefault
+            # Force user settings to be applied - this ensures user has complete control
+            kwargs["method"] = self.ode_method
+            kwargs["rtol"] = self.ode_solver_tolerance
+            kwargs["atol"] = self.ode_solver_tolerance * self.ode_atol_factor
 
             if self.ode_max_step is not None:
-                kwargs.setdefault("max_step", self.ode_max_step)
+                kwargs["max_step"] = self.ode_max_step
+
+            print(f"   Modified kwargs to pass to scipy: {kwargs}")
+
+            # Check if our invalid values are present
+            if kwargs.get("method") == "this is gibberish":
+                print("   🚨 About to call scipy with INVALID method - should fail!")
+            if kwargs.get("rtol", 0) < 0:
+                print("   🚨 About to call scipy with NEGATIVE rtol - should fail!")
+            if kwargs.get("atol", 0) < 0:
+                print("   🚨 About to call scipy with NEGATIVE atol - should fail!")
+            if kwargs.get("max_step") is not None and kwargs.get("max_step") < 0:
+                print("   🚨 About to call scipy with NEGATIVE max_step - should fail!")
+
+            print("   Calling scipy.integrate.solve_ivp now...")
 
             return solve_ivp(fun, t_span, y0, t_eval=t_eval, **kwargs)
 
