@@ -14,6 +14,13 @@ from trajectolab.tl_types import (
     OptimalControlSolution,
     ProblemProtocol,
 )
+from trajectolab.utils.constants import (
+    DEFAULT_ERROR_SIM_POINTS,
+    DEFAULT_ODE_ATOL_FACTOR,
+    DEFAULT_ODE_MAX_STEP,
+    DEFAULT_ODE_METHOD,
+    DEFAULT_ODE_RTOL,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -89,11 +96,11 @@ def solve_adaptive(
     max_iterations: int = 10,
     min_polynomial_degree: int = 3,
     max_polynomial_degree: int = 10,
-    ode_solver_tolerance: float = 1e-7,
-    ode_method: str = "RK45",
-    ode_max_step: float | None = None,
-    ode_atol_factor: float = 1e-2,
-    num_error_sim_points: int = 50,
+    ode_solver_tolerance: float = DEFAULT_ODE_RTOL,
+    ode_method: str = DEFAULT_ODE_METHOD,
+    ode_max_step: float | None = DEFAULT_ODE_MAX_STEP,
+    ode_atol_factor: float = DEFAULT_ODE_ATOL_FACTOR,
+    num_error_sim_points: int = DEFAULT_ERROR_SIM_POINTS,
     ode_solver: ODESolverCallable | None = None,
     nlp_options: dict[str, object] | None = None,
     initial_guess: MultiPhaseInitialGuess | None = None,
@@ -145,13 +152,6 @@ def solve_adaptive(
     )
     validate_multiphase_problem_ready_for_solving(cast(ProblemProtocol, problem))
 
-    # Set default ODE solver if not provided
-    if ode_solver is None:
-        from scipy.integrate import solve_ivp
-
-        ode_solver = solve_ivp
-        logger.debug("Using default ODE solver: scipy.integrate.solve_ivp")
-
     # Configure solver
     problem.solver_options = nlp_options or DEFAULT_NLP_OPTIONS
     protocol_problem = cast(ProblemProtocol, problem)
@@ -187,7 +187,7 @@ def solve_adaptive(
         ode_method=ode_method,
         ode_max_step=ode_max_step,
         ode_atol_factor=ode_atol_factor,
-        ode_solver=ode_solver,
+        ode_solver=ode_solver,  # Pass None if user didn't specify
         num_error_sim_points=num_error_sim_points,
         initial_guess=initial_guess,
     )

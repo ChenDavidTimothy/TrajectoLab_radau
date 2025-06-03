@@ -188,12 +188,11 @@ def simulate_dynamics_for_phase_interval_error_estimation(
     problem: ProblemProtocol,
     state_evaluator: Callable[[float | FloatArray], FloatArray],
     control_evaluator: Callable[[float | FloatArray], FloatArray],
-    ode_solver: ODESolverCallable,
-    ode_rtol: float = 1e-7,
+    ode_solver: ODESolverCallable,  # Already configured with all parameters
     n_eval_points: int = 50,
 ) -> tuple[bool, FloatArray, FloatArray, FloatArray, FloatArray, FloatArray, FloatArray]:
     """
-    Updated for optimized dynamics interface.
+    Updated for optimized dynamics interface - CLEANED: removed redundant ode_rtol parameter.
     Returns: (success, fwd_tau_points, fwd_sim_traj, fwd_nlp_traj, bwd_tau_points, bwd_sim_traj, bwd_nlp_traj)
     """
     if not solution.success or solution.raw_solution is None:
@@ -261,7 +260,7 @@ def simulate_dynamics_for_phase_interval_error_estimation(
             ca.MX(state), ca.MX(control), ca.MX(physical_time)
         )
 
-        # Convert using new helper function that handles both interfaces
+        # Convert using helper function that handles both interfaces
         state_deriv_np = _convert_casadi_dynamics_result_to_numpy(dynamics_result, num_states)
 
         if state_deriv_np.shape[0] != num_states:
@@ -278,7 +277,7 @@ def simulate_dynamics_for_phase_interval_error_estimation(
 
     fwd_tau_points = np.linspace(-1, 1, n_eval_points, dtype=np.float64)
 
-    # Let scipy configuration errors bubble up immediately, only catch numerical convergence issues
+    # Use the already-configured ODE solver (no additional configuration needed)
     try:
         fwd_sim = ode_solver(
             dynamics_rhs,
@@ -293,7 +292,6 @@ def simulate_dynamics_for_phase_interval_error_estimation(
             else np.full((num_states, len(fwd_tau_points)), np.nan, dtype=np.float64)
         )
     except (RuntimeError, OverflowError, FloatingPointError) as e:
-        # Only catch numerical convergence/overflow issues, let configuration errors bubble up
         logger.error(
             f"Forward simulation numerical failure for phase {phase_id} interval {interval_idx}: {e}"
         )
@@ -309,7 +307,7 @@ def simulate_dynamics_for_phase_interval_error_estimation(
 
     bwd_tau_points = np.linspace(1, -1, n_eval_points, dtype=np.float64)
 
-    # Let scipy configuration errors bubble up immediately, only catch numerical convergence issues
+    # Use the already-configured ODE solver (no additional configuration needed)
     try:
         bwd_sim = ode_solver(
             dynamics_rhs,
@@ -324,7 +322,6 @@ def simulate_dynamics_for_phase_interval_error_estimation(
             else np.full((num_states, len(bwd_tau_points)), np.nan, dtype=np.float64)
         )
     except (RuntimeError, OverflowError, FloatingPointError) as e:
-        # Only catch numerical convergence/overflow issues, let configuration errors bubble up
         logger.error(
             f"Backward simulation numerical failure for phase {phase_id} interval {interval_idx}: {e}"
         )

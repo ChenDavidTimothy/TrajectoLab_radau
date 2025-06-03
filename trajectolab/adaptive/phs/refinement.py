@@ -351,7 +351,6 @@ def h_reduce_intervals(
             fwd_trajectory = fwd_sim.y
             fwd_sim_success = True
     except (RuntimeError, OverflowError, FloatingPointError) as e:
-        # Only catch numerical convergence/overflow issues, let configuration errors bubble up
         logger.debug(
             f"Forward simulation numerical failure for phase {phase_id} intervals {first_idx}-{first_idx + 1}: {e}"
         )

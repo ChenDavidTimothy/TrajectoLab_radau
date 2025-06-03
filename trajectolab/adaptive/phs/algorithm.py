@@ -246,8 +246,7 @@ def _estimate_phase_errors(
             problem,
             state_eval,
             control_eval,
-            adaptive_params.get_ode_solver(),
-            ode_rtol=adaptive_params.ode_solver_tolerance,
+            adaptive_params.get_ode_solver(),  # Already configured with all settings
             n_eval_points=adaptive_params.num_error_sim_points,
         )
 

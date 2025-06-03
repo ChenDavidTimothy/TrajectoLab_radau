@@ -5,6 +5,13 @@ from typing import Any
 import numpy as np
 
 from trajectolab.tl_types import FloatArray, ODESolverCallable, PhaseID
+from trajectolab.utils.constants import (
+    DEFAULT_ERROR_SIM_POINTS,
+    DEFAULT_ODE_ATOL_FACTOR,
+    DEFAULT_ODE_MAX_STEP,
+    DEFAULT_ODE_METHOD,
+    DEFAULT_ODE_RTOL,
+)
 
 
 __all__ = [
@@ -27,11 +34,11 @@ class AdaptiveParameters:
     max_iterations: int
     min_polynomial_degree: int
     max_polynomial_degree: int
-    ode_solver_tolerance: float = 1e-7
-    num_error_sim_points: int = 50
-    ode_method: str = "RK45"
-    ode_max_step: float | None = None
-    ode_atol_factor: float = 1e-2
+    ode_solver_tolerance: float = DEFAULT_ODE_RTOL
+    num_error_sim_points: int = DEFAULT_ERROR_SIM_POINTS
+    ode_method: str = DEFAULT_ODE_METHOD
+    ode_max_step: float | None = DEFAULT_ODE_MAX_STEP
+    ode_atol_factor: float = DEFAULT_ODE_ATOL_FACTOR
     ode_solver: ODESolverCallable | None = None
 
     def get_ode_solver(self) -> ODESolverCallable:
@@ -39,39 +46,23 @@ class AdaptiveParameters:
         if self.ode_solver is not None:
             return self.ode_solver
 
+        import logging
+
         from scipy.integrate import solve_ivp
 
-        def configured_solver(fun, t_span, y0, t_eval=None, **kwargs):
-            print("\n🔧 INSIDE configured_solver function")
-            print(f"   Input kwargs: {kwargs}")
-            print("   User settings to apply:")
-            print(f"     ode_method: {self.ode_method}")
-            print(f"     ode_solver_tolerance: {self.ode_solver_tolerance}")
-            print(f"     ode_atol_factor: {self.ode_atol_factor}")
-            print(f"     ode_max_step: {self.ode_max_step}")
+        logger = logging.getLogger(__name__)
 
-            # FIXED: Explicitly set user parameters instead of using setdefault
-            # Force user settings to be applied - this ensures user has complete control
+        # Log default usage
+        logger.debug("Using default ODE solver: scipy.integrate.solve_ivp with user configuration")
+
+        def configured_solver(fun, t_span, y0, t_eval=None, **kwargs):
+            # Apply user configuration parameters
             kwargs["method"] = self.ode_method
             kwargs["rtol"] = self.ode_solver_tolerance
             kwargs["atol"] = self.ode_solver_tolerance * self.ode_atol_factor
 
             if self.ode_max_step is not None:
                 kwargs["max_step"] = self.ode_max_step
-
-            print(f"   Modified kwargs to pass to scipy: {kwargs}")
-
-            # Check if our invalid values are present
-            if kwargs.get("method") == "this is gibberish":
-                print("   🚨 About to call scipy with INVALID method - should fail!")
-            if kwargs.get("rtol", 0) < 0:
-                print("   🚨 About to call scipy with NEGATIVE rtol - should fail!")
-            if kwargs.get("atol", 0) < 0:
-                print("   🚨 About to call scipy with NEGATIVE atol - should fail!")
-            if kwargs.get("max_step") is not None and kwargs.get("max_step") < 0:
-                print("   🚨 About to call scipy with NEGATIVE max_step - should fail!")
-
-            print("   Calling scipy.integrate.solve_ivp now...")
 
             return solve_ivp(fun, t_span, y0, t_eval=t_eval, **kwargs)
 

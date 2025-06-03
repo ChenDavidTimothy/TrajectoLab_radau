@@ -1,3 +1,5 @@
+# trajectolab/utils/constants.py - Updated with unified ODE defaults
+
 from typing import TypeAlias
 
 
@@ -17,8 +19,18 @@ MESH_TOLERANCE: _Tolerance = 1e-9
 MINIMUM_TIME_INTERVAL: _Duration = 1e-6
 """Minimum allowed time interval for optimal control problems."""
 
+# --- ODE Solver Defaults - SINGLE SOURCE OF TRUTH ---
 DEFAULT_ODE_RTOL: _Tolerance = 1e-7
 """Default relative tolerance for ODE solvers."""
 
-DEFAULT_ODE_ATOL_FACTOR: _Factor = 1e-1
-"""Factor for computing absolute tolerance from relative tolerance."""
+DEFAULT_ODE_ATOL_FACTOR: _Factor = 1e-2
+"""Factor for computing absolute tolerance from relative tolerance (atol = rtol * factor)."""
+
+DEFAULT_ODE_METHOD: str = "RK45"
+"""Default ODE integration method."""
+
+DEFAULT_ODE_MAX_STEP: float | None = None
+"""Default maximum step size for ODE solver (None = no limit)."""
+
+DEFAULT_ERROR_SIM_POINTS: int = 50
+"""Default number of points for error simulation."""
