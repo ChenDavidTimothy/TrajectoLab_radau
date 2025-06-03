@@ -37,7 +37,7 @@ phi = phase.state(
     "phi", initial=0.0, final=(-89 * DEG2RAD, 89 * DEG2RAD), boundary=(-89 * DEG2RAD, 89 * DEG2RAD)
 )
 h = phase.state("altitude", initial=365000.0, final=365000.0, boundary=(0, 400000))
-v = phase.state("velocity", initial=25745.704, final=25745.704, boundary=(20000, 28000))
+v = phase.state("velocity", initial=25745.704, boundary=(20000, 28000))
 gamma = phase.state(
     "gamma",
     initial=-0.55 * DEG2RAD,
@@ -88,11 +88,11 @@ problem.subject_to(ca.cos(phi.final) * ca.cos(psi.final) == target_angle)
 problem.minimize(-v.final)
 
 # Mesh and guess
-phase.mesh([50, 50, 50], [-1.0, -1 / 3, 1 / 3, 1.0])
+phase.mesh([12, 12, 12], [-1.0, -1 / 3, 1 / 3, 1.0])
 
 states_guess = []
 controls_guess = []
-for N in [50, 50, 50]:
+for N in [12, 12, 12]:
     tau = np.linspace(-1, 1, N + 1)
     t_norm = (tau + 1) / 2
 
@@ -122,7 +122,7 @@ solution = tl.solve_adaptive(
     error_tolerance=1e-6,
     max_iterations=50,
     min_polynomial_degree=4,
-    max_polynomial_degree=50,
+    max_polynomial_degree=15,
     nlp_options={
         "ipopt.print_level": 5,
         "ipopt.max_iter": 3000,
@@ -138,9 +138,8 @@ if solution.success:
     print(f"Final time: {solution.get_phase_final_time(1):.4f} sec")
     print("Reference: v_f = 22043.5079 ft/sec, t_f = 1005.8778 sec")
 
-    if abs(final_velocity - 22043.5079) < 1000:  # Within reasonable tolerance
-        error_v = abs(final_velocity - 22043.5079) / 22043.5079 * 100
-        print(f"Velocity error: {error_v:.2f}%")
+    error_v = abs(final_velocity - 22043.5079) / 22043.5079 * 100
+    print(f"Velocity error: {error_v:.2f}%")
 
     solution.plot()
 else:
