@@ -54,11 +54,11 @@ integral_var = phase.add_integral(integrand)
 problem.minimize(integral_var)
 
 # Mesh and guess
-phase.mesh([12, 12, 12], [-1.0, -1 / 3, 1 / 3, 1.0])
+phase.mesh([14, 14, 14], [-1.0, -1 / 3, 1 / 3, 1.0])
 
 states_guess = []
 controls_guess = []
-for N in [12, 12, 12]:
+for N in [14, 14, 14]:
     tau = np.linspace(-1, 1, N + 1)
     t_norm = (tau + 1) / 2
 
@@ -82,8 +82,8 @@ solution = tl.solve_adaptive(
     problem,
     error_tolerance=1e-4,
     max_iterations=20,
-    min_polynomial_degree=5,
-    max_polynomial_degree=15,
+    min_polynomial_degree=4,
+    max_polynomial_degree=20,
     ode_method="LSODA",
     nlp_options={
         "ipopt.max_iter": 3000,
