@@ -100,20 +100,20 @@ for N in [12, 12, 12]:
     phi_vals = 0.0 + (0.0 - 0.0) * t_norm  # phi stays near 0
     h_vals = 365000.0 + (365000.0 - 365000.0) * t_norm  # altitude constant
     v_vals = 25715.704 + (25715.704 - 25715.704) * t_norm  # velocity constant
-    gamma_vals = -0.55 * np.pi / 180 + (0.0 - (-0.55 * np.pi / 180)) * t_norm
-    psi_vals = 0.0 + (18 * np.pi / 180 - 0.0) * t_norm  # approach target angle
+    gamma_vals = -0.55 * DEG2RAD + (0.0 - (-0.55 * DEG2RAD)) * t_norm
+    psi_vals = 0.0 + (18 * DEG2RAD - 0.0) * t_norm  # approach target angle
 
     states_guess.append(np.vstack([phi_vals, h_vals, v_vals, gamma_vals, psi_vals]))
 
     # Control guess
     CL_vals = np.full(N, 1.0)  # Mid-range lift coefficient
-    beta_vals = np.full(N, 45 * np.pi / 180)  # Mid-range bank angle
+    beta_vals = np.full(N, 45 * DEG2RAD)  # Mid-range bank angle
     controls_guess.append(np.vstack([CL_vals, beta_vals]))
 
 problem.guess(
     phase_states={1: states_guess},
     phase_controls={1: controls_guess},
-    phase_terminal_times={1: 1005.8778},
+    phase_terminal_times={1: 800},
 )
 
 # Solve
