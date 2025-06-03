@@ -82,8 +82,8 @@ solution = tl.solve_adaptive(
     problem,
     error_tolerance=1e-4,
     max_iterations=20,
-    min_polynomial_degree=4,
-    max_polynomial_degree=20,
+    min_polynomial_degree=6,
+    max_polynomial_degree=12,
     ode_method="LSODA",
     nlp_options={
         "ipopt.max_iter": 3000,
@@ -91,7 +91,7 @@ solution = tl.solve_adaptive(
         "ipopt.mumps_mem_percent": 50000,
         "ipopt.linear_solver": "mumps",
         "ipopt.constr_viol_tol": 1e-7,
-        "ipopt.print_level": 5,
+        "ipopt.print_level": 0,
         "ipopt.nlp_scaling_method": "gradient-based",
         "ipopt.mu_strategy": "adaptive",
         "ipopt.check_derivatives_for_naninf": "yes",
@@ -104,7 +104,7 @@ solution = tl.solve_adaptive(
 if solution.success:
     print(f"Objective: {solution.objective:.5f}")
     print(
-        f"Reference: 2030.85609 (Error: {abs(solution.objective - 2030.85609) / 2030.85609 * 100:.3f}%)"
+        f"Reference: 2030.85609 (Error: {(abs(solution.objective - 2030.85609) / 2030.85609) * 100:.3f}%)"
     )
 
     # Final state values
