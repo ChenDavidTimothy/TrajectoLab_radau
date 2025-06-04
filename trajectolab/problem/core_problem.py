@@ -32,7 +32,25 @@ class Phase:
     def time(
         self, initial: ConstraintInput = 0.0, final: ConstraintInput = None
     ) -> TimeVariableImpl:
-        """Define time variable for this phase."""
+        """Define time variable for this phase.
+
+        Args:
+            initial: Initial time constraint (default: 0.0)
+            final: Final time constraint (default: free)
+
+        Returns:
+            TimeVariableImpl: Time variable with initial/final properties
+
+        Examples:
+            >>> # Fixed initial time, free final time
+            >>> t = phase.time(initial=0.0)
+            >>>
+            >>> # Both times constrained
+            >>> t = phase.time(initial=0.0, final=10.0)
+            >>>
+            >>> # Time bounds
+            >>> t = phase.time(initial=(0.0, 5.0), final=(10.0, 20.0))
+        """
         return variables_problem.create_phase_time_variable(self._phase_def, initial, final)
 
     def state(
@@ -42,20 +60,76 @@ class Phase:
         final: ConstraintInput = None,
         boundary: ConstraintInput = None,
     ) -> StateVariableImpl:
-        """Define state variable for this phase."""
+        """Define state variable for this phase.
+
+        Args:
+            name: Unique name for the state variable
+            initial: Initial state constraint
+            final: Final state constraint
+            boundary: Constraint applied to both initial and final values
+
+        Returns:
+            StateVariableImpl: State variable with initial/final properties
+
+        Examples:
+            >>> # Altitude with initial condition
+            >>> h = phase.state("altitude", initial=0.0)
+            >>>
+            >>> # Velocity with bounds at both ends
+            >>> v = phase.state("velocity", initial=(0, 100), final=(50, 200))
+            >>>
+            >>> # Mass with boundary constraint (same at start and end)
+            >>> m = phase.state("mass", boundary=1000.0)
+        """
         return variables_problem.create_phase_state_variable(
             self._phase_def, name, initial, final, boundary
         )
 
     def control(self, name: str, boundary: ConstraintInput = None) -> ca.MX:
-        """Define control variable for this phase."""
+        """Define control variable for this phase.
+
+        Args:
+            name: Unique name for the control variable
+            boundary: Constraint applied throughout the phase
+
+        Returns:
+            ca.MX: Control variable symbol
+
+        Examples:
+            >>> # Thrust with limits
+            >>> thrust = phase.control("thrust", boundary=(0, 100))
+            >>>
+            >>> # Steering angle with symmetric bounds
+            >>> delta = phase.control("steering", boundary=(-30, 30))
+        """
         return variables_problem.create_phase_control_variable(self._phase_def, name, boundary)
 
     def dynamics(
         self,
         dynamics_dict: dict[ca.MX | StateVariableImpl, ca.MX | float | int | StateVariableImpl],
     ) -> None:
-        """Define dynamics for this phase."""
+        """Define dynamics for this phase.
+
+        Specifies the differential equations that govern state evolution.
+        Each state variable must have its derivative defined.
+
+        Args:
+            dynamics_dict: Mapping from state variables to their derivatives
+
+        Examples:
+            >>> # Simple integrator dynamics
+            >>> phase.dynamics({
+            ...     position: velocity,
+            ...     velocity: acceleration
+            ... })
+            >>>
+            >>> # Rocket dynamics with gravity
+            >>> phase.dynamics({
+            ...     altitude: velocity,
+            ...     velocity: thrust/mass - 9.81,
+            ...     mass: -fuel_flow_rate
+            ... })
+        """
         variables_problem.set_phase_dynamics(self._phase_def, dynamics_dict)
         logger.info(
             "Dynamics defined for phase %d with %d state variables",
@@ -64,39 +138,47 @@ class Phase:
         )
 
     def add_integral(self, integrand_expr: ca.MX | float | int) -> ca.MX:
-        """Add integral expression for this phase."""
+        """Add integral expression for this phase.
+
+        Integrals are computed automatically during trajectory optimization
+        and can represent quantities like total fuel consumption or flight time.
+
+        Args:
+            integrand_expr: Expression to integrate over the phase
+
+        Returns:
+            ca.MX: Symbol representing the integral value
+
+        Examples:
+            >>> # Total fuel consumed
+            >>> fuel_used = phase.add_integral(fuel_flow_rate)
+            >>>
+            >>> # Quadratic cost on control effort
+            >>> control_cost = phase.add_integral(thrust**2)
+        """
         return variables_problem.set_phase_integral(self._phase_def, integrand_expr)
 
     def path_constraints(self, *constraint_expressions: ca.MX | float | int) -> None:
-        """
-        Add path constraints for this phase.
+        """Add path constraints for this phase.
 
-        Path constraints are applied at every collocation point throughout the phase.
-        Supports single-variable and multi-variable constraints.
+        Path constraints are enforced at every collocation point throughout the phase,
+        ensuring the trajectory satisfies operational limits and safety requirements.
 
         Args:
-            *constraint_expressions: One or more constraint expressions using
-                                   comparison operators (>=, <=, ==) or symbolic expressions
+            *constraint_expressions: Constraint expressions using comparison operators
+                                   (>=, <=, ==) or symbolic expressions
 
         Examples:
-            >>> # Single-variable constraints
+            >>> # Altitude and velocity limits for safety
             >>> phase.path_constraints(
             ...     altitude >= 1000,
             ...     velocity <= max_velocity,
             ...     thrust >= 0
             ... )
             >>>
-            >>> # Multi-variable constraints
+            >>> # Combined performance envelope
             >>> phase.path_constraints(
             ...     altitude + velocity <= combined_limit,
-            ...     thrust1 + thrust2 + thrust3 <= total_thrust,
-            ...     fuel_flow * efficiency >= min_performance,
-            ...     altitude * velocity <= performance_envelope
-            ... )
-            >>>
-            >>> # Complex expressions
-            >>> phase.path_constraints(
-            ...     ca.sqrt(velocity_x**2 + velocity_y**2) <= speed_limit,
             ...     dynamic_pressure <= max_q
             ... )
         """
@@ -113,37 +195,26 @@ class Phase:
         )
 
     def event_constraints(self, *constraint_expressions: ca.MX | float | int) -> None:
-        """
-        Add event constraints for this phase.
+        """Add event constraints for this phase.
 
-        Event constraints are applied only at initial and/or final boundaries of the phase.
-        Use the .initial and .final properties of state variables to specify boundary conditions.
-        Supports single-variable and multi-variable boundary constraints.
+        Event constraints are enforced only at phase boundaries, enabling
+        precise specification of initial/final conditions and continuity requirements.
 
         Args:
-            *constraint_expressions: One or more constraint expressions involving
-                                   .initial or .final properties of state variables
+            *constraint_expressions: Constraint expressions involving .initial or .final
+                                   properties of state variables
 
         Examples:
-            >>> # Single-variable boundary constraints
+            >>> # Launch and orbit insertion conditions
             >>> phase.event_constraints(
             ...     altitude.initial == 0,
             ...     velocity.initial == 0,
             ...     altitude.final >= target_altitude,
-            ...     velocity.final >= min_final_velocity
+            ...     velocity.final >= orbital_speed
             ... )
             >>>
-            >>> # Multi-variable boundary constraints
+            >>> # Energy conservation
             >>> phase.event_constraints(
-            ...     altitude.final + velocity.final <= safety_envelope,
-            ...     mass.initial >= fuel.initial + structure_mass,
-            ...     thrust1.final + thrust2.final + thrust3.final == 0,
-            ...     (altitude.final - altitude.initial) / time.final >= min_avg_velocity
-            ... )
-            >>>
-            >>> # Complex boundary expressions
-            >>> phase.event_constraints(
-            ...     ca.sqrt(velocity_x.final**2 + velocity_y.final**2) >= orbital_speed,
             ...     total_energy.final >= minimum_orbital_energy
             ... )
         """
@@ -160,7 +231,22 @@ class Phase:
         )
 
     def mesh(self, polynomial_degrees: list[int], mesh_points: NumericArrayLike) -> None:
-        """Configure mesh for this phase."""
+        """Configure mesh for this phase.
+
+        Defines the discretization strategy for numerical integration.
+        Higher polynomial degrees provide better accuracy but increase computational cost.
+
+        Args:
+            polynomial_degrees: Polynomial degree for each mesh interval
+            mesh_points: Normalized mesh points in [-1, 1]
+
+        Examples:
+            >>> # Uniform mesh with degree 3 polynomials
+            >>> phase.mesh([3, 3, 3], [-1, -0.5, 0, 0.5, 1])
+            >>>
+            >>> # Adaptive mesh with higher resolution near boundaries
+            >>> phase.mesh([5, 3, 5], [-1, -0.8, 0.8, 1])
+        """
         logger.info(
             "Setting mesh for phase %d: %d intervals", self.phase_id, len(polynomial_degrees)
         )
@@ -168,21 +254,44 @@ class Phase:
 
 
 class Problem:
-    """Main class for defining multiphase optimal control problems."""
+    """Main class for defining multiphase optimal control problems.
+
+    Provides a builder pattern interface for constructing complex trajectory
+    optimization problems with multiple phases, constraints, and objectives.
+    """
 
     def __init__(self, name: str = "Multiphase Problem") -> None:
-        """Initialize a new multiphase problem instance."""
+        """Initialize a new multiphase problem instance.
+
+        Args:
+            name: Descriptive name for the problem (used in logging)
+        """
         validate_string_not_empty(name, "Problem name")
         self.name = name
         logger.debug("Created multiphase problem: '%s'", name)
 
-        # Core state management
         self._multiphase_state = MultiPhaseVariableState()
         self._initial_guess_container = [None]
         self.solver_options: dict[str, Any] = {}
 
     def set_phase(self, phase_id: PhaseID) -> Phase:
-        """Add a new phase and return the phase object for direct manipulation."""
+        """Add a new phase and return the phase object for direct manipulation.
+
+        Phases enable modeling of distinct flight regimes, each with their own
+        dynamics, constraints, and mesh discretization.
+
+        Args:
+            phase_id: Unique integer identifier for the phase
+
+        Returns:
+            Phase: Phase object for defining variables and constraints
+
+        Examples:
+            >>> # Multi-stage rocket with separate phases
+            >>> boost_phase = problem.set_phase(0)
+            >>> coast_phase = problem.set_phase(1)
+            >>> landing_phase = problem.set_phase(2)
+        """
         if phase_id in self._multiphase_state.phases:
             raise ValueError(f"Phase {phase_id} already exists")
 
@@ -190,7 +299,25 @@ class Problem:
         return Phase(self, phase_id)
 
     def parameter(self, name: str, boundary: ConstraintInput = None) -> ca.MX:
-        """Define a static parameter that spans across all phases."""
+        """Define a static parameter that spans across all phases.
+
+        Static parameters represent design variables or constants that remain
+        fixed throughout all phases but can be optimized.
+
+        Args:
+            name: Unique name for the parameter
+            boundary: Constraint applied to the parameter value
+
+        Returns:
+            ca.MX: Parameter symbol
+
+        Examples:
+            >>> # Vehicle mass (optimization variable)
+            >>> vehicle_mass = problem.parameter("mass", boundary=(100, 1000))
+            >>>
+            >>> # Engine efficiency (fixed parameter)
+            >>> efficiency = problem.parameter("eta", boundary=0.85)
+        """
         validate_string_not_empty(name, "Parameter name")
         validate_constraint_input_format(boundary, f"parameter '{name}' boundary")
 
@@ -201,7 +328,25 @@ class Problem:
         return param_var
 
     def minimize(self, objective_expr: ca.MX | float | int) -> None:
-        """Define the multiphase objective function to minimize."""
+        """Define the multiphase objective function to minimize.
+
+        The objective drives the optimization toward the desired solution.
+        Common objectives include fuel consumption, flight time, or tracking error.
+
+        Args:
+            objective_expr: Expression to minimize (can reference phase integrals,
+                          endpoint states, or static parameters)
+
+        Examples:
+            >>> # Minimize total fuel consumption across all phases
+            >>> problem.minimize(fuel_phase1 + fuel_phase2 + fuel_phase3)
+            >>>
+            >>> # Minimize final time (time-optimal control)
+            >>> problem.minimize(final_time)
+            >>>
+            >>> # Weighted combination of fuel and time
+            >>> problem.minimize(0.8 * total_fuel + 0.2 * flight_time)
+        """
         variables_problem.set_multiphase_objective(self._multiphase_state, objective_expr)
         logger.info("Multiphase objective function defined")
 
@@ -214,7 +359,28 @@ class Problem:
         phase_integrals: dict[PhaseID, float | FloatArray] | None = None,
         static_parameters: FloatArray | None = None,
     ) -> None:
-        """Set initial guess for the multiphase optimization variables."""
+        """Set initial guess for the multiphase optimization variables.
+
+        Good initial guesses significantly improve convergence speed and success rate.
+        Guesses should be physically reasonable and satisfy basic constraints.
+
+        Args:
+            phase_states: State trajectories for each phase and mesh interval
+            phase_controls: Control trajectories for each phase and mesh interval
+            phase_initial_times: Initial time for each phase
+            phase_terminal_times: Final time for each phase
+            phase_integrals: Integral values for each phase
+            static_parameters: Values for static parameters
+
+        Examples:
+            >>> # Linear interpolation guess for single phase
+            >>> problem.guess(
+            ...     phase_states={0: [np.linspace([0, 0], [100, 50], 11).T]},
+            ...     phase_controls={0: [np.ones((1, 10)) * 10]},
+            ...     phase_initial_times={0: 0.0},
+            ...     phase_terminal_times={0: 10.0}
+            ... )
+        """
         components = []
         if phase_states is not None:
             components.append(f"states({len(phase_states)} phases)")
@@ -319,10 +485,9 @@ class Problem:
         return get_cross_phase_event_constraints_function(self._multiphase_state)
 
     def validate_multiphase_configuration(self) -> None:
-        """Validate the multiphase problem configuration with automatic symbolic processing."""
         logger.debug("Processing symbolic boundary constraints for automatic cross-phase linking")
 
-        # Process symbolic boundary constraints and convert to cross-phase constraints
+        # Convert symbolic boundary constraints to cross-phase constraints for solver compatibility
         for phase_id, phase_def in self._multiphase_state.phases.items():
             # Process time constraints
             if phase_def.t0_constraint.is_symbolic():
@@ -387,7 +552,6 @@ class Problem:
                         f"Added automatic boundary constraints for phase {phase_id} state '{var_name}'"
                     )
 
-        # Final validation
         if not self._multiphase_state.phases:
             raise ValueError("Problem must have at least one phase defined")
 

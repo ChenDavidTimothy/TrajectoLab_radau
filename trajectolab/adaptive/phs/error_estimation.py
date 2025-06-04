@@ -15,16 +15,16 @@ from trajectolab.tl_types import (
 
 
 __all__ = [
-    "calculate_gamma_normalizers_for_phase",
-    "calculate_relative_error_estimate",
-    "simulate_dynamics_for_phase_interval_error_estimation",
+    "_calculate_gamma_normalizers_for_phase",
+    "_calculate_relative_error_estimate",
+    "_simulate_dynamics_for_phase_interval_error_estimation",
 ]
 
 logger = logging.getLogger(__name__)
 
 
 def _calculate_gamma_normalization_factors(max_state_values: FloatArray) -> FloatArray:
-    """Pure gamma calculation - easily testable."""
+    # Gamma normalization prevents ill-conditioning from state magnitude variations
     gamma_denominator = 1.0 + max_state_values
     return (1.0 / np.maximum(gamma_denominator, np.float64(1e-12))).reshape(-1, 1)
 
@@ -32,7 +32,7 @@ def _calculate_gamma_normalization_factors(max_state_values: FloatArray) -> Floa
 def _find_maximum_state_values_across_phase_intervals(
     Y_solved_list: list[FloatArray],
 ) -> FloatArray:
-    """VECTORIZED: Pure maximum value calculation across intervals."""
+    # Vectorized maximum calculation across all mesh intervals for normalization
     if not Y_solved_list:
         return np.array([], dtype=np.float64)
 
@@ -40,14 +40,13 @@ def _find_maximum_state_values_across_phase_intervals(
     if not valid_intervals:
         return np.array([], dtype=np.float64)
 
-    # VECTORIZED: Single concatenation + max operation
     return cast(FloatArray, np.max(np.abs(np.concatenate(valid_intervals, axis=1)), axis=1))
 
 
 def _calculate_trajectory_error_differences(
     sim_trajectory: FloatArray, nlp_trajectory: FloatArray, gamma_factors: FloatArray
 ) -> tuple[FloatArray, FloatArray]:
-    """Pure trajectory error calculation - easily testable."""
+    # Gamma-scaled error calculation for adaptive mesh refinement decisions
     abs_diff = np.abs(sim_trajectory - nlp_trajectory)
     scaled_errors = gamma_factors * abs_diff
     max_errors_per_state = (
@@ -61,11 +60,10 @@ def _calculate_trajectory_error_differences(
 def _calculate_combined_error_estimate(
     max_fwd_errors_per_state: FloatArray, max_bwd_errors_per_state: FloatArray
 ) -> float:
-    """VECTORIZED: Combined error using pure NumPy operations."""
+    # Conservative error estimate using maximum of forward/backward simulation errors
     if max_fwd_errors_per_state.shape != max_bwd_errors_per_state.shape:
         raise ValueError("Input arrays must have the same shape.")
 
-    # VECTORIZED: All conditional logic in one expression
     fwd_valid = ~np.isnan(max_fwd_errors_per_state)
     bwd_valid = ~np.isnan(max_bwd_errors_per_state)
     combined_errors = np.where(
@@ -82,23 +80,22 @@ def _calculate_combined_error_estimate(
     if np.isnan(max_error):
         return np.inf
 
+    # Lower bound prevents underflow in adaptive refinement decisions
     return max(max_error, 1e-15) if 0.0 < max_error < 1e-15 else float(max_error)
 
 
 def _convert_casadi_dynamics_result_to_numpy(dynamics_result: ca.MX, num_states: int) -> FloatArray:
-    """VECTORIZED: Convert dynamics result using optimized CasADi operations."""
+    # Optimized CasADi-to-NumPy conversion for dynamics evaluation
     if isinstance(dynamics_result, ca.MX):
-        # VECTORIZED: Direct conversion instead of element loops
         result_dm = ca.evalf(dynamics_result)
         return np.array(result_dm.full(), dtype=np.float64).flatten()
     elif isinstance(dynamics_result, list):
-        # VECTORIZED: Batch evaluation
         return np.array([float(ca.evalf(expr)) for expr in dynamics_result], dtype=np.float64)
     else:
         raise ValueError(f"Unsupported dynamics result type: {type(dynamics_result)}")
 
 
-def simulate_dynamics_for_phase_interval_error_estimation(
+def _simulate_dynamics_for_phase_interval_error_estimation(
     phase_id: PhaseID,
     interval_idx: int,
     solution: OptimalControlSolution,
@@ -108,7 +105,6 @@ def simulate_dynamics_for_phase_interval_error_estimation(
     ode_solver: ODESolverCallable,
     n_eval_points: int = 50,
 ) -> tuple[bool, FloatArray, FloatArray, FloatArray, FloatArray, FloatArray, FloatArray]:
-    """Simulate dynamics for error estimation."""
     if not solution.success or solution.raw_solution is None:
         empty = np.array([], dtype=np.float64)
         return False, empty, empty, empty, empty, empty, empty
@@ -141,6 +137,7 @@ def simulate_dynamics_for_phase_interval_error_estimation(
     beta_k0, overall_scaling = (tau_end + tau_start) / 2.0, alpha * beta_k
 
     def dynamics_rhs(tau: float, state: FloatArray) -> FloatArray:
+        # Coordinate transformation from local tau to physical time
         control = (
             control_evaluator(tau).flatten()
             if control_evaluator(tau).ndim > 1
@@ -154,7 +151,7 @@ def simulate_dynamics_for_phase_interval_error_estimation(
         state_deriv_np = _convert_casadi_dynamics_result_to_numpy(dynamics_result, num_states)
         return cast(FloatArray, overall_scaling * state_deriv_np)
 
-    # Forward and backward simulation
+    # Boundary state extraction for simulation initialization
     initial_state = (
         state_evaluator(-1.0).flatten() if state_evaluator(-1.0).ndim > 1 else state_evaluator(-1.0)
     )
@@ -165,6 +162,7 @@ def simulate_dynamics_for_phase_interval_error_estimation(
     fwd_tau_points = np.linspace(-1, 1, n_eval_points, dtype=np.float64)
     bwd_tau_points = np.linspace(1, -1, n_eval_points, dtype=np.float64)
 
+    # Forward simulation from initial state
     try:
         fwd_sim = ode_solver(dynamics_rhs, t_span=(-1, 1), y0=initial_state, t_eval=fwd_tau_points)
         fwd_success, fwd_trajectory = (
@@ -179,6 +177,7 @@ def simulate_dynamics_for_phase_interval_error_estimation(
             np.full((num_states, len(fwd_tau_points)), np.nan, dtype=np.float64),
         )
 
+    # Backward simulation from terminal state
     try:
         bwd_sim = ode_solver(dynamics_rhs, t_span=(1, -1), y0=terminal_state, t_eval=bwd_tau_points)
         bwd_success, bwd_trajectory = (
@@ -204,7 +203,7 @@ def simulate_dynamics_for_phase_interval_error_estimation(
     )
 
 
-def calculate_relative_error_estimate(
+def _calculate_relative_error_estimate(
     phase_id: PhaseID,
     interval_idx: int,
     success: bool,
@@ -214,7 +213,6 @@ def calculate_relative_error_estimate(
     bwd_nlp_traj: FloatArray,
     gamma_factors: FloatArray,
 ) -> float:
-    """Calculate relative error estimate."""
     if not success or fwd_sim_traj.size == 0 or bwd_sim_traj.size == 0:
         return np.inf
 
@@ -232,10 +230,9 @@ def calculate_relative_error_estimate(
     return np.inf if np.isnan(max_error) else max_error
 
 
-def calculate_gamma_normalizers_for_phase(
+def _calculate_gamma_normalizers_for_phase(
     solution: OptimalControlSolution, problem: ProblemProtocol, phase_id: PhaseID
 ) -> FloatArray | None:
-    """Calculate gamma normalization factors for error estimation."""
     if not solution.success or solution.raw_solution is None:
         return None
 

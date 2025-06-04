@@ -103,11 +103,11 @@ def _interpolate_phase_trajectory_to_new_mesh_streamlined(
                 basis_components.barycentric_weights_for_state_nodes,
             )
         else:
-            from trajectolab.radau import compute_barycentric_weights
+            from trajectolab.radau import _compute_barycentric_weights
 
             local_nodes, barycentric_weights = (
                 basis_components.collocation_nodes,
-                compute_barycentric_weights(basis_components.collocation_nodes),
+                _compute_barycentric_weights(basis_components.collocation_nodes),
             )
         prev_interpolants.append(PolynomialInterpolant(local_nodes, traj_k, barycentric_weights))
 

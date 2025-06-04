@@ -15,7 +15,7 @@ import pytest
 from numpy.testing import assert_allclose
 
 from trajectolab.radau import (
-    compute_barycentric_weights,
+    _compute_barycentric_weights,
     compute_radau_collocation_components,
     evaluate_lagrange_polynomial_at_point,
 )
@@ -89,7 +89,7 @@ class TestRadauMathematicalCorrectnessFixed:
         ]
 
         for nodes in test_cases:
-            weights = compute_barycentric_weights(nodes)
+            weights = _compute_barycentric_weights(nodes)
 
             # Property 1: Lagrange polynomial partition of unity
             # Sum of all Lagrange polynomials should equal 1 at any point
@@ -115,7 +115,7 @@ class TestRadauMathematicalCorrectnessFixed:
         """Test Lagrange interpolation accuracy against known functions."""
         # Test interpolation of polynomial functions (should be exact)
         nodes = np.array([-1.0, -0.5, 0.0, 0.5, 1.0])
-        weights = compute_barycentric_weights(nodes)
+        weights = _compute_barycentric_weights(nodes)
 
         # Test polynomial functions that should be interpolated exactly
         test_functions = [
@@ -263,7 +263,7 @@ class TestRadauMathematicalCorrectnessFixed:
 
         # Test with very close nodes (could cause division by zero)
         close_nodes = np.array([-1.0, -0.999999999, 1.0])
-        weights = compute_barycentric_weights(close_nodes)
+        weights = _compute_barycentric_weights(close_nodes)
 
         # Should not contain NaN or Inf
         assert np.all(np.isfinite(weights)), "Barycentric weights contain NaN/Inf"

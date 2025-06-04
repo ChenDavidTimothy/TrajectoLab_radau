@@ -58,7 +58,7 @@ class ProblemProtocol(Protocol):
     _num_phases: int
     _multiphase_state: Any
 
-    # ADD MISSING ATTRIBUTES
+    # Required attributes for solver interface
     initial_guess: MultiPhaseInitialGuess | None
     solver_options: dict[str, object]
 
@@ -126,7 +126,7 @@ class Constraint:
         self.max_val = max_val
         self.equals = equals
 
-        # Validation
+        # Constraint validation prevents conflicting specifications
         if equals is not None and (min_val is not None or max_val is not None):
             raise ValueError("Cannot specify equality constraint with bound constraints")
         if min_val is not None and max_val is not None and min_val > max_val:
@@ -181,7 +181,11 @@ class MultiPhaseInitialGuess:
 
 
 class OptimalControlSolution:
-    """Solution to a multiphase optimal control problem."""
+    """Solution to a multiphase optimal control problem.
+
+    Contains optimized trajectories, objective value, solver diagnostics,
+    and adaptive mesh refinement data for comprehensive solution analysis.
+    """
 
     def __init__(self) -> None:
         self.success: bool = False
@@ -198,17 +202,17 @@ class OptimalControlSolution:
         self.phase_integrals: dict[PhaseID, float | FloatArray] = {}
         self.static_parameters: FloatArray | None = None
 
-        # Raw solver data
+        # Raw solver data for advanced analysis
         self.raw_solution: ca.OptiSol | None = None
         self.opti_object: ca.Opti | None = None
 
-        # Mesh information per phase
+        # Mesh information per phase for solution interpretation
         self.phase_mesh_intervals: dict[PhaseID, list[int]] = {}
         self.phase_mesh_nodes: dict[PhaseID, FloatArray] = {}
 
-        # Per-interval solution data per phase
+        # Per-interval solution data per phase for adaptive refinement
         self.phase_solved_state_trajectories_per_interval: dict[PhaseID, list[FloatArray]] = {}
         self.phase_solved_control_trajectories_per_interval: dict[PhaseID, list[FloatArray]] = {}
 
-        # Adaptive algorithm data
+        # Adaptive algorithm data for convergence analysis
         self.adaptive_data: AdaptiveAlgorithmData | None = None

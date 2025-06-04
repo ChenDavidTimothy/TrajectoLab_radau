@@ -40,7 +40,7 @@ from trajectolab.adaptive.phs.refinement import (
     p_refine_interval,
 )
 from trajectolab.exceptions import InterpolationError
-from trajectolab.radau import compute_barycentric_weights, compute_radau_collocation_components
+from trajectolab.radau import _compute_barycentric_weights, compute_radau_collocation_components
 
 
 class TestAdaptiveMathematicalCorrectness:
@@ -196,7 +196,7 @@ class TestAdaptiveMathematicalCorrectness:
     def test_polynomial_interpolant_partition_of_unity(self):
         """Test that Lagrange polynomials satisfy partition of unity."""
         nodes = np.array([-1.0, -0.3, 0.2, 0.8, 1.0])
-        weights = compute_barycentric_weights(nodes)
+        weights = _compute_barycentric_weights(nodes)
 
         # Test at various evaluation points
         test_points = np.linspace(-0.9, 0.9, 20)
@@ -777,7 +777,7 @@ class TestAdaptiveMathematicalCorrectness:
         values = np.array([1.0, 0.0, 1.0]).reshape(1, -1)  # f(-1)=1, f(0)=0, f(1)=1
 
         # Direct barycentric interpolation calculation
-        weights = compute_barycentric_weights(nodes)
+        weights = _compute_barycentric_weights(nodes)
 
         # Test at evaluation point x = 0.5
         eval_point = 0.5

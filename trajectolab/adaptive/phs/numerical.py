@@ -1,7 +1,7 @@
 import numpy as np
 
 from trajectolab.radau import (
-    compute_barycentric_weights,
+    _compute_barycentric_weights,
     evaluate_lagrange_polynomial_at_point,
 )
 from trajectolab.tl_types import FloatArray
@@ -49,7 +49,7 @@ class PolynomialInterpolant:
 
         # Compute or use provided barycentric weights
         self.bary_weights = (
-            compute_barycentric_weights(self.nodes_array)
+            _compute_barycentric_weights(self.nodes_array)
             if barycentric_weights is None
             else np.asarray(barycentric_weights, dtype=np.float64)
         )

@@ -21,17 +21,30 @@ def convert_casadi_to_numpy(
     control: FloatArray,
     time: float,
 ) -> FloatArray:
+    """Convert CasADi dynamics function call to NumPy arrays with enhanced validation.
+
+    Handles both optimized interface (ca.MX) and legacy interface (list[ca.MX]) to maintain
+    backward compatibility while supporting performance optimizations.
+
+    Args:
+        casadi_dynamics_func: CasADi function for dynamics evaluation
+        state: Current state vector
+        control: Current control vector
+        time: Current time
+
+    Returns:
+        FloatArray: State derivatives as NumPy array
+
+    Raises:
+        DataIntegrityError: Input corruption or numerical issues detected
+        CasadiConversionError: CasADi evaluation or conversion failed
     """
-    Convert CasADi dynamics function call to NumPy arrays with enhanced validation.
-    Handles both optimized interface (ca.MX) and legacy interface (list[ca.MX]).
-    """
-    # EXTERNAL BOUNDARY: Validate function (CasADi can be unpredictable)
+    # Validation at external boundary prevents propagation of corrupted data
     if not callable(casadi_dynamics_func):
         raise DataIntegrityError(
             "casadi_dynamics_func must be callable", "Invalid function passed to CasADi converter"
         )
 
-    # EXTERNAL BOUNDARY: Validate inputs for numerical corruption
     if np.any(np.isnan(state)) or np.any(np.isinf(state)):
         raise DataIntegrityError(
             "state array contains NaN or Inf values", "Numerical corruption in state input"
@@ -48,25 +61,22 @@ def convert_casadi_to_numpy(
         )
 
     try:
-        # Convert to CasADi
         state_dm = ca.DM(state)
         control_dm = ca.DM(control)
         time_dm = ca.DM([float(time)])
 
-        # Call dynamics
         result_casadi = casadi_dynamics_func(state_dm, control_dm, time_dm)
 
-        # Handle both optimized and legacy interfaces
+        # Handle both optimized (direct MX) and legacy (list) interfaces
         if isinstance(result_casadi, ca.DM):
-            # Direct DM result - convert to numpy
             result_np = cast(FloatArray, np.array(result_casadi.full(), dtype=np.float64).flatten())
         elif isinstance(result_casadi, ca.MX):
-            # MX result (new optimized interface) - evaluate and convert
+            # Optimized interface - direct MX evaluation
             result_dm = ca.evalf(result_casadi)
             if isinstance(result_dm, ca.DM):
                 result_np = cast(FloatArray, np.array(result_dm.full(), dtype=np.float64).flatten())
             else:
-                # Fallback: evaluate each element
+                # Fallback for complex MX expressions
                 num_states = result_casadi.shape[0]
                 result_np = cast(
                     FloatArray,
@@ -76,7 +86,7 @@ def convert_casadi_to_numpy(
                     ),
                 )
         elif isinstance(result_casadi, list | tuple):
-            # Legacy list interface - handle array of CasADi objects
+            # Legacy interface - list of CasADi objects
             if not result_casadi:
                 raise CasadiConversionError("Empty result from dynamics function")
 
@@ -94,7 +104,6 @@ def convert_casadi_to_numpy(
 
             result_np = cast(FloatArray, np.array(result_values, dtype=np.float64))
         else:
-            # Try direct conversion
             try:
                 result_np = cast(FloatArray, np.array(result_casadi, dtype=np.float64).flatten())
             except Exception as e:
@@ -102,7 +111,7 @@ def convert_casadi_to_numpy(
                     f"Unsupported result type {type(result_casadi)}: {e}"
                 ) from e
 
-        # EXTERNAL BOUNDARY: Validate output for numerical corruption from CasADi
+        # Validation at external boundary catches CasADi numerical corruption
         if np.any(np.isnan(result_np)) or np.any(np.isinf(result_np)):
             raise DataIntegrityError(
                 "CasADi dynamics output contains NaN or Inf values",
@@ -114,6 +123,6 @@ def convert_casadi_to_numpy(
     except CasadiConversionError:
         raise
     except DataIntegrityError:
-        raise  # Re-raise TrajectoLab-specific errors
+        raise
     except Exception as e:
         raise CasadiConversionError(f"CasADi dynamics evaluation failed: {e}") from e

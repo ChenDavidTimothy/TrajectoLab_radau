@@ -20,7 +20,7 @@ ConstraintInput: TypeAlias = (
 def _register_variable_name(
     name: str, name_to_index: dict[str, int], names_list: list[str], error_context: str
 ) -> int:
-    """Thread-safe variable name registration with collision detection."""
+    # Thread-safe registration with collision detection for variable naming consistency
     if name in name_to_index:
         raise DataIntegrityError(
             f"{error_context} '{name}' already exists", "Variable naming conflict"
@@ -35,7 +35,7 @@ def _register_variable_name(
 def _rollback_variable_registration(
     name: str, name_to_index: dict[str, int], names_list: list[str]
 ) -> None:
-    """Rollback variable registration on failure."""
+    # Rollback mechanism for exception safety during variable creation
     name_to_index.pop(name, None)
     names_list.pop()
 
@@ -44,8 +44,7 @@ class _BoundaryConstraint:
     """Internal class for representing boundary constraints with symbolic expression support."""
 
     def __init__(self, constraint_input: ConstraintInput = None) -> None:
-        """Create boundary constraint from unified constraint input including symbolic expressions."""
-        # SINGLE validation call
+        # Unified constraint creation supporting both numerical and symbolic specifications
         validate_constraint_input_format(constraint_input, "boundary constraint")
 
         self.equals: float | None = None
@@ -54,7 +53,7 @@ class _BoundaryConstraint:
         self.symbolic_expression: ca.MX | None = None
 
         if constraint_input is None:
-            pass  # No constraint
+            pass
         elif isinstance(constraint_input, ca.MX):
             self.symbolic_expression = constraint_input
         elif isinstance(constraint_input, int | float):
@@ -67,7 +66,6 @@ class _BoundaryConstraint:
             self.upper = None if upper_val is None else float(upper_val)
 
     def has_constraint(self) -> bool:
-        """Check if this boundary constraint is actually constraining anything."""
         return (
             self.equals is not None
             or self.lower is not None
@@ -76,7 +74,6 @@ class _BoundaryConstraint:
         )
 
     def is_symbolic(self) -> bool:
-        """Check if this is a symbolic constraint."""
         return self.symbolic_expression is not None
 
     def __repr__(self) -> str:
@@ -112,7 +109,7 @@ class PhaseDefinition:
 
     phase_id: PhaseID
 
-    # Variable management
+    # Variable management with thread-safe ordering
     state_info: list[_VariableInfo] = field(default_factory=list)
     control_info: list[_VariableInfo] = field(default_factory=list)
     state_name_to_index: dict[str, int] = field(default_factory=dict)
@@ -120,7 +117,7 @@ class PhaseDefinition:
     state_names: list[str] = field(default_factory=list)
     control_names: list[str] = field(default_factory=list)
 
-    # Symbolic variables
+    # Symbolic variables for expression building
     sym_time: ca.MX | None = None
     sym_time_initial: ca.MX | None = None
     sym_time_final: ca.MX | None = None
@@ -134,19 +131,19 @@ class PhaseDefinition:
     integral_symbols: list[ca.MX] = field(default_factory=list)
     num_integrals: int = 0
 
-    # Time bounds
+    # Time bounds with defaults for trajectory optimization
     t0_constraint: _BoundaryConstraint = field(default_factory=lambda: _BoundaryConstraint(0.0))
     tf_constraint: _BoundaryConstraint = field(default_factory=lambda: _BoundaryConstraint())
 
-    # Mesh configuration
+    # Mesh configuration for numerical discretization
     collocation_points_per_interval: list[int] = field(default_factory=list)
     global_normalized_mesh_nodes: FloatArray | None = None
     mesh_configured: bool = False
 
-    # Thread safety
+    # Thread safety for concurrent access
     _ordering_lock: threading.Lock = field(default_factory=threading.Lock)
 
-    # Symbolic boundary constraints collection
+    # Symbolic boundary constraints collection for automatic processing
     symbolic_boundary_constraints: list[tuple[str, str, ca.MX]] = field(default_factory=list)
 
     def add_state(
@@ -159,8 +156,7 @@ class PhaseDefinition:
         final_constraint: _BoundaryConstraint | None = None,
         boundary_constraint: _BoundaryConstraint | None = None,
     ) -> None:
-        """Add state variable to phase with automatic symbolic constraint collection."""
-        # SINGLE validation call
+        # State variable addition with automatic symbolic constraint collection
         validate_string_not_empty(name, "State variable name")
 
         with self._ordering_lock:
@@ -179,7 +175,7 @@ class PhaseDefinition:
                 )
                 self.state_info.append(var_info)
 
-                # Collect symbolic boundary constraints for automatic processing
+                # Automatic symbolic constraint collection for cross-phase processing
                 if initial_constraint is not None and initial_constraint.is_symbolic():
                     self.symbolic_boundary_constraints.append(
                         (name, "initial", cast(ca.MX, initial_constraint.symbolic_expression))
@@ -203,8 +199,6 @@ class PhaseDefinition:
     def add_control(
         self, name: str, symbol: ca.MX, boundary_constraint: _BoundaryConstraint | None = None
     ) -> None:
-        """Add control variable to phase."""
-        # SINGLE validation call
         validate_string_not_empty(name, "Control variable name")
 
         with self._ordering_lock:
@@ -235,29 +229,24 @@ class PhaseDefinition:
                 ) from e
 
     def get_variable_counts(self) -> tuple[int, int]:
-        """Get (num_states, num_controls) - trust construction correctness."""
         return len(self.state_info), len(self.control_info)
 
     def get_ordered_state_symbols(self) -> list[ca.MX]:
-        """Get state symbols in order - trust construction correctness."""
         return [info.symbol for info in self.state_info]
 
     def get_ordered_control_symbols(self) -> list[ca.MX]:
-        """Get control symbols in order - trust construction correctness."""
         return [info.symbol for info in self.control_info]
 
     def get_ordered_state_initial_symbols(self) -> list[ca.MX | None]:
-        """Get state initial symbols in order - trust construction correctness."""
         return [info.initial_symbol for info in self.state_info]
 
     def get_ordered_state_final_symbols(self) -> list[ca.MX | None]:
-        """Get state final symbols in order - trust construction correctness."""
         return [info.final_symbol for info in self.state_info]
 
     def _get_time_bounds(
         self, constraint: _BoundaryConstraint, constraint_type: str
     ) -> tuple[float, float]:
-        """Extract time bounds from constraint with consistent logic."""
+        # Time bounds extraction with consistent logic for symbolic constraints
         if constraint.is_symbolic():
             return (-1e6, 1e6)
         if constraint.equals is not None:
@@ -287,8 +276,6 @@ class StaticParameterState:
     def add_parameter(
         self, name: str, symbol: ca.MX, boundary_constraint: _BoundaryConstraint | None = None
     ) -> None:
-        """Add static parameter."""
-        # SINGLE validation call
         validate_string_not_empty(name, "Parameter name")
 
         with self._ordering_lock:
@@ -316,11 +303,9 @@ class StaticParameterState:
                 ) from e
 
     def get_parameter_count(self) -> int:
-        """Get number of static parameters."""
         return len(self.parameter_info)
 
     def get_ordered_parameter_symbols(self) -> list[ca.MX]:
-        """Get parameter symbols in order."""
         return [info.symbol for info in self.parameter_info]
 
 
@@ -334,7 +319,7 @@ class MultiPhaseVariableState:
     objective_expression: ca.MX | None = None
 
     def set_phase(self, phase_id: PhaseID) -> PhaseDefinition:
-        """Add new phase to multiphase problem."""
+        # Phase creation with uniqueness enforcement
         if phase_id in self.phases:
             raise DataIntegrityError(
                 f"Phase {phase_id} already exists", "Phase definition conflict"
@@ -345,11 +330,10 @@ class MultiPhaseVariableState:
         return phase_def
 
     def get_phase_ids(self) -> list[PhaseID]:
-        """Get ordered list of phase IDs."""
         return sorted(self.phases.keys())
 
     def get_total_variable_counts(self) -> tuple[int, int, int]:
-        """Get (total_states, total_controls, num_static_params) across all phases."""
+        # Aggregate counts across all phases for solver sizing
         total_states = sum(len(phase.state_info) for phase in self.phases.values())
         total_controls = sum(len(phase.control_info) for phase in self.phases.values())
         num_static_params = self.static_parameters.get_parameter_count()
