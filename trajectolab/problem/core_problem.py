@@ -67,10 +67,97 @@ class Phase:
         """Add integral expression for this phase."""
         return variables_problem.set_phase_integral(self._phase_def, integrand_expr)
 
-    def subject_to(self, constraint_expr: ca.MX | float | int) -> None:
-        """Add path constraint for this phase."""
-        constraints_problem.set_phase_path_constraint(self._phase_def, constraint_expr)
-        logger.debug("Path constraint added to phase %d", self.phase_id)
+    def path_constraints(self, *constraint_expressions: ca.MX | float | int) -> None:
+        """
+        Add path constraints for this phase.
+
+        Path constraints are applied at every collocation point throughout the phase.
+        Supports single-variable and multi-variable constraints.
+
+        Args:
+            *constraint_expressions: One or more constraint expressions using
+                                   comparison operators (>=, <=, ==) or symbolic expressions
+
+        Examples:
+            >>> # Single-variable constraints
+            >>> phase.path_constraints(
+            ...     altitude >= 1000,
+            ...     velocity <= max_velocity,
+            ...     thrust >= 0
+            ... )
+            >>>
+            >>> # Multi-variable constraints
+            >>> phase.path_constraints(
+            ...     altitude + velocity <= combined_limit,
+            ...     thrust1 + thrust2 + thrust3 <= total_thrust,
+            ...     fuel_flow * efficiency >= min_performance,
+            ...     altitude * velocity <= performance_envelope
+            ... )
+            >>>
+            >>> # Complex expressions
+            >>> phase.path_constraints(
+            ...     ca.sqrt(velocity_x**2 + velocity_y**2) <= speed_limit,
+            ...     dynamic_pressure <= max_q
+            ... )
+        """
+        if not constraint_expressions:
+            raise ValueError(
+                f"Phase {self.phase_id} path_constraints() requires at least one constraint expression"
+            )
+
+        for expr in constraint_expressions:
+            constraints_problem.add_path_constraint(self._phase_def, expr)
+
+        logger.debug(
+            "Added %d path constraint(s) to phase %d", len(constraint_expressions), self.phase_id
+        )
+
+    def event_constraints(self, *constraint_expressions: ca.MX | float | int) -> None:
+        """
+        Add event constraints for this phase.
+
+        Event constraints are applied only at initial and/or final boundaries of the phase.
+        Use the .initial and .final properties of state variables to specify boundary conditions.
+        Supports single-variable and multi-variable boundary constraints.
+
+        Args:
+            *constraint_expressions: One or more constraint expressions involving
+                                   .initial or .final properties of state variables
+
+        Examples:
+            >>> # Single-variable boundary constraints
+            >>> phase.event_constraints(
+            ...     altitude.initial == 0,
+            ...     velocity.initial == 0,
+            ...     altitude.final >= target_altitude,
+            ...     velocity.final >= min_final_velocity
+            ... )
+            >>>
+            >>> # Multi-variable boundary constraints
+            >>> phase.event_constraints(
+            ...     altitude.final + velocity.final <= safety_envelope,
+            ...     mass.initial >= fuel.initial + structure_mass,
+            ...     thrust1.final + thrust2.final + thrust3.final == 0,
+            ...     (altitude.final - altitude.initial) / time.final >= min_avg_velocity
+            ... )
+            >>>
+            >>> # Complex boundary expressions
+            >>> phase.event_constraints(
+            ...     ca.sqrt(velocity_x.final**2 + velocity_y.final**2) >= orbital_speed,
+            ...     total_energy.final >= minimum_orbital_energy
+            ... )
+        """
+        if not constraint_expressions:
+            raise ValueError(
+                f"Phase {self.phase_id} event_constraints() requires at least one constraint expression"
+            )
+
+        for expr in constraint_expressions:
+            constraints_problem.add_event_constraint(self.problem._multiphase_state, expr)
+
+        logger.debug(
+            "Added %d event constraint(s) to phase %d", len(constraint_expressions), self.phase_id
+        )
 
     def mesh(self, polynomial_degrees: list[int], mesh_points: NumericArrayLike) -> None:
         """Configure mesh for this phase."""
@@ -117,14 +204,6 @@ class Problem:
         """Define the multiphase objective function to minimize."""
         variables_problem.set_multiphase_objective(self._multiphase_state, objective_expr)
         logger.info("Multiphase objective function defined")
-
-    def subject_to(self, constraint_expr: ca.MX | float | int) -> None:
-        """Add a cross-phase constraint to the problem."""
-        constraints_problem.add_cross_phase_constraint(self._multiphase_state, constraint_expr)
-        logger.debug(
-            "Cross-phase constraint added: total=%d",
-            len(self._multiphase_state.cross_phase_constraints),
-        )
 
     def guess(
         self,

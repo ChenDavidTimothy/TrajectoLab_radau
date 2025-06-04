@@ -1,5 +1,6 @@
 """
 TrajectoLab Example: Optimal Aero-Assisted Plane Change
+Converted to new constraint API
 """
 
 import casadi as ca
@@ -76,13 +77,15 @@ phase.dynamics(
     }
 )
 
-# Path constraint: heat rate limit
-phase.subject_to(q_dot <= 800)
-phase.subject_to(q_dot >= 0)
+# Path constraints: heat rate limits (applied at every collocation point)
+phase.path_constraints(
+    q_dot <= 800,  # Heat rate upper limit
+    q_dot >= 0,  # Heat rate lower limit (physical constraint)
+)
 
-# Boundary constraint: cos(phi) * cos(psi) = cos(18°)
+# Event constraint: final boundary condition (applied at final boundary only)
 target_angle = ca.cos(18 * DEG2RAD)
-problem.subject_to(ca.cos(phi.final) * ca.cos(psi.final) == target_angle)
+phase.event_constraints(ca.cos(phi.final) * ca.cos(psi.final) == target_angle)
 
 # Objective: Maximize final velocity
 problem.minimize(-v.final)

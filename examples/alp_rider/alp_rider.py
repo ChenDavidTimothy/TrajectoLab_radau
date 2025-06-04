@@ -46,7 +46,7 @@ terrain_function = (
 )
 
 state_norm_squared = y1**2 + y2**2 + y3**2 + y4**2
-phase.subject_to(state_norm_squared >= terrain_function)
+phase.path_constraints(state_norm_squared >= terrain_function)
 
 # Objective
 integrand = 100 * (y1**2 + y2**2 + y3**2 + y4**2) + 0.01 * (u1**2 + u2**2)

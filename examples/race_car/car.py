@@ -23,7 +23,7 @@ phase.dynamics({pos: speed, speed: throttle - speed})
 
 # Constraints
 speed_limit = 1 - ca.sin(2 * ca.pi * pos) / 2
-phase.subject_to(speed <= speed_limit)
+phase.path_constraints(speed <= speed_limit)
 
 # Objective
 problem.minimize(t.final)

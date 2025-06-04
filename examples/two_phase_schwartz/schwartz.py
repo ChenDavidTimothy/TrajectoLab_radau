@@ -26,7 +26,7 @@ phase1.dynamics(
 
 # Path constraint: feasible region outside ellipse
 elliptical_constraint = 1 - 9 * (x0_1 - 1) ** 2 - ((x1_1 - 0.4) / 0.3) ** 2
-phase1.subject_to(elliptical_constraint <= 0)
+phase1.path_constraints(elliptical_constraint <= 0)
 phase1.mesh([6, 6], [-1.0, 0.0, 1.0])
 
 # Phase 2

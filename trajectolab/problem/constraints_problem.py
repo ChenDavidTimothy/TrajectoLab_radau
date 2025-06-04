@@ -8,14 +8,41 @@ from ..tl_types import Constraint, PhaseID
 from .state import MultiPhaseVariableState, PhaseDefinition, _BoundaryConstraint
 
 
-def set_phase_path_constraint(
-    phase_def: PhaseDefinition, constraint_expr: ca.MX | float | int
-) -> None:
-    """Add a path constraint expression to a specific phase."""
+def add_path_constraint(phase_def: PhaseDefinition, constraint_expr: ca.MX | float | int) -> None:
+    """
+    Add a path constraint expression to a specific phase.
+
+    Path constraints are applied at every collocation point throughout the phase.
+    Leverages existing path constraint processing system.
+
+    Args:
+        phase_def: Phase definition to add constraint to
+        constraint_expr: Constraint expression (single or multi-variable)
+    """
     if isinstance(constraint_expr, ca.MX):
         phase_def.path_constraints.append(constraint_expr)
     else:
         phase_def.path_constraints.append(ca.MX(constraint_expr))
+
+
+def add_event_constraint(
+    multiphase_state: MultiPhaseVariableState, constraint_expr: ca.MX | float | int
+) -> None:
+    """
+    Add an event constraint expression to the multiphase problem.
+
+    Event constraints involving .initial and .final properties are automatically
+    processed by the existing symbolic constraint system in validate_multiphase_configuration().
+    Supports single-variable and multi-variable boundary constraints.
+
+    Args:
+        multiphase_state: Multiphase state to add constraint to
+        constraint_expr: Constraint expression involving boundary conditions
+    """
+    if isinstance(constraint_expr, ca.MX):
+        multiphase_state.cross_phase_constraints.append(constraint_expr)
+    else:
+        multiphase_state.cross_phase_constraints.append(ca.MX(constraint_expr))
 
 
 def add_cross_phase_constraint(
@@ -178,7 +205,9 @@ def get_phase_path_constraints_function(
 ) -> Callable[..., list[Constraint]] | None:
     """
     Get path constraints function for a specific phase.
-    REFACTORED using EXTRACTION to eliminate 4+ level nesting - now max 3 levels.
+
+    Processes both explicit path constraints (from path_constraints()) and
+    boundary constraints (from state(boundary=...)).
     """
     # Check if phase has any path constraints
     has_path_constraints = bool(phase_def.path_constraints)
@@ -209,13 +238,10 @@ def get_phase_path_constraints_function(
         initial_time_variable: ca.MX | None = None,
         terminal_time_variable: ca.MX | None = None,
     ) -> list[Constraint]:
-        """
-        Apply path constraints at a single collocation point.
-        REFACTORED to eliminate 4+ level nesting through EXTRACTION.
-        """
+        """Apply path constraints at a single collocation point."""
         result: list[Constraint] = []
 
-        # EXTRACTION: Substitution map building moved to separate function
+        # Build substitution map for symbolic constraints
         subs_map = _build_substitution_map(
             phase_def,
             states_vec,
@@ -227,10 +253,10 @@ def get_phase_path_constraints_function(
             terminal_time_variable,
         )
 
-        # EXTRACTION: Symbolic constraint processing moved to separate function
+        # Process explicit path constraints (from path_constraints())
         _process_symbolic_path_constraints(phase_def.path_constraints, subs_map, result)
 
-        # EXTRACTION: Boundary constraint processing moved to separate functions
+        # Process boundary constraints (from state(boundary=...))
         _process_state_boundary_constraints(state_boundary_constraints, states_vec, result)
         _process_control_boundary_constraints(control_boundary_constraints, controls_vec, result)
 
@@ -381,9 +407,11 @@ def get_cross_phase_event_constraints_function(
 ) -> Callable[..., list[Constraint]] | None:
     """
     Get cross-phase event constraints function for multiphase problems.
-    REFACTORED using EXTRACTION to improve maintainability.
+
+    Processes both explicit event constraints (from event_constraints()) and
+    boundary constraints (from state(initial=..., final=...)).
     """
-    # Check for cross-phase constraints
+    # Check for cross-phase constraints (includes event constraints)
     has_cross_phase_constraints = bool(multiphase_state.cross_phase_constraints)
 
     # Check for phase initial/final constraints - SKIP SYMBOLIC ONES
@@ -407,21 +435,18 @@ def get_cross_phase_event_constraints_function(
     def vectorized_cross_phase_event_constraints(
         phase_endpoint_vectors: dict[PhaseID, dict[str, ca.MX]], static_parameters_vec: ca.MX | None
     ) -> list[Constraint]:
-        """
-        Apply cross-phase event constraints.
-        REFACTORED using EXTRACTION for better maintainability.
-        """
+        """Apply cross-phase event constraints."""
         result: list[Constraint] = []
 
-        # EXTRACTION: Substitution map building moved to separate function
+        # Build substitution map for cross-phase constraints
         subs_map = _process_cross_phase_substitution_map(
             multiphase_state, phase_endpoint_vectors, static_parameters_vec
         )
 
-        # EXTRACTION: Cross-phase constraint processing moved to separate function
+        # Process cross-phase constraints (includes event constraints)
         _process_cross_phase_symbolic_constraints(multiphase_state, subs_map, result)
 
-        # EXTRACTION: Phase boundary constraint processing moved to separate functions
+        # Process phase boundary constraints (from state(initial=..., final=...))
         _process_phase_initial_boundary_constraints(
             multiphase_state, phase_endpoint_vectors, result
         )

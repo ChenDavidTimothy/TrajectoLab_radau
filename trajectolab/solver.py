@@ -51,6 +51,44 @@ def solve_fixed_mesh(
 
     Raises:
         trajectolab.ConfigurationError: If problem is not properly configured
+
+    Examples:
+        >>> # Create a simple rocket ascent problem
+        >>> problem = Problem("Rocket Ascent")
+        >>>
+        >>> # Define phase with state variables
+        >>> phase = problem.set_phase(1)
+        >>> time = phase.time(initial=0, final=10)
+        >>> altitude = phase.state("altitude", initial=0, final=1000)
+        >>> velocity = phase.state("velocity", initial=0)
+        >>> thrust = phase.control("thrust", boundary=(0, 1000))
+        >>>
+        >>> # Define dynamics
+        >>> phase.dynamics({
+        ...     altitude: velocity,
+        ...     velocity: thrust - 9.81
+        ... })
+        >>>
+        >>> # Add path constraints (applied at every collocation point)
+        >>> phase.path_constraints(
+        ...     altitude >= 0,           # Stay above ground
+        ...     thrust <= 1000,          # Maximum thrust limit
+        ...     velocity <= 100          # Speed limit
+        ... )
+        >>>
+        >>> # Add event constraints (applied at boundaries)
+        >>> phase.event_constraints(
+        ...     altitude.initial == 0,   # Start at ground level
+        ...     velocity.initial == 0,   # Start from rest
+        ...     altitude.final >= 1000   # Reach target altitude
+        ... )
+        >>>
+        >>> # Define objective and mesh
+        >>> problem.minimize(time.final)
+        >>> phase.mesh([4, 4], [0, 0.5, 1.0])
+        >>>
+        >>> # Solve the problem
+        >>> solution = solve_fixed_mesh(problem)
     """
     logger.info("Starting multiphase fixed-mesh solve: problem='%s'", problem.name)
 
@@ -130,6 +168,70 @@ def solve_adaptive(
 
     Raises:
         trajectolab.ConfigurationError: If problem is not properly configured or parameters are invalid
+
+    Examples:
+        >>> # Create a multiphase spacecraft trajectory problem
+        >>> problem = Problem("Spacecraft Trajectory")
+        >>>
+        >>> # Phase 1: Launch ascent
+        >>> p1 = problem.set_phase(1)
+        >>> t1 = p1.time(initial=0, final=100)
+        >>> altitude_p1 = p1.state("altitude", initial=0)
+        >>> velocity_p1 = p1.state("velocity", initial=0)
+        >>> mass_p1 = p1.state("mass", initial=1000)
+        >>> thrust_p1 = p1.control("thrust")
+        >>>
+        >>> p1.dynamics({
+        ...     altitude_p1: velocity_p1,
+        ...     velocity_p1: thrust_p1 / mass_p1 - 9.81,
+        ...     mass_p1: -thrust_p1 * 0.001
+        ... })
+        >>>
+        >>> # Path constraints for phase 1
+        >>> p1.path_constraints(
+        ...     altitude_p1 >= 0,
+        ...     thrust_p1 >= 0,
+        ...     thrust_p1 <= 2000
+        ... )
+        >>>
+        >>> # Event constraints for phase 1
+        >>> p1.event_constraints(
+        ...     altitude_p1.initial == 0,
+        ...     velocity_p1.initial == 0,
+        ...     mass_p1.initial == 1000
+        ... )
+        >>>
+        >>> # Phase 2: Orbital insertion (linked via symbolic constraints)
+        >>> p2 = problem.set_phase(2)
+        >>> t2 = p2.time(initial=t1.final, final=200)  # Automatic phase linking
+        >>> altitude_p2 = p2.state("altitude", initial=altitude_p1.final)  # Continuous altitude
+        >>> velocity_p2 = p2.state("velocity", initial=velocity_p1.final)  # Continuous velocity
+        >>> mass_p2 = p2.state("mass", initial=mass_p1.final)              # Continuous mass
+        >>> thrust_p2 = p2.control("thrust")
+        >>>
+        >>> p2.dynamics({
+        ...     altitude_p2: velocity_p2,
+        ...     velocity_p2: thrust_p2 / mass_p2,
+        ...     mass_p2: -thrust_p2 * 0.001
+        ... })
+        >>>
+        >>> # Phase 2 constraints
+        >>> p2.path_constraints(
+        ...     thrust_p2 >= 0,
+        ...     thrust_p2 <= 1000
+        ... )
+        >>>
+        >>> p2.event_constraints(
+        ...     altitude_p2.final >= 200000,  # Reach orbital altitude
+        ...     velocity_p2.final >= 7800     # Achieve orbital velocity
+        ... )
+        >>>
+        >>> # Configure meshes and solve adaptively
+        >>> p1.mesh([3, 3], [0, 0.5, 1.0])
+        >>> p2.mesh([3, 3], [0, 0.5, 1.0])
+        >>> problem.minimize(mass_p1.initial - mass_p2.final)  # Maximize payload
+        >>>
+        >>> solution = solve_adaptive(problem, error_tolerance=1e-5)
     """
     logger.info(
         "Starting multiphase adaptive solve: problem='%s', tolerance=%.1e, max_iter=%d",
