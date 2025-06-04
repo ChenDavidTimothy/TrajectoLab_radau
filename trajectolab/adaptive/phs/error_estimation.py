@@ -41,7 +41,7 @@ def _find_maximum_state_values_across_phase_intervals(
         return np.array([], dtype=np.float64)
 
     # VECTORIZED: Single concatenation + max operation
-    return np.max(np.abs(np.concatenate(valid_intervals, axis=1)), axis=1)
+    return cast(FloatArray, np.max(np.abs(np.concatenate(valid_intervals, axis=1)), axis=1))
 
 
 def _calculate_trajectory_error_differences(

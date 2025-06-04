@@ -258,7 +258,7 @@ def evaluate_lagrange_polynomial_at_point(
         return np.zeros(num_nodes, dtype=np.float64)
 
     normalized_terms = terms / sum_terms
-    return normalized_terms.astype(np.float64)
+    return cast(FloatArray, normalized_terms)
 
 
 def compute_lagrange_derivative_coefficients_at_point(

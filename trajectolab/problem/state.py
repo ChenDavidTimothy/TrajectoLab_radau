@@ -246,11 +246,11 @@ class PhaseDefinition:
         """Get control symbols in order - trust construction correctness."""
         return [info.symbol for info in self.control_info]
 
-    def get_ordered_state_initial_symbols(self) -> list[ca.MX]:
+    def get_ordered_state_initial_symbols(self) -> list[ca.MX | None]:
         """Get state initial symbols in order - trust construction correctness."""
         return [info.initial_symbol for info in self.state_info]
 
-    def get_ordered_state_final_symbols(self) -> list[ca.MX]:
+    def get_ordered_state_final_symbols(self) -> list[ca.MX | None]:
         """Get state final symbols in order - trust construction correctness."""
         return [info.final_symbol for info in self.state_info]
 

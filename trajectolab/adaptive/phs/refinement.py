@@ -61,7 +61,7 @@ def _calculate_trajectory_errors_with_gamma(
         return np.array([], dtype=np.float64)
 
     X_nlp_flat = X_nlp.flatten() if X_nlp.ndim > 1 else X_nlp
-    return (gamma_factors.flatten() * np.abs(X_sim - X_nlp_flat)).astype(np.float64)
+    return cast(FloatArray, (gamma_factors.flatten() * np.abs(X_sim - X_nlp_flat)))
 
 
 def p_refine_interval(
