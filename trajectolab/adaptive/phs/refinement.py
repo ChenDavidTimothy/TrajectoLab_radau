@@ -287,7 +287,7 @@ def h_reduce_intervals(
     if num_states == 0:
         return fwd_success and bwd_success
 
-    # VECTORIZED: Error calculation
+
     all_fwd_errors = np.concatenate(
         [
             _calculate_trajectory_errors_with_gamma(

@@ -9,7 +9,7 @@ _Duration: TypeAlias = float
 _Factor: TypeAlias = float
 
 # --- Floating Point Precision ---
-ZERO_TOLERANCE: _Tolerance = 1e-17
+ZERO_TOLERANCE: _Tolerance = 1e-18
 """Tolerance for considering floating point values as zero."""
 
 MESH_TOLERANCE: _Tolerance = 1e-9
