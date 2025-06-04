@@ -329,7 +329,7 @@ class MultiPhaseVariableState:
         self.phases[phase_id] = phase_def
         return phase_def
 
-    def get_phase_ids(self) -> list[PhaseID]:
+    def _get_phase_ids(self) -> list[PhaseID]:
         return sorted(self.phases.keys())
 
     def get_total_variable_counts(self) -> tuple[int, int, int]:

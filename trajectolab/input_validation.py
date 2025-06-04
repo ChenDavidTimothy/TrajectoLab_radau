@@ -111,7 +111,7 @@ def validate_polynomial_degree(degree: int, context: str = "polynomial degree") 
     validate_positive_integer(degree, context, min_value=1)
 
 
-def validate_mesh_configuration(
+def _validate_mesh_configuration(
     polynomial_degrees: list[int], mesh_points: FloatArray, num_intervals: int
 ) -> None:
     # Comprehensive mesh validation ensures pseudospectral method requirements
@@ -176,7 +176,7 @@ def validate_phase_configuration(problem: ProblemProtocol, phase_id: PhaseID) ->
     if not phase_def.mesh_configured:
         raise ConfigurationError(f"Phase {phase_id} mesh must be configured - call phase.mesh()")
 
-    validate_mesh_configuration(
+    _validate_mesh_configuration(
         phase_def.collocation_points_per_interval,
         phase_def.global_normalized_mesh_nodes,
         len(phase_def.collocation_points_per_interval),
@@ -202,7 +202,7 @@ def validate_multiphase_problem_ready_for_solving(problem: ProblemProtocol) -> N
         total_states, total_controls, num_static_params, "multiphase problem"
     )
 
-    for phase_id in problem.get_phase_ids():
+    for phase_id in problem._get_phase_ids():
         validate_phase_configuration(problem, phase_id)
 
     if (
@@ -215,7 +215,7 @@ def validate_multiphase_problem_ready_for_solving(problem: ProblemProtocol) -> N
     problem.validate_multiphase_configuration()
 
     if problem.initial_guess is not None:
-        validate_multiphase_initial_guess_structure(problem.initial_guess, problem)
+        _validate_multiphase_initial_guess_structure(problem.initial_guess, problem)
 
 
 # ============================================================================
@@ -260,11 +260,11 @@ def validate_integral_values(integrals: float | FloatArray | None, num_integrals
         validate_array_numerical_integrity(integrals_array, "integral values")
 
 
-def validate_multiphase_initial_guess_structure(
+def _validate_multiphase_initial_guess_structure(
     initial_guess: MultiPhaseInitialGuess, problem: ProblemProtocol
 ) -> None:
     # Comprehensive validation ensures initial guess compatibility with problem structure
-    phase_ids = problem.get_phase_ids()
+    phase_ids = problem._get_phase_ids()
 
     if initial_guess.phase_states is not None:
         for phase_id, states_list in initial_guess.phase_states.items():

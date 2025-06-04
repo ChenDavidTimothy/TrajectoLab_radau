@@ -15,7 +15,7 @@ def apply_multiphase_initial_guess(
     """
     Apply initial guess to multiphase optimization variables.
 
-    NOTE: Assumes initial guess has been validated by validate_multiphase_initial_guess()
+    NOTE: Assumes initial guess has been validated by _validate_multiphase_initial_guess()
     at the entry point (validate_multiphase_configuration).
     """
     if problem.initial_guess is None:
@@ -24,7 +24,7 @@ def apply_multiphase_initial_guess(
     ig = problem.initial_guess
 
     # Apply initial guess for each phase
-    for phase_id in problem.get_phase_ids():
+    for phase_id in problem._get_phase_ids():
         if phase_id in variables.phase_variables:
             phase_vars = variables.phase_variables[phase_id]
             _apply_phase_initial_guess(opti, phase_vars, ig, problem, phase_id)

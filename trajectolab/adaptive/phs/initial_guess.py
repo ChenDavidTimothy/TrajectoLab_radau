@@ -18,7 +18,7 @@ from trajectolab.tl_types import (
 )
 
 
-__all__ = ["propagate_multiphase_solution_to_new_meshes"]
+__all__ = ["_propagate_multiphase_solution_to_new_meshes"]
 
 logger = logging.getLogger(__name__)
 
@@ -161,7 +161,7 @@ def _interpolate_phase_trajectory_to_new_mesh_streamlined(
     return cast(list[FloatArray], target_trajectories)
 
 
-def propagate_multiphase_solution_to_new_meshes(
+def _propagate_multiphase_solution_to_new_meshes(
     prev_solution: OptimalControlSolution,
     problem: ProblemProtocol,
     target_phase_polynomial_degrees: dict[PhaseID, list[int]],
@@ -182,7 +182,7 @@ def propagate_multiphase_solution_to_new_meshes(
 
     phase_states, phase_controls = {}, {}
 
-    for phase_id in problem.get_phase_ids():
+    for phase_id in problem._get_phase_ids():
         # Validate configuration
         if (
             phase_id not in target_phase_polynomial_degrees
@@ -260,7 +260,7 @@ def propagate_multiphase_solution_to_new_meshes(
         static_parameters=static_parameters,
     )
 
-    for phase_id in problem.get_phase_ids():
+    for phase_id in problem._get_phase_ids():
         if (
             phase_id not in initial_guess.phase_states
             or phase_id not in initial_guess.phase_controls

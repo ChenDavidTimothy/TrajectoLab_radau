@@ -6,7 +6,7 @@ from trajectolab.radau import RadauBasisComponents
 from trajectolab.tl_types import Constraint, FloatArray, PhaseID, ProblemProtocol
 
 
-def apply_constraint(opti: ca.Opti, constraint: Constraint) -> None:
+def _apply_constraint(opti: ca.Opti, constraint: Constraint) -> None:
     """SINGLE SOURCE for applying any constraint to optimization problem."""
     if constraint.min_val is not None:
         opti.subject_to(constraint.val >= constraint.min_val)
@@ -16,7 +16,7 @@ def apply_constraint(opti: ca.Opti, constraint: Constraint) -> None:
         opti.subject_to(constraint.val == constraint.equals)
 
 
-def apply_phase_collocation_constraints(
+def _apply_phase_collocation_constraints(
     opti: ca.Opti,
     phase_id: PhaseID,
     mesh_interval_index: int,
@@ -34,7 +34,7 @@ def apply_phase_collocation_constraints(
     SIMPLIFIED: Apply collocation constraints with simple coordinate transformation.
     """
     from ..input_validation import validate_dynamics_output
-    from ..utils.coordinates import tau_to_time
+    from ..utils.coordinates import _tau_to_time
 
     num_colloc_nodes = len(basis_components.collocation_nodes)
     colloc_nodes_tau = basis_components.collocation_nodes.flatten()
@@ -62,7 +62,7 @@ def apply_phase_collocation_constraints(
 
         # SIMPLIFIED: Single function call replaces complex transformation
         local_colloc_tau_val = colloc_nodes_tau[i_colloc]
-        physical_time_at_colloc = tau_to_time(
+        physical_time_at_colloc = _tau_to_time(
             local_colloc_tau_val,
             mesh_start,
             mesh_end,
@@ -84,7 +84,7 @@ def apply_phase_collocation_constraints(
         )
 
 
-def apply_phase_path_constraints(
+def _apply_phase_path_constraints(
     opti: ca.Opti,
     phase_id: PhaseID,
     mesh_interval_index: int,
@@ -143,10 +143,10 @@ def apply_phase_path_constraints(
         )
 
         for constraint in constraints_to_apply:
-            apply_constraint(opti, constraint)
+            _apply_constraint(opti, constraint)
 
 
-def apply_multiphase_cross_phase_event_constraints(
+def _apply_multiphase_cross_phase_event_constraints(
     opti: ca.Opti,
     phase_endpoint_data: dict[PhaseID, dict[str, ca.MX]],
     static_parameters: ca.MX | None,
@@ -168,4 +168,4 @@ def apply_multiphase_cross_phase_event_constraints(
     )
 
     for constraint in constraints_to_apply:
-        apply_constraint(opti, constraint)
+        _apply_constraint(opti, constraint)

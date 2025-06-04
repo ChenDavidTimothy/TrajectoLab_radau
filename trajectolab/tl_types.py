@@ -63,7 +63,7 @@ class ProblemProtocol(Protocol):
     solver_options: dict[str, object]
 
     # Essential solver methods
-    def get_phase_ids(self) -> list[PhaseID]:
+    def _get_phase_ids(self) -> list[PhaseID]:
         """Return ordered list of phase IDs"""
         ...
 
@@ -83,15 +83,15 @@ class ProblemProtocol(Protocol):
         """Get control names for given phase in order"""
         ...
 
-    def get_phase_dynamics_function(self, phase_id: PhaseID) -> Callable[..., ca.MX]:
+    def _get_phase_dynamics_function(self, phase_id: PhaseID) -> Callable[..., ca.MX]:
         """Get dynamics function for given phase (returns ca.MX directly)"""
         ...
 
-    def get_objective_function(self) -> Callable[..., ca.MX]:
+    def _get_objective_function(self) -> Callable[..., ca.MX]:
         """Get multiphase objective function"""
         ...
 
-    def get_phase_integrand_function(self, phase_id: PhaseID) -> Callable[..., ca.MX] | None:
+    def _get_phase_integrand_function(self, phase_id: PhaseID) -> Callable[..., ca.MX] | None:
         """Get integrand function for given phase"""
         ...
 

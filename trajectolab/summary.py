@@ -70,7 +70,7 @@ def _print_problem_structure_section(solution: Solution) -> None:
         print("│  Name: Not available")
 
     # Basic counts
-    phase_ids = solution.get_phase_ids()
+    phase_ids = solution._get_phase_ids()
     print(f"│  Phases: {len(phase_ids)}")
 
     # Variable counts
@@ -135,7 +135,7 @@ def _print_phase_data_section(solution: Solution) -> None:
     print("┌─ PHASE DATA")
     print("│")
 
-    phase_ids = solution.get_phase_ids()
+    phase_ids = solution._get_phase_ids()
     if not phase_ids:
         print("│  No phases available")
         print("│")
@@ -229,7 +229,7 @@ def _print_mesh_configuration_section(solution: Solution) -> None:
     print("│  ├─────────┼───────────┼─────────────┼──────────────")
 
     total_intervals = 0
-    for phase_id in sorted(solution.get_phase_ids()):
+    for phase_id in sorted(solution._get_phase_ids()):
         if phase_id in solution.phase_mesh_intervals:
             intervals = solution.phase_mesh_intervals[phase_id]
             num_intervals = len(intervals)

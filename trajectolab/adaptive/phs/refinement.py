@@ -10,7 +10,7 @@ from trajectolab.adaptive.phs.data_structures import (
     HRefineResult,
     PReduceResult,
     PRefineResult,
-    ensure_2d_array,
+    _ensure_2d_array,
 )
 from trajectolab.adaptive.phs.error_estimation import _convert_casadi_dynamics_result_to_numpy
 from trajectolab.adaptive.phs.numerical import (
@@ -136,7 +136,7 @@ def h_reduce_intervals(
         return False
 
     num_states, _ = problem.get_phase_variable_counts(phase_id)
-    phase_dynamics_function = problem.get_phase_dynamics_function(phase_id)
+    phase_dynamics_function = problem._get_phase_dynamics_function(phase_id)
     global_mesh = solution.phase_mesh_nodes[phase_id]
 
     tau_start_k, tau_shared, tau_end_kp1 = global_mesh[first_idx : first_idx + 3]
@@ -209,12 +209,12 @@ def h_reduce_intervals(
                 return False
             phase_def = problem._phases[phase_id]
 
-            Xk_nlp = ensure_2d_array(
+            Xk_nlp = _ensure_2d_array(
                 raw_sol.value(variables.phase_variables[phase_id].state_matrices[first_idx]),
                 num_states,
                 phase_def.collocation_points_per_interval[first_idx] + 1,
             )
-            Xkp1_nlp = ensure_2d_array(
+            Xkp1_nlp = _ensure_2d_array(
                 raw_sol.value(variables.phase_variables[phase_id].state_matrices[first_idx + 1]),
                 num_states,
                 phase_def.collocation_points_per_interval[first_idx + 1] + 1,
@@ -242,7 +242,7 @@ def h_reduce_intervals(
         1.0, target_end_tau_kp1, max(2, num_sim_points // 2), dtype=np.float64
     )
 
-    configured_ode_solver = adaptive_params.get_ode_solver()
+    configured_ode_solver = adaptive_params._get_ode_solver()
 
     # Forward simulation
     try:

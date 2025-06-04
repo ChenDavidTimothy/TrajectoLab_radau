@@ -108,7 +108,7 @@ class Solution:
             # Store phase-specific variable names
             self._phase_state_names = {}
             self._phase_control_names = {}
-            for phase_id in problem.get_phase_ids():
+            for phase_id in problem._get_phase_ids():
                 self._phase_state_names[phase_id] = problem.get_phase_ordered_state_names(phase_id)
                 self._phase_control_names[phase_id] = problem.get_phase_ordered_control_names(
                     phase_id
@@ -133,7 +133,7 @@ class Solution:
         except Exception as e:
             logger.warning(f"Error in comprehensive summary: {e}")
 
-    def get_phase_ids(self) -> list[PhaseID]:
+    def _get_phase_ids(self) -> list[PhaseID]:
         """Get list of phase IDs in the solution."""
         return sorted(self.phase_initial_times.keys())
 
@@ -211,7 +211,7 @@ class Solution:
 
         phase_id, var_name = key
 
-        if phase_id not in self.get_phase_ids():
+        if phase_id not in self._get_phase_ids():
             raise KeyError(f"Phase {phase_id} not found in solution")
 
         # Handle time arrays
@@ -240,7 +240,7 @@ class Solution:
     def _get_by_string_key(self, key: str) -> FloatArray:
         """Extracted helper method for string-based access."""
         # Search for variable in all phases
-        for phase_id in self.get_phase_ids():
+        for phase_id in self._get_phase_ids():
             try:
                 return self[(phase_id, key)]
             except KeyError:
@@ -248,7 +248,7 @@ class Solution:
 
         # Variable not found in any phase
         all_vars = []
-        for phase_id in self.get_phase_ids():
+        for phase_id in self._get_phase_ids():
             phase_vars = (
                 self._phase_state_names.get(phase_id, [])
                 + self._phase_control_names.get(phase_id, [])
@@ -294,7 +294,7 @@ class Solution:
     def all_variable_names(self) -> list[str]:
         """Get list of all unique variable names across all phases."""
         all_vars = set()
-        for phase_id in self.get_phase_ids():
+        for phase_id in self._get_phase_ids():
             all_vars.update(self._phase_state_names.get(phase_id, []))
             all_vars.update(self._phase_control_names.get(phase_id, []))
         return sorted(all_vars)

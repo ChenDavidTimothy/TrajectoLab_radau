@@ -16,8 +16,8 @@ from numpy.testing import assert_allclose
 
 from trajectolab.radau import (
     _compute_barycentric_weights,
+    _evaluate_lagrange_polynomial_at_point,
     compute_radau_collocation_components,
-    evaluate_lagrange_polynomial_at_point,
 )
 
 
@@ -135,7 +135,7 @@ class TestRadauMathematicalCorrectnessFixed:
 
             for tau in test_points:
                 # Compute interpolated value
-                lagrange_coeffs = evaluate_lagrange_polynomial_at_point(nodes, weights, tau)
+                lagrange_coeffs = _evaluate_lagrange_polynomial_at_point(nodes, weights, tau)
                 interpolated_value = np.dot(lagrange_coeffs, func_values)
 
                 # Compare with exact function value
@@ -270,7 +270,7 @@ class TestRadauMathematicalCorrectnessFixed:
 
         # Test evaluation near nodes (potential division by zero)
         test_point = -0.9999999999  # Very close to -1.0
-        lagrange_vals = evaluate_lagrange_polynomial_at_point(close_nodes, weights, test_point)
+        lagrange_vals = _evaluate_lagrange_polynomial_at_point(close_nodes, weights, test_point)
 
         assert np.all(np.isfinite(lagrange_vals)), "Lagrange evaluation contains NaN/Inf"
         assert abs(np.sum(lagrange_vals) - 1.0) < 1e-10, "Partition of unity violated"

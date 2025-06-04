@@ -8,20 +8,20 @@ import casadi as ca
 
 from ..tl_types import PhaseID
 from ..utils.expression_cache import (
-    create_cache_key_from_multiphase_state,
-    create_cache_key_from_phase_state,
-    get_global_expression_cache,
+    _create_cache_key_from_multiphase_state,
+    _create_cache_key_from_phase_state,
+    _get_global_expression_cache,
 )
 from .casadi_build import (
-    build_static_parameter_substitution_map,
-    build_unified_casadi_function_inputs,
-    build_unified_multiphase_symbol_inputs,
-    build_unified_symbol_substitution_map,
+    _build_static_parameter_substitution_map,
+    _build_unified_casadi_function_inputs,
+    _build_unified_multiphase_symbol_inputs,
+    _build_unified_symbol_substitution_map,
 )
 from .state import MultiPhaseVariableState, PhaseDefinition
 
 
-def get_phase_dynamics_function(
+def _get_phase_dynamics_function(
     phase_def: PhaseDefinition, static_parameter_symbols: list[ca.MX] | None = None
 ) -> Callable[..., ca.MX]:
     """Get phase dynamics function using optimized direct vector interface."""
@@ -29,17 +29,17 @@ def get_phase_dynamics_function(
     param_info = f"_params_{len(static_parameter_symbols) if static_parameter_symbols else 0}"
     expr_hash = hashlib.sha256("".join(sorted(dynamics_exprs)).encode()).hexdigest()[:16]
 
-    cache_key = create_cache_key_from_phase_state(phase_def, f"dynamics{param_info}", expr_hash)
+    cache_key = _create_cache_key_from_phase_state(phase_def, f"dynamics{param_info}", expr_hash)
 
-    def build_dynamics_function() -> ca.Function:
+    def _build_dynamics_function() -> ca.Function:
         """Build CasADi dynamics function using unified input builder."""
         # Use unified function input builder
         states_vec, controls_vec, time, static_params_vec, function_inputs = (
-            build_unified_casadi_function_inputs(phase_def, static_parameter_symbols)
+            _build_unified_casadi_function_inputs(phase_def, static_parameter_symbols)
         )
 
         # Build substitution map using unified builder
-        subs_map = build_static_parameter_substitution_map(
+        subs_map = _build_static_parameter_substitution_map(
             static_parameter_symbols, static_params_vec
         )
 
@@ -65,11 +65,11 @@ def get_phase_dynamics_function(
 
         return ca.Function(f"dynamics_p{phase_def.phase_id}", function_inputs, [dynamics_vec])
 
-    dynamics_func = get_global_expression_cache().get_dynamics_function(
-        cache_key, build_dynamics_function
+    dynamics_func = _get_global_expression_cache().get_dynamics_function(
+        cache_key, _build_dynamics_function
     )
 
-    def vectorized_dynamics(
+    def _vectorized_dynamics(
         states_vec: ca.MX,
         controls_vec: ca.MX,
         time: ca.MX,
@@ -92,10 +92,10 @@ def get_phase_dynamics_function(
 
         return cast(ca.MX, dynamics_output)
 
-    return vectorized_dynamics
+    return _vectorized_dynamics
 
 
-def get_multiphase_objective_function(
+def _get_multiphase_objective_function(
     multiphase_state: MultiPhaseVariableState,
 ) -> Callable[..., ca.MX]:
     """Get multiphase objective function using unified symbol mapping."""
@@ -103,15 +103,15 @@ def get_multiphase_objective_function(
         raise ValueError("Multiphase objective expression not defined")
 
     obj_hash = hashlib.sha256(str(multiphase_state.objective_expression).encode()).hexdigest()[:16]
-    cache_key = create_cache_key_from_multiphase_state(multiphase_state, "objective", obj_hash)
+    cache_key = _create_cache_key_from_multiphase_state(multiphase_state, "objective", obj_hash)
 
-    def build_objective_function() -> ca.Function:
+    def _build_objective_function() -> ca.Function:
         """Build CasADi multiphase objective function using unified builders."""
         # Use unified multiphase symbol input builder
-        phase_inputs, s_vec = build_unified_multiphase_symbol_inputs(multiphase_state)
+        phase_inputs, s_vec = _build_unified_multiphase_symbol_inputs(multiphase_state)
 
         # Build unified symbol substitution map
-        phase_symbols_map = build_unified_symbol_substitution_map(
+        phase_symbols_map = _build_unified_symbol_substitution_map(
             multiphase_state, phase_inputs, s_vec
         )
 
@@ -124,11 +124,11 @@ def get_multiphase_objective_function(
 
         return ca.Function("multiphase_objective", phase_inputs, [objective_expr])
 
-    obj_func = get_global_expression_cache().get_objective_function(
-        cache_key, build_objective_function
+    obj_func = _get_global_expression_cache()._get_objective_function(
+        cache_key, _build_objective_function
     )
 
-    def unified_multiphase_objective(
+    def _unified_multiphase_objective(
         phase_endpoint_data: dict[PhaseID, dict[str, ca.MX]], static_parameters_vec: ca.MX | None
     ) -> ca.MX:
         """Evaluate multiphase objective with phase endpoint data."""
@@ -171,10 +171,10 @@ def get_multiphase_objective_function(
         obj_output = result[0] if isinstance(result, list | tuple) else result
         return cast(ca.MX, obj_output)
 
-    return unified_multiphase_objective
+    return _unified_multiphase_objective
 
 
-def get_phase_integrand_function(
+def _get_phase_integrand_function(
     phase_def: PhaseDefinition, static_parameter_symbols: list[ca.MX] | None = None
 ) -> Callable[..., ca.MX] | None:
     """Get phase integrand function using unified CasADi function building."""
@@ -184,17 +184,17 @@ def get_phase_integrand_function(
     integrand_exprs = [str(expr) for expr in phase_def.integral_expressions]
     param_info = f"_params_{len(static_parameter_symbols) if static_parameter_symbols else 0}"
     expr_hash = hashlib.sha256("".join(integrand_exprs).encode()).hexdigest()[:16]
-    cache_key = create_cache_key_from_phase_state(phase_def, f"integrand{param_info}", expr_hash)
+    cache_key = _create_cache_key_from_phase_state(phase_def, f"integrand{param_info}", expr_hash)
 
-    def build_integrand_functions() -> list[ca.Function]:
+    def _build_integrand_functions() -> list[ca.Function]:
         """Build CasADi integrand functions using unified input builder."""
         # Use unified function input builder
         states_vec, controls_vec, time, static_params_vec, function_inputs = (
-            build_unified_casadi_function_inputs(phase_def, static_parameter_symbols)
+            _build_unified_casadi_function_inputs(phase_def, static_parameter_symbols)
         )
 
         # Build substitution map using unified builder
-        subs_map = build_static_parameter_substitution_map(
+        subs_map = _build_static_parameter_substitution_map(
             static_parameter_symbols, static_params_vec
         )
 
@@ -215,8 +215,8 @@ def get_phase_integrand_function(
 
         return integrand_funcs
 
-    integrand_funcs = get_global_expression_cache().get_integrand_functions(
-        cache_key, build_integrand_functions
+    integrand_funcs = _get_global_expression_cache().get_integrand_functions(
+        cache_key, _build_integrand_functions
     )
 
     def vectorized_integrand(

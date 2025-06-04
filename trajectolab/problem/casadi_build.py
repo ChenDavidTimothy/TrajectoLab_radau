@@ -3,13 +3,10 @@ import casadi as ca
 from ..problem.state import PhaseDefinition
 
 
-def build_unified_casadi_function_inputs(
+def _build_unified_casadi_function_inputs(
     phase_def: PhaseDefinition,
     static_parameter_symbols: list[ca.MX] | None = None,
 ) -> tuple[ca.MX, ca.MX, ca.MX, ca.MX, list[ca.MX]]:
-    """
-    Build unified CasADi function inputs.
-    """
     state_syms = phase_def.get_ordered_state_symbols()
     control_syms = phase_def.get_ordered_control_symbols()
 
@@ -35,13 +32,10 @@ def build_unified_casadi_function_inputs(
     )
 
 
-def build_static_parameter_substitution_map(
+def _build_static_parameter_substitution_map(
     static_parameter_symbols: list[ca.MX] | None,
     static_params_vec: ca.MX,
 ) -> dict[ca.MX, ca.MX]:
-    """
-    Build substitution map for static parameters.
-    """
     subs_map = {}
     num_static_params = len(static_parameter_symbols) if static_parameter_symbols else 0
 
@@ -55,10 +49,7 @@ def build_static_parameter_substitution_map(
     return subs_map
 
 
-def build_unified_multiphase_symbol_inputs(multiphase_state) -> tuple[list[ca.MX], ca.MX]:
-    """
-    Build unified multiphase symbol inputs.
-    """
+def _build_unified_multiphase_symbol_inputs(multiphase_state) -> tuple[list[ca.MX], ca.MX]:
     phase_inputs = []
 
     for phase_id in sorted(multiphase_state.phases.keys()):
@@ -105,12 +96,9 @@ def build_unified_multiphase_symbol_inputs(multiphase_state) -> tuple[list[ca.MX
     return phase_inputs, ca.MX(s_vec)
 
 
-def build_unified_symbol_substitution_map(
+def _build_unified_symbol_substitution_map(
     multiphase_state, phase_inputs: list[ca.MX], s_vec: ca.MX
 ) -> dict[ca.MX, ca.MX]:
-    """
-    Build unified symbol substitution map.
-    """
     phase_symbols_map = {}
     input_idx = 0
 

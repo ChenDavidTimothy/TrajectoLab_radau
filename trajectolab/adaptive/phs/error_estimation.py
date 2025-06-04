@@ -110,7 +110,7 @@ def _simulate_dynamics_for_phase_interval_error_estimation(
         return False, empty, empty, empty, empty, empty, empty
 
     num_states, _ = problem.get_phase_variable_counts(phase_id)
-    phase_dynamics_function = problem.get_phase_dynamics_function(phase_id)
+    phase_dynamics_function = problem._get_phase_dynamics_function(phase_id)
 
     if (
         phase_id not in solution.phase_initial_times

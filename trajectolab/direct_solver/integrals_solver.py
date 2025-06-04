@@ -7,10 +7,10 @@ from ..tl_types import (
     FloatArray,
     PhaseID,
 )
-from ..utils.coordinates import tau_to_time
+from ..utils.coordinates import _tau_to_time
 
 
-def setup_phase_integrals(
+def _setup_phase_integrals(
     opti: ca.Opti,
     phase_id: PhaseID,
     mesh_interval_index: int,
@@ -25,9 +25,6 @@ def setup_phase_integrals(
     accumulated_integral_expressions: list[ca.MX],
     static_parameters_vec: ca.MX | None = None,
 ) -> None:
-    """
-    SIMPLIFIED: Set up integral calculations using simple coordinate transformation.
-    """
     num_colloc_nodes = len(basis_components.collocation_nodes)
     colloc_nodes_tau = basis_components.collocation_nodes.flatten()
     quad_weights = basis_components.quadrature_weights.flatten()
@@ -53,7 +50,7 @@ def setup_phase_integrals(
 
             # SIMPLIFIED: Single function call replaces 10+ lines of transformation code
             local_colloc_tau_val = colloc_nodes_tau[i_colloc]
-            physical_time_at_colloc = tau_to_time(
+            physical_time_at_colloc = _tau_to_time(
                 local_colloc_tau_val,
                 mesh_start,
                 mesh_end,
@@ -75,26 +72,13 @@ def setup_phase_integrals(
         accumulated_integral_expressions[integral_index] += tau_to_time_scaling * quad_sum
 
 
-def apply_phase_integral_constraints(
+def _apply_phase_integral_constraints(
     opti: ca.Opti,
     integral_variables: ca.MX,
     accumulated_integral_expressions: list[ca.MX],
     num_integrals: int,
     phase_id: PhaseID,
 ) -> None:
-    """
-    Apply integral constraints for a specific phase.
-
-    Args:
-        opti: CasADi optimization object
-        integral_variables: Integral decision variables for this phase
-        accumulated_integral_expressions: Accumulated integral expressions for this phase
-        num_integrals: Number of integrals for this phase
-        phase_id: Phase identifier for error messages
-
-    Note:
-        Constrains integral variables to equal the accumulated quadrature sums.
-    """
     if num_integrals == 1:
         opti.subject_to(integral_variables == accumulated_integral_expressions[0])
     else:

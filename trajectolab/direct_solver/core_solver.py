@@ -11,12 +11,12 @@ from ..tl_types import (
     ProblemProtocol,
 )
 from .constraints_solver import (
-    apply_multiphase_cross_phase_event_constraints,
-    apply_phase_collocation_constraints,
-    apply_phase_path_constraints,
+    _apply_multiphase_cross_phase_event_constraints,
+    _apply_phase_collocation_constraints,
+    _apply_phase_path_constraints,
 )
 from .initial_guess_solver import apply_multiphase_initial_guess
-from .integrals_solver import apply_phase_integral_constraints, setup_phase_integrals
+from .integrals_solver import _apply_phase_integral_constraints, _setup_phase_integrals
 from .types_solver import MultiPhaseVariableReferences
 from .variables_solver import (
     _setup_multiphase_optimization_variables,
@@ -90,7 +90,7 @@ def _apply_mesh_interval_constraints(
     static_parameter_symbols,
 ) -> None:
     # Collocation constraints enforce that trajectory satisfies ODEs at quadrature points
-    apply_phase_collocation_constraints(
+    _apply_phase_collocation_constraints(
         opti,
         phase_id,
         mesh_interval_index,
@@ -107,7 +107,7 @@ def _apply_mesh_interval_constraints(
 
     # Path constraints ensure operational limits are respected throughout trajectory
     if path_constraints_function is not None:
-        apply_phase_path_constraints(
+        _apply_phase_path_constraints(
             opti,
             phase_id,
             mesh_interval_index,
@@ -142,7 +142,7 @@ def _setup_mesh_interval_integrals(
     if num_integrals == 0 or integral_integrand_function is None:
         return
 
-    setup_phase_integrals(
+    _setup_phase_integrals(
         opti,
         phase_id,
         mesh_interval_index,
@@ -239,7 +239,7 @@ def solve_multiphase_radau_collocation(problem: ProblemProtocol) -> OptimalContr
     logger.debug("Starting multiphase Radau collocation solver")
 
     opti: ca.Opti = ca.Opti()
-    phase_ids = problem.get_phase_ids()
+    phase_ids = problem._get_phase_ids()
     total_states, total_controls, num_static_params = problem.get_total_variable_counts()
 
     logger.debug(
@@ -293,7 +293,7 @@ def _process_all_phases_unified(
     phase_endpoint_data: dict[PhaseID, dict[str, ca.MX]],
 ) -> None:
     # Unified endpoint data eliminates redundant extraction across phases
-    for phase_id in problem.get_phase_ids():
+    for phase_id in problem._get_phase_ids():
         if phase_id not in variables.phase_variables:
             continue
 
@@ -324,9 +324,9 @@ def _process_single_phase_unified(
     num_mesh_intervals = len(phase_def.collocation_points_per_interval)
     num_integrals = phase_def.num_integrals
 
-    dynamics_function = problem.get_phase_dynamics_function(phase_id)
+    dynamics_function = problem._get_phase_dynamics_function(phase_id)
     path_constraints_function = problem.get_phase_path_constraints_function(phase_id)
-    integral_integrand_function = problem.get_phase_integrand_function(phase_id)
+    integral_integrand_function = problem._get_phase_integrand_function(phase_id)
 
     global_mesh_nodes = phase_def.global_normalized_mesh_nodes
 
@@ -377,7 +377,7 @@ def _process_single_phase_unified(
 
     # Constrain integral variables to match accumulated quadrature sums
     if num_integrals > 0 and phase_vars.integral_variables is not None:
-        apply_phase_integral_constraints(
+        _apply_phase_integral_constraints(
             opti,
             phase_vars.integral_variables,
             accumulated_integral_expressions,
@@ -393,7 +393,7 @@ def _setup_objective_and_constraints_unified(
     phase_endpoint_data: dict[PhaseID, dict[str, ca.MX]],
 ) -> None:
     # Pre-extracted endpoint data enables efficient function evaluation
-    objective_function = problem.get_objective_function()
+    objective_function = problem._get_objective_function()
 
     try:
         objective_value: ca.MX = objective_function(
@@ -408,7 +408,7 @@ def _setup_objective_and_constraints_unified(
             "Multiphase objective function evaluation error",
         ) from e
 
-    apply_multiphase_cross_phase_event_constraints(
+    _apply_multiphase_cross_phase_event_constraints(
         opti,
         phase_endpoint_data,
         variables.static_parameters,
@@ -435,7 +435,7 @@ def _configure_solver_unified(
     # References stored for solution extraction after solve completes
     opti.multiphase_variables_reference = variables
 
-    objective_function = problem.get_objective_function()
+    objective_function = problem._get_objective_function()
     objective_expression = objective_function(phase_endpoint_data, variables.static_parameters)
     opti.multiphase_objective_expression_reference = objective_expression
 

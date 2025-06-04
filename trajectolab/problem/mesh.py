@@ -2,7 +2,7 @@ import logging
 
 import numpy as np
 
-from ..input_validation import validate_mesh_configuration
+from ..input_validation import _validate_mesh_configuration
 from ..tl_types import NumericArrayLike
 from .state import PhaseDefinition
 
@@ -10,7 +10,7 @@ from .state import PhaseDefinition
 logger = logging.getLogger(__name__)
 
 
-def configure_phase_mesh(
+def _configure_phase_mesh(
     phase_def: PhaseDefinition, polynomial_degrees: list[int], mesh_points: NumericArrayLike
 ) -> None:
     """Configure the mesh structure for a specific phase."""
@@ -26,7 +26,7 @@ def configure_phase_mesh(
     )
 
     # SINGLE comprehensive validation call - trust construction after this
-    validate_mesh_configuration(polynomial_degrees, mesh_array, len(polynomial_degrees))
+    _validate_mesh_configuration(polynomial_degrees, mesh_array, len(polynomial_degrees))
 
     # Set mesh configuration - no additional validation needed
     phase_def.collocation_points_per_interval = polynomial_degrees
@@ -39,12 +39,3 @@ def configure_phase_mesh(
         len(polynomial_degrees),
         len(mesh_array),
     )
-
-
-def clear_phase_mesh(phase_def: PhaseDefinition) -> None:
-    """Clear mesh configuration for a specific phase."""
-    logger.debug("Clearing mesh configuration for phase %d", phase_def.phase_id)
-
-    phase_def.collocation_points_per_interval = []
-    phase_def.global_normalized_mesh_nodes = None
-    phase_def.mesh_configured = False

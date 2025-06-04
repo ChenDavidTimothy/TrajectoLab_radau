@@ -15,14 +15,14 @@ def _setup_multiphase_optimization_variables(
 ) -> MultiPhaseVariableReferences:
     multiphase_vars = MultiPhaseVariableReferences()
 
-    phase_ids = problem.get_phase_ids()
+    phase_ids = problem._get_phase_ids()
     for phase_id in phase_ids:
         phase_vars = _setup_phase_optimization_variables(opti, problem, phase_id)
         multiphase_vars.phase_variables[phase_id] = phase_vars
 
     total_states, total_controls, num_static_params = problem.get_total_variable_counts()
     if num_static_params > 0:
-        multiphase_vars.static_parameters = _create_static_parameter_variables(
+        multiphase_vars.static_parameters = __create_static_parameter_variables(
             opti, num_static_params
         )
 
@@ -200,7 +200,7 @@ def _create_phase_integral_variables(
     return None
 
 
-def _create_static_parameter_variables(opti: ca.Opti, num_static_params: int) -> ca.MX:
+def __create_static_parameter_variables(opti: ca.Opti, num_static_params: int) -> ca.MX:
     # Static parameters shared across all phases for design optimization
     static_params_var = (
         opti.variable(num_static_params) if num_static_params > 1 else opti.variable()

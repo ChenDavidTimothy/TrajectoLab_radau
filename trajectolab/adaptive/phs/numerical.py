@@ -2,7 +2,7 @@ import numpy as np
 
 from trajectolab.radau import (
     _compute_barycentric_weights,
-    evaluate_lagrange_polynomial_at_point,
+    _evaluate_lagrange_polynomial_at_point,
 )
 from trajectolab.tl_types import FloatArray
 
@@ -64,7 +64,7 @@ class PolynomialInterpolant:
         result = np.zeros((self.num_vars, len(zeta_arr)), dtype=np.float64)
 
         for i, zeta in enumerate(zeta_arr):
-            L_j = evaluate_lagrange_polynomial_at_point(self.nodes_array, self.bary_weights, zeta)
+            L_j = _evaluate_lagrange_polynomial_at_point(self.nodes_array, self.bary_weights, zeta)
             result[:, i] = np.dot(self.values_at_nodes, L_j)
 
         # Return appropriate shape based on input

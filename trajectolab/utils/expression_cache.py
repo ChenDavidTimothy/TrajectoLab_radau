@@ -54,7 +54,7 @@ class CasADiExpressionCache:
         """Get cached dynamics function or build if not cached."""
         return self._get_cached_item(f"dynamics_{cache_key.cache_key}", builder_func)
 
-    def get_objective_function(
+    def _get_objective_function(
         self, cache_key: ExpressionCacheKey, builder_func: Callable[[], ca.Function]
     ) -> ca.Function:
         """Get cached objective function or build if not cached."""
@@ -89,7 +89,7 @@ class CasADiExpressionCache:
 _expression_cache = CasADiExpressionCache()
 
 
-def create_cache_key_from_phase_state(
+def _create_cache_key_from_phase_state(
     phase_def: Any,  # PhaseDefinition type from unified storage
     expression_type: str,
     expression_hash: str | None = None,
@@ -114,7 +114,7 @@ def create_cache_key_from_phase_state(
     )
 
 
-def create_cache_key_from_multiphase_state(
+def _create_cache_key_from_multiphase_state(
     multiphase_state: Any,  # MultiPhaseVariableState type from unified storage
     expression_type: str,
     expression_hash: str | None = None,
@@ -165,6 +165,6 @@ def create_cache_key_from_multiphase_state(
     )
 
 
-def get_global_expression_cache() -> CasADiExpressionCache:
+def _get_global_expression_cache() -> CasADiExpressionCache:
     """Get global expression cache instance."""
     return _expression_cache

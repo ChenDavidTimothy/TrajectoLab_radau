@@ -7,7 +7,7 @@ import numpy as np
 from trajectolab.adaptive.phs.data_structures import (
     AdaptiveParameters,
     MultiphaseAdaptiveState,
-    ensure_2d_array,
+    _ensure_2d_array,
 )
 from trajectolab.adaptive.phs.error_estimation import (
     _calculate_gamma_normalizers_for_phase,
@@ -15,7 +15,7 @@ from trajectolab.adaptive.phs.error_estimation import (
     _simulate_dynamics_for_phase_interval_error_estimation,
 )
 from trajectolab.adaptive.phs.initial_guess import (
-    propagate_multiphase_solution_to_new_meshes,
+    _propagate_multiphase_solution_to_new_meshes,
 )
 from trajectolab.adaptive.phs.numerical import (
     PolynomialInterpolant,
@@ -50,7 +50,7 @@ def _extract_state_matrices_for_phase(
     state_trajectories = []
     for k, state_matrix in enumerate(phase_vars.state_matrices):
         state_vals = raw_sol.value(state_matrix)
-        state_array = ensure_2d_array(state_vals, num_states, polynomial_degrees[k] + 1)
+        state_array = _ensure_2d_array(state_vals, num_states, polynomial_degrees[k] + 1)
         state_trajectories.append(state_array)
 
     return state_trajectories
@@ -68,7 +68,7 @@ def _extract_control_variables_for_phase(
     control_trajectories = []
     for k, control_var in enumerate(phase_vars.control_variables):
         control_vals = raw_sol.value(control_var)
-        control_array = ensure_2d_array(control_vals, num_controls, polynomial_degrees[k])
+        control_array = _ensure_2d_array(control_vals, num_controls, polynomial_degrees[k])
         control_trajectories.append(control_array)
 
     return control_trajectories
@@ -94,7 +94,7 @@ def _extract_multiphase_solution_trajectories(
     solution.phase_solved_state_trajectories_per_interval = {}
     solution.phase_solved_control_trajectories_per_interval = {}
 
-    for phase_id in problem.get_phase_ids():
+    for phase_id in problem._get_phase_ids():
         if phase_id not in variables.phase_variables:
             continue
 
@@ -220,7 +220,7 @@ def _estimate_phase_errors(
             problem,
             state_eval,
             control_eval,
-            adaptive_params.get_ode_solver(),
+            adaptive_params._get_ode_solver(),
             n_eval_points=adaptive_params.num_error_sim_points,
         )
 
@@ -661,7 +661,7 @@ def solve_multiphase_phs_adaptive_internal(
         ode_solver=ode_solver,
     )
 
-    phase_ids = problem.get_phase_ids()
+    phase_ids = problem._get_phase_ids()
     adaptive_state = MultiphaseAdaptiveState(
         phase_polynomial_degrees={},
         phase_mesh_points={},
@@ -691,7 +691,7 @@ def solve_multiphase_phs_adaptive_internal(
 
         logger.info("Multiphase adaptive iteration %d/%d", iteration + 1, max_iterations)
 
-        adaptive_state.configure_problem_meshes(problem)
+        adaptive_state._configure_problem_meshes(problem)
 
         # Initial guess management for iteration sequence
         if iteration == 0:
@@ -706,7 +706,7 @@ def solve_multiphase_phs_adaptive_internal(
             if adaptive_state.most_recent_unified_solution is None:
                 raise ValueError("No previous unified solution available for propagation")
 
-            propagated_guess = propagate_multiphase_solution_to_new_meshes(
+            propagated_guess = _propagate_multiphase_solution_to_new_meshes(
                 adaptive_state.most_recent_unified_solution,
                 problem,
                 adaptive_state.phase_polynomial_degrees,
@@ -735,7 +735,7 @@ def solve_multiphase_phs_adaptive_internal(
         solution.phase_mesh_intervals = {}
         solution.phase_mesh_nodes = {}
 
-        for phase_id in problem.get_phase_ids():
+        for phase_id in problem._get_phase_ids():
             phase_def = problem._phases[phase_id]
             solution.phase_mesh_intervals[phase_id] = list(
                 phase_def.collocation_points_per_interval

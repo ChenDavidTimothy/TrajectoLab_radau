@@ -51,7 +51,7 @@ def plot_multiphase_solution(
 
     if phase_id is not None:
         # Plot specific phase
-        if phase_id not in solution.get_phase_ids():
+        if phase_id not in solution._get_phase_ids():
             raise ValueError(f"Phase {phase_id} not found in solution")
         _plot_single_phase(solution, phase_id, variable_names, figsize)
     else:
@@ -124,7 +124,7 @@ def _plot_multiphase_variables(
     # Find which phases have each variable
     phase_var_pairs = []
     for var_name in variable_names:
-        for phase_id in solution.get_phase_ids():
+        for phase_id in solution._get_phase_ids():
             if (phase_id, var_name) in solution:
                 phase_var_pairs.append((phase_id, var_name))
 
@@ -147,7 +147,7 @@ def _plot_multiphase_default(
     all_state_vars = set()
     all_control_vars = set()
 
-    for phase_id in solution.get_phase_ids():
+    for phase_id in solution._get_phase_ids():
         all_state_vars.update(solution._phase_state_names.get(phase_id, []))
         all_control_vars.update(solution._phase_control_names.get(phase_id, []))
 
@@ -155,7 +155,7 @@ def _plot_multiphase_default(
     if all_state_vars:
         state_pairs = []
         for var_name in sorted(all_state_vars):
-            for phase_id in solution.get_phase_ids():
+            for phase_id in solution._get_phase_ids():
                 if (phase_id, var_name) in solution:
                     state_pairs.append((phase_id, var_name))
 
@@ -174,7 +174,7 @@ def _plot_multiphase_default(
     if all_control_vars:
         control_pairs = []
         for var_name in sorted(all_control_vars):
-            for phase_id in solution.get_phase_ids():
+            for phase_id in solution._get_phase_ids():
                 if (phase_id, var_name) in solution:
                     control_pairs.append((phase_id, var_name))
 
@@ -269,11 +269,11 @@ def _create_multiphase_variable_plot(
     """Create a multiphase plot with phase boundaries and interval coloring."""
     fig = _create_variable_plot(solution, title, phase_var_pairs, figsize, show_immediately=False)
 
-    if show_phase_boundaries and len(solution.get_phase_ids()) > 1:
+    if show_phase_boundaries and len(solution._get_phase_ids()) > 1:
         # Add phase boundary lines
         for ax in fig.get_axes():
             if ax.get_visible():
-                for phase_id in solution.get_phase_ids()[:-1]:  # Exclude last phase
+                for phase_id in solution._get_phase_ids()[:-1]:  # Exclude last phase
                     final_time = solution.get_phase_final_time(phase_id)
                     ax.axvline(
                         final_time,
@@ -281,7 +281,7 @@ def _create_multiphase_variable_plot(
                         linestyle="--",
                         alpha=0.7,
                         linewidth=2,
-                        label="Phase Boundary" if phase_id == solution.get_phase_ids()[0] else "",
+                        label="Phase Boundary" if phase_id == solution._get_phase_ids()[0] else "",
                     )
 
                 # Update legend if phase boundaries were added

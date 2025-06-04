@@ -80,7 +80,7 @@ class RadauBasisCache:
             )
 
         # Lagrange evaluation at terminal boundary for boundary condition application
-        lagrange_at_tau_plus_one = evaluate_lagrange_polynomial_at_point(
+        lagrange_at_tau_plus_one = _evaluate_lagrange_polynomial_at_point(
             state_nodes, bary_weights_state_nodes, 1.0
         )
 
@@ -203,7 +203,7 @@ def _compute_barycentric_weights(nodes: FloatArray) -> FloatArray:
     return safe_products.astype(np.float64)
 
 
-def evaluate_lagrange_polynomial_at_point(
+def _evaluate_lagrange_polynomial_at_point(
     polynomial_definition_nodes: FloatArray,
     barycentric_weights: FloatArray,
     evaluation_point_tau: float,

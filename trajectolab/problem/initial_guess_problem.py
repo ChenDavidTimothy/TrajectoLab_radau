@@ -6,9 +6,9 @@ from typing import Any
 import numpy as np
 
 from ..input_validation import (
+    _validate_multiphase_initial_guess_structure,
     validate_array_numerical_integrity,
     validate_integral_values,
-    validate_multiphase_initial_guess_structure,
 )
 from ..tl_types import FloatArray, MultiPhaseInitialGuess, PhaseID
 from .state import MultiPhaseVariableState
@@ -84,7 +84,7 @@ class MultiPhaseSolverInputSummary:
         return "\n".join(summary)
 
 
-def set_multiphase_initial_guess(
+def _set_multiphase_initial_guess(
     current_guess_container: list,
     multiphase_state: MultiPhaseVariableState,
     phase_states: dict[PhaseID, Sequence[FloatArray]] | None = None,
@@ -160,7 +160,7 @@ def set_multiphase_initial_guess(
     )
 
 
-def can_validate_multiphase_initial_guess(multiphase_state: MultiPhaseVariableState) -> bool:
+def _can__validate_multiphase_initial_guess(multiphase_state: MultiPhaseVariableState) -> bool:
     """Check if we have enough information to validate multiphase initial guess."""
     return all(phase_def.mesh_configured for phase_def in multiphase_state.phases.values())
 
@@ -203,14 +203,14 @@ def get_multiphase_initial_guess_requirements(
     )
 
 
-def validate_multiphase_initial_guess(
+def _validate_multiphase_initial_guess(
     current_guess, multiphase_state: MultiPhaseVariableState
 ) -> None:
     """Validate the current multiphase initial guess using CENTRALIZED validation."""
     if current_guess is None:
         return
 
-    if not can_validate_multiphase_initial_guess(multiphase_state):
+    if not _can__validate_multiphase_initial_guess(multiphase_state):
         raise ValueError(
             "Cannot validate multiphase initial guess: all phases must have mesh configured first."
         )
@@ -223,7 +223,9 @@ def validate_multiphase_initial_guess(
 
     dummy_problem = Problem()
     dummy_problem._multiphase_state = multiphase_state
-    validate_multiphase_initial_guess_structure(current_guess, cast(ProblemProtocol, dummy_problem))
+    _validate_multiphase_initial_guess_structure(
+        current_guess, cast(ProblemProtocol, dummy_problem)
+    )
 
 
 def get_multiphase_solver_input_summary(
@@ -305,8 +307,3 @@ def get_multiphase_solver_input_summary(
         static_parameters_length=static_parameters_length,
         initial_guess_source=initial_guess_source,
     )
-
-
-def clear_multiphase_initial_guess(current_guess_container: list) -> None:
-    """Clear the current multiphase initial guess."""
-    current_guess_container[0] = None

@@ -20,7 +20,7 @@ __all__ = [
     "MultiphaseAdaptiveState",
     "PReduceResult",
     "PRefineResult",
-    "ensure_2d_array",
+    "_ensure_2d_array",
 ]
 
 logger = logging.getLogger(__name__)
@@ -41,8 +41,7 @@ class AdaptiveParameters:
     ode_atol_factor: float = DEFAULT_ODE_ATOL_FACTOR
     ode_solver: ODESolverCallable | None = None
 
-    def get_ode_solver(self) -> ODESolverCallable:
-        """Get the configured ODE solver function."""
+    def _get_ode_solver(self) -> ODESolverCallable:
         if self.ode_solver is not None:
             return self.ode_solver
 
@@ -52,7 +51,7 @@ class AdaptiveParameters:
 
         logger = logging.getLogger(__name__)
 
-        # Log default usage
+        # Default solver with user-configured parameters for error estimation consistency
         logger.debug("Using default ODE solver: scipy.integrate.solve_ivp with user configuration")
 
         def configured_solver(fun, t_span, y0, t_eval=None, **kwargs):
@@ -79,17 +78,13 @@ class MultiphaseAdaptiveState:
     iteration: int = 0
     most_recent_unified_solution: Any = None  # OptimalControlSolution
 
-    def all_phases_converged(self) -> bool:
-        """Check if all phases have converged."""
-        return all(self.phase_converged.values()) if self.phase_converged else False
-
-    def get_phase_ids(self) -> list[PhaseID]:
+    def _get_phase_ids(self) -> list[PhaseID]:
         """Get ordered list of phase IDs."""
         return sorted(self.phase_polynomial_degrees.keys())
 
-    def configure_problem_meshes(self, problem: Any) -> None:  # ProblemProtocol
+    def _configure_problem_meshes(self, problem: Any) -> None:  # ProblemProtocol
         """Configure all phase meshes in the unified problem."""
-        for phase_id in self.get_phase_ids():
+        for phase_id in self._get_phase_ids():
             if phase_id in problem._phases:
                 phase_def = problem._phases[phase_id]
                 phase_def.collocation_points_per_interval = self.phase_polynomial_degrees[phase_id]
@@ -121,11 +116,8 @@ class PReduceResult:
     was_reduction_applied: bool
 
 
-def ensure_2d_array(casadi_value: Any, expected_rows: int, expected_cols: int) -> FloatArray:
-    """
-     Simple array conversion without over-engineering.
-    Converts CasADi value to 2D numpy array with expected shape.
-    """
+def _ensure_2d_array(casadi_value: Any, expected_rows: int, expected_cols: int) -> FloatArray:
+    """Convert CasADi value to 2D numpy array with expected shape."""
     # Convert to numpy array
     if hasattr(casadi_value, "to_DM"):
         np_array = np.array(casadi_value.to_DM(), dtype=np.float64)

@@ -94,7 +94,7 @@ def solve_fixed_mesh(
 
     # Log problem dimensions
     if logger.isEnabledFor(logging.DEBUG):
-        phase_ids = problem.get_phase_ids()
+        phase_ids = problem._get_phase_ids()
         total_states, total_controls, num_static_params = problem.get_total_variable_counts()
         logger.debug(
             "Problem dimensions: phases=%d, total_states=%d, total_controls=%d, static_params=%d",
@@ -264,7 +264,7 @@ def solve_adaptive(
 
     # Log initial mesh configurations for all phases
     if logger.isEnabledFor(logging.DEBUG):
-        for phase_id in problem.get_phase_ids():
+        for phase_id in problem._get_phase_ids():
             phase_def = problem._phases[phase_id]
             if phase_def.mesh_configured:
                 logger.debug(

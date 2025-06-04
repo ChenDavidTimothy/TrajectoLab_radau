@@ -6,7 +6,7 @@ import numpy as np
 from .exceptions import DataIntegrityError, SolutionExtractionError
 from .input_validation import validate_array_numerical_integrity
 from .tl_types import FloatArray, OptimalControlSolution, PhaseID, ProblemProtocol
-from .utils.coordinates import tau_to_time
+from .utils.coordinates import _tau_to_time
 
 
 logger = logging.getLogger(__name__)
@@ -180,15 +180,15 @@ def consolidated_phase_trajectory_extraction(
         state_tau_nodes = basis_components.state_approximation_nodes
         control_tau_nodes = basis_components.collocation_nodes
 
-        # Use tau_to_time instead of vectorized_coordinate_transform
+        # Use _tau_to_time instead of vectorized_coordinate_transform
         mesh_start = global_mesh_nodes[mesh_idx]
         mesh_end = global_mesh_nodes[mesh_idx + 1]
 
         # Type-safe conversion ensuring array outputs for array inputs
-        state_physical_times_result = tau_to_time(
+        state_physical_times_result = _tau_to_time(
             state_tau_nodes, mesh_start, mesh_end, initial_time, terminal_time
         )
-        control_physical_times_result = tau_to_time(
+        control_physical_times_result = _tau_to_time(
             control_tau_nodes, mesh_start, mesh_end, initial_time, terminal_time
         )
 
@@ -271,7 +271,7 @@ def extract_and_format_multiphase_solution(
         return solution
 
     # Get multiphase structure
-    phase_ids = problem.get_phase_ids()
+    phase_ids = problem._get_phase_ids()
     total_states, total_controls, num_static_params = problem.get_total_variable_counts()
 
     if not hasattr(casadi_optimization_problem_object, "multiphase_variables_reference"):

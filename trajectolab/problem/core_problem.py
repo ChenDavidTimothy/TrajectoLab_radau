@@ -81,7 +81,7 @@ class Phase:
             >>> # Mass with boundary constraint (same at start and end)
             >>> m = phase.state("mass", boundary=1000.0)
         """
-        return variables_problem.create_phase_state_variable(
+        return variables_problem._create_phase_state_variable(
             self._phase_def, name, initial, final, boundary
         )
 
@@ -130,7 +130,7 @@ class Phase:
             ...     mass: -fuel_flow_rate
             ... })
         """
-        variables_problem.set_phase_dynamics(self._phase_def, dynamics_dict)
+        variables_problem._set_phase_dynamics(self._phase_def, dynamics_dict)
         logger.info(
             "Dynamics defined for phase %d with %d state variables",
             self.phase_id,
@@ -156,7 +156,7 @@ class Phase:
             >>> # Quadratic cost on control effort
             >>> control_cost = phase.add_integral(thrust**2)
         """
-        return variables_problem.set_phase_integral(self._phase_def, integrand_expr)
+        return variables_problem._set_phase_integral(self._phase_def, integrand_expr)
 
     def path_constraints(self, *constraint_expressions: ca.MX | float | int) -> None:
         """Add path constraints for this phase.
@@ -250,7 +250,7 @@ class Phase:
         logger.info(
             "Setting mesh for phase %d: %d intervals", self.phase_id, len(polynomial_degrees)
         )
-        mesh.configure_phase_mesh(self._phase_def, polynomial_degrees, mesh_points)
+        mesh._configure_phase_mesh(self._phase_def, polynomial_degrees, mesh_points)
 
 
 class Problem:
@@ -321,7 +321,7 @@ class Problem:
         validate_string_not_empty(name, "Parameter name")
         validate_constraint_input_format(boundary, f"parameter '{name}' boundary")
 
-        param_var = variables_problem.create_static_parameter(
+        param_var = variables_problem._create_static_parameter(
             self._multiphase_state.static_parameters, name, boundary
         )
         logger.debug("Static parameter created: name='%s'", name)
@@ -347,7 +347,7 @@ class Problem:
             >>> # Weighted combination of fuel and time
             >>> problem.minimize(0.8 * total_fuel + 0.2 * flight_time)
         """
-        variables_problem.set_multiphase_objective(self._multiphase_state, objective_expr)
+        variables_problem._set_multiphase_objective(self._multiphase_state, objective_expr)
         logger.info("Multiphase objective function defined")
 
     def guess(
@@ -391,7 +391,7 @@ class Problem:
 
         logger.info("Setting multiphase initial guess: %s", ", ".join(components))
 
-        initial_guess_problem.set_multiphase_initial_guess(
+        initial_guess_problem._set_multiphase_initial_guess(
             self._initial_guess_container,
             self._multiphase_state,
             phase_states=phase_states,
@@ -430,8 +430,8 @@ class Problem:
     def initial_guess(self, value) -> None:
         self._initial_guess_container[0] = value
 
-    def get_phase_ids(self) -> list[PhaseID]:
-        return self._multiphase_state.get_phase_ids()
+    def _get_phase_ids(self) -> list[PhaseID]:
+        return self._multiphase_state._get_phase_ids()
 
     def get_phase_variable_counts(self, phase_id: PhaseID) -> tuple[int, int]:
         if phase_id not in self._multiphase_state.phases:
@@ -451,28 +451,28 @@ class Problem:
             raise ValueError(f"Phase {phase_id} does not exist")
         return self._multiphase_state.phases[phase_id].control_names.copy()
 
-    def get_phase_dynamics_function(self, phase_id: PhaseID) -> Any:
+    def _get_phase_dynamics_function(self, phase_id: PhaseID) -> Any:
         if phase_id not in self._multiphase_state.phases:
             raise ValueError(f"Phase {phase_id} does not exist")
 
         static_parameter_symbols = (
             self._multiphase_state.static_parameters.get_ordered_parameter_symbols()
         )
-        return solver_interface.get_phase_dynamics_function(
+        return solver_interface._get_phase_dynamics_function(
             self._multiphase_state.phases[phase_id], static_parameter_symbols
         )
 
-    def get_objective_function(self) -> Any:
-        return solver_interface.get_multiphase_objective_function(self._multiphase_state)
+    def _get_objective_function(self) -> Any:
+        return solver_interface._get_multiphase_objective_function(self._multiphase_state)
 
-    def get_phase_integrand_function(self, phase_id: PhaseID) -> Any:
+    def _get_phase_integrand_function(self, phase_id: PhaseID) -> Any:
         if phase_id not in self._multiphase_state.phases:
             raise ValueError(f"Phase {phase_id} does not exist")
 
         static_parameter_symbols = (
             self._multiphase_state.static_parameters.get_ordered_parameter_symbols()
         )
-        return solver_interface.get_phase_integrand_function(
+        return solver_interface._get_phase_integrand_function(
             self._multiphase_state.phases[phase_id], static_parameter_symbols
         )
 

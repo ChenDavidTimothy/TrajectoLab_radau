@@ -165,7 +165,7 @@ def create_phase_time_variable(
     return TimeVariableImpl(sym_time, sym_t0, sym_tf)
 
 
-def create_phase_state_variable(
+def _create_phase_state_variable(
     phase_def: PhaseDefinition,
     name: str,
     initial: ConstraintInput = None,
@@ -227,7 +227,7 @@ def create_phase_control_variable(
     return sym_var
 
 
-def create_static_parameter(
+def _create_static_parameter(
     static_params: StaticParameterState, name: str, boundary: ConstraintInput = None
 ) -> ca.MX:
     """Create a static parameter that spans across all phases."""
@@ -247,7 +247,7 @@ def create_static_parameter(
     return sym_var
 
 
-def set_phase_dynamics(
+def _set_phase_dynamics(
     phase_def: PhaseDefinition,
     dynamics_dict: dict[ca.MX | StateVariableImpl, ca.MX | float | int | StateVariableImpl],
 ) -> None:
@@ -296,7 +296,7 @@ def set_phase_dynamics(
     phase_def.dynamics_expressions = converted_dict
 
 
-def set_phase_integral(phase_def: PhaseDefinition, integrand_expr: ca.MX | float | int) -> ca.MX:
+def _set_phase_integral(phase_def: PhaseDefinition, integrand_expr: ca.MX | float | int) -> ca.MX:
     """Add an integral expression for a specific phase."""
     integral_name = f"integral_{len(phase_def.integral_expressions)}_p{phase_def.phase_id}"
     integral_sym = ca.MX.sym(integral_name, 1)  # type: ignore[arg-type]
@@ -323,7 +323,7 @@ def set_phase_integral(phase_def: PhaseDefinition, integrand_expr: ca.MX | float
     return integral_sym
 
 
-def set_multiphase_objective(
+def _set_multiphase_objective(
     multiphase_state: MultiPhaseVariableState, objective_expr: ca.MX | float | int
 ) -> None:
     """Set the multiphase objective expression."""
