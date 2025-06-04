@@ -42,8 +42,8 @@ for j in range(d + 1):
 T = 1.0
 
 # Declare model variables
-y = ca.SX.sym("y", 10)  # 10 states
-u = ca.SX.sym("u", 4)  # 4 controls
+y = ca.SX.sym("y", 10)  # 10 states # type: ignore[arg-type]
+u = ca.SX.sym("u", 4)  # 4 controls # type: ignore[arg-type]
 
 # Parameters
 cx = 0.5

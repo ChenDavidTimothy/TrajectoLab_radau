@@ -191,7 +191,7 @@ def compute_legendre_gauss_radau_nodes_and_weights(
 
 def compute_barycentric_weights(nodes: FloatArray) -> FloatArray:
     """
-    Compute barycentric weights for Lagrange interpolation.
+    Compute barycentric weights for Lagrange interpolation using vectorized operations.
 
     NOTE: Basic array validation assumed done by caller
     """
@@ -199,32 +199,38 @@ def compute_barycentric_weights(nodes: FloatArray) -> FloatArray:
     if num_nodes == 1:
         return np.array([1.0], dtype=np.float64)
 
-    # Fix: Use cast to ensure correct type annotation
-    barycentric_weights = cast(FloatArray, np.ones(num_nodes, dtype=np.float64))
+    # VECTORIZED: Create difference matrix using broadcasting
+    nodes_col = nodes[:, np.newaxis]  # Shape: (num_nodes, 1)
+    nodes_row = nodes[np.newaxis, :]  # Shape: (1, num_nodes)
+    differences_matrix = nodes_col - nodes_row  # Shape: (num_nodes, num_nodes)
 
-    for j in range(num_nodes):
-        other_nodes = np.delete(nodes, j)
-        node_differences = nodes[j] - other_nodes
+    # VECTORIZED: Mask diagonal elements
+    diagonal_mask = np.eye(num_nodes, dtype=bool)
 
-        # Handle near-zero differences
-        mask_near_zero = np.abs(node_differences) < ZERO_TOLERANCE
-        if np.any(mask_near_zero):
-            perturbation = np.sign(node_differences[mask_near_zero]) * ZERO_TOLERANCE
-            perturbation[perturbation == 0] = ZERO_TOLERANCE
-            node_differences[mask_near_zero] = perturbation
+    # VECTORIZED: Handle near-zero differences
+    near_zero_mask = np.abs(differences_matrix) < ZERO_TOLERANCE
+    perturbation = np.sign(differences_matrix) * ZERO_TOLERANCE
+    perturbation[perturbation == 0] = ZERO_TOLERANCE
 
-        product_val = float(np.prod(node_differences, dtype=np.float64))
+    # Apply perturbation only to off-diagonal near-zero elements
+    off_diagonal_near_zero = near_zero_mask & ~diagonal_mask
+    differences_matrix = np.where(off_diagonal_near_zero, perturbation, differences_matrix)
 
-        if abs(product_val) < ZERO_TOLERANCE**2:
-            barycentric_weights[j] = (
-                np.sign(product_val) * (1.0 / (ZERO_TOLERANCE**2))
-                if product_val != 0
-                else 1.0 / (ZERO_TOLERANCE**2)
-            )
-        else:
-            barycentric_weights[j] = 1.0 / product_val
+    # Set diagonal to 1 for product computation
+    differences_matrix[diagonal_mask] = 1.0
 
-    return barycentric_weights
+    # VECTORIZED: Compute products along rows (excluding diagonal)
+    products = np.prod(differences_matrix, axis=1, dtype=np.float64)
+
+    # VECTORIZED: Handle small products
+    small_product_mask = np.abs(products) < ZERO_TOLERANCE**2
+    safe_products = np.where(
+        small_product_mask,
+        np.where(products == 0, 1.0 / (ZERO_TOLERANCE**2), np.sign(products) / (ZERO_TOLERANCE**2)),
+        1.0 / products
+    )
+
+    return safe_products.astype(np.float64)
 
 
 def evaluate_lagrange_polynomial_at_point(
@@ -233,34 +239,41 @@ def evaluate_lagrange_polynomial_at_point(
     evaluation_point_tau: float,
 ) -> FloatArray:
     """
-    Evaluate Lagrange polynomial at a specific point using barycentric formula.
+    Evaluate Lagrange polynomial at a specific point using vectorized barycentric formula.
 
     NOTE: Parameter validation assumed done by caller
     """
     num_nodes = len(polynomial_definition_nodes)
-    lagrange_values = np.zeros(num_nodes, dtype=np.float64)
 
-    # Check if evaluation point coincides with a node
-    for j in range(num_nodes):
-        if abs(evaluation_point_tau - polynomial_definition_nodes[j]) < ZERO_TOLERANCE:
-            lagrange_values[j] = 1.0
-            return lagrange_values
+    # VECTORIZED: Check if evaluation point coincides with any node
+    differences = np.abs(evaluation_point_tau - polynomial_definition_nodes)
+    coincident_mask = differences < ZERO_TOLERANCE
 
-    # Standard barycentric interpolation
-    terms = np.zeros(num_nodes, dtype=np.float64)
-    for j in range(num_nodes):
-        diff = evaluation_point_tau - polynomial_definition_nodes[j]
-        if abs(diff) < ZERO_TOLERANCE:
-            diff = np.sign(diff) * ZERO_TOLERANCE if diff != 0 else ZERO_TOLERANCE
-        terms[j] = barycentric_weights[j] / diff
-
-    sum_of_terms = np.sum(terms)
-    if abs(sum_of_terms) < ZERO_TOLERANCE:
+    if np.any(coincident_mask):
+        lagrange_values = np.zeros(num_nodes, dtype=np.float64)
+        lagrange_values[coincident_mask] = 1.0
         return lagrange_values
 
-    # FIX: Avoid problematic reassignment by using new variable and returning directly
-    normalized_terms = terms / sum_of_terms
-    return np.asarray(normalized_terms, dtype=np.float64)
+    # VECTORIZED: Standard barycentric interpolation
+    diffs = evaluation_point_tau - polynomial_definition_nodes
+
+    # VECTORIZED: Handle near-zero differences
+    near_zero_mask = np.abs(diffs) < ZERO_TOLERANCE
+    safe_diffs = np.where(
+        near_zero_mask,
+        np.where(diffs == 0, ZERO_TOLERANCE, np.sign(diffs) * ZERO_TOLERANCE),
+        diffs
+    )
+
+    # VECTORIZED: Compute terms and normalize
+    terms = barycentric_weights / safe_diffs
+    sum_terms = np.sum(terms)
+
+    if abs(sum_terms) < ZERO_TOLERANCE:
+        return np.zeros(num_nodes, dtype=np.float64)
+
+    normalized_terms = terms / sum_terms
+    return normalized_terms.astype(np.float64)
 
 
 def compute_lagrange_derivative_coefficients_at_point(
@@ -269,52 +282,45 @@ def compute_lagrange_derivative_coefficients_at_point(
     evaluation_point_tau: float,
 ) -> FloatArray:
     """
-    Compute Lagrange polynomial derivative coefficients at a specific point.
+    Compute Lagrange polynomial derivative coefficients using vectorized operations.
 
     NOTE: Parameter validation assumed done by caller
     """
     num_nodes = len(polynomial_definition_nodes)
+
+    # VECTORIZED: Find matching node
+    differences = np.abs(evaluation_point_tau - polynomial_definition_nodes)
+    matched_indices = np.where(differences < ZERO_TOLERANCE)[0]
+
+    if len(matched_indices) == 0:
+        return np.zeros(num_nodes, dtype=np.float64)
+
+    matched_node_idx_k = matched_indices[0]
     derivatives = np.zeros(num_nodes, dtype=np.float64)
 
-    # Find if evaluation point matches a node
-    matched_node_idx_k = -1
-    for i in range(num_nodes):
-        if abs(evaluation_point_tau - polynomial_definition_nodes[i]) < ZERO_TOLERANCE:
-            matched_node_idx_k = i
-            break
+    # VECTORIZED: Compute differences from matched node
+    node_diffs = polynomial_definition_nodes[matched_node_idx_k] - polynomial_definition_nodes
 
-    if matched_node_idx_k == -1:
-        return derivatives
+    # VECTORIZED: Handle near-zero differences
+    near_zero_mask = np.abs(node_diffs) < ZERO_TOLERANCE
+    safe_diffs = np.where(
+        near_zero_mask,
+        np.where(node_diffs == 0, ZERO_TOLERANCE, np.sign(node_diffs) * ZERO_TOLERANCE),
+        node_diffs
+    )
 
-    # Compute derivative coefficients using standard formulation
-    for j in range(num_nodes):
-        if j == matched_node_idx_k:
-            sum_val = 0.0
-            for i in range(num_nodes):
-                if i == matched_node_idx_k:
-                    continue
-                diff = (
-                    polynomial_definition_nodes[matched_node_idx_k] - polynomial_definition_nodes[i]
-                )
-                if abs(diff) < ZERO_TOLERANCE:
-                    sum_val += 1.0 / (
-                        np.sign(diff) * ZERO_TOLERANCE if diff != 0 else ZERO_TOLERANCE
-                    )
-                else:
-                    sum_val += 1.0 / diff
-            derivatives[j] = sum_val
-        else:
-            diff = polynomial_definition_nodes[matched_node_idx_k] - polynomial_definition_nodes[j]
-            if abs(barycentric_weights[matched_node_idx_k]) < ZERO_TOLERANCE:
-                derivatives[j] = 0.0
-            elif abs(diff) < ZERO_TOLERANCE:
-                derivatives[j] = (
-                    barycentric_weights[j] / barycentric_weights[matched_node_idx_k]
-                ) / (np.sign(diff) * ZERO_TOLERANCE if diff != 0 else ZERO_TOLERANCE)
-            else:
-                derivatives[j] = (
-                    barycentric_weights[j] / barycentric_weights[matched_node_idx_k]
-                ) / diff
+    # VECTORIZED: Compute off-diagonal derivatives
+    non_diagonal_mask = np.arange(num_nodes) != matched_node_idx_k
+
+    if abs(barycentric_weights[matched_node_idx_k]) < ZERO_TOLERANCE:
+        derivatives[non_diagonal_mask] = 0.0
+    else:
+        weight_ratios = barycentric_weights / barycentric_weights[matched_node_idx_k]
+        derivatives[non_diagonal_mask] = weight_ratios[non_diagonal_mask] / safe_diffs[non_diagonal_mask]
+
+    # VECTORIZED: Compute diagonal derivative (sum of reciprocals)
+    derivatives[matched_node_idx_k] = np.sum(1.0 / safe_diffs[non_diagonal_mask])
+
     return derivatives
 
 
