@@ -130,12 +130,12 @@ if solution.success:
     I2_final = solution[(1, "I2")][-1]
 
     print("Final populations:")
-    print(f"  Susceptible (S): {S_final:.1f}")
-    print(f"  Treatment (T): {T_final:.1f}")
-    print(f"  Latent strain 1 (L1): {L1_final:.1f}")
-    print(f"  Infectious strain 1 (I1): {I1_final:.1f}")
-    print(f"  Latent strain 2 (L2): {L2_final:.1f}")
-    print(f"  Infectious strain 2 (I2): {I2_final:.1f}")
+    print(f"S: {S_final:.1f}")
+    print(f"T: {T_final:.1f}")
+    print(f"L1: {L1_final:.1f}")
+    print(f"I1: {I1_final:.1f}")
+    print(f"L2: {L2_final:.1f}")
+    print(f"I2: {I2_final:.1f}")
 
     solution.plot()
 else:
