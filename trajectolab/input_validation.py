@@ -20,12 +20,6 @@ T = TypeVar("T")
 # ============================================================================
 
 
-def validate_not_none(value: Any, name: str, context: str = "validation") -> None:
-    """Single source for None validation."""
-    if value is None:
-        raise DataIntegrityError(f"{name} cannot be None", context)
-
-
 def validate_positive_integer(value: Any, name: str, min_value: int = 1) -> None:
     """Single source for positive integer validation."""
     if not isinstance(value, int):
