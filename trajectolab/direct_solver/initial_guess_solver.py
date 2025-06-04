@@ -2,7 +2,7 @@ from typing import cast
 
 import casadi as ca
 
-from ..input_validation import set_integral_guess_values, validate_integral_values
+from ..input_validation import set_integral_guess_values
 from ..tl_types import FloatArray, PhaseID, ProblemProtocol
 from .types_solver import MultiPhaseVariableReferences, PhaseVariableReferences
 

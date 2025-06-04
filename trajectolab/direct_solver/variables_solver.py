@@ -1,6 +1,5 @@
 import casadi as ca
 
-from ..exceptions import DataIntegrityError
 from ..tl_types import PhaseID, ProblemProtocol
 from ..utils.constants import MINIMUM_TIME_INTERVAL
 from .types_solver import (
@@ -201,7 +200,7 @@ def _create_phase_global_state_variables(
 ) -> list[ca.MX]:
     """Create state variables at global mesh nodes for a specific phase."""
     state_variables = []
-    for i in range(num_mesh_intervals + 1):
+    for _i in range(num_mesh_intervals + 1):
         state_var = opti.variable(num_states)
         state_variables.append(state_var)
 

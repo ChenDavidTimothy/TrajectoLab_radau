@@ -26,7 +26,6 @@ from trajectolab.adaptive.phs.refinement import (
     p_reduce_interval,
     p_refine_interval,
 )
-from trajectolab.exceptions import DataIntegrityError
 from trajectolab.radau import (
     RadauBasisComponents,
     compute_barycentric_weights,

@@ -140,7 +140,9 @@ def _interpolate_phase_trajectory_to_new_mesh_streamlined(
                 interpolated_values = interpolated_values.flatten()
 
             # EXTERNAL BOUNDARY: Only validate at algorithm boundary, not in loops
-            if j == 0 and (np.any(np.isnan(interpolated_values)) or np.any(np.isinf(interpolated_values))):
+            if j == 0 and (
+                np.any(np.isnan(interpolated_values)) or np.any(np.isinf(interpolated_values))
+            ):
                 raise DataIntegrityError(
                     f"Numerical corruption in interpolation result for phase {phase_id}",
                     "Interpolation result validation",

@@ -5,7 +5,6 @@ from typing import ClassVar, Literal, cast, overload
 import numpy as np
 from scipy.special import roots_jacobi as _scipy_roots_jacobi
 
-from .exceptions import DataIntegrityError
 from .input_validation import validate_polynomial_degree
 from .tl_types import FloatArray
 from .utils.constants import ZERO_TOLERANCE
