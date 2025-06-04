@@ -36,7 +36,7 @@ def add_cross_phase_constraint(
 
 
 def _symbolic_constraint_to_constraint(expr: ca.MX) -> Constraint:
-    #converting symbolic constraint to unified Constraint.
+    # converting symbolic constraint to unified Constraint.
     try:
         OP_EQ = getattr(ca, "OP_EQ", None)
         OP_LE = getattr(ca, "OP_LE", None)
