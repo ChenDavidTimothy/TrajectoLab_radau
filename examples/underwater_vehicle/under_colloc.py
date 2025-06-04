@@ -112,7 +112,7 @@ J = 0
 for k in range(N):
     # Create variables for collocation states
     Yc = []
-    for j in range(d):
+    for _j in range(d):
         Ykj = opti.variable(10)
         Yc.append(Ykj)
         # Apply path constraints to collocation points

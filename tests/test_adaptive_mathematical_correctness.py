@@ -22,10 +22,8 @@ from trajectolab.adaptive.phs.error_estimation import (
     _calculate_trajectory_error_differences,
 )
 from trajectolab.adaptive.phs.initial_guess import (
-    _calculate_global_tau_points_for_interval,
     _determine_interpolation_parameters,
     _find_containing_interval_index,
-    _interpolate_polynomial_at_evaluation_points,
 )
 from trajectolab.adaptive.phs.numerical import (
     PolynomialInterpolant,
@@ -466,12 +464,14 @@ class TestAdaptiveMathematicalCorrectness:
     def test_merge_feasibility_mathematical_logic(self):
         """Test mathematical logic for merge feasibility calculation."""
         # Test case 1: All errors within tolerance
-        fwd_errors = [1e-8, 5e-9, 2e-8]
-        bwd_errors = [3e-8, 1e-9, 1.5e-8]
+        fwd_errors_list = [1e-8, 5e-9, 2e-8]
+        bwd_errors_list = [3e-8, 1e-9, 1.5e-8]
         error_tol = 1e-7
 
         can_merge, max_error = _calculate_merge_feasibility_from_errors(
-            fwd_errors, bwd_errors, error_tol
+            np.array(fwd_errors_list, dtype=float),
+            np.array(bwd_errors_list, dtype=float),
+            error_tol,
         )
 
         assert can_merge
@@ -479,12 +479,14 @@ class TestAdaptiveMathematicalCorrectness:
         assert abs(max_error - expected_max_error) < 1e-15
 
         # Test case 2: Some errors exceed tolerance
-        fwd_errors = [1e-6, 5e-9, 2e-8]  # First error exceeds tolerance
-        bwd_errors = [3e-8, 1e-9, 1.5e-8]
+        fwd_errors_list = [1e-6, 5e-9, 2e-8]
+        bwd_errors_list = [3e-8, 1e-9, 1.5e-8]
         error_tol = 1e-7
 
         can_merge, max_error = _calculate_merge_feasibility_from_errors(
-            fwd_errors, bwd_errors, error_tol
+            np.array(fwd_errors_list, dtype=float),
+            np.array(bwd_errors_list, dtype=float),
+            error_tol,
         )
 
         assert not can_merge
@@ -492,21 +494,25 @@ class TestAdaptiveMathematicalCorrectness:
         assert abs(max_error - expected_max_error) < 1e-15
 
         # Test case 3: Empty error lists
-        can_merge, max_error = _calculate_merge_feasibility_from_errors([], [], 1e-6)
+        can_merge, max_error = _calculate_merge_feasibility_from_errors(
+            np.array([], dtype=float), np.array([], dtype=float), 1e-6
+        )
         assert not can_merge
-        assert max_error == np.inf
+        assert max_error == float(np.inf)
 
         # Test case 4: NaN handling
-        fwd_errors = [1e-8, np.nan, 2e-8]
-        bwd_errors = [3e-8, 1e-9, 1.5e-8]
+        fwd_errors_list = [1e-8, np.nan, 2e-8]
+        bwd_errors_list = [3e-8, 1e-9, 1.5e-8]
         error_tol = 1e-7
 
         can_merge, max_error = _calculate_merge_feasibility_from_errors(
-            fwd_errors, bwd_errors, error_tol
+            np.array(fwd_errors_list, dtype=float),
+            np.array(bwd_errors_list, dtype=float),
+            error_tol,
         )
 
         assert can_merge is False
-        assert max_error == np.inf
+        assert max_error == float(np.inf)  # Or just np.inf
 
     def test_trajectory_errors_with_gamma_mathematical_scaling(self):
         """Test trajectory error calculation with gamma scaling."""
@@ -563,29 +569,6 @@ class TestAdaptiveMathematicalCorrectness:
 
         slightly_outside_right = _find_containing_interval_index(1.0 + tolerance / 2, mesh_points)
         assert slightly_outside_right == len(mesh_points) - 2  # Should be in last interval
-
-    def test_global_tau_points_calculation_mathematical_correctness(self):
-        """Test global tau points calculation for intervals."""
-        # Test case 1: Standard interval
-        target_local_nodes = np.array([-1.0, -0.5, 0.0, 0.5, 1.0])
-        target_tau_start = -0.6
-        target_tau_end = 0.2
-
-        global_tau_points = _calculate_global_tau_points_for_interval(
-            target_local_nodes, target_tau_start, target_tau_end
-        )
-
-        # Expected transformation: global_tau = beta * local_tau + beta_0
-        # where beta = (tau_end - tau_start) / 2, beta_0 = (tau_end + tau_start) / 2
-        beta = (target_tau_end - target_tau_start) / 2.0  # 0.4
-        beta_0 = (target_tau_end + target_tau_start) / 2.0  # -0.2
-        expected_global = beta * target_local_nodes + beta_0
-
-        assert_allclose(global_tau_points, expected_global, rtol=1e-15)
-
-        # Test case 2: Verify boundary mapping
-        assert abs(global_tau_points[0] - target_tau_start) < 1e-15  # First point
-        assert abs(global_tau_points[-1] - target_tau_end) < 1e-15  # Last point
 
     def test_interpolation_parameters_mathematical_consistency(self):
         """Test interpolation parameter determination mathematical consistency."""
@@ -828,35 +811,3 @@ class TestAdaptiveMathematicalCorrectness:
         assert abs(computed_value - exact_analytical) < 1e-15, (
             f"Quadratic interpolation not exact: computed={computed_value}, exact={exact_analytical}"
         )
-
-    def test_polynomial_interpolation_at_evaluation_points_mathematical_correctness(self):
-        """Test direct polynomial interpolation at evaluation points."""
-        # Test setup
-        nodes = np.array([-1.0, -0.5, 0.5, 1.0])
-        values = np.array([[1.0, 0.25, 0.25, 1.0], [2.0, 1.0, 3.0, 4.0]])  # 2 variables, 4 nodes
-        evaluation_points = np.array([-0.75, 0.0, 0.75])
-
-        # Compute barycentric weights
-        barycentric_weights = compute_barycentric_weights(nodes)
-
-        # Use the mathematical core function
-        result = _interpolate_polynomial_at_evaluation_points(
-            nodes, values, evaluation_points, barycentric_weights
-        )
-
-        # Verify shape
-        assert result.shape == (2, 3)  # 2 variables, 3 evaluation points
-
-        # Verify against individual interpolations
-        for i, eval_point in enumerate(evaluation_points):
-            interpolant = PolynomialInterpolant(nodes, values, barycentric_weights)
-            individual_result = interpolant(eval_point)
-
-            assert_allclose(result[:, i], individual_result, rtol=1e-15)
-
-        # Test mathematical property: if evaluation points are nodes, should get exact values
-        node_result = _interpolate_polynomial_at_evaluation_points(
-            nodes, values, nodes, barycentric_weights
-        )
-
-        assert_allclose(node_result, values, rtol=1e-15)

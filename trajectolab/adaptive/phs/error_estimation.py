@@ -13,6 +13,7 @@ from trajectolab.tl_types import (
     ProblemProtocol,
 )
 
+
 __all__ = [
     "calculate_gamma_normalizers_for_phase",
     "calculate_relative_error_estimate",
@@ -28,7 +29,9 @@ def _calculate_gamma_normalization_factors(max_state_values: FloatArray) -> Floa
     return (1.0 / np.maximum(gamma_denominator, np.float64(1e-12))).reshape(-1, 1)
 
 
-def _find_maximum_state_values_across_phase_intervals(Y_solved_list: list[FloatArray]) -> FloatArray:
+def _find_maximum_state_values_across_phase_intervals(
+    Y_solved_list: list[FloatArray],
+) -> FloatArray:
     """VECTORIZED: Pure maximum value calculation across intervals."""
     if not Y_solved_list:
         return np.array([], dtype=np.float64)
@@ -48,7 +51,8 @@ def _calculate_trajectory_error_differences(
     abs_diff = np.abs(sim_trajectory - nlp_trajectory)
     scaled_errors = gamma_factors * abs_diff
     max_errors_per_state = (
-        np.nanmax(scaled_errors, axis=1) if scaled_errors.size > 0
+        np.nanmax(scaled_errors, axis=1)
+        if scaled_errors.size > 0
         else np.zeros(gamma_factors.shape[0], dtype=np.float64)
     )
     return abs_diff, max_errors_per_state
@@ -65,9 +69,13 @@ def _calculate_combined_error_estimate(
     fwd_valid = ~np.isnan(max_fwd_errors_per_state)
     bwd_valid = ~np.isnan(max_bwd_errors_per_state)
     combined_errors = np.where(
-        fwd_valid & bwd_valid, np.maximum(max_fwd_errors_per_state, max_bwd_errors_per_state),
-        np.where(fwd_valid, max_fwd_errors_per_state,
-                np.where(bwd_valid, max_bwd_errors_per_state, np.nan))
+        fwd_valid & bwd_valid,
+        np.maximum(max_fwd_errors_per_state, max_bwd_errors_per_state),
+        np.where(
+            fwd_valid,
+            max_fwd_errors_per_state,
+            np.where(bwd_valid, max_bwd_errors_per_state, np.nan),
+        ),
     )
 
     max_error = float(np.nanmax(combined_errors)) if combined_errors.size > 0 else 0.0
@@ -108,9 +116,11 @@ def simulate_dynamics_for_phase_interval_error_estimation(
     num_states, _ = problem.get_phase_variable_counts(phase_id)
     phase_dynamics_function = problem.get_phase_dynamics_function(phase_id)
 
-    if (phase_id not in solution.phase_initial_times or
-        phase_id not in solution.phase_terminal_times or
-        phase_id not in solution.phase_mesh_nodes):
+    if (
+        phase_id not in solution.phase_initial_times
+        or phase_id not in solution.phase_terminal_times
+        or phase_id not in solution.phase_mesh_nodes
+    ):
         empty = np.array([], dtype=np.float64)
         return False, empty, empty, empty, empty, empty, empty
 
@@ -131,42 +141,78 @@ def simulate_dynamics_for_phase_interval_error_estimation(
     beta_k0, overall_scaling = (tau_end + tau_start) / 2.0, alpha * beta_k
 
     def dynamics_rhs(tau: float, state: FloatArray) -> FloatArray:
-        control = control_evaluator(tau).flatten() if control_evaluator(tau).ndim > 1 else control_evaluator(tau)
+        control = (
+            control_evaluator(tau).flatten()
+            if control_evaluator(tau).ndim > 1
+            else control_evaluator(tau)
+        )
         global_tau = beta_k * tau + beta_k0
         physical_time = alpha * global_tau + alpha_0
-        dynamics_result = phase_dynamics_function(ca.MX(state), ca.MX(control), ca.MX(physical_time))
+        dynamics_result = phase_dynamics_function(
+            ca.MX(state), ca.MX(control), ca.MX(physical_time)
+        )
         state_deriv_np = _convert_casadi_dynamics_result_to_numpy(dynamics_result, num_states)
         return cast(FloatArray, overall_scaling * state_deriv_np)
 
     # Forward and backward simulation
-    initial_state = state_evaluator(-1.0).flatten() if state_evaluator(-1.0).ndim > 1 else state_evaluator(-1.0)
-    terminal_state = state_evaluator(1.0).flatten() if state_evaluator(1.0).ndim > 1 else state_evaluator(1.0)
+    initial_state = (
+        state_evaluator(-1.0).flatten() if state_evaluator(-1.0).ndim > 1 else state_evaluator(-1.0)
+    )
+    terminal_state = (
+        state_evaluator(1.0).flatten() if state_evaluator(1.0).ndim > 1 else state_evaluator(1.0)
+    )
 
     fwd_tau_points = np.linspace(-1, 1, n_eval_points, dtype=np.float64)
     bwd_tau_points = np.linspace(1, -1, n_eval_points, dtype=np.float64)
 
     try:
         fwd_sim = ode_solver(dynamics_rhs, t_span=(-1, 1), y0=initial_state, t_eval=fwd_tau_points)
-        fwd_success, fwd_trajectory = fwd_sim.success, fwd_sim.y if fwd_sim.success else np.full((num_states, len(fwd_tau_points)), np.nan, dtype=np.float64)
+        fwd_success, fwd_trajectory = (
+            fwd_sim.success,
+            fwd_sim.y
+            if fwd_sim.success
+            else np.full((num_states, len(fwd_tau_points)), np.nan, dtype=np.float64),
+        )
     except (RuntimeError, OverflowError, FloatingPointError):
-        fwd_success, fwd_trajectory = False, np.full((num_states, len(fwd_tau_points)), np.nan, dtype=np.float64)
+        fwd_success, fwd_trajectory = (
+            False,
+            np.full((num_states, len(fwd_tau_points)), np.nan, dtype=np.float64),
+        )
 
     try:
         bwd_sim = ode_solver(dynamics_rhs, t_span=(1, -1), y0=terminal_state, t_eval=bwd_tau_points)
-        bwd_success, bwd_trajectory = bwd_sim.success, np.fliplr(bwd_sim.y) if bwd_sim.success else np.full((num_states, len(bwd_tau_points)), np.nan, dtype=np.float64)
+        bwd_success, bwd_trajectory = (
+            bwd_sim.success,
+            np.fliplr(bwd_sim.y)
+            if bwd_sim.success
+            else np.full((num_states, len(bwd_tau_points)), np.nan, dtype=np.float64),
+        )
     except (RuntimeError, OverflowError, FloatingPointError):
-        bwd_success, bwd_trajectory = False, np.full((num_states, len(bwd_tau_points)), np.nan, dtype=np.float64)
+        bwd_success, bwd_trajectory = (
+            False,
+            np.full((num_states, len(bwd_tau_points)), np.nan, dtype=np.float64),
+        )
 
     return (
-        fwd_success and bwd_success, fwd_tau_points, fwd_trajectory, state_evaluator(fwd_tau_points),
-        np.flip(bwd_tau_points), bwd_trajectory, state_evaluator(np.flip(bwd_tau_points))
+        fwd_success and bwd_success,
+        fwd_tau_points,
+        fwd_trajectory,
+        state_evaluator(fwd_tau_points),
+        np.flip(bwd_tau_points),
+        bwd_trajectory,
+        state_evaluator(np.flip(bwd_tau_points)),
     )
 
 
 def calculate_relative_error_estimate(
-    phase_id: PhaseID, interval_idx: int, success: bool,
-    fwd_sim_traj: FloatArray, fwd_nlp_traj: FloatArray,
-    bwd_sim_traj: FloatArray, bwd_nlp_traj: FloatArray, gamma_factors: FloatArray,
+    phase_id: PhaseID,
+    interval_idx: int,
+    success: bool,
+    fwd_sim_traj: FloatArray,
+    fwd_nlp_traj: FloatArray,
+    bwd_sim_traj: FloatArray,
+    bwd_nlp_traj: FloatArray,
+    gamma_factors: FloatArray,
 ) -> float:
     """Calculate relative error estimate."""
     if not success or fwd_sim_traj.size == 0 or bwd_sim_traj.size == 0:
@@ -175,8 +221,12 @@ def calculate_relative_error_estimate(
     if fwd_sim_traj.shape[0] == 0:
         return 0.0
 
-    _, max_fwd_errors = _calculate_trajectory_error_differences(fwd_sim_traj, fwd_nlp_traj, gamma_factors)
-    _, max_bwd_errors = _calculate_trajectory_error_differences(bwd_sim_traj, bwd_nlp_traj, gamma_factors)
+    _, max_fwd_errors = _calculate_trajectory_error_differences(
+        fwd_sim_traj, fwd_nlp_traj, gamma_factors
+    )
+    _, max_bwd_errors = _calculate_trajectory_error_differences(
+        bwd_sim_traj, bwd_nlp_traj, gamma_factors
+    )
 
     max_error = _calculate_combined_error_estimate(max_fwd_errors, max_bwd_errors)
     return np.inf if np.isnan(max_error) else max_error

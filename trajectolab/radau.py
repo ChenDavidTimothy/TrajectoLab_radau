@@ -227,7 +227,7 @@ def compute_barycentric_weights(nodes: FloatArray) -> FloatArray:
     safe_products = np.where(
         small_product_mask,
         np.where(products == 0, 1.0 / (ZERO_TOLERANCE**2), np.sign(products) / (ZERO_TOLERANCE**2)),
-        1.0 / products
+        1.0 / products,
     )
 
     return safe_products.astype(np.float64)
@@ -260,9 +260,7 @@ def evaluate_lagrange_polynomial_at_point(
     # VECTORIZED: Handle near-zero differences
     near_zero_mask = np.abs(diffs) < ZERO_TOLERANCE
     safe_diffs = np.where(
-        near_zero_mask,
-        np.where(diffs == 0, ZERO_TOLERANCE, np.sign(diffs) * ZERO_TOLERANCE),
-        diffs
+        near_zero_mask, np.where(diffs == 0, ZERO_TOLERANCE, np.sign(diffs) * ZERO_TOLERANCE), diffs
     )
 
     # VECTORIZED: Compute terms and normalize
@@ -306,7 +304,7 @@ def compute_lagrange_derivative_coefficients_at_point(
     safe_diffs = np.where(
         near_zero_mask,
         np.where(node_diffs == 0, ZERO_TOLERANCE, np.sign(node_diffs) * ZERO_TOLERANCE),
-        node_diffs
+        node_diffs,
     )
 
     # VECTORIZED: Compute off-diagonal derivatives
@@ -316,7 +314,9 @@ def compute_lagrange_derivative_coefficients_at_point(
         derivatives[non_diagonal_mask] = 0.0
     else:
         weight_ratios = barycentric_weights / barycentric_weights[matched_node_idx_k]
-        derivatives[non_diagonal_mask] = weight_ratios[non_diagonal_mask] / safe_diffs[non_diagonal_mask]
+        derivatives[non_diagonal_mask] = (
+            weight_ratios[non_diagonal_mask] / safe_diffs[non_diagonal_mask]
+        )
 
     # VECTORIZED: Compute diagonal derivative (sum of reciprocals)
     derivatives[matched_node_idx_k] = np.sum(1.0 / safe_diffs[non_diagonal_mask])
