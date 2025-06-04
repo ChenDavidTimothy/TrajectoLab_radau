@@ -142,8 +142,7 @@ def _apply_phase_integral_guesses(
     ):
         phase_integrals = ig.phase_integrals[phase_id]
 
-        # Use centralized validation function
-        validate_integral_values(phase_integrals, num_integrals)
+        # Use centralized validation function - already validated, just set values
         set_integral_guess_values(
             opti, phase_vars.integral_variables, phase_integrals, num_integrals
         )
@@ -157,7 +156,7 @@ def _apply_static_parameters_guess(
 ) -> None:
     """Apply initial guess for static parameters."""
     if ig.static_parameters is not None and variables.static_parameters is not None:
-        total_states, total_controls, num_static_params = problem.get_total_variable_counts()
+        _, _, num_static_params = problem.get_total_variable_counts()
 
         if num_static_params > 0:
             opti.set_initial(variables.static_parameters, ig.static_parameters)

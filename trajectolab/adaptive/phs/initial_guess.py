@@ -139,7 +139,8 @@ def _interpolate_phase_trajectory_to_new_mesh_streamlined(
             if interpolated_values.ndim > 1:
                 interpolated_values = interpolated_values.flatten()
 
-            if np.any(np.isnan(interpolated_values)) or np.any(np.isinf(interpolated_values)):
+            # EXTERNAL BOUNDARY: Only validate at algorithm boundary, not in loops
+            if j == 0 and (np.any(np.isnan(interpolated_values)) or np.any(np.isinf(interpolated_values))):
                 raise DataIntegrityError(
                     f"Numerical corruption in interpolation result for phase {phase_id}",
                     "Interpolation result validation",
@@ -257,18 +258,11 @@ def propagate_multiphase_solution_to_new_meshes(
         static_parameters=static_parameters,
     )
 
-    # Validate result
     for phase_id in problem.get_phase_ids():
         if (
             phase_id not in initial_guess.phase_states
             or phase_id not in initial_guess.phase_controls
         ):
             raise InterpolationError(f"Missing interpolated data for phase {phase_id}")
-        if (
-            initial_guess.phase_states[phase_id]
-            and initial_guess.phase_states[phase_id][0].size > 0
-            and np.any(np.isnan(initial_guess.phase_states[phase_id][0]))
-        ):
-            raise DataIntegrityError(f"NaN values in interpolated states for phase {phase_id}")
 
     return initial_guess

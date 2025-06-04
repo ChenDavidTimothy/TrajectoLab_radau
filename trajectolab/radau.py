@@ -75,18 +75,6 @@ class RadauBasisCache:
         num_state_nodes = len(state_nodes)
         num_actual_collocation_nodes = len(collocation_nodes)
 
-        # Guard clause: Validate computed dimensions (this is internal data integrity)
-        if num_state_nodes != num_collocation_nodes + 1:
-            raise DataIntegrityError(
-                f"State approximation nodes dimension mismatch: expected {num_collocation_nodes + 1}, got {num_state_nodes}",
-                "TrajectoLab Radau basis computation error",
-            )
-        if num_actual_collocation_nodes != num_collocation_nodes:
-            raise DataIntegrityError(
-                f"Collocation nodes dimension mismatch: expected {num_collocation_nodes}, got {num_actual_collocation_nodes}",
-                "TrajectoLab Radau basis computation error",
-            )
-
         bary_weights_state_nodes = compute_barycentric_weights(state_nodes)
 
         diff_matrix = np.zeros((num_actual_collocation_nodes, num_state_nodes), dtype=np.float64)

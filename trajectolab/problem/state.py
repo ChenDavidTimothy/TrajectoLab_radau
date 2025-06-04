@@ -105,11 +105,6 @@ class _VariableInfo:
     final_constraint: _BoundaryConstraint | None = None
     boundary_constraint: _BoundaryConstraint | None = None
 
-    def __post_init__(self) -> None:
-        """Validate variable info after initialization."""
-        if self.symbol is None:
-            raise DataIntegrityError("Variable symbol cannot be None", "Variable definition error")
-
 
 @dataclass
 class PhaseDefinition:
@@ -168,11 +163,6 @@ class PhaseDefinition:
         # SINGLE validation call
         validate_string_not_empty(name, "State variable name")
 
-        if symbol is None:
-            raise DataIntegrityError(
-                f"State symbol for '{name}' cannot be None", "Variable definition error"
-            )
-
         with self._ordering_lock:
             _register_variable_name(
                 name, self.state_name_to_index, self.state_names, f"State in phase {self.phase_id}"
@@ -217,11 +207,6 @@ class PhaseDefinition:
         # SINGLE validation call
         validate_string_not_empty(name, "Control variable name")
 
-        if symbol is None:
-            raise DataIntegrityError(
-                f"Control symbol for '{name}' cannot be None", "Variable definition error"
-            )
-
         with self._ordering_lock:
             _register_variable_name(
                 name,
@@ -250,75 +235,29 @@ class PhaseDefinition:
                 ) from e
 
     def get_variable_counts(self) -> tuple[int, int]:
-        """Get (num_states, num_controls) with consistency validation."""
-        num_states = len(self.state_info)
-        num_controls = len(self.control_info)
-
-        if num_states != len(self.state_names):
-            raise DataIntegrityError(
-                f"Phase {self.phase_id} state count inconsistency: info={num_states}, names={len(self.state_names)}",
-                "Variable storage corruption",
-            )
-
-        if num_controls != len(self.control_names):
-            raise DataIntegrityError(
-                f"Phase {self.phase_id} control count inconsistency: info={num_controls}, names={len(self.control_names)}",
-                "Variable storage corruption",
-            )
-
-        return num_states, num_controls
+        """Get (num_states, num_controls) - trust construction correctness."""
+        return len(self.state_info), len(self.control_info)
 
     def get_ordered_state_symbols(self) -> list[ca.MX]:
-        """Get state symbols in order with data integrity validation."""
-        if len(self.state_info) != len(self.state_names):
-            raise DataIntegrityError(
-                f"Phase {self.phase_id} state info count ({len(self.state_info)}) != names count ({len(self.state_names)})",
-                "Variable storage inconsistency",
-            )
-
+        """Get state symbols in order - trust construction correctness."""
         return [info.symbol for info in self.state_info]
 
     def get_ordered_control_symbols(self) -> list[ca.MX]:
-        """Get control symbols in order with data integrity validation."""
-        if len(self.control_info) != len(self.control_names):
-            raise DataIntegrityError(
-                f"Phase {self.phase_id} control info count ({len(self.control_info)}) != names count ({len(self.control_names)})",
-                "Variable storage inconsistency",
-            )
-
+        """Get control symbols in order - trust construction correctness."""
         return [info.symbol for info in self.control_info]
 
     def get_ordered_state_initial_symbols(self) -> list[ca.MX]:
-        """Get state initial symbols in order."""
-        symbols = []
-        for info in self.state_info:
-            if info.initial_symbol is None:
-                raise DataIntegrityError(
-                    f"Phase {self.phase_id} state initial symbol is None", "State symbol corruption"
-                )
-            symbols.append(info.initial_symbol)
-        return symbols
+        """Get state initial symbols in order - trust construction correctness."""
+        return [info.initial_symbol for info in self.state_info]
 
     def get_ordered_state_final_symbols(self) -> list[ca.MX]:
-        """Get state final symbols in order."""
-        symbols = []
-        for info in self.state_info:
-            if info.final_symbol is None:
-                raise DataIntegrityError(
-                    f"Phase {self.phase_id} state final symbol is None", "State symbol corruption"
-                )
-            symbols.append(info.final_symbol)
-        return symbols
+        """Get state final symbols in order - trust construction correctness."""
+        return [info.final_symbol for info in self.state_info]
 
     def _get_time_bounds(
         self, constraint: _BoundaryConstraint, constraint_type: str
     ) -> tuple[float, float]:
         """Extract time bounds from constraint with consistent logic."""
-        if constraint is None:
-            raise DataIntegrityError(
-                f"Phase {self.phase_id} {constraint_type} time constraint is None",
-                "Time bounds corruption",
-            )
         if constraint.is_symbolic():
             return (-1e6, 1e6)
         if constraint.equals is not None:
@@ -351,11 +290,6 @@ class StaticParameterState:
         """Add static parameter."""
         # SINGLE validation call
         validate_string_not_empty(name, "Parameter name")
-
-        if symbol is None:
-            raise DataIntegrityError(
-                f"Parameter symbol for '{name}' cannot be None", "Variable definition error"
-            )
 
         with self._ordering_lock:
             _register_variable_name(

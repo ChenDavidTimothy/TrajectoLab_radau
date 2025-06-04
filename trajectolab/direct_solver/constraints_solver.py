@@ -33,19 +33,12 @@ def apply_phase_collocation_constraints(
     """
     SIMPLIFIED: Apply collocation constraints with simple coordinate transformation.
     """
-    from ..input_validation import validate_dynamics_output, validate_interval_length
+    from ..input_validation import validate_dynamics_output
     from ..utils.coordinates import tau_to_time
 
     num_colloc_nodes = len(basis_components.collocation_nodes)
     colloc_nodes_tau = basis_components.collocation_nodes.flatten()
     diff_matrix: ca.DM = ca.DM(basis_components.differentiation_matrix)
-
-    # Validation
-    validate_interval_length(
-        global_normalized_mesh_nodes[mesh_interval_index],
-        global_normalized_mesh_nodes[mesh_interval_index + 1],
-        mesh_interval_index,
-    )
 
     # Calculate state derivatives at collocation points
     state_derivative_at_colloc = ca.mtimes(state_at_nodes, diff_matrix.T)

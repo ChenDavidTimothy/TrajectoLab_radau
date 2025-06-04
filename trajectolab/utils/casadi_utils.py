@@ -25,43 +25,21 @@ def convert_casadi_to_numpy(
     Convert CasADi dynamics function call to NumPy arrays with enhanced validation.
     Handles both optimized interface (ca.MX) and legacy interface (list[ca.MX]).
     """
-    # Guard clause: Validate function
+    # EXTERNAL BOUNDARY: Validate function (CasADi can be unpredictable)
     if not callable(casadi_dynamics_func):
         raise DataIntegrityError(
             "casadi_dynamics_func must be callable", "Invalid function passed to CasADi converter"
         )
 
-    # Guard clause: Validate state input
-    if not isinstance(state, np.ndarray) or state.dtype != np.float64:
-        raise DataIntegrityError(
-            f"state must be float64 NumPy array, got {type(state)} with dtype {getattr(state, 'dtype', 'N/A')}",
-            "Invalid state data for CasADi conversion",
-        )
-
-    # Critical: Check for NaN/Inf in state
+    # EXTERNAL BOUNDARY: Validate inputs for numerical corruption
     if np.any(np.isnan(state)) or np.any(np.isinf(state)):
         raise DataIntegrityError(
             "state array contains NaN or Inf values", "Numerical corruption in state input"
         )
 
-    # Guard clause: Validate control input
-    if not isinstance(control, np.ndarray) or control.dtype != np.float64:
-        raise DataIntegrityError(
-            f"control must be float64 NumPy array, got {type(control)} with dtype {getattr(control, 'dtype', 'N/A')}",
-            "Invalid control data for CasADi conversion",
-        )
-
-    # Critical: Check for NaN/Inf in control
     if np.any(np.isnan(control)) or np.any(np.isinf(control)):
         raise DataIntegrityError(
             "control array contains NaN or Inf values", "Numerical corruption in control input"
-        )
-
-    # Guard clause: Validate time
-    if not isinstance(time, int | float):
-        raise DataIntegrityError(
-            f"time must be numeric scalar, got {type(time)}",
-            "Invalid time value for CasADi conversion",
         )
 
     if np.isnan(time) or np.isinf(time):
@@ -80,7 +58,7 @@ def convert_casadi_to_numpy(
 
         # Handle both optimized and legacy interfaces
         if isinstance(result_casadi, ca.DM):
-            # Direct DM result - convert to numpy - FIX: Add cast for FloatArray
+            # Direct DM result - convert to numpy
             result_np = cast(FloatArray, np.array(result_casadi.full(), dtype=np.float64).flatten())
         elif isinstance(result_casadi, ca.MX):
             # MX result (new optimized interface) - evaluate and convert
@@ -124,7 +102,7 @@ def convert_casadi_to_numpy(
                     f"Unsupported result type {type(result_casadi)}: {e}"
                 ) from e
 
-        # Critical: Validate output for NaN/Inf
+        # EXTERNAL BOUNDARY: Validate output for numerical corruption from CasADi
         if np.any(np.isnan(result_np)) or np.any(np.isinf(result_np)):
             raise DataIntegrityError(
                 "CasADi dynamics output contains NaN or Inf values",

@@ -346,13 +346,6 @@ def _process_single_phase_unified(
     if static_parameters_vec is not None:
         static_parameter_symbols = problem._static_parameters.get_ordered_parameter_symbols()
 
-    # Data integrity validation
-    if len(global_mesh_nodes) != num_mesh_intervals + 1:
-        raise DataIntegrityError(
-            f"Phase {phase_id} mesh nodes count ({len(global_mesh_nodes)}) doesn't match expected ({num_mesh_intervals + 1})",
-            "Phase mesh configuration inconsistency",
-        )
-
     # Initialize accumulated integrals
     accumulated_integral_expressions: list[ca.MX] = (
         [ca.MX(0) for _ in range(num_integrals)] if num_integrals > 0 else []

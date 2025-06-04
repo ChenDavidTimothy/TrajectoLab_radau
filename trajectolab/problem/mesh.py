@@ -25,10 +25,10 @@ def configure_phase_mesh(
         len(mesh_array),
     )
 
-    # SINGLE comprehensive validation call
+    # SINGLE comprehensive validation call - trust construction after this
     validate_mesh_configuration(polynomial_degrees, mesh_array, len(polynomial_degrees))
 
-    # Set mesh configuration
+    # Set mesh configuration - no additional validation needed
     phase_def.collocation_points_per_interval = polynomial_degrees
     phase_def.global_normalized_mesh_nodes = mesh_array
     phase_def.mesh_configured = True

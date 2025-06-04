@@ -49,12 +49,6 @@ def _extract_state_matrices_for_phase(
     phase_vars, polynomial_degrees: list[int], raw_sol, num_states: int, phase_id: PhaseID
 ) -> list[FloatArray]:
     """Extract state matrices for a single phase."""
-    if len(phase_vars.state_matrices) != len(polynomial_degrees):
-        raise DataIntegrityError(
-            f"Phase {phase_id} state matrices count ({len(phase_vars.state_matrices)}) != polynomial degrees count ({len(polynomial_degrees)})",
-            "Solution extraction state matrix mismatch",
-        )
-
     state_trajectories = []
     for k, state_matrix in enumerate(phase_vars.state_matrices):
         state_vals = raw_sol.value(state_matrix)
@@ -74,12 +68,6 @@ def _extract_control_variables_for_phase(
             np.empty((0, polynomial_degrees[k]), dtype=np.float64)
             for k in range(len(polynomial_degrees))
         ]
-
-    if len(phase_vars.control_variables) != len(polynomial_degrees):
-        raise DataIntegrityError(
-            f"Phase {phase_id} control variables count ({len(phase_vars.control_variables)}) != polynomial degrees count ({len(polynomial_degrees)})",
-            "Solution extraction control matrix mismatch",
-        )
 
     control_trajectories = []
     for k, control_var in enumerate(phase_vars.control_variables):

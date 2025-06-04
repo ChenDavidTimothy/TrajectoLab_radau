@@ -49,7 +49,7 @@ def validate_string_not_empty(value: Any, name: str) -> None:
 def validate_array_numerical_integrity(
     array: FloatArray, name: str, context: str = "validation"
 ) -> None:
-    """Single source for NaN/Inf validation."""
+    """Single source for NaN/Inf validation - ONLY at external boundaries."""
     if np.any(np.isnan(array)) or np.any(np.isinf(array)):
         raise DataIntegrityError(
             f"{name} contains NaN or Inf values", f"Numerical corruption in {context}"
@@ -65,12 +65,6 @@ def validate_array_shape(
             f"{name} has shape {array.shape}, expected {expected_shape}",
             f"Shape mismatch in {context}",
         )
-
-
-def validate_casadi_object(obj: Any, name: str, context: str = "validation") -> None:
-    """Single source for CasADi object validation."""
-    if obj is None:
-        raise DataIntegrityError(f"{name} cannot be None", f"CasADi object error in {context}")
 
 
 # ============================================================================
@@ -160,14 +154,6 @@ def validate_mesh_configuration(
         )
 
 
-def validate_interval_length(start: float, end: float, interval_index: int) -> None:
-    """SINGLE SOURCE for interval length validation."""
-    if end - start <= MESH_TOLERANCE:
-        raise ConfigurationError(
-            f"Interval {interval_index} length ({end - start}) < minimum ({MESH_TOLERANCE})"
-        )
-
-
 # ============================================================================
 # PROBLEM VALIDATION - Complete problem structure validation
 # ============================================================================
@@ -176,7 +162,7 @@ def validate_interval_length(start: float, end: float, interval_index: int) -> N
 def validate_problem_dimensions(
     num_states: int, num_controls: int, num_static_params: int, context: str = "problem"
 ) -> None:
-    """SINGLE SOURCE for problem dimension validation."""
+    """Single source for problem dimension validation."""
     for count, name in [
         (num_states, "states"),
         (num_controls, "controls"),
@@ -267,7 +253,6 @@ def validate_trajectory_consistency(
 
     for k, (traj, expected_shape) in enumerate(zip(trajectories, expected_shapes, strict=False)):
         validate_array_shape(traj, expected_shape, f"{trajectory_type} interval {k}")
-        validate_array_numerical_integrity(traj, f"{trajectory_type} interval {k}")
 
 
 def validate_integral_values(integrals: float | FloatArray | None, num_integrals: int) -> None:
@@ -352,7 +337,7 @@ def validate_multiphase_initial_guess_structure(
             )
         validate_array_numerical_integrity(params_array, "static parameters")
 
-    # Validate time values
+    # Validate time values - ONLY at user input boundary
     for time_dict, time_type in [
         (initial_guess.phase_initial_times, "initial"),
         (initial_guess.phase_terminal_times, "terminal"),
