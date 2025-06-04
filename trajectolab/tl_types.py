@@ -67,19 +67,19 @@ class ProblemProtocol(Protocol):
         """Return ordered list of phase IDs"""
         ...
 
-    def get_phase_variable_counts(self, phase_id: PhaseID) -> tuple[int, int]:
+    def _get_phase_variable_counts(self, phase_id: PhaseID) -> tuple[int, int]:
         """Return (num_states, num_controls) for given phase"""
         ...
 
-    def get_total_variable_counts(self) -> tuple[int, int, int]:
+    def _get_total_variable_counts(self) -> tuple[int, int, int]:
         """Return (total_states, total_controls, num_static_params)"""
         ...
 
-    def get_phase_ordered_state_names(self, phase_id: PhaseID) -> list[str]:
+    def _get_phase_ordered_state_names(self, phase_id: PhaseID) -> list[str]:
         """Get state names for given phase in order"""
         ...
 
-    def get_phase_ordered_control_names(self, phase_id: PhaseID) -> list[str]:
+    def _get_phase_ordered_control_names(self, phase_id: PhaseID) -> list[str]:
         """Get control names for given phase in order"""
         ...
 
@@ -95,13 +95,13 @@ class ProblemProtocol(Protocol):
         """Get integrand function for given phase"""
         ...
 
-    def get_phase_path_constraints_function(
+    def _get_phase_path_constraints_function(
         self, phase_id: PhaseID
     ) -> Callable[..., list[Constraint]] | None:
         """Get path constraints function for given phase"""
         ...
 
-    def get_cross_phase_event_constraints_function(self) -> Callable[..., list[Constraint]] | None:
+    def _get_cross_phase_event_constraints_function(self) -> Callable[..., list[Constraint]] | None:
         """Get cross-phase event constraints function"""
         ...
 

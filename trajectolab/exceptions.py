@@ -1,7 +1,6 @@
 import logging
 
 
-# Library logger - no configuration, user controls output
 logger = logging.getLogger(__name__)
 
 
@@ -21,12 +20,10 @@ class TrajectoLabBaseError(Exception):
         self.message = message
         self.context = context
 
-        # Library logs at DEBUG level - user can promote if needed
         logger.debug("TrajectoLab exception: %s", self._format_message())
         super().__init__(self._format_message())
 
     def _format_message(self) -> str:
-        """Format the error message with optional context."""
         if self.context:
             return f"{self.message} (Context: {self.context})"
         return self.message

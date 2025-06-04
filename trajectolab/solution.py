@@ -3,7 +3,6 @@ Solution interface for optimal control problem results.
 
 This module provides the Solution class that wraps optimization results
 in a user-friendly interface with trajectory access capabilities.
-Comprehensive summary functionality is delegated to summary.py for separation of concerns.
 """
 
 import logging
@@ -19,12 +18,9 @@ logger = logging.getLogger(__name__)
 class Solution:
     """User-friendly interface for multiphase optimal control problem solutions."""
 
-    # Type hints for key attributes to ensure proper type inference
     success: bool
     objective: float
     _problem: ProblemProtocol | None
-
-    # trajectolab/solution.py - Updated __init__ method
 
     def __init__(
         self,
@@ -44,12 +40,10 @@ class Solution:
             self.success = raw_solution.success
             self.message = raw_solution.message
 
-            # Core solution data
             self.objective = (
                 raw_solution.objective if raw_solution.objective is not None else float("nan")
             )
 
-            # Multiphase solution data
             self.phase_initial_times = raw_solution.phase_initial_times
             self.phase_terminal_times = raw_solution.phase_terminal_times
             self.phase_time_states = raw_solution.phase_time_states
@@ -59,15 +53,12 @@ class Solution:
             self.phase_integrals = raw_solution.phase_integrals
             self.static_parameters = raw_solution.static_parameters
 
-            # Raw solver data
             self.raw_solution = raw_solution.raw_solution
             self.opti = raw_solution.opti_object
 
-            # Mesh information per phase
             self.phase_mesh_intervals = raw_solution.phase_mesh_intervals
             self.phase_mesh_nodes = raw_solution.phase_mesh_nodes
 
-            # Per-interval solution data per phase
             self.phase_solved_state_trajectories_per_interval = (
                 raw_solution.phase_solved_state_trajectories_per_interval
             )
@@ -75,7 +66,6 @@ class Solution:
                 raw_solution.phase_solved_control_trajectories_per_interval
             )
 
-            # Adaptive algorithm data
             self.adaptive_data = raw_solution.adaptive_data
 
         else:
@@ -83,7 +73,6 @@ class Solution:
             self.message = "No multiphase solution"
             self.objective = float("nan")
 
-            # Initialize empty multiphase data
             self.phase_initial_times = {}
             self.phase_terminal_times = {}
             self.phase_time_states = {}
@@ -100,17 +89,15 @@ class Solution:
             self.phase_solved_state_trajectories_per_interval = {}
             self.phase_solved_control_trajectories_per_interval = {}
 
-            # Initialize adaptive data as None for failed solutions
             self.adaptive_data = None
 
         if problem is not None:
             self._problem = problem
-            # Store phase-specific variable names
             self._phase_state_names = {}
             self._phase_control_names = {}
             for phase_id in problem._get_phase_ids():
-                self._phase_state_names[phase_id] = problem.get_phase_ordered_state_names(phase_id)
-                self._phase_control_names[phase_id] = problem.get_phase_ordered_control_names(
+                self._phase_state_names[phase_id] = problem._get_phase_ordered_state_names(phase_id)
+                self._phase_control_names[phase_id] = problem._get_phase_ordered_control_names(
                     phase_id
                 )
         else:
@@ -118,12 +105,10 @@ class Solution:
             self._phase_state_names = {}
             self._phase_control_names = {}
 
-        # Automatically show comprehensive summary by default
         if auto_summary:
             self._show_comprehensive_summary()
 
     def _show_comprehensive_summary(self) -> None:
-        """Automatically display comprehensive solution summary."""
         try:
             from .summary import print_comprehensive_solution_summary
 
@@ -134,7 +119,6 @@ class Solution:
             logger.warning(f"Error in comprehensive summary: {e}")
 
     def _get_phase_ids(self) -> list[PhaseID]:
-        """Get list of phase IDs in the solution."""
         return sorted(self.phase_initial_times.keys())
 
     def get_phase_initial_time(self, phase_id: PhaseID) -> float:
@@ -191,21 +175,16 @@ class Solution:
             logger.warning("Cannot access variable '%s': Solution not successful", key)
             return np.array([], dtype=np.float64)
 
-        # Handle tuple access: (phase_id, variable_name)
         if isinstance(key, tuple):
             return self._get_by_tuple_key(key)
-
-        # Handle string access: search all phases for variable name
         elif isinstance(key, str):
             return self._get_by_string_key(key)
-
         else:
             raise KeyError(
                 f"Invalid key type: {type(key)}. Use string or (phase_id, variable_name) tuple"
             )
 
     def _get_by_tuple_key(self, key: tuple[PhaseID, str]) -> FloatArray:
-        """Extracted helper method for tuple-based access."""
         if len(key) != 2:
             raise KeyError("Tuple key must have exactly 2 elements: (phase_id, variable_name)")
 
@@ -214,19 +193,16 @@ class Solution:
         if phase_id not in self._get_phase_ids():
             raise KeyError(f"Phase {phase_id} not found in solution")
 
-        # Handle time arrays
         if var_name == "time_states":
             return self.phase_time_states.get(phase_id, np.array([], dtype=np.float64))
         elif var_name == "time_controls":
             return self.phase_time_controls.get(phase_id, np.array([], dtype=np.float64))
 
-        # Handle state variables
         if phase_id in self._phase_state_names and var_name in self._phase_state_names[phase_id]:
             var_index = self._phase_state_names[phase_id].index(var_name)
             if phase_id in self.phase_states and var_index < len(self.phase_states[phase_id]):
                 return self.phase_states[phase_id][var_index]
 
-        # Handle control variables
         if (
             phase_id in self._phase_control_names
             and var_name in self._phase_control_names[phase_id]
@@ -238,15 +214,12 @@ class Solution:
         raise KeyError(f"Variable '{var_name}' not found in phase {phase_id}")
 
     def _get_by_string_key(self, key: str) -> FloatArray:
-        """Extracted helper method for string-based access."""
-        # Search for variable in all phases
         for phase_id in self._get_phase_ids():
             try:
                 return self[(phase_id, key)]
             except KeyError:
                 continue
 
-        # Variable not found in any phase
         all_vars = []
         for phase_id in self._get_phase_ids():
             phase_vars = (
@@ -321,7 +294,6 @@ class Solution:
             >>> solution.plot(phase_id=None, "position", "velocity")  # Specific variables
             >>> solution.plot(1, "thrust")  # Specific variable for specific phase
         """
-        # Import here to avoid circular imports
         from .plot import plot_multiphase_solution
 
         plot_multiphase_solution(self, phase_id, variable_names, figsize, show_phase_boundaries)

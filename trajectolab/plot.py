@@ -50,12 +50,10 @@ def plot_multiphase_solution(
         return
 
     if phase_id is not None:
-        # Plot specific phase
         if phase_id not in solution._get_phase_ids():
             raise ValueError(f"Phase {phase_id} not found in solution")
         _plot_single_phase(solution, phase_id, variable_names, figsize)
     else:
-        # Plot all phases
         if variable_names:
             _plot_multiphase_variables(solution, variable_names, figsize, show_phase_boundaries)
         else:
@@ -68,12 +66,10 @@ def _plot_single_phase(
     variable_names: tuple[str, ...],
     figsize: tuple[float, float],
 ) -> None:
-    """Plot trajectories for a single phase with interval coloring."""
     phase_state_names = solution._phase_state_names.get(phase_id, [])
     phase_control_names = solution._phase_control_names.get(phase_id, [])
 
     if variable_names:
-        # Plot specific variables
         _create_variable_plot(
             solution,
             f"Phase {phase_id} Variables",
@@ -81,7 +77,6 @@ def _plot_single_phase(
             figsize,
         )
     else:
-        # Plot all variables for this phase
         figures_created = []
 
         if phase_state_names:
@@ -104,7 +99,6 @@ def _plot_single_phase(
             )
             figures_created.append(fig)
 
-        # Show all figures
         for fig in figures_created:
             plt.figure(fig.number)
             plt.show(block=False)
@@ -120,8 +114,6 @@ def _plot_multiphase_variables(
     figsize: tuple[float, float],
     show_phase_boundaries: bool,
 ) -> None:
-    """Plot specific variables across all phases."""
-    # Find which phases have each variable
     phase_var_pairs = []
     for var_name in variable_names:
         for phase_id in solution._get_phase_ids():
@@ -140,10 +132,8 @@ def _plot_multiphase_variables(
 def _plot_multiphase_default(
     solution: "Solution", figsize: tuple[float, float], show_phase_boundaries: bool
 ) -> None:
-    """Plot all variables with states and controls in separate windows."""
     figures_created = []
 
-    # Collect all unique state variables across phases
     all_state_vars = set()
     all_control_vars = set()
 
@@ -151,7 +141,6 @@ def _plot_multiphase_default(
         all_state_vars.update(solution._phase_state_names.get(phase_id, []))
         all_control_vars.update(solution._phase_control_names.get(phase_id, []))
 
-    # Plot states
     if all_state_vars:
         state_pairs = []
         for var_name in sorted(all_state_vars):
@@ -170,7 +159,6 @@ def _plot_multiphase_default(
             )
             figures_created.append(fig)
 
-    # Plot controls
     if all_control_vars:
         control_pairs = []
         for var_name in sorted(all_control_vars):
@@ -189,7 +177,6 @@ def _plot_multiphase_default(
             )
             figures_created.append(fig)
 
-    # Show all figures
     for fig in figures_created:
         plt.figure(fig.number)
         plt.show(block=False)
@@ -206,11 +193,9 @@ def _create_variable_plot(
     figsize: tuple[float, float],
     show_immediately: bool = True,
 ) -> MplFigure:
-    """Create a plot for specific phase-variable pairs with interval coloring."""
     if not phase_var_pairs:
         return plt.figure()
 
-    # Group by variable name for subplots
     var_groups: dict[str, list[PhaseID]] = {}
     for phase_id, var_name in phase_var_pairs:
         if var_name not in var_groups:
@@ -221,7 +206,6 @@ def _create_variable_plot(
     if num_vars == 0:
         return plt.figure()
 
-    # Subplot layout determination
     rows, cols = _determine_subplot_layout(num_vars)
     fig, axes = plt.subplots(rows, cols, figsize=figsize, sharex=False)
     fig.suptitle(title)
@@ -231,7 +215,6 @@ def _create_variable_plot(
     elif isinstance(axes, np.ndarray):
         axes = axes.flatten()
 
-    # Plot each variable
     for i, (var_name, phase_ids) in enumerate(var_groups.items()):
         ax = axes[i]
 
@@ -246,7 +229,6 @@ def _create_variable_plot(
         ax.grid(True, alpha=0.3)
         ax.legend()
 
-    # Hide unused subplots
     for i in range(num_vars, len(axes)):
         axes[i].set_visible(False)
 
@@ -266,14 +248,12 @@ def _create_multiphase_variable_plot(
     show_phase_boundaries: bool,
     show_immediately: bool = True,
 ) -> MplFigure:
-    """Create a multiphase plot with phase boundaries and interval coloring."""
     fig = _create_variable_plot(solution, title, phase_var_pairs, figsize, show_immediately=False)
 
     if show_phase_boundaries and len(solution._get_phase_ids()) > 1:
-        # Add phase boundary lines
         for ax in fig.get_axes():
             if ax.get_visible():
-                for phase_id in solution._get_phase_ids()[:-1]:  # Exclude last phase
+                for phase_id in solution._get_phase_ids()[:-1]:
                     final_time = solution.get_phase_final_time(phase_id)
                     ax.axvline(
                         final_time,
@@ -284,7 +264,6 @@ def _create_multiphase_variable_plot(
                         label="Phase Boundary" if phase_id == solution._get_phase_ids()[0] else "",
                     )
 
-                # Update legend if phase boundaries were added
                 handles, labels = ax.get_legend_handles_labels()
                 if "Phase Boundary" in labels:
                     ax.legend()
@@ -298,8 +277,6 @@ def _create_multiphase_variable_plot(
 def _plot_single_variable_with_intervals(
     solution: "Solution", ax: MplAxes, phase_id: PhaseID, var_name: str
 ) -> None:
-    """Plot single variable for one phase with interval-based coloring."""
-    # Determine variable type and get data
     if (
         phase_id in solution._phase_state_names
         and var_name in solution._phase_state_names[phase_id]
@@ -320,18 +297,15 @@ def _plot_single_variable_with_intervals(
     if len(time_data) == 0:
         return
 
-    # Get interval colors and boundaries for this phase
     interval_colors = _get_phase_interval_colors(solution, phase_id)
     interval_boundaries = _get_phase_mesh_intervals(solution, phase_id)
 
     if interval_colors is None or len(interval_boundaries) == 0:
-        # Fallback to single color if no intervals
         if var_type == "control":
             _plot_control_step_function_simple(ax, time_data, var_data, f"Phase {phase_id}")
         else:
             _plot_state_linear_simple(ax, time_data, var_data, f"Phase {phase_id}")
     else:
-        # Plot with interval coloring
         if var_type == "control":
             _plot_control_step_function_intervals(
                 ax, time_data, var_data, interval_boundaries, interval_colors, phase_id
@@ -350,16 +324,14 @@ def _plot_control_step_function_intervals(
     colors: np.ndarray,
     phase_id: PhaseID,
 ) -> None:
-    """Plot control trajectory as step function with interval coloring."""
     if len(time_array) == 0:
         return
 
-    # Extend the final control value to show step function properly
     extended_times = np.copy(time_array)
     extended_values = np.copy(values_array)
 
     if len(intervals) > 0:
-        final_time = intervals[-1][1]  # End of last interval
+        final_time = intervals[-1][1]
         if len(time_array) > 0 and time_array[-1] < final_time - 1e-10:
             extended_times = np.append(extended_times, final_time)
             extended_values = np.append(extended_values, values_array[-1])
@@ -368,9 +340,7 @@ def _plot_control_step_function_intervals(
         extended_times = np.append(extended_times, time_array[-1] + dt * 0.1)
         extended_values = np.append(extended_values, values_array[-1])
 
-    # Plot each interval with its color
     for k, (t_start, t_end) in enumerate(intervals):
-        # Find points in this interval
         mask = (time_array >= t_start - 1e-10) & (time_array <= t_end + 1e-10)
         if not np.any(mask):
             continue
@@ -378,14 +348,12 @@ def _plot_control_step_function_intervals(
         interval_times = time_array[mask]
         interval_values = values_array[mask]
 
-        # Extend to interval boundary for step function
         if len(interval_times) > 0 and interval_times[-1] < t_end - 1e-10:
             interval_times = np.append(interval_times, t_end)
             interval_values = np.append(interval_values, interval_values[-1])
 
         color = colors[k % len(colors)]
 
-        # Plot step function for this interval
         ax.step(
             interval_times,
             interval_values,
@@ -395,7 +363,6 @@ def _plot_control_step_function_intervals(
             label=f"Phase {phase_id} Int {k + 1}" if k == 0 else "",
         )
 
-        # Plot nodes
         ax.plot(time_array[mask], values_array[mask], "o", color=color, markersize=4)
 
 
@@ -407,20 +374,16 @@ def _plot_state_linear_intervals(
     colors: np.ndarray,
     phase_id: PhaseID,
 ) -> None:
-    """Plot state trajectory with linear interpolation and interval coloring."""
     if len(time_array) == 0:
         return
 
-    # Plot each interval with its color
     for k, (t_start, t_end) in enumerate(intervals):
-        # Find points in this interval
         mask = (time_array >= t_start - 1e-10) & (time_array <= t_end + 1e-10)
         if not np.any(mask):
             continue
 
         color = colors[k % len(colors)]
 
-        # Plot linear interpolation for this interval
         ax.plot(
             time_array[mask],
             values_array[mask],
@@ -436,7 +399,6 @@ def _plot_state_linear_intervals(
 def _plot_control_step_function_simple(
     ax: MplAxes, time_array: FloatArray, values_array: FloatArray, label: str
 ) -> None:
-    """Plot control trajectory as simple step function."""
     extended_times = np.copy(time_array)
     extended_values = np.copy(values_array)
 
@@ -452,12 +414,10 @@ def _plot_control_step_function_simple(
 def _plot_state_linear_simple(
     ax: MplAxes, time_array: FloatArray, values_array: FloatArray, label: str
 ) -> None:
-    """Plot state trajectory with simple linear interpolation."""
     ax.plot(time_array, values_array, ".-", linewidth=1.5, markersize=3, label=label)
 
 
 def _get_phase_interval_colors(solution: "Solution", phase_id: PhaseID) -> np.ndarray | None:
-    """Get colors for mesh intervals in a specific phase."""
     if phase_id not in solution.phase_mesh_intervals:
         return None
 
@@ -472,7 +432,6 @@ def _get_phase_interval_colors(solution: "Solution", phase_id: PhaseID) -> np.nd
 
 
 def _get_phase_mesh_intervals(solution: "Solution", phase_id: PhaseID) -> list[tuple[float, float]]:
-    """Get mesh interval boundaries in physical time for a specific phase."""
     if (
         phase_id not in solution.phase_mesh_nodes
         or solution.phase_mesh_nodes[phase_id] is None
@@ -494,19 +453,10 @@ def _get_phase_mesh_intervals(solution: "Solution", phase_id: PhaseID) -> list[t
 
 
 def _determine_subplot_layout(num_plots: int) -> tuple[int, int]:
-    """
-    Mathematical approach to subplot layout.
-
-    Args:
-        num_plots: Number of plots to arrange
-
-    Returns:
-        Tuple of (rows, columns) for optimal layout
-    """
+    """Mathematical approach to subplot layout."""
     if num_plots <= 1:
         return (1, 1)
 
-    # Pure mathematical approach - always works
     rows = int(np.ceil(np.sqrt(num_plots)))
     cols = int(np.ceil(num_plots / rows))
     return (rows, cols)

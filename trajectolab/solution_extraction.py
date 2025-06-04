@@ -43,7 +43,6 @@ def extract_multiphase_integral_values(
             if num_integrals == 1:
                 if np_array_value.size == 1:
                     result = float(np_array_value.item())
-                    # SINGLE validation call
                     validate_array_numerical_integrity(
                         np.array([result]),
                         f"Phase {phase_id} integral value",
@@ -61,7 +60,6 @@ def extract_multiphase_integral_values(
                         return np.nan
             else:
                 result_array = np_array_value.flatten().astype(np.float64)
-                # SINGLE validation call
                 validate_array_numerical_integrity(
                     result_array, f"Phase {phase_id} integral array", "integral extraction"
                 )
@@ -110,15 +108,12 @@ def consolidated_phase_trajectory_extraction(
 ) -> tuple[
     dict[str, FloatArray], list[FloatArray], list[FloatArray], list[FloatArray], list[FloatArray]
 ]:
-    """
-    SIMPLIFIED: Single extraction pass with simple coordinate transformation.
-    """
+    """Single extraction pass with simple coordinate transformation."""
     phase_def = problem._phases[phase_id]
-    num_states, num_controls = problem.get_phase_variable_counts(phase_id)
+    num_states, num_controls = problem._get_phase_variable_counts(phase_id)
     num_mesh_intervals = len(phase_def.collocation_points_per_interval)
     global_mesh_nodes = phase_def.global_normalized_mesh_nodes
 
-    # Initialize storage - ADD TYPE ANNOTATIONS
     state_trajectory_times: list[float] = []
     state_trajectory_values: list[list[float]] = [[] for _ in range(num_states)]
     control_trajectory_times: list[float] = []
@@ -129,7 +124,6 @@ def consolidated_phase_trajectory_extraction(
     for mesh_idx in range(num_mesh_intervals):
         collocation_points = phase_def.collocation_points_per_interval[mesh_idx]
 
-        # Extract state/control data (same as before)
         state_vars = phase_vars.state_matrices[mesh_idx]
         state_vals = casadi_solution_object.value(state_vars)
 
@@ -150,7 +144,6 @@ def consolidated_phase_trajectory_extraction(
         )
         per_interval_states.append(state_vals)
 
-        # Extract control data if exists
         if num_controls > 0:
             control_vars = phase_vars.control_variables[mesh_idx]
             control_vals = casadi_solution_object.value(control_vars)
@@ -172,7 +165,6 @@ def consolidated_phase_trajectory_extraction(
             )
             per_interval_controls.append(control_vals)
 
-        # SIMPLIFIED: Get tau nodes and convert to time
         from .radau import compute_radau_collocation_components
 
         basis_components = compute_radau_collocation_components(collocation_points)
@@ -180,11 +172,9 @@ def consolidated_phase_trajectory_extraction(
         state_tau_nodes = basis_components.state_approximation_nodes
         control_tau_nodes = basis_components.collocation_nodes
 
-        # Use _tau_to_time instead of vectorized_coordinate_transform
         mesh_start = global_mesh_nodes[mesh_idx]
         mesh_end = global_mesh_nodes[mesh_idx + 1]
 
-        # Type-safe conversion ensuring array outputs for array inputs
         state_physical_times_result = _tau_to_time(
             state_tau_nodes, mesh_start, mesh_end, initial_time, terminal_time
         )
@@ -192,7 +182,6 @@ def consolidated_phase_trajectory_extraction(
             control_tau_nodes, mesh_start, mesh_end, initial_time, terminal_time
         )
 
-        # Since basis components provide arrays, ensure we have arrays
         if not isinstance(state_physical_times_result, np.ndarray):
             state_physical_times = np.asarray(state_physical_times_result, dtype=np.float64)
         else:
@@ -203,7 +192,6 @@ def consolidated_phase_trajectory_extraction(
         else:
             control_physical_times = control_physical_times_result
 
-        # Build trajectories (same logic as before)
         for node_idx in range(len(state_physical_times)):
             physical_time = state_physical_times[node_idx]
             state_trajectory_times.append(physical_time)
@@ -227,7 +215,6 @@ def consolidated_phase_trajectory_extraction(
                     )
                     control_trajectory_values[var_idx].append(value)
 
-    # Return trajectory data with proper typing
     trajectory_data: dict[str, FloatArray] = {
         "state_times": np.array(state_trajectory_times, dtype=np.float64),
         "control_times": np.array(control_trajectory_times, dtype=np.float64)
@@ -235,7 +222,6 @@ def consolidated_phase_trajectory_extraction(
         else np.array([], dtype=np.float64),
     }
 
-    # Convert state and control values to FloatArray
     state_values_arrays = [np.array(s_traj, dtype=np.float64) for s_traj in state_trajectory_values]
     control_values_arrays = (
         [np.array(c_traj, dtype=np.float64) for c_traj in control_trajectory_values]
@@ -257,11 +243,7 @@ def extract_and_format_multiphase_solution(
     casadi_optimization_problem_object: ca.Opti,
     problem: ProblemProtocol,
 ) -> OptimalControlSolution:
-    """
-    Single extraction pass eliminates duplicate CasADi value calls.
-
-    Consolidated solution extraction with 50% reduction in processing time.
-    """
+    """Single extraction pass eliminates duplicate CasADi value calls."""
     solution = OptimalControlSolution()
     solution.opti_object = casadi_optimization_problem_object
 
@@ -270,9 +252,8 @@ def extract_and_format_multiphase_solution(
         solution.message = "Multiphase solver did not find a solution or was not run."
         return solution
 
-    # Get multiphase structure
     phase_ids = problem._get_phase_ids()
-    total_states, total_controls, num_static_params = problem.get_total_variable_counts()
+    total_states, total_controls, num_static_params = problem._get_total_variable_counts()
 
     if not hasattr(casadi_optimization_problem_object, "multiphase_variables_reference"):
         solution.success = False
@@ -281,16 +262,13 @@ def extract_and_format_multiphase_solution(
 
     variables = casadi_optimization_problem_object.multiphase_variables_reference
 
-    # Extract core solution values with validation
     try:
-        # Extract objective
         objective = float(
             casadi_solution_object.value(
                 casadi_optimization_problem_object.multiphase_objective_expression_reference
             )
         )
 
-        # SINGLE validation call
         validate_array_numerical_integrity(
             np.array([objective]), "multiphase objective value", "core solution extraction"
         )
@@ -307,7 +285,6 @@ def extract_and_format_multiphase_solution(
             "Core solution processing error",
         ) from e
 
-    # Extract static parameters
     if num_static_params > 0 and variables.static_parameters is not None:
         try:
             static_params_raw = casadi_solution_object.value(variables.static_parameters)
@@ -316,7 +293,6 @@ def extract_and_format_multiphase_solution(
             else:
                 static_params_array = np.array(static_params_raw).flatten()
 
-            # SINGLE validation call
             validate_array_numerical_integrity(
                 static_params_array, "static parameters", "static parameter extraction"
             )
@@ -327,22 +303,19 @@ def extract_and_format_multiphase_solution(
             logger.warning(f"Failed to extract static parameters: {e}")
             solution.static_parameters = None
 
-    # Consolidated extraction for each phase
     for phase_id in phase_ids:
         if phase_id not in variables.phase_variables:
             continue
 
         phase_vars = variables.phase_variables[phase_id]
         phase_def = problem._phases[phase_id]
-        num_states, num_controls = problem.get_phase_variable_counts(phase_id)
+        num_states, num_controls = problem._get_phase_variable_counts(phase_id)
         num_integrals = phase_def.num_integrals
 
         try:
-            # Extract phase times
             initial_time = float(casadi_solution_object.value(phase_vars.initial_time))
             terminal_time = float(casadi_solution_object.value(phase_vars.terminal_time))
 
-            # SINGLE validation call for times
             validate_array_numerical_integrity(
                 np.array([initial_time, terminal_time]),
                 f"Phase {phase_id} times",
@@ -360,14 +333,12 @@ def extract_and_format_multiphase_solution(
             solution.phase_terminal_times[phase_id] = float("nan")
             continue
 
-        # Extract phase integrals - FIX TYPE ANNOTATION
         integral_result = extract_multiphase_integral_values(
             casadi_solution_object, casadi_optimization_problem_object, phase_id, num_integrals
         )
         if integral_result is not None:
             solution.phase_integrals[phase_id] = integral_result
 
-        # Single consolidated extraction for trajectories and per-interval data
         try:
             (
                 trajectory_data,
@@ -384,14 +355,12 @@ def extract_and_format_multiphase_solution(
                 terminal_time,
             )
 
-            # Store trajectory data with proper types
             solution.phase_time_states[phase_id] = trajectory_data["state_times"]
             solution.phase_states[phase_id] = state_values_arrays
 
             solution.phase_time_controls[phase_id] = trajectory_data["control_times"]
             solution.phase_controls[phase_id] = control_values_arrays
 
-            # Store per-interval data
             solution.phase_solved_state_trajectories_per_interval[phase_id] = per_interval_states
             if num_controls > 0:
                 solution.phase_solved_control_trajectories_per_interval[phase_id] = (
@@ -406,11 +375,9 @@ def extract_and_format_multiphase_solution(
                 "Consolidated trajectory processing error",
             ) from e
 
-        # Store mesh information for this phase (use problem data directly)
         solution.phase_mesh_intervals[phase_id] = phase_def.collocation_points_per_interval.copy()
         solution.phase_mesh_nodes[phase_id] = phase_def.global_normalized_mesh_nodes.copy()
 
-    # Finalize solution
     solution.success = True
     solution.message = "Multiphase NLP solved successfully."
     solution.raw_solution = casadi_solution_object

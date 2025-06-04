@@ -33,25 +33,21 @@ def _get_phase_dynamics_function(
 
     def _build_dynamics_function() -> ca.Function:
         """Build CasADi dynamics function using unified input builder."""
-        # Use unified function input builder
         states_vec, controls_vec, time, static_params_vec, function_inputs = (
             _build_unified_casadi_function_inputs(phase_def, static_parameter_symbols)
         )
 
-        # Build substitution map using unified builder
         subs_map = _build_static_parameter_substitution_map(
             static_parameter_symbols, static_params_vec
         )
 
-        # Build dynamics expressions
-        state_syms = phase_def.get_ordered_state_symbols()
+        state_syms = phase_def._get_ordered_state_symbols()
         dynamics_expr = []
         for state_sym in state_syms:
             if state_sym in phase_def.dynamics_expressions:
                 expr = phase_def.dynamics_expressions[state_sym]
                 casadi_expr = ca.MX(expr) if not isinstance(expr, ca.MX) else expr
 
-                # Apply substitution if we have static parameters
                 if subs_map:
                     casadi_expr = ca.substitute(
                         [casadi_expr], list(subs_map.keys()), list(subs_map.values())
@@ -76,7 +72,6 @@ def _get_phase_dynamics_function(
         static_parameters_vec: ca.MX | None = None,
     ) -> ca.MX:
         """Direct vector return eliminates list conversion inefficiency."""
-        # Handle static parameters in function call
         num_static_params = len(static_parameter_symbols) if static_parameter_symbols else 0
 
         if static_parameters_vec is None or num_static_params == 0:
@@ -107,15 +102,12 @@ def _get_multiphase_objective_function(
 
     def _build_objective_function() -> ca.Function:
         """Build CasADi multiphase objective function using unified builders."""
-        # Use unified multiphase symbol input builder
         phase_inputs, s_vec = _build_unified_multiphase_symbol_inputs(multiphase_state)
 
-        # Build unified symbol substitution map
         phase_symbols_map = _build_unified_symbol_substitution_map(
             multiphase_state, phase_inputs, s_vec
         )
 
-        # Substitute in objective expression
         objective_expr = multiphase_state.objective_expression
         if phase_symbols_map:
             objective_expr = ca.substitute(
@@ -147,7 +139,6 @@ def _get_multiphase_objective_function(
 
                 inputs.extend([data["t0"], data["tf"], data["x0"], data["xf"], q_val])
             else:
-                # Use default zeros for missing phases
                 phase_def = multiphase_state.phases[phase_id]
                 num_states = len(phase_def.state_info)
                 inputs.extend(
@@ -160,7 +151,6 @@ def _get_multiphase_objective_function(
                     ]
                 )
 
-        # Add static parameters
         if static_parameters_vec is not None:
             inputs.append(static_parameters_vec)
         else:
@@ -188,19 +178,16 @@ def _get_phase_integrand_function(
 
     def _build_integrand_functions() -> list[ca.Function]:
         """Build CasADi integrand functions using unified input builder."""
-        # Use unified function input builder
         states_vec, controls_vec, time, static_params_vec, function_inputs = (
             _build_unified_casadi_function_inputs(phase_def, static_parameter_symbols)
         )
 
-        # Build substitution map using unified builder
         subs_map = _build_static_parameter_substitution_map(
             static_parameter_symbols, static_params_vec
         )
 
         integrand_funcs = []
         for i, expr in enumerate(phase_def.integral_expressions):
-            # Apply substitution if we have static parameters
             processed_expr = expr
             if subs_map:
                 processed_expr = ca.substitute(
@@ -219,7 +206,7 @@ def _get_phase_integrand_function(
         cache_key, _build_integrand_functions
     )
 
-    def vectorized_integrand(
+    def _vectorized_integrand(
         states_vec: ca.MX,
         controls_vec: ca.MX,
         time: ca.MX,
@@ -229,7 +216,6 @@ def _get_phase_integrand_function(
         if integral_idx >= len(integrand_funcs):
             return ca.MX(0.0)
 
-        # Handle static parameters in integrand function call
         num_static_params = len(static_parameter_symbols) if static_parameter_symbols else 0
 
         if static_parameters_vec is None or num_static_params == 0:
@@ -241,4 +227,4 @@ def _get_phase_integrand_function(
         integrand_output = result[0] if isinstance(result, list | tuple) else result
         return cast(ca.MX, integrand_output)
 
-    return vectorized_integrand
+    return _vectorized_integrand

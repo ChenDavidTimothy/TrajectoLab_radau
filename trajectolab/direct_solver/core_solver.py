@@ -240,7 +240,7 @@ def solve_multiphase_radau_collocation(problem: ProblemProtocol) -> OptimalContr
 
     opti: ca.Opti = ca.Opti()
     phase_ids = problem._get_phase_ids()
-    total_states, total_controls, num_static_params = problem.get_total_variable_counts()
+    total_states, total_controls, num_static_params = problem._get_total_variable_counts()
 
     logger.debug(
         "Multiphase problem structure: phases=%d, total_states=%d, total_controls=%d, static_params=%d",
@@ -319,13 +319,13 @@ def _process_single_phase_unified(
     endpoint_data: dict[str, ca.MX] | None = None,
 ) -> None:
     # Refactored to eliminate 4+ level nesting - max 3 levels maintained
-    num_states, num_controls = problem.get_phase_variable_counts(phase_id)
+    num_states, num_controls = problem._get_phase_variable_counts(phase_id)
     phase_def = problem._phases[phase_id]
     num_mesh_intervals = len(phase_def.collocation_points_per_interval)
     num_integrals = phase_def.num_integrals
 
     dynamics_function = problem._get_phase_dynamics_function(phase_id)
-    path_constraints_function = problem.get_phase_path_constraints_function(phase_id)
+    path_constraints_function = problem._get_phase_path_constraints_function(phase_id)
     integral_integrand_function = problem._get_phase_integrand_function(phase_id)
 
     global_mesh_nodes = phase_def.global_normalized_mesh_nodes

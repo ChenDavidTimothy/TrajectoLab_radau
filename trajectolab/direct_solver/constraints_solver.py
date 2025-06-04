@@ -30,9 +30,7 @@ def _apply_phase_collocation_constraints(
     problem: ProblemProtocol | None = None,
     static_parameters_vec: ca.MX | None = None,
 ) -> None:
-    """
-    SIMPLIFIED: Apply collocation constraints with simple coordinate transformation.
-    """
+    """Collocation constraints enforce that trajectory satisfies ODEs at quadrature points."""
     from ..input_validation import validate_dynamics_output
     from ..utils.coordinates import _tau_to_time
 
@@ -40,10 +38,8 @@ def _apply_phase_collocation_constraints(
     colloc_nodes_tau = basis_components.collocation_nodes.flatten()
     diff_matrix: ca.DM = ca.DM(basis_components.differentiation_matrix)
 
-    # Calculate state derivatives at collocation points
     state_derivative_at_colloc = ca.mtimes(state_at_nodes, diff_matrix.T)
 
-    # SIMPLIFIED: Single scaling calculation
     global_segment_length = (
         global_normalized_mesh_nodes[mesh_interval_index + 1]
         - global_normalized_mesh_nodes[mesh_interval_index]
@@ -55,12 +51,10 @@ def _apply_phase_collocation_constraints(
     mesh_start = global_normalized_mesh_nodes[mesh_interval_index]
     mesh_end = global_normalized_mesh_nodes[mesh_interval_index + 1]
 
-    # Apply constraints at each collocation point
     for i_colloc in range(num_colloc_nodes):
         state_at_colloc = state_at_nodes[:, i_colloc]
         control_at_colloc = control_variables[:, i_colloc]
 
-        # SIMPLIFIED: Single function call replaces complex transformation
         local_colloc_tau_val = colloc_nodes_tau[i_colloc]
         physical_time_at_colloc = _tau_to_time(
             local_colloc_tau_val,
@@ -70,7 +64,6 @@ def _apply_phase_collocation_constraints(
             terminal_time_variable,
         )
 
-        # Get dynamics and apply constraint
         state_derivative_rhs = dynamics_function(
             state_at_colloc, control_at_colloc, physical_time_at_colloc, static_parameters_vec
         )
@@ -99,7 +92,7 @@ def _apply_phase_path_constraints(
     static_parameters_vec: ca.MX | None = None,
     static_parameter_symbols: list[ca.MX] | None = None,
 ) -> None:
-    """Apply path constraints for a single mesh interval within a phase."""
+    """Path constraints ensure operational limits are respected throughout trajectory."""
     num_colloc_nodes = len(basis_components.collocation_nodes)
     colloc_nodes_tau = basis_components.collocation_nodes.flatten()
     global_segment_length = (
@@ -111,7 +104,6 @@ def _apply_phase_path_constraints(
         state_at_colloc: ca.MX = state_at_nodes[:, i_colloc]
         control_at_colloc: ca.MX = control_variables[:, i_colloc]
 
-        # Calculate physical time at this collocation point
         local_colloc_tau_val: float = colloc_nodes_tau[i_colloc]
         global_colloc_tau_val: ca.MX = (
             global_segment_length / 2 * local_colloc_tau_val
@@ -125,7 +117,6 @@ def _apply_phase_path_constraints(
             terminal_time_variable - initial_time_variable
         ) / 2 * global_colloc_tau_val + (terminal_time_variable + initial_time_variable) / 2
 
-        # Get and apply path constraints
         path_constraints_result: list[Constraint] | Constraint = path_constraints_function(
             state_at_colloc,
             control_at_colloc,
@@ -152,8 +143,8 @@ def _apply_multiphase_cross_phase_event_constraints(
     static_parameters: ca.MX | None,
     problem: ProblemProtocol,
 ) -> None:
-    """Apply cross-phase event constraints to the multiphase optimization problem."""
-    cross_phase_constraints_function = problem.get_cross_phase_event_constraints_function()
+    """Cross-phase constraints enable phase linkage and boundary conditions."""
+    cross_phase_constraints_function = problem._get_cross_phase_event_constraints_function()
     if cross_phase_constraints_function is None:
         return
 

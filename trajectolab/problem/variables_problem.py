@@ -52,7 +52,6 @@ class _SymbolicVariableBase:
             return self._symbolic_var is other._symbolic_var
         return self._symbolic_var is other
 
-    # Arithmetic operators
     def __add__(self, other: Any) -> ca.MX:
         return self._symbolic_var + other
 
@@ -83,7 +82,6 @@ class _SymbolicVariableBase:
     def __neg__(self) -> ca.MX:
         return cast(ca.MX, -self._symbolic_var)
 
-    # Comparison operators
     def __lt__(self, other: Any) -> ca.MX:
         return self._symbolic_var < other
 
@@ -137,25 +135,19 @@ class StateVariableImpl(_SymbolicVariableBase):
 def create_phase_time_variable(
     phase_def: PhaseDefinition, initial: ConstraintInput = 0.0, final: ConstraintInput = None
 ) -> TimeVariableImpl:
-    """Create time variable for a specific phase."""
-    # Validate constraints
     validate_constraint_input_format(initial, f"phase {phase_def.phase_id} initial time")
     validate_constraint_input_format(final, f"phase {phase_def.phase_id} final time")
 
-    # Create symbols
     sym_time = ca.MX.sym(f"t_p{phase_def.phase_id}", 1)  # type: ignore[arg-type]
     sym_t0 = ca.MX.sym(f"t0_p{phase_def.phase_id}", 1)  # type: ignore[arg-type]
     sym_tf = ca.MX.sym(f"tf_p{phase_def.phase_id}", 1)  # type: ignore[arg-type]
 
-    # Set defaults
     if initial is None:
         initial = 0.0
 
-    # Create constraints
     t0_constraint = _BoundaryConstraint(initial)
     tf_constraint = _BoundaryConstraint(final)
 
-    # Store in phase definition
     phase_def.t0_constraint = t0_constraint
     phase_def.tf_constraint = tf_constraint
     phase_def.sym_time = sym_time
@@ -172,8 +164,6 @@ def _create_phase_state_variable(
     final: ConstraintInput = None,
     boundary: ConstraintInput = None,
 ) -> StateVariableImpl:
-    """Create a state variable for a specific phase."""
-    # Validate inputs
     validate_string_not_empty(name, "State variable name")
     validate_constraint_input_format(initial, f"phase {phase_def.phase_id} state '{name}' initial")
     validate_constraint_input_format(final, f"phase {phase_def.phase_id} state '{name}' final")
@@ -181,17 +171,14 @@ def _create_phase_state_variable(
         boundary, f"phase {phase_def.phase_id} state '{name}' boundary"
     )
 
-    # Create symbols
     sym_var = ca.MX.sym(f"{name}_p{phase_def.phase_id}", 1)  # type: ignore[arg-type]
     sym_initial = ca.MX.sym(f"{name}_initial_p{phase_def.phase_id}", 1)  # type: ignore[arg-type]
     sym_final = ca.MX.sym(f"{name}_final_p{phase_def.phase_id}", 1)  # type: ignore[arg-type]
 
-    # Create constraints
     initial_constraint = _BoundaryConstraint(initial) if initial is not None else None
     final_constraint = _BoundaryConstraint(final) if final is not None else None
     boundary_constraint = _BoundaryConstraint(boundary) if boundary is not None else None
 
-    # Add to phase
     phase_def.add_state(
         name=name,
         symbol=sym_var,
@@ -208,20 +195,14 @@ def _create_phase_state_variable(
 def create_phase_control_variable(
     phase_def: PhaseDefinition, name: str, boundary: ConstraintInput = None
 ) -> ca.MX:
-    """Create a control variable for a specific phase."""
-    # Validate inputs
     validate_string_not_empty(name, "Control variable name")
     validate_constraint_input_format(
         boundary, f"phase {phase_def.phase_id} control '{name}' boundary"
     )
 
-    # Create symbol
     sym_var = ca.MX.sym(f"{name}_p{phase_def.phase_id}", 1)  # type: ignore[arg-type]
-
-    # Create constraint
     boundary_constraint = _BoundaryConstraint(boundary) if boundary is not None else None
 
-    # Add to phase
     phase_def.add_control(name=name, symbol=sym_var, boundary_constraint=boundary_constraint)
 
     return sym_var
@@ -230,18 +211,12 @@ def create_phase_control_variable(
 def _create_static_parameter(
     static_params: StaticParameterState, name: str, boundary: ConstraintInput = None
 ) -> ca.MX:
-    """Create a static parameter that spans across all phases."""
-    # Validate inputs
     validate_string_not_empty(name, "Parameter name")
     validate_constraint_input_format(boundary, f"parameter '{name}' boundary")
 
-    # Create symbol
     sym_var = ca.MX.sym(f"param_{name}", 1)  # type: ignore[arg-type]
-
-    # Create constraint
     boundary_constraint = _BoundaryConstraint(boundary) if boundary is not None else None
 
-    # Add to static parameters
     static_params.add_parameter(name=name, symbol=sym_var, boundary_constraint=boundary_constraint)
 
     return sym_var
@@ -251,8 +226,7 @@ def _set_phase_dynamics(
     phase_def: PhaseDefinition,
     dynamics_dict: dict[ca.MX | StateVariableImpl, ca.MX | float | int | StateVariableImpl],
 ) -> None:
-    """Set dynamics expressions for a specific phase."""
-    ordered_state_symbols = phase_def.get_ordered_state_symbols()
+    ordered_state_symbols = phase_def._get_ordered_state_symbols()
 
     # Validate that all keys are known state variables for this phase
     for state_sym in dynamics_dict.keys():
@@ -269,7 +243,6 @@ def _set_phase_dynamics(
                 f"Dynamics provided for undefined state variable in phase {phase_def.phase_id}"
             )
 
-    # Convert expressions
     converted_dict = {}
     for key, value in dynamics_dict.items():
         storage_key = _extract_casadi_symbol(key)
@@ -297,7 +270,6 @@ def _set_phase_dynamics(
 
 
 def _set_phase_integral(phase_def: PhaseDefinition, integrand_expr: ca.MX | float | int) -> ca.MX:
-    """Add an integral expression for a specific phase."""
     integral_name = f"integral_{len(phase_def.integral_expressions)}_p{phase_def.phase_id}"
     integral_sym = ca.MX.sym(integral_name, 1)  # type: ignore[arg-type]
 
@@ -326,7 +298,6 @@ def _set_phase_integral(phase_def: PhaseDefinition, integrand_expr: ca.MX | floa
 def _set_multiphase_objective(
     multiphase_state: MultiPhaseVariableState, objective_expr: ca.MX | float | int
 ) -> None:
-    """Set the multiphase objective expression."""
     try:
         if isinstance(objective_expr, ca.MX):
             pure_expr = objective_expr

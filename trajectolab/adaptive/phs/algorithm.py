@@ -98,7 +98,7 @@ def _extract_multiphase_solution_trajectories(
         if phase_id not in variables.phase_variables:
             continue
 
-        num_states, num_controls = problem.get_phase_variable_counts(phase_id)
+        num_states, num_controls = problem._get_phase_variable_counts(phase_id)
         phase_def = problem._phases[phase_id]
         polynomial_degrees = phase_def.collocation_points_per_interval
         phase_vars = variables.phase_variables[phase_id]
@@ -130,7 +130,7 @@ def _create_phase_interpolants(
     polynomial_degrees = phase_def.collocation_points_per_interval
     num_intervals = len(polynomial_degrees)
 
-    num_states, num_controls = problem.get_phase_variable_counts(phase_id)
+    num_states, num_controls = problem._get_phase_variable_counts(phase_id)
 
     # Basis cache prevents redundant computation across intervals
     basis_cache: dict[int, RadauBasisComponents] = {}
@@ -343,7 +343,7 @@ def _check_full_merge_feasibility(
     if state_eval_k is None or state_eval_k_plus_1 is None:
         return False
 
-    num_states, num_controls = problem.get_phase_variable_counts(phase_id)
+    num_states, num_controls = problem._get_phase_variable_counts(phase_id)
     if num_controls > 0:
         if control_eval_k is None or control_eval_k_plus_1 is None:
             return False
@@ -752,7 +752,7 @@ def solve_multiphase_phs_adaptive_internal(
         for phase_id in phase_ids:
             # Gamma normalization prevents ill-conditioning in error calculations
             gamma_factors = _calculate_gamma_normalizers_for_phase(solution, problem, phase_id)
-            num_states, _ = problem.get_phase_variable_counts(phase_id)
+            num_states, _ = problem._get_phase_variable_counts(phase_id)
 
             if gamma_factors is None and num_states > 0:
                 solution.message = f"Failed to calculate gamma normalizers for phase {phase_id} at iteration {iteration + 1}"

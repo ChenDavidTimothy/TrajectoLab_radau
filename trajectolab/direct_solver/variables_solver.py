@@ -20,7 +20,7 @@ def _setup_multiphase_optimization_variables(
         phase_vars = _setup_phase_optimization_variables(opti, problem, phase_id)
         multiphase_vars.phase_variables[phase_id] = phase_vars
 
-    total_states, total_controls, num_static_params = problem.get_total_variable_counts()
+    total_states, total_controls, num_static_params = problem._get_total_variable_counts()
     if num_static_params > 0:
         multiphase_vars.static_parameters = __create_static_parameter_variables(
             opti, num_static_params
@@ -34,7 +34,7 @@ def _setup_phase_optimization_variables(
     problem: ProblemProtocol,
     phase_id: PhaseID,
 ) -> PhaseVariableReferences:
-    num_states, num_controls = problem.get_phase_variable_counts(phase_id)
+    num_states, num_controls = problem._get_phase_variable_counts(phase_id)
 
     phase_def = problem._phases[phase_id]
     num_mesh_intervals = len(phase_def.collocation_points_per_interval)
@@ -177,7 +177,7 @@ def _create_phase_control_variables(
     opti: ca.Opti, problem: ProblemProtocol, phase_id: PhaseID, num_mesh_intervals: int
 ) -> list[ca.MX]:
     # Control variables per mesh interval with interval-specific polynomial degrees
-    _, num_controls = problem.get_phase_variable_counts(phase_id)
+    _, num_controls = problem._get_phase_variable_counts(phase_id)
     phase_def = problem._phases[phase_id]
 
     control_variables = []

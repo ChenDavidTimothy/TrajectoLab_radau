@@ -51,11 +51,9 @@ class AdaptiveParameters:
 
         logger = logging.getLogger(__name__)
 
-        # Default solver with user-configured parameters for error estimation consistency
         logger.debug("Using default ODE solver: scipy.integrate.solve_ivp with user configuration")
 
         def configured_solver(fun, t_span, y0, t_eval=None, **kwargs):
-            # Apply user configuration parameters
             kwargs["method"] = self.ode_method
             kwargs["rtol"] = self.ode_solver_tolerance
             kwargs["atol"] = self.ode_solver_tolerance * self.ode_atol_factor
@@ -76,14 +74,12 @@ class MultiphaseAdaptiveState:
     phase_mesh_points: dict[PhaseID, FloatArray]
     phase_converged: dict[PhaseID, bool]
     iteration: int = 0
-    most_recent_unified_solution: Any = None  # OptimalControlSolution
+    most_recent_unified_solution: Any = None
 
     def _get_phase_ids(self) -> list[PhaseID]:
-        """Get ordered list of phase IDs."""
         return sorted(self.phase_polynomial_degrees.keys())
 
-    def _configure_problem_meshes(self, problem: Any) -> None:  # ProblemProtocol
-        """Configure all phase meshes in the unified problem."""
+    def _configure_problem_meshes(self, problem: Any) -> None:
         for phase_id in self._get_phase_ids():
             if phase_id in problem._phases:
                 phase_def = problem._phases[phase_id]
@@ -118,17 +114,14 @@ class PReduceResult:
 
 def _ensure_2d_array(casadi_value: Any, expected_rows: int, expected_cols: int) -> FloatArray:
     """Convert CasADi value to 2D numpy array with expected shape."""
-    # Convert to numpy array
     if hasattr(casadi_value, "to_DM"):
         np_array = np.array(casadi_value.to_DM(), dtype=np.float64)
     else:
         np_array = np.array(casadi_value, dtype=np.float64)
 
-    # Handle empty arrays
     if expected_rows == 0:
         return np.empty((0, expected_cols), dtype=np.float64)
 
-    # Ensure 2D and correct shape
     if np_array.ndim == 1:
         if len(np_array) == expected_rows * expected_cols:
             np_array = np_array.reshape(expected_rows, expected_cols)
@@ -137,7 +130,6 @@ def _ensure_2d_array(casadi_value: Any, expected_rows: int, expected_cols: int) 
         else:
             np_array = np_array.reshape(1, -1)
 
-    # Transpose if dimensions are swapped
     if np_array.shape[0] != expected_rows and np_array.shape[1] == expected_rows:
         np_array = np_array.T
 

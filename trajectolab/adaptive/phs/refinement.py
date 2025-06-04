@@ -14,9 +14,9 @@ from trajectolab.adaptive.phs.data_structures import (
 )
 from trajectolab.adaptive.phs.error_estimation import _convert_casadi_dynamics_result_to_numpy
 from trajectolab.adaptive.phs.numerical import (
-    map_local_interval_tau_to_global_normalized_tau,
-    map_local_tau_from_interval_k_plus_1_to_equivalent_in_interval_k,
-    map_local_tau_from_interval_k_to_equivalent_in_interval_k_plus_1,
+    _map_local_interval_tau_to_global_normalized_tau,
+    _map_local_tau_from_interval_k_plus_1_to_equivalent_in_interval_k,
+    _map_local_tau_from_interval_k_to_equivalent_in_interval_k_plus_1,
 )
 from trajectolab.tl_types import (
     FloatArray,
@@ -34,14 +34,13 @@ logger = logging.getLogger(__name__)
 def _calculate_merge_feasibility_from_errors(
     all_fwd_errors: FloatArray, all_bwd_errors: FloatArray, error_tol: float
 ) -> tuple[bool, float]:
-    """VECTORIZED: Merge feasibility using NumPy operations."""
     if all_fwd_errors.size == 0 and all_bwd_errors.size == 0:
-        return False, float(np.inf)  # Cast to Python float
+        return False, float(np.inf)
 
     if (all_fwd_errors.size > 0 and np.any(np.isnan(all_fwd_errors))) or (
         all_bwd_errors.size > 0 and np.any(np.isnan(all_bwd_errors))
     ):
-        return False, float(np.inf)  # Cast to Python float
+        return False, float(np.inf)
 
     max_error_val = max(
         np.max(all_fwd_errors) if all_fwd_errors.size > 0 else 0.0,
@@ -56,7 +55,6 @@ def _calculate_merge_feasibility_from_errors(
 def _calculate_trajectory_errors_with_gamma(
     X_sim: FloatArray, X_nlp: FloatArray, gamma_factors: FloatArray
 ) -> FloatArray:
-    """VECTORIZED: Return FloatArray for efficiency."""
     if np.any(np.isnan(X_sim)):
         return np.array([], dtype=np.float64)
 
@@ -135,7 +133,7 @@ def h_reduce_intervals(
     ):
         return False
 
-    num_states, _ = problem.get_phase_variable_counts(phase_id)
+    num_states, _ = problem._get_phase_variable_counts(phase_id)
     phase_dynamics_function = problem._get_phase_dynamics_function(phase_id)
     global_mesh = solution.phase_mesh_nodes[phase_id]
 
@@ -164,7 +162,7 @@ def h_reduce_intervals(
 
     def merged_fwd_rhs(local_tau_k: float, state: FloatArray) -> FloatArray:
         u_val = _get_control_value(control_evaluator_first, local_tau_k)
-        global_tau = map_local_interval_tau_to_global_normalized_tau(
+        global_tau = _map_local_interval_tau_to_global_normalized_tau(
             local_tau_k, tau_start_k, tau_shared
         )
         dynamics_result = phase_dynamics_function(
@@ -177,7 +175,7 @@ def h_reduce_intervals(
 
     def merged_bwd_rhs(local_tau_kp1: float, state: FloatArray) -> FloatArray:
         u_val = _get_control_value(control_evaluator_second, local_tau_kp1)
-        global_tau = map_local_interval_tau_to_global_normalized_tau(
+        global_tau = _map_local_interval_tau_to_global_normalized_tau(
             local_tau_kp1, tau_shared, tau_end_kp1
         )
         dynamics_result = phase_dynamics_function(
@@ -188,7 +186,6 @@ def h_reduce_intervals(
             scaling_kp1 * _convert_casadi_dynamics_result_to_numpy(dynamics_result, num_states),
         )
 
-    # Get initial and terminal states
     try:
         if phase_id in solution.phase_solved_state_trajectories_per_interval and first_idx < len(
             solution.phase_solved_state_trajectories_per_interval[phase_id]
@@ -200,7 +197,6 @@ def h_reduce_intervals(
                 first_idx + 1
             ][:, -1].flatten()
         else:
-            # Fallback extraction
             opti, raw_sol = solution.opti_object, solution.raw_solution
             if opti is None or raw_sol is None:
                 return False
@@ -226,12 +222,11 @@ def h_reduce_intervals(
     except Exception:
         return False
 
-    # Simulation setup
     num_sim_points = adaptive_params.num_error_sim_points
-    target_end_tau_k = map_local_tau_from_interval_k_plus_1_to_equivalent_in_interval_k(
+    target_end_tau_k = _map_local_tau_from_interval_k_plus_1_to_equivalent_in_interval_k(
         1.0, tau_start_k, tau_shared, tau_end_kp1
     )
-    target_end_tau_kp1 = map_local_tau_from_interval_k_to_equivalent_in_interval_k_plus_1(
+    target_end_tau_kp1 = _map_local_tau_from_interval_k_to_equivalent_in_interval_k_plus_1(
         -1.0, tau_start_k, tau_shared, tau_end_kp1
     )
 
@@ -244,7 +239,6 @@ def h_reduce_intervals(
 
     configured_ode_solver = adaptive_params._get_ode_solver()
 
-    # Forward simulation
     try:
         fwd_sim = configured_ode_solver(
             merged_fwd_rhs,
@@ -264,7 +258,6 @@ def h_reduce_intervals(
             np.full((num_states, len(fwd_tau_points)), np.nan, dtype=np.float64),
         )
 
-    # Backward simulation
     try:
         bwd_sim = configured_ode_solver(
             merged_bwd_rhs,
@@ -294,7 +287,7 @@ def h_reduce_intervals(
                 state_evaluator_first(zeta_k)
                 if -1.0 <= zeta_k <= 1.0 + 1e-9
                 else state_evaluator_second(
-                    map_local_tau_from_interval_k_to_equivalent_in_interval_k_plus_1(
+                    _map_local_tau_from_interval_k_to_equivalent_in_interval_k_plus_1(
                         zeta_k, tau_start_k, tau_shared, tau_end_kp1
                     )
                 ),
@@ -311,7 +304,7 @@ def h_reduce_intervals(
                 state_evaluator_second(zeta_kp1)
                 if -1.0 - 1e-9 <= zeta_kp1 <= 1.0
                 else state_evaluator_first(
-                    map_local_tau_from_interval_k_plus_1_to_equivalent_in_interval_k(
+                    _map_local_tau_from_interval_k_plus_1_to_equivalent_in_interval_k(
                         zeta_kp1, tau_start_k, tau_shared, tau_end_kp1
                     )
                 ),

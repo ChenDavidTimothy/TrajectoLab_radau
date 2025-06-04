@@ -25,7 +25,6 @@ from trajectolab.utils.constants import (
 
 logger = logging.getLogger(__name__)
 
-# Default solver options
 DEFAULT_NLP_OPTIONS: dict[str, object] = {
     "ipopt.print_level": 0,
     "ipopt.sb": "yes",
@@ -92,10 +91,9 @@ def solve_fixed_mesh(
     """
     logger.info("Starting multiphase fixed-mesh solve: problem='%s'", problem.name)
 
-    # Log problem dimensions
     if logger.isEnabledFor(logging.DEBUG):
         phase_ids = problem._get_phase_ids()
-        total_states, total_controls, num_static_params = problem.get_total_variable_counts()
+        total_states, total_controls, num_static_params = problem._get_total_variable_counts()
         logger.debug(
             "Problem dimensions: phases=%d, total_states=%d, total_controls=%d, static_params=%d",
             len(phase_ids),
@@ -104,18 +102,14 @@ def solve_fixed_mesh(
             num_static_params,
         )
 
-    # SINGLE comprehensive validation call
     validate_multiphase_problem_ready_for_solving(cast(ProblemProtocol, problem))
 
-    # Configure solver
     problem.solver_options = nlp_options or DEFAULT_NLP_OPTIONS
     logger.debug("NLP solver options: %s", problem.solver_options)
 
-    # Solve
     protocol_problem = cast(ProblemProtocol, problem)
     solution_data: OptimalControlSolution = solve_multiphase_radau_collocation(protocol_problem)
 
-    # Log result
     if solution_data.success:
         logger.info(
             "Fixed-mesh solve completed successfully: objective=%.6e",
@@ -124,7 +118,6 @@ def solve_fixed_mesh(
     else:
         logger.warning("Fixed-mesh solve failed: %s", solution_data.message)
 
-    # Create solution object (will automatically show summary unless disabled)
     return Solution(solution_data, protocol_problem, auto_summary=show_summary)
 
 
@@ -248,21 +241,17 @@ def solve_adaptive(
         num_error_sim_points,
     )
 
-    # SINGLE comprehensive validation call
     validate_adaptive_solver_parameters(
         error_tolerance, max_iterations, min_polynomial_degree, max_polynomial_degree
     )
     validate_multiphase_problem_ready_for_solving(cast(ProblemProtocol, problem))
 
-    # Configure solver
     problem.solver_options = nlp_options or DEFAULT_NLP_OPTIONS
     protocol_problem = cast(ProblemProtocol, problem)
 
-    # Set initial guess
     if initial_guess is not None:
         protocol_problem.initial_guess = initial_guess
 
-    # Log initial mesh configurations for all phases
     if logger.isEnabledFor(logging.DEBUG):
         for phase_id in problem._get_phase_ids():
             phase_def = problem._phases[phase_id]
@@ -276,7 +265,6 @@ def solve_adaptive(
                     else 0,
                 )
 
-    # Call multiphase adaptive algorithm
     from trajectolab.adaptive.phs.algorithm import solve_multiphase_phs_adaptive_internal
 
     solution_data: OptimalControlSolution = solve_multiphase_phs_adaptive_internal(
@@ -289,12 +277,11 @@ def solve_adaptive(
         ode_method=ode_method,
         ode_max_step=ode_max_step,
         ode_atol_factor=ode_atol_factor,
-        ode_solver=ode_solver,  # Pass None if user didn't specify
+        ode_solver=ode_solver,
         num_error_sim_points=num_error_sim_points,
         initial_guess=initial_guess,
     )
 
-    # Log final result
     if solution_data.success:
         total_intervals = sum(
             len(intervals) for intervals in solution_data.phase_mesh_intervals.values()
@@ -307,5 +294,4 @@ def solve_adaptive(
     else:
         logger.warning("Multiphase adaptive solve failed: %s", solution_data.message)
 
-    # Create solution object (will automatically show summary unless disabled)
     return Solution(solution_data, protocol_problem, auto_summary=show_summary)

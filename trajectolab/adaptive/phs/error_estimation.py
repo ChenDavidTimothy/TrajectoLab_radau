@@ -109,7 +109,7 @@ def _simulate_dynamics_for_phase_interval_error_estimation(
         empty = np.array([], dtype=np.float64)
         return False, empty, empty, empty, empty, empty, empty
 
-    num_states, _ = problem.get_phase_variable_counts(phase_id)
+    num_states, _ = problem._get_phase_variable_counts(phase_id)
     phase_dynamics_function = problem._get_phase_dynamics_function(phase_id)
 
     if (
@@ -236,7 +236,7 @@ def _calculate_gamma_normalizers_for_phase(
     if not solution.success or solution.raw_solution is None:
         return None
 
-    num_states, _ = problem.get_phase_variable_counts(phase_id)
+    num_states, _ = problem._get_phase_variable_counts(phase_id)
     if num_states == 0:
         return np.array([], dtype=np.float64).reshape(0, 1)
 

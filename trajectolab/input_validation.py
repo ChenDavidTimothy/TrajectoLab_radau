@@ -197,7 +197,7 @@ def validate_multiphase_problem_ready_for_solving(problem: ProblemProtocol) -> N
     if not hasattr(problem, "_phases") or not problem._phases:
         raise ConfigurationError("Problem must have at least one phase - use problem.phase()")
 
-    total_states, total_controls, num_static_params = problem.get_total_variable_counts()
+    total_states, total_controls, num_static_params = problem._get_total_variable_counts()
     validate_problem_dimensions(
         total_states, total_controls, num_static_params, "multiphase problem"
     )
@@ -304,7 +304,7 @@ def _validate_multiphase_initial_guess_structure(
             validate_integral_values(integrals, problem._phases[phase_id].num_integrals)
 
     if initial_guess.static_parameters is not None:
-        _, _, num_static_params = problem.get_total_variable_counts()
+        _, _, num_static_params = problem._get_total_variable_counts()
         if num_static_params == 0:
             raise ConfigurationError(
                 "Static parameter guess provided but problem has no static parameters"

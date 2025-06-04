@@ -27,10 +27,10 @@ from trajectolab.adaptive.phs.initial_guess import (
 )
 from trajectolab.adaptive.phs.numerical import (
     PolynomialInterpolant,
-    map_global_normalized_tau_to_local_interval_tau,
-    map_local_interval_tau_to_global_normalized_tau,
-    map_local_tau_from_interval_k_plus_1_to_equivalent_in_interval_k,
-    map_local_tau_from_interval_k_to_equivalent_in_interval_k_plus_1,
+    _map_global_normalized_tau_to_local_interval_tau,
+    _map_local_interval_tau_to_global_normalized_tau,
+    _map_local_tau_from_interval_k_plus_1_to_equivalent_in_interval_k,
+    _map_local_tau_from_interval_k_to_equivalent_in_interval_k_plus_1,
 )
 from trajectolab.adaptive.phs.refinement import (
     _calculate_merge_feasibility_from_errors,
@@ -67,12 +67,12 @@ class TestAdaptiveMathematicalCorrectness:
 
             for local_tau in local_tau_values:
                 # Forward transformation
-                global_tau = map_local_interval_tau_to_global_normalized_tau(
+                global_tau = _map_local_interval_tau_to_global_normalized_tau(
                     local_tau, global_start, global_end
                 )
 
                 # Inverse transformation
-                recovered_local_tau = map_global_normalized_tau_to_local_interval_tau(
+                recovered_local_tau = _map_global_normalized_tau_to_local_interval_tau(
                     global_tau, global_start, global_end
                 )
 
@@ -88,7 +88,7 @@ class TestAdaptiveMathematicalCorrectness:
 
         for global_start, global_end in test_intervals:
             # Local tau = -1 should map to global_start
-            global_tau_start = map_local_interval_tau_to_global_normalized_tau(
+            global_tau_start = _map_local_interval_tau_to_global_normalized_tau(
                 -1.0, global_start, global_end
             )
             assert abs(global_tau_start - global_start) < 1e-15, (
@@ -96,7 +96,7 @@ class TestAdaptiveMathematicalCorrectness:
             )
 
             # Local tau = 1 should map to global_end
-            global_tau_end = map_local_interval_tau_to_global_normalized_tau(
+            global_tau_end = _map_local_interval_tau_to_global_normalized_tau(
                 1.0, global_start, global_end
             )
             assert abs(global_tau_end - global_end) < 1e-15, (
@@ -115,13 +115,13 @@ class TestAdaptiveMathematicalCorrectness:
 
         for local_tau_k in local_tau_values:
             # Map from interval k to interval k+1
-            local_tau_kp1 = map_local_tau_from_interval_k_to_equivalent_in_interval_k_plus_1(
+            local_tau_kp1 = _map_local_tau_from_interval_k_to_equivalent_in_interval_k_plus_1(
                 local_tau_k, global_start_k, global_shared, global_end_kp1
             )
 
             # Map back from interval k+1 to interval k
             recovered_local_tau_k = (
-                map_local_tau_from_interval_k_plus_1_to_equivalent_in_interval_k(
+                _map_local_tau_from_interval_k_plus_1_to_equivalent_in_interval_k(
                     local_tau_kp1, global_start_k, global_shared, global_end_kp1
                 )
             )
@@ -142,17 +142,17 @@ class TestAdaptiveMathematicalCorrectness:
 
         for local_tau_k in local_tau_values:
             # Convert local tau in interval k to global tau
-            global_tau_from_k = map_local_interval_tau_to_global_normalized_tau(
+            global_tau_from_k = _map_local_interval_tau_to_global_normalized_tau(
                 local_tau_k, global_start_k, global_shared
             )
 
             # Map local tau from interval k to equivalent in interval k+1
-            local_tau_kp1 = map_local_tau_from_interval_k_to_equivalent_in_interval_k_plus_1(
+            local_tau_kp1 = _map_local_tau_from_interval_k_to_equivalent_in_interval_k_plus_1(
                 local_tau_k, global_start_k, global_shared, global_end_kp1
             )
 
             # Convert local tau in interval k+1 to global tau
-            global_tau_from_kp1 = map_local_interval_tau_to_global_normalized_tau(
+            global_tau_from_kp1 = _map_local_interval_tau_to_global_normalized_tau(
                 local_tau_kp1, global_shared, global_end_kp1
             )
 
@@ -586,7 +586,7 @@ class TestAdaptiveMathematicalCorrectness:
         # Verify local tau calculation
         tau_start = prev_mesh_points[1]  # -0.3
         tau_end = prev_mesh_points[2]  # 0.4
-        expected_local_tau = map_global_normalized_tau_to_local_interval_tau(
+        expected_local_tau = _map_global_normalized_tau_to_local_interval_tau(
             global_tau, tau_start, tau_end
         )
         assert abs(prev_local_tau - expected_local_tau) < 1e-15
@@ -626,7 +626,7 @@ class TestAdaptiveMathematicalCorrectness:
 
             for local_tau in local_tau_values:
                 # Transform to global
-                global_tau = map_local_interval_tau_to_global_normalized_tau(
+                global_tau = _map_local_interval_tau_to_global_normalized_tau(
                     local_tau, tau_start, tau_end
                 )
 
@@ -660,7 +660,7 @@ class TestAdaptiveMathematicalCorrectness:
                 )
 
                 # Transform back to local
-                recovered_local = map_global_normalized_tau_to_local_interval_tau(
+                recovered_local = _map_global_normalized_tau_to_local_interval_tau(
                     global_tau, tau_start, tau_end
                 )
                 assert abs(recovered_local - local_tau) < 1e-14, (
@@ -736,7 +736,7 @@ class TestAdaptiveMathematicalCorrectness:
 
         # Should not cause division by zero or numerical instability
         local_tau = 0.5
-        global_tau = map_local_interval_tau_to_global_normalized_tau(
+        global_tau = _map_local_interval_tau_to_global_normalized_tau(
             local_tau, small_interval_start, small_interval_end
         )
 

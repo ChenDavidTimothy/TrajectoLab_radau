@@ -5,7 +5,7 @@ import numpy as np
 
 from trajectolab.adaptive.phs.numerical import (
     PolynomialInterpolant,
-    map_global_normalized_tau_to_local_interval_tau,
+    _map_global_normalized_tau_to_local_interval_tau,
 )
 from trajectolab.exceptions import ConfigurationError, DataIntegrityError, InterpolationError
 from trajectolab.radau import compute_radau_collocation_components
@@ -66,7 +66,7 @@ def _determine_interpolation_parameters(
         prev_mesh_points[prev_interval_idx],
         prev_mesh_points[prev_interval_idx + 1],
     )
-    return prev_interval_idx, map_global_normalized_tau_to_local_interval_tau(
+    return prev_interval_idx, _map_global_normalized_tau_to_local_interval_tau(
         global_tau, prev_tau_start, prev_tau_end
     )
 
@@ -227,7 +227,7 @@ def _propagate_multiphase_solution_to_new_meshes(
                 "Previous solution data inconsistency",
             )
 
-        num_states, num_controls = problem.get_phase_variable_counts(phase_id)
+        num_states, num_controls = problem._get_phase_variable_counts(phase_id)
 
         # VECTORIZED interpolation
         phase_states[phase_id] = _interpolate_phase_trajectory_to_new_mesh_streamlined(

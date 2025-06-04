@@ -14,10 +14,8 @@ def _configure_phase_mesh(
     phase_def: PhaseDefinition, polynomial_degrees: list[int], mesh_points: NumericArrayLike
 ) -> None:
     """Configure the mesh structure for a specific phase."""
-    # Convert to numpy array
     mesh_array = np.asarray(mesh_points, dtype=np.float64)
 
-    # Log mesh configuration
     logger.debug(
         "Configuring mesh for phase %d: %d degrees, %d points",
         phase_def.phase_id,
@@ -25,10 +23,8 @@ def _configure_phase_mesh(
         len(mesh_array),
     )
 
-    # SINGLE comprehensive validation call - trust construction after this
     _validate_mesh_configuration(polynomial_degrees, mesh_array, len(polynomial_degrees))
 
-    # Set mesh configuration - no additional validation needed
     phase_def.collocation_points_per_interval = polynomial_degrees
     phase_def.global_normalized_mesh_nodes = mesh_array
     phase_def.mesh_configured = True

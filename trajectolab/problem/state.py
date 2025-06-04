@@ -231,10 +231,10 @@ class PhaseDefinition:
     def get_variable_counts(self) -> tuple[int, int]:
         return len(self.state_info), len(self.control_info)
 
-    def get_ordered_state_symbols(self) -> list[ca.MX]:
+    def _get_ordered_state_symbols(self) -> list[ca.MX]:
         return [info.symbol for info in self.state_info]
 
-    def get_ordered_control_symbols(self) -> list[ca.MX]:
+    def _get_ordered_control_symbols(self) -> list[ca.MX]:
         return [info.symbol for info in self.control_info]
 
     def get_ordered_state_initial_symbols(self) -> list[ca.MX | None]:
@@ -332,7 +332,7 @@ class MultiPhaseVariableState:
     def _get_phase_ids(self) -> list[PhaseID]:
         return sorted(self.phases.keys())
 
-    def get_total_variable_counts(self) -> tuple[int, int, int]:
+    def _get_total_variable_counts(self) -> tuple[int, int, int]:
         # Aggregate counts across all phases for solver sizing
         total_states = sum(len(phase.state_info) for phase in self.phases.values())
         total_controls = sum(len(phase.control_info) for phase in self.phases.values())

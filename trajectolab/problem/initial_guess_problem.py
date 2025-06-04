@@ -94,9 +94,6 @@ def _set_multiphase_initial_guess(
     phase_integrals: dict[PhaseID, float | FloatArray] | None = None,
     static_parameters: FloatArray | None = None,
 ) -> None:
-    """Set initial guess for multiphase variables."""
-
-    # Basic validation - detailed validation deferred until solve time
     validated_phase_states = {}
     if phase_states is not None:
         for phase_id, states_list in phase_states.items():
@@ -118,7 +115,7 @@ def _set_multiphase_initial_guess(
         for phase_id, integrals in phase_integrals.items():
             if phase_id not in multiphase_state.phases:
                 raise ValueError(f"Phase {phase_id} does not exist in problem")
-            # SINGLE validation call
+
             validate_integral_values(integrals, multiphase_state.phases[phase_id].num_integrals)
 
             phase_def = multiphase_state.phases[phase_id]
@@ -140,7 +137,6 @@ def _set_multiphase_initial_guess(
             )
         validated_static_parameters = params_array
 
-    # Validate time values
     if phase_initial_times is not None:
         for phase_id, t0 in phase_initial_times.items():
             validate_array_numerical_integrity(np.array([t0]), f"Phase {phase_id} initial time")
@@ -149,7 +145,6 @@ def _set_multiphase_initial_guess(
         for phase_id, tf in phase_terminal_times.items():
             validate_array_numerical_integrity(np.array([tf]), f"Phase {phase_id} terminal time")
 
-    # Store the validated initial guess
     current_guess_container[0] = MultiPhaseInitialGuess(
         phase_states=validated_phase_states if validated_phase_states else None,
         phase_controls=validated_phase_controls if validated_phase_controls else None,
@@ -161,14 +156,12 @@ def _set_multiphase_initial_guess(
 
 
 def _can__validate_multiphase_initial_guess(multiphase_state: MultiPhaseVariableState) -> bool:
-    """Check if we have enough information to validate multiphase initial guess."""
     return all(phase_def.mesh_configured for phase_def in multiphase_state.phases.values())
 
 
 def get_multiphase_initial_guess_requirements(
     multiphase_state: MultiPhaseVariableState,
 ) -> MultiPhaseInitialGuessRequirements:
-    """Get requirements for multiphase initial guess."""
     phase_requirements = {}
 
     for phase_id, phase_def in multiphase_state.phases.items():
@@ -215,10 +208,9 @@ def _validate_multiphase_initial_guess(
             "Cannot validate multiphase initial guess: all phases must have mesh configured first."
         )
 
-    # SINGLE comprehensive validation call
     from typing import cast
 
-    from ..problem import Problem  # Avoid circular import
+    from ..problem import Problem
     from ..tl_types import ProblemProtocol
 
     dummy_problem = Problem()
@@ -231,7 +223,6 @@ def _validate_multiphase_initial_guess(
 def get_multiphase_solver_input_summary(
     current_guess, multiphase_state: MultiPhaseVariableState
 ) -> MultiPhaseSolverInputSummary:
-    """Get summary of multiphase solver input configuration."""
     phase_summaries = {}
     initial_guess_source = "no_initial_guess"
 
@@ -256,14 +247,12 @@ def get_multiphase_solver_input_summary(
     if current_guess is not None:
         initial_guess_source = "partial_multiphase_provided"
 
-        # Check if guess is complete for all phases
         is_complete = True
         for phase_id, phase_def in multiphase_state.phases.items():
             if not phase_def.mesh_configured:
                 is_complete = False
                 break
 
-            # Check states guess
             if (
                 current_guess.phase_states is None
                 or phase_id not in current_guess.phase_states
@@ -273,7 +262,6 @@ def get_multiphase_solver_input_summary(
                 is_complete = False
                 break
 
-            # Check controls guess
             if (
                 current_guess.phase_controls is None
                 or phase_id not in current_guess.phase_controls
@@ -283,7 +271,6 @@ def get_multiphase_solver_input_summary(
                 is_complete = False
                 break
 
-            # Check integrals guess
             if phase_def.num_integrals > 0 and (
                 current_guess.phase_integrals is None
                 or phase_id not in current_guess.phase_integrals
@@ -291,7 +278,6 @@ def get_multiphase_solver_input_summary(
                 is_complete = False
                 break
 
-        # Check static parameters
         num_static_params = multiphase_state.static_parameters.get_parameter_count()
         if num_static_params > 0 and current_guess.static_parameters is None:
             is_complete = False

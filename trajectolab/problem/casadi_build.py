@@ -7,14 +7,13 @@ def _build_unified_casadi_function_inputs(
     phase_def: PhaseDefinition,
     static_parameter_symbols: list[ca.MX] | None = None,
 ) -> tuple[ca.MX, ca.MX, ca.MX, ca.MX, list[ca.MX]]:
-    state_syms = phase_def.get_ordered_state_symbols()
-    control_syms = phase_def.get_ordered_control_symbols()
+    state_syms = phase_def._get_ordered_state_symbols()
+    control_syms = phase_def._get_ordered_control_symbols()
 
     states_vec = ca.vertcat(*state_syms) if state_syms else ca.MX()
     controls_vec = ca.vertcat(*control_syms) if control_syms else ca.MX()
     time = phase_def.sym_time if phase_def.sym_time is not None else ca.MX.sym("t", 1)  # type: ignore[arg-type]
 
-    # Create static parameters with correct dimensions
     num_static_params = len(static_parameter_symbols) if static_parameter_symbols else 0
     if num_static_params > 0:
         static_params_vec = ca.MX.sym("static_params", num_static_params, 1)  # type: ignore[arg-type]
@@ -55,7 +54,6 @@ def _build_unified_multiphase_symbol_inputs(multiphase_state) -> tuple[list[ca.M
     for phase_id in sorted(multiphase_state.phases.keys()):
         phase_def = multiphase_state.phases[phase_id]
 
-        # Time symbols
         t0 = (
             phase_def.sym_time_initial
             if phase_def.sym_time_initial is not None
@@ -67,12 +65,10 @@ def _build_unified_multiphase_symbol_inputs(multiphase_state) -> tuple[list[ca.M
             else ca.MX.sym(f"tf_p{phase_id}", 1)  # type: ignore[arg-type]
         )
 
-        # State vectors
-        state_syms = phase_def.get_ordered_state_symbols()
+        state_syms = phase_def._get_ordered_state_symbols()
         x0_vec = ca.vertcat(*[ca.MX.sym(f"x0_{i}_p{phase_id}", 1) for i in range(len(state_syms))])  # type: ignore[arg-type]
         xf_vec = ca.vertcat(*[ca.MX.sym(f"xf_{i}_p{phase_id}", 1) for i in range(len(state_syms))])  # type: ignore[arg-type]
 
-        # Integral vector
         q_vec = (
             ca.vertcat(
                 *[ca.MX.sym(f"q_{i}_p{phase_id}", 1) for i in range(phase_def.num_integrals)]  # type: ignore[arg-type]
@@ -83,7 +79,6 @@ def _build_unified_multiphase_symbol_inputs(multiphase_state) -> tuple[list[ca.M
 
         phase_inputs.extend([t0, tf, x0_vec, xf_vec, q_vec])
 
-    # Static parameters
     static_param_syms = multiphase_state.static_parameters.get_ordered_parameter_symbols()
     s_vec = (
         ca.vertcat(*[ca.MX.sym(f"s_{i}", 1) for i in range(len(static_param_syms))])  # type: ignore[arg-type]
@@ -105,7 +100,6 @@ def _build_unified_symbol_substitution_map(
     for phase_id in sorted(multiphase_state.phases.keys()):
         phase_def = multiphase_state.phases[phase_id]
 
-        # Extract inputs for this phase
         t0 = phase_inputs[input_idx]
         tf = phase_inputs[input_idx + 1]
         x0_vec = phase_inputs[input_idx + 2]
@@ -113,12 +107,10 @@ def _build_unified_symbol_substitution_map(
         q_vec = phase_inputs[input_idx + 4]
         input_idx += 5
 
-        # Get symbols
-        state_syms = phase_def.get_ordered_state_symbols()
+        state_syms = phase_def._get_ordered_state_symbols()
         state_initial_syms = phase_def.get_ordered_state_initial_symbols()
         state_final_syms = phase_def.get_ordered_state_final_symbols()
 
-        # Build substitution map
         phase_symbols_map[t0] = t0
         phase_symbols_map[tf] = tf
 
@@ -134,14 +126,12 @@ def _build_unified_symbol_substitution_map(
                 phase_symbols_map[initial_sym] = x0_vec[i]
                 phase_symbols_map[final_sym] = xf_vec[i]
 
-        # Map integral symbols
         for i, integral_sym in enumerate(phase_def.integral_symbols):
             if phase_def.num_integrals == 1:
                 phase_symbols_map[integral_sym] = q_vec
             else:
                 phase_symbols_map[integral_sym] = q_vec[i]
 
-    # Add static parameter substitution
     static_param_syms = multiphase_state.static_parameters.get_ordered_parameter_symbols()
     for i, param_sym in enumerate(static_param_syms):
         if len(static_param_syms) == 1:

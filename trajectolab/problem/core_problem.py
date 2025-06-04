@@ -11,8 +11,8 @@ from ..input_validation import (
 from ..tl_types import FloatArray, NumericArrayLike, PhaseID
 from . import constraints_problem, initial_guess_problem, mesh, solver_interface, variables_problem
 from .constraints_problem import (
-    get_cross_phase_event_constraints_function,
-    get_phase_path_constraints_function,
+    _get_cross_phase_event_constraints_function,
+    _get_phase_path_constraints_function,
 )
 from .state import ConstraintInput, MultiPhaseVariableState
 from .variables_problem import StateVariableImpl, TimeVariableImpl
@@ -433,20 +433,20 @@ class Problem:
     def _get_phase_ids(self) -> list[PhaseID]:
         return self._multiphase_state._get_phase_ids()
 
-    def get_phase_variable_counts(self, phase_id: PhaseID) -> tuple[int, int]:
+    def _get_phase_variable_counts(self, phase_id: PhaseID) -> tuple[int, int]:
         if phase_id not in self._multiphase_state.phases:
             raise ValueError(f"Phase {phase_id} does not exist")
         return self._multiphase_state.phases[phase_id].get_variable_counts()
 
-    def get_total_variable_counts(self) -> tuple[int, int, int]:
-        return self._multiphase_state.get_total_variable_counts()
+    def _get_total_variable_counts(self) -> tuple[int, int, int]:
+        return self._multiphase_state._get_total_variable_counts()
 
-    def get_phase_ordered_state_names(self, phase_id: PhaseID) -> list[str]:
+    def _get_phase_ordered_state_names(self, phase_id: PhaseID) -> list[str]:
         if phase_id not in self._multiphase_state.phases:
             raise ValueError(f"Phase {phase_id} does not exist")
         return self._multiphase_state.phases[phase_id].state_names.copy()
 
-    def get_phase_ordered_control_names(self, phase_id: PhaseID) -> list[str]:
+    def _get_phase_ordered_control_names(self, phase_id: PhaseID) -> list[str]:
         if phase_id not in self._multiphase_state.phases:
             raise ValueError(f"Phase {phase_id} does not exist")
         return self._multiphase_state.phases[phase_id].control_names.copy()
@@ -476,13 +476,13 @@ class Problem:
             self._multiphase_state.phases[phase_id], static_parameter_symbols
         )
 
-    def get_phase_path_constraints_function(self, phase_id: PhaseID) -> Any:
+    def _get_phase_path_constraints_function(self, phase_id: PhaseID) -> Any:
         if phase_id not in self._multiphase_state.phases:
             raise ValueError(f"Phase {phase_id} does not exist")
-        return get_phase_path_constraints_function(self._multiphase_state.phases[phase_id])
+        return _get_phase_path_constraints_function(self._multiphase_state.phases[phase_id])
 
-    def get_cross_phase_event_constraints_function(self) -> Any:
-        return get_cross_phase_event_constraints_function(self._multiphase_state)
+    def _get_cross_phase_event_constraints_function(self) -> Any:
+        return _get_cross_phase_event_constraints_function(self._multiphase_state)
 
     def validate_multiphase_configuration(self) -> None:
         logger.debug("Processing symbolic boundary constraints for automatic cross-phase linking")

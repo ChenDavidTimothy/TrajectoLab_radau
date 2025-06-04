@@ -42,7 +42,7 @@ def _apply_phase_initial_guess(
 ) -> None:
     """Apply initial guess for a single phase."""
     # Get phase information
-    num_states, num_controls = problem.get_phase_variable_counts(phase_id)
+    num_states, num_controls = problem._get_phase_variable_counts(phase_id)
     phase_def = problem._phases[phase_id]
     num_mesh_intervals = len(phase_def.collocation_points_per_interval)
     num_integrals = phase_def.num_integrals
@@ -156,7 +156,7 @@ def _apply_static_parameters_guess(
 ) -> None:
     """Apply initial guess for static parameters."""
     if ig.static_parameters is not None and variables.static_parameters is not None:
-        _, _, num_static_params = problem.get_total_variable_counts()
+        _, _, num_static_params = problem._get_total_variable_counts()
 
         if num_static_params > 0:
             opti.set_initial(variables.static_parameters, ig.static_parameters)
