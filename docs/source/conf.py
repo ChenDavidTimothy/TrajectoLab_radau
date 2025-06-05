@@ -68,15 +68,25 @@ napoleon_include_init_with_doc = False
 napoleon_include_private_with_doc = False
 
 
-# Auto-run API generation
+# Auto-run API and examples generation
 def setup(app):
-    """Auto-generate API docs on build."""
+    """Auto-generate API and examples docs on build."""
     import subprocess
 
-    script_path = Path(__file__).parent / "generate_api_docs.py"
-    if script_path.exists():
+    # Generate API documentation
+    api_script_path = Path(__file__).parent / "generate_api_docs.py"
+    if api_script_path.exists():
         try:
-            subprocess.run([sys.executable, str(script_path)], check=True)
+            subprocess.run([sys.executable, str(api_script_path)], check=True)
             print("✓ API documentation generated")
         except subprocess.CalledProcessError:
             print("⚠ API generation had issues")
+
+    # Generate examples documentation
+    examples_script_path = Path(__file__).parent / "generate_examples_docs.py"
+    if examples_script_path.exists():
+        try:
+            subprocess.run([sys.executable, str(examples_script_path)], check=True)
+            print("✓ Examples documentation generated")
+        except subprocess.CalledProcessError:
+            print("⚠ Examples generation had issues")
