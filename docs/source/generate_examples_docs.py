@@ -105,13 +105,24 @@ def generate_example_md(
     example_name: str, readme_content: str, python_file_path: Path, relative_python_path: str
 ) -> str:
     """Generate MyST markdown content for a single example."""
-    # Create title
-    title = example_name.replace("_", " ").replace("-", " ").title()
 
-    # MyST markdown content with proper directives
-    md_content = f"""# {title}
+    # Check if README already has an H1 header
+    readme_lines = readme_content.split("\n")
+    has_h1 = any(line.startswith("# ") for line in readme_lines)
 
-{readme_content}
+    # Determine the base content
+    if has_h1:
+        # README already has H1, use content directly
+        base_content = readme_content
+    else:
+        # README has no H1, add one
+        title = example_name.replace("_", " ").replace("-", " ").title()
+        base_content = f"""# {title}
+
+{readme_content}"""
+
+    # Add only the Code Implementation section
+    md_content = f"""{base_content}
 
 ## Code Implementation
 
@@ -119,13 +130,6 @@ def generate_example_md(
 :language: python
 :caption: examples/{example_name}/{example_name}.py
 :linenos:
-```
-
-## Running This Example
-
-```bash
-cd examples/{example_name}
-python {example_name}.py
 ```
 
 """
