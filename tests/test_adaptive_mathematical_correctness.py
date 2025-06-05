@@ -35,9 +35,9 @@ from trajectolab.adaptive.phs.numerical import (
 from trajectolab.adaptive.phs.refinement import (
     _calculate_merge_feasibility_from_errors,
     _calculate_trajectory_errors_with_gamma,
-    h_refine_params,
-    p_reduce_interval,
-    p_refine_interval,
+    _h_refine_params,
+    _p_reduce_interval,
+    _p_refine_interval,
 )
 from trajectolab.exceptions import InterpolationError
 from trajectolab.radau import _compute_barycentric_weights, _compute_radau_collocation_components
@@ -364,48 +364,48 @@ class TestAdaptiveMathematicalCorrectness:
     def test_p_refinement_mathematical_scaling(self):
         """Test p-refinement polynomial degree scaling mathematics."""
         # Test case 1: Error exactly at tolerance (no refinement needed)
-        result = p_refine_interval(max_error=1e-6, current_Nk=5, error_tol=1e-6, N_max=10)
+        result = _p_refine_interval(max_error=1e-6, current_Nk=5, error_tol=1e-6, N_max=10)
         assert not result.was_p_successful
         assert result.actual_Nk_to_use == 5
 
         # Test case 2: Error 10x tolerance (should add 1 node)
-        result = p_refine_interval(max_error=1e-5, current_Nk=5, error_tol=1e-6, N_max=10)
+        result = _p_refine_interval(max_error=1e-5, current_Nk=5, error_tol=1e-6, N_max=10)
         assert result.was_p_successful
         expected_nodes = 5 + max(1, int(np.ceil(np.log10(1e-5 / 1e-6))))  # 5 + 1 = 6
         assert result.actual_Nk_to_use == expected_nodes
 
         # Test case 3: Error 100x tolerance (should add 2 nodes)
-        result = p_refine_interval(max_error=1e-4, current_Nk=5, error_tol=1e-6, N_max=10)
+        result = _p_refine_interval(max_error=1e-4, current_Nk=5, error_tol=1e-6, N_max=10)
         assert result.was_p_successful
         expected_nodes = 5 + max(1, int(np.ceil(np.log10(1e-4 / 1e-6))))  # 5 + 2 = 7
         assert result.actual_Nk_to_use == expected_nodes
 
         # Test case 4: Infinite error (should add maximum possible nodes)
-        result = p_refine_interval(max_error=np.inf, current_Nk=5, error_tol=1e-6, N_max=10)
+        result = _p_refine_interval(max_error=np.inf, current_Nk=5, error_tol=1e-6, N_max=10)
         assert result.was_p_successful
         assert result.actual_Nk_to_use == 10  # Should reach N_max
 
         # Test case 5: Target exceeds N_max (should be capped)
-        result = p_refine_interval(max_error=1e-2, current_Nk=8, error_tol=1e-6, N_max=10)
+        result = _p_refine_interval(max_error=1e-2, current_Nk=8, error_tol=1e-6, N_max=10)
         assert result.was_p_successful is False  # Cannot achieve target within N_max
         assert result.actual_Nk_to_use == 10  # Capped at N_max
 
     def test_h_refinement_mathematical_subdivision(self):
         """Test h-refinement subdivision mathematics."""
         # Test case 1: Small target degree (should create 2 subintervals)
-        result = h_refine_params(target_Nk=6, N_min=3)
+        result = _h_refine_params(target_Nk=6, N_min=3)
         assert result.num_new_subintervals == 2
         assert result.collocation_nodes_for_new_subintervals == [3, 3]
 
         # Test case 2: Large target degree (should create multiple subintervals)
-        result = h_refine_params(target_Nk=15, N_min=4)
+        result = _h_refine_params(target_Nk=15, N_min=4)
         expected_subintervals = max(2, int(np.ceil(15 / 4)))  # ceil(3.75) = 4
         assert result.num_new_subintervals == expected_subintervals
         assert len(result.collocation_nodes_for_new_subintervals) == expected_subintervals
         assert all(nodes == 4 for nodes in result.collocation_nodes_for_new_subintervals)
 
         # Test case 3: Edge case where target equals N_min
-        result = h_refine_params(target_Nk=3, N_min=3)
+        result = _h_refine_params(target_Nk=3, N_min=3)
         assert result.num_new_subintervals == 2  # Should always create at least 2
         assert result.collocation_nodes_for_new_subintervals == [3, 3]
 
@@ -421,7 +421,7 @@ class TestAdaptiveMathematicalCorrectness:
         N_min = 3
         N_max = 12
 
-        result = p_reduce_interval(current_Nk, max_error, error_tol, N_min, N_max)
+        result = _p_reduce_interval(current_Nk, max_error, error_tol, N_min, N_max)
 
         # Calculate expected result using Eq. 36
         delta = N_min + N_max - current_Nk  # 3 + 12 - 8 = 7
@@ -440,7 +440,7 @@ class TestAdaptiveMathematicalCorrectness:
         N_min = 3
         N_max = 15
 
-        result = p_reduce_interval(current_Nk, max_error, error_tol, N_min, N_max)
+        result = _p_reduce_interval(current_Nk, max_error, error_tol, N_min, N_max)
 
         # Calculate expected result
         delta = N_min + N_max - current_Nk  # 3 + 15 - 10 = 8
@@ -452,12 +452,12 @@ class TestAdaptiveMathematicalCorrectness:
         assert result.new_num_collocation_nodes == expected_new_Nk
 
         # Test case 3: No reduction when error exceeds tolerance
-        result = p_reduce_interval(current_Nk=5, max_error=1e-5, error_tol=1e-6, N_min=3, N_max=10)
+        result = _p_reduce_interval(current_Nk=5, max_error=1e-5, error_tol=1e-6, N_min=3, N_max=10)
         assert result.new_num_collocation_nodes == 5  # No change
         assert not result.was_reduction_applied
 
         # Test case 4: No reduction when already at minimum
-        result = p_reduce_interval(current_Nk=3, max_error=1e-8, error_tol=1e-6, N_min=3, N_max=10)
+        result = _p_reduce_interval(current_Nk=3, max_error=1e-8, error_tol=1e-6, N_min=3, N_max=10)
         assert result.new_num_collocation_nodes == 3  # Cannot reduce below N_min
         assert not result.was_reduction_applied
 
@@ -709,7 +709,7 @@ class TestAdaptiveMathematicalCorrectness:
         N_max = 12
 
         # Apply p-refinement
-        p_refine_result = p_refine_interval(max_error, current_Nk, error_tol, N_max)
+        p_refine_result = _p_refine_interval(max_error, current_Nk, error_tol, N_max)
 
         if p_refine_result.was_p_successful:
             refined_Nk = p_refine_result.actual_Nk_to_use
@@ -720,7 +720,7 @@ class TestAdaptiveMathematicalCorrectness:
             )  # Assume exponential improvement
 
             if reduced_error < error_tol:
-                p_reduce_result = p_reduce_interval(
+                p_reduce_result = _p_reduce_interval(
                     refined_Nk, reduced_error, error_tol, N_min, N_max
                 )
 

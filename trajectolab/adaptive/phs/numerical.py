@@ -17,7 +17,6 @@ __all__ = [
 
 
 def _validate_interpolant_dimensions(values: FloatArray, nodes: FloatArray) -> tuple[int, int, int]:
-    """Validate and extract dimensions for polynomial interpolant."""
     values_2d = np.atleast_2d(values)
     nodes_array = np.asarray(nodes, dtype=np.float64)
 
@@ -35,7 +34,6 @@ def _validate_interpolant_dimensions(values: FloatArray, nodes: FloatArray) -> t
 def _prepare_barycentric_weights(
     nodes_array: FloatArray, barycentric_weights: FloatArray | None, num_nodes_pts: int
 ) -> FloatArray:
-    """Prepare and validate barycentric weights for interpolation."""
     if barycentric_weights is None:
         return _compute_barycentric_weights(nodes_array)
 
@@ -49,13 +47,11 @@ def _prepare_barycentric_weights(
 def _evaluate_single_point(
     zeta: float, nodes_array: FloatArray, bary_weights: FloatArray, values_at_nodes: FloatArray
 ) -> FloatArray:
-    """Evaluate interpolant at a single point."""
     L_j = _evaluate_lagrange_polynomial_at_point(nodes_array, bary_weights, zeta)
     return np.asarray(np.dot(values_at_nodes, L_j), dtype=np.float64)
 
 
 def _compute_interval_parameters(global_start: float, global_end: float) -> tuple[float, float]:
-    """Compute interval transformation parameters."""
     beta = (global_end - global_start) / 2.0
     beta0 = (global_end + global_start) / 2.0
     return beta, beta0
@@ -96,7 +92,7 @@ class PolynomialInterpolant:
 def _map_global_normalized_tau_to_local_interval_tau(
     global_tau: float, global_start: float, global_end: float
 ) -> float:
-    """Maps global tau to local zeta in [-1, 1]."""
+    # Maps global tau to local zeta in [-1, 1]
     beta, beta0 = _compute_interval_parameters(global_start, global_end)
 
     if abs(beta) < 1e-12:
@@ -108,7 +104,7 @@ def _map_global_normalized_tau_to_local_interval_tau(
 def _map_local_interval_tau_to_global_normalized_tau(
     local_tau: float, global_start: float, global_end: float
 ) -> float:
-    """Maps local zeta in [-1, 1] to global tau."""
+    # Maps local zeta in [-1, 1] to global tau.
     beta, beta0 = _compute_interval_parameters(global_start, global_end)
     return beta * local_tau + beta0
 
@@ -116,7 +112,7 @@ def _map_local_interval_tau_to_global_normalized_tau(
 def _map_local_tau_from_interval_k_to_equivalent_in_interval_k_plus_1(
     local_tau_k: float, global_start_k: float, global_shared: float, global_end_kp1: float
 ) -> float:
-    """Transforms zeta in interval k to zeta in interval k+1."""
+    # Transforms zeta in interval k to zeta in interval k+1
     global_tau = _map_local_interval_tau_to_global_normalized_tau(
         local_tau_k, global_start_k, global_shared
     )
@@ -128,7 +124,7 @@ def _map_local_tau_from_interval_k_to_equivalent_in_interval_k_plus_1(
 def _map_local_tau_from_interval_k_plus_1_to_equivalent_in_interval_k(
     local_tau_kp1: float, global_start_k: float, global_shared: float, global_end_kp1: float
 ) -> float:
-    """Transforms zeta in interval k+1 to zeta in interval k."""
+    # Transforms zeta in interval k+1 to zeta in interval k.
     global_tau = _map_local_interval_tau_to_global_normalized_tau(
         local_tau_kp1, global_shared, global_end_kp1
     )

@@ -23,7 +23,6 @@ logger = logging.getLogger(__name__)
 
 
 def _find_containing_interval_index(global_tau: float, mesh_points: FloatArray) -> int | None:
-    """Find interval containing global_tau."""
     if mesh_points.ndim != 1 or mesh_points.size < 2:
         return None
 
@@ -47,7 +46,6 @@ def _find_containing_interval_index(global_tau: float, mesh_points: FloatArray) 
 def _determine_interpolation_parameters(
     global_tau: float, prev_mesh_points: FloatArray
 ) -> tuple[int, float]:
-    """Pure interpolation parameter calculation."""
     prev_interval_idx = _find_containing_interval_index(global_tau, prev_mesh_points)
 
     if prev_interval_idx is None:
@@ -76,7 +74,6 @@ def _validate_interpolation_inputs(
     target_polynomial_degrees: list[int],
     phase_id: PhaseID,
 ) -> None:
-    """Validate interpolation input data consistency."""
     if (
         len(prev_trajectory_per_interval) != len(prev_polynomial_degrees)
         or not prev_trajectory_per_interval
@@ -93,7 +90,6 @@ def _create_phase_interpolants(
     prev_polynomial_degrees: list[int],
     is_state_trajectory: bool,
 ) -> list[PolynomialInterpolant]:
-    """Create polynomial interpolants for previous trajectory data."""
     prev_interpolants = []
 
     for N_k, traj_k in zip(prev_polynomial_degrees, prev_trajectory_per_interval, strict=False):
@@ -116,7 +112,6 @@ def _create_phase_interpolants(
 def _compute_target_interval_nodes(
     target_mesh_points: FloatArray, k: int, target_local_nodes: FloatArray
 ) -> FloatArray:
-    """Compute global tau points for target interval."""
     target_tau_start, target_tau_end = target_mesh_points[k], target_mesh_points[k + 1]
     tau_range = target_tau_end - target_tau_start
     tau_offset = target_tau_start + target_tau_end
@@ -124,7 +119,6 @@ def _compute_target_interval_nodes(
 
 
 def _get_target_basis_nodes(N_k_target: int, is_state_trajectory: bool) -> tuple[FloatArray, int]:
-    """Get basis nodes and count for target interval."""
     target_basis = _compute_radau_collocation_components(N_k_target)
 
     if is_state_trajectory:
@@ -144,7 +138,6 @@ def _interpolate_at_points(
     num_variables: int,
     phase_id: PhaseID,
 ) -> FloatArray:
-    """Interpolate trajectory values at given global tau points."""
     num_points = len(global_tau_points)
     target_values = np.zeros((num_variables, num_points), dtype=np.float64)
 
@@ -187,7 +180,6 @@ def _process_single_target_interval(
     phase_id: PhaseID,
     is_state_trajectory: bool,
 ) -> FloatArray:
-    """Process a single target interval for interpolation."""
     target_local_nodes, num_target_nodes = _get_target_basis_nodes(N_k_target, is_state_trajectory)
     global_tau_points = _compute_target_interval_nodes(target_mesh_points, k, target_local_nodes)
 
@@ -206,7 +198,6 @@ def _interpolate_phase_trajectory_to_new_mesh_streamlined(
     phase_id: PhaseID,
     is_state_trajectory: bool = True,
 ) -> list[FloatArray]:
-    """interpolation with direct allocation."""
     _validate_interpolation_inputs(
         prev_trajectory_per_interval, prev_polynomial_degrees, target_polynomial_degrees, phase_id
     )
@@ -233,7 +224,6 @@ def _interpolate_phase_trajectory_to_new_mesh_streamlined(
 
 
 def _validate_propagation_preconditions(prev_solution: OptimalControlSolution) -> None:
-    """Validate solution is suitable for propagation."""
     if not prev_solution.success:
         raise InterpolationError(
             "Cannot propagate from unsuccessful previous unified solution",
@@ -246,7 +236,6 @@ def _validate_target_configuration(
     target_phase_polynomial_degrees: dict[PhaseID, list[int]],
     target_phase_mesh_points: dict[PhaseID, FloatArray],
 ) -> tuple[list[int], FloatArray]:
-    """Validate and extract target configuration for phase."""
     if phase_id not in target_phase_polynomial_degrees or phase_id not in target_phase_mesh_points:
         raise ConfigurationError(
             f"Missing target mesh configuration for phase {phase_id}",
@@ -268,7 +257,6 @@ def _validate_target_configuration(
 def _validate_previous_solution_data(
     prev_solution: OptimalControlSolution, phase_id: PhaseID
 ) -> tuple[list[FloatArray], list[FloatArray], FloatArray, list[int]]:
-    """Validate and extract previous solution data for phase."""
     required_keys = [
         "phase_solved_state_trajectories_per_interval",
         "phase_solved_control_trajectories_per_interval",
@@ -306,7 +294,6 @@ def _interpolate_phase_data(
     num_controls: int,
     phase_id: PhaseID,
 ) -> tuple[list[FloatArray], list[FloatArray]]:
-    """Interpolate both state and control data for phase."""
     phase_states = _interpolate_phase_trajectory_to_new_mesh_streamlined(
         prev_states,
         prev_mesh,
@@ -345,7 +332,6 @@ def _extract_preserved_variables(
 
 
 def _validate_final_guess(initial_guess: MultiPhaseInitialGuess, problem: ProblemProtocol) -> None:
-    """Validate final initial guess has all required phase data."""
     for phase_id in problem._get_phase_ids():
         if (
             phase_id not in initial_guess.phase_states
@@ -360,7 +346,6 @@ def _propagate_multiphase_solution_to_new_meshes(
     target_phase_polynomial_degrees: dict[PhaseID, list[int]],
     target_phase_mesh_points: dict[PhaseID, FloatArray],
 ) -> MultiPhaseInitialGuess:
-    """multiphase solution propagation."""
     _validate_propagation_preconditions(prev_solution)
 
     # Extract preserved variables

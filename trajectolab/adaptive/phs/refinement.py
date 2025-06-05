@@ -26,13 +26,12 @@ from trajectolab.tl_types import (
 )
 
 
-__all__ = ["h_reduce_intervals", "h_refine_params", "p_reduce_interval", "p_refine_interval"]
+__all__ = ["_h_reduce_intervals", "_h_refine_params", "_p_reduce_interval", "_p_refine_interval"]
 
 logger = logging.getLogger(__name__)
 
 
 def _validate_error_arrays(all_fwd_errors: FloatArray, all_bwd_errors: FloatArray) -> bool:
-    """Validate error arrays for NaN values."""
     if all_fwd_errors.size == 0 and all_bwd_errors.size == 0:
         return False
 
@@ -43,7 +42,6 @@ def _validate_error_arrays(all_fwd_errors: FloatArray, all_bwd_errors: FloatArra
 
 
 def _compute_max_error_value(all_fwd_errors: FloatArray, all_bwd_errors: FloatArray) -> float:
-    """Compute maximum error value from forward and backward errors."""
     max_fwd = np.max(all_fwd_errors) if all_fwd_errors.size > 0 else 0.0
     max_bwd = np.max(all_bwd_errors) if all_bwd_errors.size > 0 else 0.0
     return max(max_fwd, max_bwd)
@@ -52,7 +50,6 @@ def _compute_max_error_value(all_fwd_errors: FloatArray, all_bwd_errors: FloatAr
 def _calculate_merge_feasibility_from_errors(
     all_fwd_errors: FloatArray, all_bwd_errors: FloatArray, error_tol: float
 ) -> tuple[bool, float]:
-    """Calculate merge feasibility from error arrays."""
     if not _validate_error_arrays(all_fwd_errors, all_bwd_errors):
         return False, float(np.inf)
 
@@ -65,7 +62,6 @@ def _calculate_merge_feasibility_from_errors(
 def _calculate_trajectory_errors_with_gamma(
     X_sim: FloatArray, X_nlp: FloatArray, gamma_factors: FloatArray
 ) -> FloatArray:
-    """Calculate trajectory errors with gamma scaling."""
     if np.any(np.isnan(X_sim)):
         return np.array([], dtype=np.float64)
 
@@ -76,16 +72,16 @@ def _calculate_trajectory_errors_with_gamma(
 def _compute_p_refine_target(
     max_error: float, current_Nk: int, error_tol: float, N_max: int
 ) -> int:
-    """Compute target polynomial degree for p-refinement."""
+    # Compute target polynomial degree for p-refinement.
     if np.isinf(max_error):
         return max(1, N_max - current_Nk)
     return max(1, int(np.ceil(np.log10(max_error / error_tol))))
 
 
-def p_refine_interval(
+def _p_refine_interval(
     max_error: float, current_Nk: int, error_tol: float, N_max: int
 ) -> PRefineResult:
-    """Determine new polynomial degree using p-refinement."""
+    # Determine new polynomial degree using p-refinement.
     if max_error <= error_tol:
         return PRefineResult(current_Nk, False, current_Nk)
 
@@ -98,20 +94,20 @@ def p_refine_interval(
     return PRefineResult(target_Nk, True, target_Nk)
 
 
-def h_refine_params(target_Nk: int, N_min: int) -> HRefineResult:
-    """Determine parameters for h-refinement."""
+def _h_refine_params(target_Nk: int, N_min: int) -> HRefineResult:
+    # Determine parameters for h-refinement.
     num_subintervals = max(2, int(np.ceil(target_Nk / N_min)))
     return HRefineResult([N_min] * num_subintervals, num_subintervals)
 
 
 def _compute_p_reduce_delta(current_Nk: int, N_min: int, N_max: int) -> float:
-    """Compute delta parameter for p-reduction calculation."""
+    # Compute delta parameter for p-reduction calculation.
     delta = float(N_min + N_max - current_Nk)
     return delta if abs(delta) >= 1e-9 else 1.0
 
 
 def _calculate_nodes_to_remove(error_tol: float, max_error: float, delta: float) -> int:
-    """Calculate number of nodes to remove in p-reduction."""
+    # Calculate number of nodes to remove in p-reduction.
     try:
         ratio = error_tol / max_error
         if ratio >= 1.0:
@@ -122,10 +118,10 @@ def _calculate_nodes_to_remove(error_tol: float, max_error: float, delta: float)
         return 0
 
 
-def p_reduce_interval(
+def _p_reduce_interval(
     current_Nk: int, max_error: float, error_tol: float, N_min: int, N_max: int
 ) -> PReduceResult:
-    """Determine new polynomial degree using p-reduction per Eq. 36."""
+    # Determine new polynomial degree using p-reduction per Eq. 36
     if max_error > error_tol or current_Nk <= N_min:
         return PReduceResult(current_Nk, False)
 
@@ -139,7 +135,6 @@ def p_reduce_interval(
 def _validate_merge_preconditions(
     solution: OptimalControlSolution, phase_id: PhaseID, first_idx: int
 ) -> bool:
-    """Validate preconditions for interval merging."""
     if (
         solution.raw_solution is None
         or phase_id not in solution.phase_mesh_nodes
@@ -154,7 +149,6 @@ def _validate_merge_preconditions(
 def _extract_merge_time_parameters(
     solution: OptimalControlSolution, phase_id: PhaseID
 ) -> tuple[float, float, float, float]:
-    """Extract time transformation parameters for merging."""
     t0 = solution.phase_initial_times[phase_id]
     tf = solution.phase_terminal_times[phase_id]
     alpha = (tf - t0) / 2.0
@@ -165,7 +159,6 @@ def _extract_merge_time_parameters(
 def _extract_merge_mesh_parameters(
     solution: OptimalControlSolution, phase_id: PhaseID, first_idx: int
 ) -> tuple[float, float, float, float, float]:
-    """Extract mesh parameters for interval merging."""
     global_mesh = solution.phase_mesh_nodes[phase_id]
     tau_start_k, tau_shared, tau_end_kp1 = global_mesh[first_idx : first_idx + 3]
     beta_k = (tau_shared - tau_start_k) / 2.0
@@ -180,8 +173,6 @@ def _extract_merge_mesh_parameters(
 def _create_control_evaluator(
     control_evaluator: Callable[[float | FloatArray], FloatArray] | None,
 ) -> Callable[[float], FloatArray]:
-    """Create safe control value evaluator."""
-
     def _get_control_value(local_tau: float) -> FloatArray:
         if control_evaluator is None:
             return np.array([], dtype=np.float64)
@@ -203,7 +194,6 @@ def _create_merged_dynamics_functions(
     beta_kp1: float,
     num_states: int,
 ) -> tuple[Callable[[float, FloatArray], FloatArray], Callable[[float, FloatArray], FloatArray]]:
-    """Create merged forward and backward dynamics functions."""
     get_control_first = _create_control_evaluator(control_evaluator_first)
     get_control_second = _create_control_evaluator(control_evaluator_second)
 
@@ -240,7 +230,6 @@ def _extract_boundary_states_for_merge(
     problem: ProblemProtocol,
     num_states: int,
 ) -> tuple[FloatArray, FloatArray]:
-    """Extract boundary states for merge simulation."""
     if phase_id in solution.phase_solved_state_trajectories_per_interval and first_idx < len(
         solution.phase_solved_state_trajectories_per_interval[phase_id]
     ):
@@ -283,7 +272,6 @@ def _setup_merge_simulation_points(
     tau_shared: float,
     tau_end_kp1: float,
 ) -> tuple[FloatArray, FloatArray]:
-    """Setup tau points for merge simulation."""
     num_sim_points = adaptive_params.num_error_sim_points
     target_end_tau_k = _map_local_tau_from_interval_k_plus_1_to_equivalent_in_interval_k(
         1.0, tau_start_k, tau_shared, tau_end_kp1
@@ -302,7 +290,7 @@ def _setup_merge_simulation_points(
     return fwd_tau_points, bwd_tau_points
 
 
-def _run_merge_simulation(
+def _run_merge_single_simulation(
     configured_ode_solver: Callable,
     dynamics_rhs: Callable,
     t_span: tuple[float, float],
@@ -310,7 +298,6 @@ def _run_merge_simulation(
     t_eval: FloatArray,
     num_states: int,
 ) -> tuple[bool, FloatArray]:
-    """Run merge simulation with error handling."""
     try:
         sim = configured_ode_solver(dynamics_rhs, t_span=t_span, y0=y0, t_eval=t_eval)
         if sim.success:
@@ -334,7 +321,7 @@ def _run_merge_simulations(
     configured_ode_solver = adaptive_params._get_ode_solver()
 
     # Forward simulation
-    fwd_success, fwd_trajectory = _run_merge_simulation(
+    fwd_success, fwd_trajectory = _run_merge_single_simulation(
         configured_ode_solver,
         merged_fwd_rhs,
         (-1.0, fwd_tau_points[-1]),
@@ -344,7 +331,7 @@ def _run_merge_simulations(
     )
 
     # Backward simulation
-    bwd_success, bwd_trajectory_raw = _run_merge_simulation(
+    bwd_success, bwd_trajectory_raw = _run_merge_single_simulation(
         configured_ode_solver,
         merged_bwd_rhs,
         (1.0, bwd_tau_points[-1]),
@@ -374,7 +361,6 @@ def _calculate_merge_errors(
     tau_shared: float,
     tau_end_kp1: float,
 ) -> tuple[FloatArray, FloatArray]:
-    """Calculate errors for merge feasibility assessment."""
     all_fwd_errors = np.concatenate(
         [
             _calculate_trajectory_errors_with_gamma(
@@ -412,7 +398,7 @@ def _calculate_merge_errors(
     return all_fwd_errors, all_bwd_errors
 
 
-def h_reduce_intervals(
+def _h_reduce_intervals(
     phase_id: PhaseID,
     first_idx: int,
     solution: OptimalControlSolution,
@@ -424,7 +410,6 @@ def h_reduce_intervals(
     state_evaluator_second: Callable[[float | FloatArray], FloatArray],
     control_evaluator_second: Callable[[float | FloatArray], FloatArray] | None,
 ) -> bool:
-    """Check if two adjacent intervals can be merged."""
     # Validate preconditions
     if not _validate_merge_preconditions(solution, phase_id, first_idx):
         return False

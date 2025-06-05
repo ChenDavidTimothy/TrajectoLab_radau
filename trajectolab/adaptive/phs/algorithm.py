@@ -21,10 +21,10 @@ from trajectolab.adaptive.phs.numerical import (
     PolynomialInterpolant,
 )
 from trajectolab.adaptive.phs.refinement import (
-    h_reduce_intervals,
-    h_refine_params,
-    p_reduce_interval,
-    p_refine_interval,
+    _h_reduce_intervals,
+    _h_refine_params,
+    _p_reduce_interval,
+    _p_refine_interval,
 )
 from trajectolab.radau import (
     RadauBasisComponents,
@@ -316,7 +316,7 @@ def _process_refinement_intervals(
         error_k = errors[k]
         N_k = polynomial_degrees[k]
 
-        p_result = p_refine_interval(
+        p_result = _p_refine_interval(
             error_k, N_k, adaptive_params.error_tolerance, adaptive_params.max_polynomial_degree
         )
 
@@ -324,7 +324,7 @@ def _process_refinement_intervals(
             refinement_actions[k] = ("p", p_result.actual_Nk_to_use)
         else:
             # H-refinement when polynomial degree limits reached
-            h_result = h_refine_params(
+            h_result = _h_refine_params(
                 p_result.unconstrained_target_Nk, adaptive_params.min_polynomial_degree
             )
             refinement_actions[k] = ("h", h_result.collocation_nodes_for_new_subintervals)
@@ -391,7 +391,7 @@ def _check_merge_feasibility(
     control_eval_k_plus_1 = control_evaluators[k + 1]
 
     # Mathematical feasibility via simulation
-    return h_reduce_intervals(
+    return _h_reduce_intervals(
         phase_id,
         k,
         solution,
@@ -475,7 +475,7 @@ def _apply_p_reduction(
 
     for k in intervals_for_reduction:
         if k not in merged_intervals:
-            p_reduce = p_reduce_interval(
+            p_reduce = _p_reduce_interval(
                 polynomial_degrees[k],
                 errors[k],
                 adaptive_params.error_tolerance,
