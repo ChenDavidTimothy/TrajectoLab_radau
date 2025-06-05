@@ -1,12 +1,20 @@
 import logging
+from collections.abc import Callable  # ADD: Import Callable for type hints
 from dataclasses import dataclass
 
 import casadi as ca
 
 from ..exceptions import DataIntegrityError, SolutionExtractionError
+from ..problem.state import PhaseDefinition
 from ..radau import RadauBasisComponents, compute_radau_collocation_components
 from ..solution_extraction import extract_and_format_multiphase_solution
-from ..tl_types import OptimalControlSolution, PhaseID, ProblemProtocol
+from ..tl_types import (
+    Constraint,
+    FloatArray,
+    OptimalControlSolution,
+    PhaseID,
+    ProblemProtocol,
+)
 from .constraints_solver import (
     _apply_multiphase_cross_phase_event_constraints,
     _apply_phase_collocation_constraints,
@@ -14,7 +22,10 @@ from .constraints_solver import (
 )
 from .initial_guess_solver import apply_multiphase_initial_guess
 from .integrals_solver import _apply_phase_integral_constraints, _setup_phase_integrals
-from .types_solver import MultiPhaseVariableReferences
+from .types_solver import (
+    MultiPhaseVariableReferences,
+    PhaseVariableReferences,
+)
 from .variables_solver import (
     _setup_multiphase_optimization_variables,
     setup_phase_interval_state_variables,
@@ -32,7 +43,7 @@ class _MeshIntervalContext:
     interval_index: int
     num_states: int
     num_colloc_nodes: int
-    global_mesh_nodes: ca.MX
+    global_mesh_nodes: FloatArray  # FIX: Changed from ca.MX to FloatArray
     basis_components: RadauBasisComponents
 
     # Time variables
@@ -40,9 +51,9 @@ class _MeshIntervalContext:
     terminal_time_var: ca.MX
 
     # Functions
-    dynamics_function: ca.Function
-    path_constraints_function: ca.Function | None
-    integral_integrand_function: ca.Function | None
+    dynamics_function: Callable[..., ca.MX]
+    path_constraints_function: Callable[..., list[Constraint]] | None
+    integral_integrand_function: Callable[..., ca.MX] | None
 
     # Static parameters
     static_parameters_vec: ca.MX | None
@@ -88,7 +99,7 @@ def _extract_phase_endpoint_data(
 
 def _setup_mesh_interval_variables(
     config: _SolverConfiguration,
-    phase_vars: MultiPhaseVariableReferences,
+    phase_vars: PhaseVariableReferences,
     context: _MeshIntervalContext,
 ) -> tuple[ca.MX, ca.MX | None]:
     """Setup state variables for a single mesh interval."""
@@ -178,7 +189,7 @@ def _setup_mesh_interval_integrals(
 
 def _process_single_mesh_interval(
     config: _SolverConfiguration,
-    phase_vars: MultiPhaseVariableReferences,
+    phase_vars: PhaseVariableReferences,
     context: _MeshIntervalContext,
 ) -> None:
     """Process a single mesh interval with flattened logic."""
@@ -207,7 +218,7 @@ def _process_single_mesh_interval(
 def _create_mesh_interval_context(
     phase_id: PhaseID,
     interval_index: int,
-    phase_def: object,
+    phase_def: PhaseDefinition,  # FIX: Changed from object
     config: _SolverConfiguration,
     accumulated_integral_expressions: list[ca.MX],
 ) -> _MeshIntervalContext:
@@ -228,12 +239,18 @@ def _create_mesh_interval_context(
     # Get time variables from endpoint data
     endpoint_data = config.phase_endpoint_data[phase_id]
 
+    # Safety check: mesh should be configured at this point
+    if phase_def.global_normalized_mesh_nodes is None:
+        raise DataIntegrityError(
+            f"Phase {phase_id} mesh not configured", "Mesh configuration error"
+        )
+
     return _MeshIntervalContext(
         phase_id=phase_id,
         interval_index=interval_index,
         num_states=num_states,
         num_colloc_nodes=num_colloc_nodes,
-        global_mesh_nodes=phase_def.global_normalized_mesh_nodes,
+        global_mesh_nodes=phase_def.global_normalized_mesh_nodes,  # Now guaranteed non-None
         basis_components=compute_radau_collocation_components(num_colloc_nodes),
         initial_time_var=endpoint_data["t0"],
         terminal_time_var=endpoint_data["tf"],
@@ -250,7 +267,7 @@ def _create_mesh_interval_context(
 def _process_phase_mesh_intervals(
     config: _SolverConfiguration,
     phase_id: PhaseID,
-    phase_vars: MultiPhaseVariableReferences,
+    phase_vars: PhaseVariableReferences,
 ) -> None:
     """Process all mesh intervals for a single phase - flattened loop structure."""
     phase_def = config.problem._phases[phase_id]
