@@ -120,8 +120,8 @@ def roots_jacobi(
         w_val = result[1]
         mu_val: float = result[2]
         return (
-            cast(FloatArray, x_val.astype(np.float64)),
-            cast(FloatArray, w_val.astype(np.float64)),
+            x_val.astype(np.float64),
+            w_val.astype(np.float64),
             float(mu_val),
         )
     else:
@@ -129,8 +129,8 @@ def roots_jacobi(
         x_val = result[0]
         w_val = result[1]
         return (
-            cast(FloatArray, x_val.astype(np.float64)),
-            cast(FloatArray, w_val.astype(np.float64)),
+            x_val.astype(np.float64),
+            w_val.astype(np.float64),
         )
 
 
