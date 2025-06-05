@@ -109,13 +109,13 @@ def generate_example_rst(
     title = example_name.replace("_", " ").replace("-", " ").title()
     title_underline = "=" * len(title)
 
-    # Extract first line of README as description (if available)
-    readme_lines = readme_content.split("\n")
-    description = readme_lines[0] if readme_lines else "TrajectoLab example problem."
-
     rst_content = f"""{title}
 {title_underline}
 
+Description
+-----------
+
+{readme_content}
 
 Code Implementation
 -------------------
