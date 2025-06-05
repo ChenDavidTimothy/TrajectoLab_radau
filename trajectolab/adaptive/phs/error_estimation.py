@@ -182,7 +182,7 @@ def _create_dynamics_rhs(
             ca.MX(state), ca.MX(control), ca.MX(physical_time)
         )
         state_deriv_np = _convert_casadi_dynamics_result_to_numpy(dynamics_result, num_states)
-        return cast(FloatArray, overall_scaling * state_deriv_np)
+        return overall_scaling * state_deriv_np
 
     return dynamics_rhs
 

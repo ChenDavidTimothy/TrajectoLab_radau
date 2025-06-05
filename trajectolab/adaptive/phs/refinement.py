@@ -191,9 +191,9 @@ def _create_control_evaluator(
 
 
 def _create_merged_dynamics_functions(
-    phase_dynamics_function: Callable,
-    control_evaluator_first: Callable,
-    control_evaluator_second: Callable,
+    phase_dynamics_function: Callable[..., ca.MX],
+    control_evaluator_first: Callable[[float | FloatArray], FloatArray] | None,
+    control_evaluator_second: Callable[[float | FloatArray], FloatArray] | None,
     alpha: float,
     alpha_0: float,
     tau_start_k: float,
@@ -202,7 +202,7 @@ def _create_merged_dynamics_functions(
     beta_k: float,
     beta_kp1: float,
     num_states: int,
-) -> tuple[Callable, Callable]:
+) -> tuple[Callable[[float, FloatArray], FloatArray], Callable[[float, FloatArray], FloatArray]]:
     """Create merged forward and backward dynamics functions."""
     get_control_first = _create_control_evaluator(control_evaluator_first)
     get_control_second = _create_control_evaluator(control_evaluator_second)

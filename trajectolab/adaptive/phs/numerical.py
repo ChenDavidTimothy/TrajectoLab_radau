@@ -51,7 +51,7 @@ def _evaluate_single_point(
 ) -> FloatArray:
     """Evaluate interpolant at a single point."""
     L_j = _evaluate_lagrange_polynomial_at_point(nodes_array, bary_weights, zeta)
-    return np.dot(values_at_nodes, L_j)
+    return np.asarray(np.dot(values_at_nodes, L_j), dtype=np.float64)
 
 
 def _compute_interval_parameters(global_start: float, global_end: float) -> tuple[float, float]:

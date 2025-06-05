@@ -1,5 +1,4 @@
 import logging
-from typing import cast
 
 import numpy as np
 
@@ -121,7 +120,7 @@ def _compute_target_interval_nodes(
     target_tau_start, target_tau_end = target_mesh_points[k], target_mesh_points[k + 1]
     tau_range = target_tau_end - target_tau_start
     tau_offset = target_tau_start + target_tau_end
-    return (tau_range * target_local_nodes + tau_offset) / 2.0
+    return np.asarray((tau_range * target_local_nodes + tau_offset) / 2.0, dtype=np.float64)
 
 
 def _get_target_basis_nodes(N_k_target: int, is_state_trajectory: bool) -> tuple[FloatArray, int]:
@@ -230,7 +229,7 @@ def _interpolate_phase_trajectory_to_new_mesh_streamlined(
         )
         target_trajectories.append(target_traj_k)
 
-    return cast(list[FloatArray], target_trajectories)
+    return target_trajectories
 
 
 def _validate_propagation_preconditions(prev_solution: OptimalControlSolution) -> None:
