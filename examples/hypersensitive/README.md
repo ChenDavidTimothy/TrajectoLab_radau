@@ -1,9 +1,3 @@
-# Hypersensitive Problem
-
-## Mathematical Formulation
-
-The hypersensitive problem is a classic optimal control benchmark that tests the numerical robustness of pseudospectral methods due to its rapid state variations and boundary layer behavior.
-
 ### Problem Statement
 
 Find the optimal control $u(t)$ that minimizes the cost functional:
@@ -45,16 +39,3 @@ This example demonstrates:
 Reference objective value: $J^* \approx 0.035$ (problem-dependent based on discretization)
 
 The adaptive algorithm should converge within 30 iterations, automatically refining the mesh in regions with steep gradients while maintaining efficiency in smooth regions.
-
-## Usage
-
-```bash
-cd examples/hypersensitive
-python hypersensitive.py
-```
-
-The script will:
-1. Solve using adaptive mesh refinement
-2. Display the optimal objective value
-3. Plot the state $x(t)$ and control $u(t)$ trajectories
-4. Compare with a fixed mesh solution for validation
