@@ -293,11 +293,29 @@ class PhaseDefinition:
     def _get_ordered_control_symbols(self) -> list[ca.MX]:
         return [info.symbol for info in self.control_info]
 
-    def get_ordered_state_initial_symbols(self) -> list[ca.MX | None]:
-        return [info.initial_symbol for info in self.state_info]
+    def get_ordered_state_initial_symbols(self) -> list[ca.MX]:
+        """Get initial symbols for state variables (guaranteed non-None)."""
+        symbols = []
+        for info in self.state_info:
+            if info.initial_symbol is None:
+                raise DataIntegrityError(
+                    f"State variable in phase {self.phase_id} has None initial_symbol",
+                    "State symbol integrity violation",
+                )
+            symbols.append(info.initial_symbol)
+        return symbols
 
-    def get_ordered_state_final_symbols(self) -> list[ca.MX | None]:
-        return [info.final_symbol for info in self.state_info]
+    def get_ordered_state_final_symbols(self) -> list[ca.MX]:
+        """Get final symbols for state variables (guaranteed non-None)."""
+        symbols = []
+        for info in self.state_info:
+            if info.final_symbol is None:
+                raise DataIntegrityError(
+                    f"State variable in phase {self.phase_id} has None final_symbol",
+                    "State symbol integrity violation",
+                )
+            symbols.append(info.final_symbol)
+        return symbols
 
     def _get_time_bounds(
         self, constraint: _BoundaryConstraint, constraint_type: str

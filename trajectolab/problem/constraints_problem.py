@@ -279,8 +279,9 @@ def _map_phase_time_symbols(
 def _map_phase_state_symbols(
     phase_def: PhaseDefinition, endpoint_data: dict[str, ca.MX], subs_map: dict[ca.MX, ca.MX]
 ) -> None:
-    state_initial_syms = phase_def.get_ordered_state_initial_symbols()
-    state_final_syms = phase_def.get_ordered_state_final_symbols()
+    """Map phase state symbols with guaranteed non-None symbols."""
+    state_initial_syms = phase_def.get_ordered_state_initial_symbols()  # Now returns list[ca.MX]
+    state_final_syms = phase_def.get_ordered_state_final_symbols()  # Now returns list[ca.MX]
     state_syms = phase_def._get_ordered_state_symbols()
 
     x0_vec = endpoint_data["x0"]
@@ -323,7 +324,8 @@ def _process_cross_phase_substitution_map(
     phase_endpoint_vectors: dict[PhaseID, dict[str, ca.MX]],
     static_parameters_vec: ca.MX | None,
 ) -> dict[ca.MX, ca.MX]:
-    subs_map = {}
+    """Process cross-phase substitution mapping with proper type annotation."""
+    subs_map: dict[ca.MX, ca.MX] = {}
 
     for phase_id, phase_def in multiphase_state.phases.items():
         if phase_id not in phase_endpoint_vectors:

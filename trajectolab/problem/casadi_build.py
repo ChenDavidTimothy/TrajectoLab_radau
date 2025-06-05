@@ -15,7 +15,7 @@ def _create_phase_symbol(base_name: str, phase_id: int, suffix: str = "") -> ca.
 def _create_state_symbols_for_phase(phase_id: int, num_states: int) -> tuple[ca.MX, ca.MX]:
     x0_vec = ca.vertcat(*[ca.MX.sym(f"x0_{i}_p{phase_id}", 1) for i in range(num_states)])  # type: ignore[arg-type]
     xf_vec = ca.vertcat(*[ca.MX.sym(f"xf_{i}_p{phase_id}", 1) for i in range(num_states)])  # type: ignore[arg-type]
-    return x0_vec, xf_vec
+    return ca.MX(x0_vec), ca.MX(xf_vec)
 
 
 def _create_integral_symbol_for_phase(phase_id: int, num_integrals: int) -> ca.MX:
@@ -117,6 +117,7 @@ def _map_state_symbols_for_phase(
     xf_vec: ca.MX,
     phase_symbols_map: dict[ca.MX, ca.MX],
 ) -> None:
+    """Map state symbols with guaranteed non-None symbols."""
     state_syms = phase_def._get_ordered_state_symbols()
     state_initial_syms = phase_def.get_ordered_state_initial_symbols()
     state_final_syms = phase_def.get_ordered_state_final_symbols()

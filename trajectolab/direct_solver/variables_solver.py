@@ -44,10 +44,10 @@ class _VariableCreationContext:
 class _VariableCreator:
     """Unified variable creation strategy."""
 
-    creator: Callable[[_VariableCreationContext], ca.MX | list[ca.MX]]
-    constraint_applier: (
-        Callable[[ca.Opti, ca.MX | list[ca.MX], _VariableCreationContext], None] | None
-    ) = None
+    creator: Callable[[_VariableCreationContext], ca.MX | list[ca.MX] | None]
+    constraint_applier: Callable[[ca.Opti, list[ca.MX], _VariableCreationContext], None] | None = (
+        None
+    )
 
 
 def _apply_bound_constraints(opti: ca.Opti, variable: ca.MX, constraint: _BoundConstraint) -> None:
@@ -138,34 +138,34 @@ def _create_variable_creators() -> dict[str, _VariableCreator]:
         ),
         "states": _VariableCreator(
             creator=_create_state_variables,
-            constraint_applier=None,  # No constraints for global state variables
+            constraint_applier=None,
         ),
         "controls": _VariableCreator(
             creator=_create_control_variables,
-            constraint_applier=None,  # No constraints for control variables
+            constraint_applier=None,
         ),
         "integrals": _VariableCreator(
             creator=_create_integral_variables,
-            constraint_applier=None,  # No constraints for integral variables
+            constraint_applier=None,
         ),
     }
 
 
 def _create_phase_variables_unified(
     context: _VariableCreationContext,
-) -> dict[str, ca.MX | list[ca.MX]]:
+) -> dict[str, ca.MX | list[ca.MX] | None]:
     """Create all phase variables using unified creators."""
     creators = _create_variable_creators()
-    variables = {}
+    variables: dict[str, ca.MX | list[ca.MX] | None] = {}
 
-    for var_type, creator in creators.items():
+    for var_type, creator_obj in creators.items():
         # Create variables
-        created_vars = creator.creator(context)
+        created_vars = creator_obj.creator(context)
         variables[var_type] = created_vars
 
-        # Apply constraints if needed
-        if creator.constraint_applier is not None:
-            creator.constraint_applier(context.opti, created_vars, context)
+        # Apply constraints if needed - only for time variables with list type
+        if creator_obj.constraint_applier is not None and isinstance(created_vars, list):
+            creator_obj.constraint_applier(context.opti, created_vars, context)
 
     return variables
 
@@ -199,12 +199,25 @@ def _setup_phase_optimization_variables(
     context = _create_variable_context(opti, problem, phase_id)
     variables = _create_phase_variables_unified(context)
 
-    # Extract variables with type safety
+    # Extract variables with proper type validation
     time_vars = variables["time"]
+    if not isinstance(time_vars, list) or len(time_vars) != 2:
+        raise ValueError(f"Expected time variables to be list of 2 MX, got {type(time_vars)}")
     initial_time, terminal_time = time_vars
-    state_at_mesh_nodes = variables["states"]
-    control_variables = variables["controls"]
-    integral_variables = variables["integrals"]
+
+    state_vars = variables["states"]
+    if not isinstance(state_vars, list):
+        raise ValueError(f"Expected state variables to be list of MX, got {type(state_vars)}")
+    state_at_mesh_nodes = state_vars
+
+    control_vars = variables["controls"]
+    if not isinstance(control_vars, list):
+        raise ValueError(f"Expected control variables to be list of MX, got {type(control_vars)}")
+    control_variables = control_vars
+
+    integral_vars = variables["integrals"]
+    # integral_vars can be ca.MX or None
+    integral_variables = integral_vars if isinstance(integral_vars, ca.MX) else None
 
     return PhaseVariable(
         phase_id=phase_id,

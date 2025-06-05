@@ -52,7 +52,7 @@ def _convert_expression_to_casadi(
 
 
 def _validate_dynamics_key_exists(
-    state_sym: ca.MX, ordered_state_symbols: list[ca.MX], phase_id: int
+    state_sym: ca.MX | StateVariableImpl, ordered_state_symbols: list[ca.MX], phase_id: int
 ) -> None:
     underlying_sym = _extract_casadi_symbol(state_sym)
 
