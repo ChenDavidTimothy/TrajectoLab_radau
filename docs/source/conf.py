@@ -9,8 +9,8 @@ sys.path.insert(0, str(project_root))
 
 # Project information
 project = "TrajectoLab"
-copyright = "2024, TrajectoLab Authors"
-author = "TrajectoLab Authors"
+copyright = "2025, TrajectoLab"
+author = "David Timothy"
 
 # Get version
 try:
@@ -19,7 +19,7 @@ try:
     version = trajectolab.__version__
     release = version
 except ImportError:
-    version = "0.2.1"
+    version = "0.1.0"
     release = version
 
 # Extensions - Added MyST parser for markdown support
@@ -101,15 +101,15 @@ def setup(app):
     if api_script_path.exists():
         try:
             subprocess.run([sys.executable, str(api_script_path)], check=True)
-            print("✓ API documentation generated")
+            print("API documentation generated")
         except subprocess.CalledProcessError:
-            print("⚠ API generation had issues")
+            print("API generation had issues")
 
     # Generate examples documentation
     examples_script_path = Path(__file__).parent / "generate_examples_docs.py"
     if examples_script_path.exists():
         try:
             subprocess.run([sys.executable, str(examples_script_path)], check=True)
-            print("✓ Examples documentation generated")
+            print("Examples documentation generated")
         except subprocess.CalledProcessError:
-            print("⚠ Examples generation had issues")
+            print("Examples generation had issues")
