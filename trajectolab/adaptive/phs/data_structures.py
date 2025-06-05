@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
+from scipy.integrate import solve_ivp
 
 from trajectolab.tl_types import FloatArray, ODESolverCallable, PhaseID
 from trajectolab.utils.constants import (
@@ -26,6 +27,53 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 
+def _convert_casadi_to_numpy(casadi_value: Any) -> np.ndarray:
+    """Convert CasADi value to numpy array."""
+    if hasattr(casadi_value, "to_DM"):
+        return np.array(casadi_value.to_DM(), dtype=np.float64)
+    return np.array(casadi_value, dtype=np.float64)
+
+
+def _reshape_1d_array(np_array: np.ndarray, expected_rows: int, expected_cols: int) -> np.ndarray:
+    """Reshape 1D array to expected dimensions."""
+    array_length = len(np_array)
+    expected_total = expected_rows * expected_cols
+
+    if array_length == expected_total:
+        return np_array.reshape(expected_rows, expected_cols)
+    if array_length == expected_rows:
+        return np_array.reshape(expected_rows, 1)
+    return np_array.reshape(1, -1)
+
+
+def _fix_array_orientation(np_array: np.ndarray, expected_rows: int) -> np.ndarray:
+    """Fix array orientation if rows/cols are swapped."""
+    if np_array.shape[0] != expected_rows and np_array.shape[1] == expected_rows:
+        return np_array.T
+    return np_array
+
+
+def _create_configured_ode_solver(
+    method: str,
+    rtol: float,
+    atol_factor: float,
+    max_step: float | None,
+) -> ODESolverCallable:
+    """Create pre-configured ODE solver with specified parameters."""
+
+    def configured_solver(fun, t_span, y0, t_eval=None, **kwargs):
+        kwargs["method"] = method
+        kwargs["rtol"] = rtol
+        kwargs["atol"] = rtol * atol_factor
+
+        if max_step is not None:
+            kwargs["max_step"] = max_step
+
+        return solve_ivp(fun, t_span, y0, t_eval=t_eval, **kwargs)
+
+    return configured_solver
+
+
 @dataclass
 class AdaptiveParameters:
     """Parameters controlling the multiphase adaptive mesh refinement algorithm."""
@@ -45,25 +93,14 @@ class AdaptiveParameters:
         if self.ode_solver is not None:
             return self.ode_solver
 
-        import logging
-
-        from scipy.integrate import solve_ivp
-
-        logger = logging.getLogger(__name__)
-
         logger.debug("Using default ODE solver: scipy.integrate.solve_ivp with user configuration")
 
-        def configured_solver(fun, t_span, y0, t_eval=None, **kwargs):
-            kwargs["method"] = self.ode_method
-            kwargs["rtol"] = self.ode_solver_tolerance
-            kwargs["atol"] = self.ode_solver_tolerance * self.ode_atol_factor
-
-            if self.ode_max_step is not None:
-                kwargs["max_step"] = self.ode_max_step
-
-            return solve_ivp(fun, t_span, y0, t_eval=t_eval, **kwargs)
-
-        return configured_solver
+        return _create_configured_ode_solver(
+            self.ode_method,
+            self.ode_solver_tolerance,
+            self.ode_atol_factor,
+            self.ode_max_step,
+        )
 
 
 @dataclass
@@ -114,23 +151,14 @@ class PReduceResult:
 
 def _ensure_2d_array(casadi_value: Any, expected_rows: int, expected_cols: int) -> FloatArray:
     """Convert CasADi value to 2D numpy array with expected shape."""
-    if hasattr(casadi_value, "to_DM"):
-        np_array = np.array(casadi_value.to_DM(), dtype=np.float64)
-    else:
-        np_array = np.array(casadi_value, dtype=np.float64)
+    np_array = _convert_casadi_to_numpy(casadi_value)
 
     if expected_rows == 0:
         return np.empty((0, expected_cols), dtype=np.float64)
 
     if np_array.ndim == 1:
-        if len(np_array) == expected_rows * expected_cols:
-            np_array = np_array.reshape(expected_rows, expected_cols)
-        elif len(np_array) == expected_rows:
-            np_array = np_array.reshape(expected_rows, 1)
-        else:
-            np_array = np_array.reshape(1, -1)
+        np_array = _reshape_1d_array(np_array, expected_rows, expected_cols)
 
-    if np_array.shape[0] != expected_rows and np_array.shape[1] == expected_rows:
-        np_array = np_array.T
+    np_array = _fix_array_orientation(np_array, expected_rows)
 
     return np_array

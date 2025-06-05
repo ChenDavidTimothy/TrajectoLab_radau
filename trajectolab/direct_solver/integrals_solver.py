@@ -48,7 +48,6 @@ def _setup_phase_integrals(
             state_at_colloc = state_at_nodes[:, i_colloc]
             control_at_colloc = control_variables[:, i_colloc]
 
-            # SIMPLIFIED: Single function call replaces 10+ lines of transformation code
             local_colloc_tau_val = colloc_nodes_tau[i_colloc]
             physical_time_at_colloc = _tau_to_time(
                 local_colloc_tau_val,
