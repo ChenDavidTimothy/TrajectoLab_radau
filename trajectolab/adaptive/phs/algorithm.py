@@ -92,9 +92,13 @@ def _extract_multiphase_solution_trajectories(
     """Extract trajectory data from solution for all phases."""
     _validate_solution_for_extraction(solution)
 
+    # Assert non-None after validation for type narrowing
+    assert solution.opti_object is not None
+    assert solution.raw_solution is not None
+
     opti = solution.opti_object
     raw_sol = solution.raw_solution
-    variables = opti.multiphase_variables_reference
+    variables = opti.multiphase_variables_reference  # Now type-safe
 
     solution.phase_solved_state_trajectories_per_interval = {}
     solution.phase_solved_control_trajectories_per_interval = {}
@@ -163,14 +167,14 @@ def _create_control_interpolant(
     num_controls: int,
 ) -> PolynomialInterpolant:
     """Create control interpolant or empty interpolant if no controls."""
-    if num_controls > 0:
+    if num_controls > 0 and control_data.size > 0:
         return PolynomialInterpolant(basis.collocation_nodes, control_data, control_weights)
 
     # Empty control interpolant for phases without controls
     return PolynomialInterpolant(
         np.array([-1.0, 1.0], dtype=np.float64),
         np.empty((0, 2), dtype=np.float64),
-        None,
+        np.array([1.0, 1.0], dtype=np.float64),  # Use actual weights instead of None
     )
 
 
@@ -179,8 +183,8 @@ def _create_phase_interpolants(
     problem: ProblemProtocol,
     phase_id: PhaseID,
 ) -> tuple[
-    list[Callable[[float | FloatArray], FloatArray] | None],
-    list[Callable[[float | FloatArray], FloatArray] | None],
+    list[Callable[[float | FloatArray], FloatArray]],
+    list[Callable[[float | FloatArray], FloatArray]],
 ]:
     """Create interpolants for continuous trajectory evaluation."""
     _validate_interpolant_creation_inputs(solution, phase_id)
@@ -194,12 +198,8 @@ def _create_phase_interpolants(
     basis_cache: dict[int, RadauBasisComponents] = {}
     control_weights_cache: dict[int, FloatArray] = {}
 
-    state_evaluators: list[Callable[[float | FloatArray], FloatArray] | None] = [
-        None
-    ] * num_intervals
-    control_evaluators: list[Callable[[float | FloatArray], FloatArray] | None] = [
-        None
-    ] * num_intervals
+    state_evaluators: list[Callable[[float | FloatArray], FloatArray]] = []
+    control_evaluators: list[Callable[[float | FloatArray], FloatArray]] = []
 
     states_list = solution.phase_solved_state_trajectories_per_interval[phase_id]
     controls_list = solution.phase_solved_control_trajectories_per_interval.get(phase_id)
@@ -210,17 +210,22 @@ def _create_phase_interpolants(
 
         # Create state interpolant
         state_data = states_list[k]
-        state_evaluators[k] = _create_state_interpolant(basis, state_data)
+        state_evaluators.append(_create_state_interpolant(basis, state_data))
 
-        # Create control interpolant
+        # Create control interpolant with proper empty arrays instead of None
         if controls_list is not None:
             control_data = controls_list[k]
             control_weights = _get_or_create_control_weights(control_weights_cache, basis, N_k)
-            control_evaluators[k] = _create_control_interpolant(
-                basis, control_data, control_weights, num_controls
+            control_evaluators.append(
+                _create_control_interpolant(basis, control_data, control_weights, num_controls)
             )
         else:
-            control_evaluators[k] = _create_control_interpolant(basis, None, None, 0)
+            # Use proper empty arrays instead of None
+            empty_control_data = np.empty((0, N_k), dtype=np.float64)
+            empty_weights = np.array([], dtype=np.float64)
+            control_evaluators.append(
+                _create_control_interpolant(basis, empty_control_data, empty_weights, 0)
+            )
 
     return state_evaluators, control_evaluators
 
@@ -361,8 +366,8 @@ def _check_merge_feasibility(
     k: int,
     intervals_for_reduction: set[int],
     num_intervals: int,
-    state_evaluators: list[Callable],
-    control_evaluators: list[Callable],
+    state_evaluators: list[Callable[[float | FloatArray], FloatArray]],
+    control_evaluators: list[Callable[[float | FloatArray], FloatArray]],
     problem: ProblemProtocol,
     phase_id: PhaseID,
     solution: OptimalControlSolution,
@@ -374,21 +379,16 @@ def _check_merge_feasibility(
     if (k + 1) not in intervals_for_reduction or (k + 1) >= num_intervals:
         return False
 
-    state_eval_k = state_evaluators[k]
-    state_eval_k_plus_1 = state_evaluators[k + 1]
-    if state_eval_k is None or state_eval_k_plus_1 is None:
+    # Bounds checks for evaluator lists
+    if k >= len(state_evaluators) or (k + 1) >= len(state_evaluators):
+        return False
+    if k >= len(control_evaluators) or (k + 1) >= len(control_evaluators):
         return False
 
-    # Control evaluator checks
-    num_states, num_controls = problem._get_phase_variable_counts(phase_id)
-    if num_controls > 0:
-        control_eval_k = control_evaluators[k]
-        control_eval_k_plus_1 = control_evaluators[k + 1]
-        if control_eval_k is None or control_eval_k_plus_1 is None:
-            return False
-    else:
-        control_eval_k = control_evaluators[k]
-        control_eval_k_plus_1 = control_evaluators[k + 1]
+    state_eval_k = state_evaluators[k]
+    state_eval_k_plus_1 = state_evaluators[k + 1]
+    control_eval_k = control_evaluators[k]
+    control_eval_k_plus_1 = control_evaluators[k + 1]
 
     # Mathematical feasibility via simulation
     return h_reduce_intervals(
@@ -603,8 +603,8 @@ def _refine_phase_mesh(
     adaptive_params: AdaptiveParameters,
     solution: OptimalControlSolution,
     problem: ProblemProtocol,
-    state_evaluators: list[Callable],
-    control_evaluators: list[Callable],
+    state_evaluators: list[Callable[[float | FloatArray], FloatArray]],
+    control_evaluators: list[Callable[[float | FloatArray], FloatArray]],
     gamma_factors: FloatArray,
 ) -> tuple[list[int], FloatArray]:
     """Comprehensive mesh adaptation balancing accuracy and computational efficiency."""

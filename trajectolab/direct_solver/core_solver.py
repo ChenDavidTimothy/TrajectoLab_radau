@@ -1,5 +1,5 @@
 import logging
-from collections.abc import Callable  # ADD: Import Callable for type hints
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import casadi as ca
