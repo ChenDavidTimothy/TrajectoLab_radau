@@ -291,6 +291,10 @@ class Solution:
         if len(key) != 2:
             raise KeyError("Tuple key must have exactly 2 elements: (phase_id, variable_name)")
 
+        # Explicit None check for mypy type safety
+        if self._raw_solution is None:
+            return np.array([], dtype=np.float64)
+
         phase_id, var_name = key
 
         if phase_id not in self._get_phase_ids():
