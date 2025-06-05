@@ -28,14 +28,12 @@ logger = logging.getLogger(__name__)
 
 
 def _convert_casadi_to_numpy(casadi_value: Any) -> np.ndarray:
-    """Convert CasADi value to numpy array."""
     if hasattr(casadi_value, "to_DM"):
         return np.array(casadi_value.to_DM(), dtype=np.float64)
     return np.array(casadi_value, dtype=np.float64)
 
 
 def _reshape_1d_array(np_array: np.ndarray, expected_rows: int, expected_cols: int) -> np.ndarray:
-    """Reshape 1D array to expected dimensions."""
     array_length = len(np_array)
     expected_total = expected_rows * expected_cols
 
@@ -47,7 +45,6 @@ def _reshape_1d_array(np_array: np.ndarray, expected_rows: int, expected_cols: i
 
 
 def _fix_array_orientation(np_array: np.ndarray, expected_rows: int) -> np.ndarray:
-    """Fix array orientation if rows/cols are swapped."""
     if np_array.shape[0] != expected_rows and np_array.shape[1] == expected_rows:
         return np_array.T
     return np_array
@@ -59,7 +56,6 @@ def _create_configured_ode_solver(
     atol_factor: float,
     max_step: float | None,
 ) -> ODESolverCallable:
-    """Create pre-configured ODE solver with specified parameters."""
 
     def configured_solver(fun, t_span, y0, t_eval=None, **kwargs):
         kwargs["method"] = method
@@ -76,7 +72,6 @@ def _create_configured_ode_solver(
 
 @dataclass
 class AdaptiveParameters:
-    """Parameters controlling the multiphase adaptive mesh refinement algorithm."""
 
     error_tolerance: float
     max_iterations: int
@@ -150,7 +145,6 @@ class PReduceResult:
 
 
 def _ensure_2d_array(casadi_value: Any, expected_rows: int, expected_cols: int) -> FloatArray:
-    """Convert CasADi value to 2D numpy array with expected shape."""
     np_array = _convert_casadi_to_numpy(casadi_value)
 
     if expected_rows == 0:
