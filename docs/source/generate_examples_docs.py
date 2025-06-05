@@ -72,12 +72,7 @@ def generate_examples_docs():
             print(f"    ❌ Error reading README.md: {e}")
             continue
 
-        # Skip placeholder READMEs
-        if "This is Placeholder README" in readme_content:
-            print("    ⚠ Skipping - placeholder README")
-            continue
-
-        # Generate RST content
+        # Generate RST content for any README content
         rst_content = generate_example_rst(
             example_name=example_name,
             readme_content=readme_content,
@@ -174,8 +169,7 @@ Available Examples
 """
 
     # Add each generated example to the toctree
-    for example in generated_examples:
-        safe_name = example[0]
+    for safe_name, _, _ in generated_examples:
         index_content += f"   {safe_name}\n"
 
     index_content += """
