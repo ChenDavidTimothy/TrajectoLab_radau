@@ -1,4 +1,4 @@
-### Problem Statement
+# Problem Statement
 
 Find the optimal control $u(t)$ that minimizes the cost functional:
 
@@ -12,7 +12,7 @@ With boundary conditions:
 - Initial condition: $x(0) = 1.5$
 - Final condition: $x(40) = 1.0$
 
-### Problem Characteristics
+## Problem Characteristics
 
 This problem exhibits **hypersensitive** behavior due to:
 
@@ -20,21 +20,21 @@ This problem exhibits **hypersensitive** behavior due to:
 2. **Boundary Layer Structure**: Sharp transitions occur near the boundaries
 3. **Stiff Dynamics**: The system requires fine temporal resolution to capture solution features accurately
 
-### Solution Features
+## Solution Features
 
 The optimal solution typically exhibits:
 - **Initial Boundary Layer**: Rapid decrease from $x(0) = 1.5$
 - **Interior Region**: Gradual evolution with balanced state-control trade-off
 - **Terminal Boundary Layer**: Sharp adjustment to reach $x(40) = 1.0$
 
-### Numerical Implementation
+## Numerical Implementation
 
 This example demonstrates:
 - **Multi-interval mesh**: Uses variable mesh density `[8, 8, 8]` with nodes $[-1.0, -1/3, 1/3, 1.0]$
 - **Adaptive refinement**: High-degree polynomials (5-15) with tight tolerance ($10^{-3}$)
 - **Comparison approach**: Validates adaptive vs fixed mesh solutions
 
-### Expected Results
+## Expected Results
 
 Reference objective value: $J^* \approx 0.035$ (problem-dependent based on discretization)
 
