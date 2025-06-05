@@ -206,7 +206,7 @@ def _interpolate_phase_trajectory_to_new_mesh_streamlined(
     phase_id: PhaseID,
     is_state_trajectory: bool = True,
 ) -> list[FloatArray]:
-    """VECTORIZED interpolation with direct allocation."""
+    """interpolation with direct allocation."""
     _validate_interpolation_inputs(
         prev_trajectory_per_interval, prev_polynomial_degrees, target_polynomial_degrees, phase_id
     )
@@ -360,7 +360,7 @@ def _propagate_multiphase_solution_to_new_meshes(
     target_phase_polynomial_degrees: dict[PhaseID, list[int]],
     target_phase_mesh_points: dict[PhaseID, FloatArray],
 ) -> MultiPhaseInitialGuess:
-    """VECTORIZED multiphase solution propagation."""
+    """multiphase solution propagation."""
     _validate_propagation_preconditions(prev_solution)
 
     # Extract preserved variables

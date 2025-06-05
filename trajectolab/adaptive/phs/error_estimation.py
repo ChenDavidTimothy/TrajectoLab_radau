@@ -32,7 +32,7 @@ def _calculate_gamma_normalization_factors(max_state_values: FloatArray) -> Floa
 def _find_maximum_state_values_across_phase_intervals(
     Y_solved_list: list[FloatArray],
 ) -> FloatArray:
-    """Vectorized maximum calculation across all mesh intervals for normalization."""
+    """maximum calculation across all mesh intervals for normalization."""
     if not Y_solved_list:
         return np.array([], dtype=np.float64)
 

@@ -219,13 +219,13 @@ def _check_has_path_constraints(phase_def: PhaseDefinition) -> bool:
     return has_path_constraints or has_state_boundary or has_control_boundary
 
 
-def _create_vectorized_path_constraints(
+def _create_path_constraints(
     phase_def: PhaseDefinition,
 ) -> Callable[..., list[Constraint]]:
     state_boundary_constraints = [info.boundary_constraint for info in phase_def.state_info]
     control_boundary_constraints = [info.boundary_constraint for info in phase_def.control_info]
 
-    def vectorized_path_constraints(
+    def _path_constraints(
         states_vec: ca.MX,
         controls_vec: ca.MX,
         time: ca.MX,
@@ -253,7 +253,7 @@ def _create_vectorized_path_constraints(
 
         return result
 
-    return vectorized_path_constraints
+    return _path_constraints
 
 
 def _get_phase_path_constraints_function(
@@ -262,7 +262,7 @@ def _get_phase_path_constraints_function(
     if not _check_has_path_constraints(phase_def):
         return None
 
-    return _create_vectorized_path_constraints(phase_def)
+    return _create_path_constraints(phase_def)
 
 
 def _map_phase_time_symbols(
@@ -425,10 +425,10 @@ def _check_has_cross_phase_constraints(multiphase_state: MultiPhaseVariableState
     return has_cross_phase_constraints or has_phase_event_constraints
 
 
-def _create_vectorized_cross_phase_event_constraints(
+def _create_cross_phase_event_constraints(
     multiphase_state: MultiPhaseVariableState,
 ) -> Callable[..., list[Constraint]]:
-    def vectorized_cross_phase_event_constraints(
+    def _cross_phase_event_constraints(
         phase_endpoint_vectors: dict[PhaseID, dict[str, ca.MX]], static_parameters_vec: ca.MX | None
     ) -> list[Constraint]:
         result: list[Constraint] = []
@@ -445,7 +445,7 @@ def _create_vectorized_cross_phase_event_constraints(
 
         return result
 
-    return vectorized_cross_phase_event_constraints
+    return _cross_phase_event_constraints
 
 
 def _get_cross_phase_event_constraints_function(
@@ -454,4 +454,4 @@ def _get_cross_phase_event_constraints_function(
     if not _check_has_cross_phase_constraints(multiphase_state):
         return None
 
-    return _create_vectorized_cross_phase_event_constraints(multiphase_state)
+    return _create_cross_phase_event_constraints(multiphase_state)

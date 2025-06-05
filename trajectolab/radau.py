@@ -172,7 +172,7 @@ def _compute_barycentric_weights(nodes: FloatArray) -> FloatArray:
     if num_nodes == 1:
         return np.array([1.0], dtype=np.float64)
 
-    # Vectorized difference matrix construction for efficiency
+    # difference matrix construction for efficiency
     nodes_col = nodes[:, np.newaxis]
     nodes_row = nodes[np.newaxis, :]
     differences_matrix = nodes_col - nodes_row

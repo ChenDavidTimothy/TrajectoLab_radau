@@ -77,10 +77,10 @@ def _build_dynamics_casadi_function(
     return ca.Function(f"dynamics_p{phase_def.phase_id}", function_inputs, [dynamics_vec])
 
 
-def _create_vectorized_dynamics(
+def _create_dynamics(
     dynamics_func: ca.Function, phase_def: PhaseDefinition, num_static_params: int
 ) -> Callable[..., ca.MX]:
-    def _vectorized_dynamics(
+    def _dynamics(
         states_vec: ca.MX,
         controls_vec: ca.MX,
         time: ca.MX,
@@ -90,7 +90,7 @@ def _create_vectorized_dynamics(
         result = dynamics_func(states_vec, controls_vec, time, static_params_input)
         return _extract_dynamics_output(result, phase_def.phase_id)
 
-    return _vectorized_dynamics
+    return _dynamics
 
 
 def _get_phase_dynamics_function(
@@ -110,7 +110,7 @@ def _get_phase_dynamics_function(
     )
 
     num_static_params = _get_static_param_count(static_parameter_symbols)
-    return _create_vectorized_dynamics(dynamics_func, phase_def, num_static_params)
+    return _create_dynamics(dynamics_func, phase_def, num_static_params)
 
 
 def _build_objective_casadi_function(multiphase_state: MultiPhaseVariableState) -> ca.Function:
@@ -224,10 +224,10 @@ def _build_integrand_casadi_functions(
     return integrand_funcs
 
 
-def _create_vectorized_integrand(
+def _create_integrand(
     integrand_funcs: list[ca.Function], num_static_params: int
 ) -> Callable[..., ca.MX]:
-    def _vectorized_integrand(
+    def _integrand(
         states_vec: ca.MX,
         controls_vec: ca.MX,
         time: ca.MX,
@@ -243,7 +243,7 @@ def _create_vectorized_integrand(
         integrand_output = result[0] if isinstance(result, list | tuple) else result
         return cast(ca.MX, integrand_output)
 
-    return _vectorized_integrand
+    return _integrand
 
 
 def _get_phase_integrand_function(
@@ -265,4 +265,4 @@ def _get_phase_integrand_function(
     )
 
     num_static_params = _get_static_param_count(static_parameter_symbols)
-    return _create_vectorized_integrand(integrand_funcs, num_static_params)
+    return _create_integrand(integrand_funcs, num_static_params)
