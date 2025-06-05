@@ -8,11 +8,11 @@ The hypersensitive problem is a classic optimal control benchmark that tests the
 
 Find the optimal control $u(t)$ that minimizes the cost functional:
 
-$J = \int_0^{40} \frac{1}{2}(x^2 + u^2) \, dt$
+$$J = \int_0^{40} \frac{1}{2}(x^2 + u^2) \, dt$$
 
 Subject to the dynamic constraint:
 
-$\frac{dx}{dt} = -x^3 + u(t)$
+$$\frac{dx}{dt} = -x^3 + u(t)$$
 
 With boundary conditions:
 - Initial condition: $x(0) = 1.5$

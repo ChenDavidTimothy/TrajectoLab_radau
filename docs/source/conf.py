@@ -22,7 +22,7 @@ except ImportError:
     version = "0.2.1"
     release = version
 
-# Extensions - Removed problematic sphinx_gallery
+# Extensions - Added MyST parser for markdown support
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
@@ -30,7 +30,33 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx.ext.intersphinx",
     "sphinx_autodoc_typehints",
+    "myst_parser",  # Added for markdown support
 ]
+
+# MyST parser configuration for markdown and LaTeX support
+myst_enable_extensions = [
+    "dollarmath",  # For $...$ and $$...$$ LaTeX math
+    "amsmath",  # For advanced math environments
+    "deflist",  # For definition lists
+    "fieldlist",  # For field lists
+    "html_admonition",  # For admonitions
+    "html_image",  # For HTML image handling
+    "colon_fence",  # For ::: fenced directives
+    "smartquotes",  # For smart quotes
+    "strikethrough",  # For ~~strikethrough~~
+    "substitution",  # For variable substitution
+    "tasklist",  # For - [ ] task lists
+]
+
+# Configure math rendering
+myst_dmath_double_inline = True  # Allows $$ for display math
+myst_dmath_allow_labels = True  # Allows equation labels
+
+# Set supported file extensions
+source_suffix = {
+    ".rst": None,
+    ".md": None,
+}
 
 # Auto-generate everything
 autosummary_generate = True

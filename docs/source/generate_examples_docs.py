@@ -2,7 +2,7 @@
 """
 Generate examples documentation automatically from examples folder structure.
 
-This script scans the examples/ folder and automatically generates RST documentation
+This script scans the examples/ folder and automatically generates MyST markdown documentation
 for each example, including both README.md content and Python code with syntax highlighting.
 """
 
@@ -17,7 +17,7 @@ def generate_examples_docs():
     - {example_name}.py - Main Python file
     - README.md - Explanation content
 
-    Generates RST files with both README content and highlighted code.
+    Generates MyST markdown files with both README content and highlighted code.
     """
     # Determine project root (docs/source/ -> project_root)
     project_root = Path(__file__).resolve().parent.parent.parent
@@ -72,26 +72,26 @@ def generate_examples_docs():
             print(f"    ❌ Error reading README.md: {e}")
             continue
 
-        # Generate RST content for any README content
-        rst_content = generate_example_rst(
+        # Generate MyST markdown content
+        md_content = generate_example_md(
             example_name=example_name,
             readme_content=readme_content,
             python_file_path=python_file,
             relative_python_path=f"../../../examples/{example_name}/{example_name}.py",
         )
 
-        # Write RST file
+        # Write MyST markdown file
         safe_name = example_name.replace("-", "_").replace(" ", "_")
-        rst_file = docs_examples_dir / f"{safe_name}.rst"
-        rst_file.write_text(rst_content, encoding="utf-8")
+        md_file = docs_examples_dir / f"{safe_name}.md"
+        md_file.write_text(md_content, encoding="utf-8")
 
         generated_examples.append((safe_name, example_name, readme_content))
-        print(f"    ✓ Generated: {rst_file.name}")
+        print(f"    ✓ Generated: {md_file.name}")
 
     # Generate examples index
     if generated_examples:
         index_content = generate_examples_index(generated_examples)
-        index_file = docs_examples_dir / "index.rst"
+        index_file = docs_examples_dir / "index.md"
         index_file.write_text(index_content, encoding="utf-8")
         print(f"  ✓ Generated index: {index_file.name}")
 
@@ -101,48 +101,42 @@ def generate_examples_docs():
         print("❌ No valid examples found to document")
 
 
-def generate_example_rst(
+def generate_example_md(
     example_name: str, readme_content: str, python_file_path: Path, relative_python_path: str
 ) -> str:
-    """Generate RST content for a single example."""
-    # Create title with proper RST formatting
+    """Generate MyST markdown content for a single example."""
+    # Create title
     title = example_name.replace("_", " ").replace("-", " ").title()
-    title_underline = "=" * len(title)
 
-    rst_content = f"""{title}
-{title_underline}
-
-Description
------------
+    # MyST markdown content with proper directives
+    md_content = f"""# {title}
 
 {readme_content}
 
-Code Implementation
--------------------
+## Code Implementation
 
-.. literalinclude:: {relative_python_path}
-   :language: python
-   :caption: examples/{example_name}/{example_name}.py
-   :linenos:
+```{{literalinclude}} {relative_python_path}
+:language: python
+:caption: examples/{example_name}/{example_name}.py
+:linenos:
+```
 
-Running This Example
---------------------
+## Running This Example
 
-.. code-block:: bash
-
-    cd examples/{example_name}
-    python {example_name}.py
+```bash
+cd examples/{example_name}
+python {example_name}.py
+```
 
 """
 
-    return rst_content
+    return md_content
 
 
 def generate_examples_index(generated_examples: list) -> str:
-    """Generate the main examples index RST file."""
+    """Generate the main examples index MyST markdown file."""
 
-    index_content = """Examples Gallery
-================
+    index_content = """# Examples Gallery
 
 TrajectoLab comes with comprehensive example problems demonstrating different optimal control scenarios.
 Each example includes detailed explanations and complete, runnable code.
@@ -153,34 +147,32 @@ All examples follow the same structure:
 * **Complete Implementation**: Full Python code with comments
 * **Ready to Run**: Just navigate to the example folder and run the Python file
 
-Available Examples
-------------------
+## Available Examples
 
-.. toctree::
-   :maxdepth: 1
-   :titlesonly:
+```{toctree}
+:maxdepth: 1
+:titlesonly:
 
 """
 
     # Add each generated example to the toctree
     for safe_name, _, _ in generated_examples:
-        index_content += f"   {safe_name}\n"
+        index_content += f"{safe_name}\n"
 
-    index_content += """
+    index_content += """```
 
-Running Examples
-----------------
+## Running Examples
 
 Each example can be run directly from its folder:
 
-.. code-block:: bash
+```bash
+# Navigate to any example
+cd examples/robot_arm
+python robot_arm.py
 
-    # Navigate to any example
-    cd examples/robot_arm
-    python robot_arm.py
-
-    # Or run from project root
-    python examples/hypersensitive/hypersensitive.py
+# Or run from project root
+python examples/hypersensitive/hypersensitive.py
+```
 
 """
     return index_content
