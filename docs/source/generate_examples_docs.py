@@ -116,12 +116,6 @@ def generate_example_rst(
     rst_content = f"""{title}
 {title_underline}
 
-{description}
-
-Description
------------
-
-{readme_content}
 
 Code Implementation
 -------------------
