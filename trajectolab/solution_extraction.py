@@ -12,7 +12,7 @@ from .utils.coordinates import _tau_to_time
 logger = logging.getLogger(__name__)
 
 
-def extract_multiphase_integral_values(
+def _extract_multiphase_integral_values(
     casadi_solution_object: ca.OptiSol | None,
     opti_object: ca.Opti,
     phase_id: PhaseID,
@@ -98,7 +98,7 @@ def extract_multiphase_integral_values(
         return None
 
 
-def consolidated_phase_trajectory_extraction(
+def _phase_trajectory_extraction(
     phase_id: PhaseID,
     casadi_solution_object: ca.OptiSol,
     phase_vars,
@@ -165,9 +165,9 @@ def consolidated_phase_trajectory_extraction(
             )
             per_interval_controls.append(control_vals)
 
-        from .radau import compute_radau_collocation_components
+        from .radau import _compute_radau_collocation_components
 
-        basis_components = compute_radau_collocation_components(collocation_points)
+        basis_components = _compute_radau_collocation_components(collocation_points)
 
         state_tau_nodes = basis_components.state_approximation_nodes
         control_tau_nodes = basis_components.collocation_nodes
@@ -238,7 +238,7 @@ def consolidated_phase_trajectory_extraction(
     )
 
 
-def extract_and_format_multiphase_solution(
+def _extract_and_format_multiphase_solution(
     casadi_solution_object: ca.OptiSol | None,
     casadi_optimization_problem_object: ca.Opti,
     problem: ProblemProtocol,
@@ -333,7 +333,7 @@ def extract_and_format_multiphase_solution(
             solution.phase_terminal_times[phase_id] = float("nan")
             continue
 
-        integral_result = extract_multiphase_integral_values(
+        integral_result = _extract_multiphase_integral_values(
             casadi_solution_object, casadi_optimization_problem_object, phase_id, num_integrals
         )
         if integral_result is not None:
@@ -346,7 +346,7 @@ def extract_and_format_multiphase_solution(
                 control_values_arrays,
                 per_interval_states,
                 per_interval_controls,
-            ) = consolidated_phase_trajectory_extraction(
+            ) = _phase_trajectory_extraction(
                 phase_id,
                 casadi_solution_object,
                 phase_vars,
@@ -372,7 +372,7 @@ def extract_and_format_multiphase_solution(
                 raise
             raise SolutionExtractionError(
                 f"Failed to extract phase {phase_id} trajectory data: {e}",
-                "Consolidated trajectory processing error",
+                "trajectory processing error",
             ) from e
 
         solution.phase_mesh_intervals[phase_id] = phase_def.collocation_points_per_interval.copy()

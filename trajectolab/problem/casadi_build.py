@@ -117,10 +117,9 @@ def _map_state_symbols_for_phase(
     xf_vec: ca.MX,
     phase_symbols_map: dict[ca.MX, ca.MX],
 ) -> None:
-    """Map state symbols with guaranteed non-None symbols."""
     state_syms = phase_def._get_ordered_state_symbols()
-    state_initial_syms = phase_def.get_ordered_state_initial_symbols()
-    state_final_syms = phase_def.get_ordered_state_final_symbols()
+    state_initial_syms = phase_def._get_ordered_state_initial_symbols()
+    state_final_syms = phase_def._get_ordered_state_final_symbols()
     num_states = len(state_syms)
 
     for i, (state_sym, initial_sym, final_sym) in enumerate(

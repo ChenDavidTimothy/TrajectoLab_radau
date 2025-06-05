@@ -7,7 +7,7 @@ from trajectolab.adaptive.phs.numerical import (
     _map_global_normalized_tau_to_local_interval_tau,
 )
 from trajectolab.exceptions import ConfigurationError, DataIntegrityError, InterpolationError
-from trajectolab.radau import compute_radau_collocation_components
+from trajectolab.radau import _compute_radau_collocation_components
 from trajectolab.tl_types import (
     FloatArray,
     MultiPhaseInitialGuess,
@@ -97,7 +97,7 @@ def _create_phase_interpolants(
     prev_interpolants = []
 
     for N_k, traj_k in zip(prev_polynomial_degrees, prev_trajectory_per_interval, strict=False):
-        basis_components = compute_radau_collocation_components(N_k)
+        basis_components = _compute_radau_collocation_components(N_k)
 
         if is_state_trajectory:
             local_nodes = basis_components.state_approximation_nodes
@@ -125,7 +125,7 @@ def _compute_target_interval_nodes(
 
 def _get_target_basis_nodes(N_k_target: int, is_state_trajectory: bool) -> tuple[FloatArray, int]:
     """Get basis nodes and count for target interval."""
-    target_basis = compute_radau_collocation_components(N_k_target)
+    target_basis = _compute_radau_collocation_components(N_k_target)
 
     if is_state_trajectory:
         target_local_nodes = target_basis.state_approximation_nodes

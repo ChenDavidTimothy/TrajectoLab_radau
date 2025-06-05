@@ -16,8 +16,8 @@ from numpy.testing import assert_allclose
 
 from trajectolab.radau import (
     _compute_barycentric_weights,
+    _compute_radau_collocation_components,
     _evaluate_lagrange_polynomial_at_point,
-    compute_radau_collocation_components,
 )
 
 
@@ -27,7 +27,7 @@ class TestRadauMathematicalCorrectnessFixed:
     @pytest.mark.parametrize("N", [1, 2, 3, 4, 5, 8, 10, 15])
     def test_radau_nodes_orthogonality_property(self, N):
         """Test that Radau nodes satisfy orthogonality properties (SAFETY CRITICAL)."""
-        components = compute_radau_collocation_components(N)
+        components = _compute_radau_collocation_components(N)
         nodes = components.collocation_nodes
         weights = components.quadrature_weights
 
@@ -50,7 +50,7 @@ class TestRadauMathematicalCorrectnessFixed:
     @pytest.mark.parametrize("N", [1, 2, 3, 4, 5])
     def test_radau_quadrature_exactness(self, N):
         """Test that Radau quadrature is exact for polynomials up to degree 2N-2."""
-        components = compute_radau_collocation_components(N)
+        components = _compute_radau_collocation_components(N)
         nodes = components.collocation_nodes
         weights = components.quadrature_weights
 
@@ -157,7 +157,7 @@ class TestRadauMathematicalCorrectnessFixed:
         polynomials up to degree N. Therefore, we should only test polynomials
         of degree <= N.
         """
-        components = compute_radau_collocation_components(N)
+        components = _compute_radau_collocation_components(N)
         state_nodes = components.state_approximation_nodes
         colloc_nodes = components.collocation_nodes
         diff_matrix = components.differentiation_matrix
@@ -209,7 +209,7 @@ class TestRadauMathematicalCorrectnessFixed:
         This test verifies that the method gracefully handles higher-degree polynomials
         with reasonable approximation quality.
         """
-        components = compute_radau_collocation_components(N)
+        components = _compute_radau_collocation_components(N)
         state_nodes = components.state_approximation_nodes
         colloc_nodes = components.collocation_nodes
         diff_matrix = components.differentiation_matrix
@@ -280,9 +280,9 @@ class TestRadauMathematicalCorrectnessFixed:
         N = 5
 
         # Get components multiple times
-        comp1 = compute_radau_collocation_components(N)
-        comp2 = compute_radau_collocation_components(N)
-        comp3 = compute_radau_collocation_components(N)
+        comp1 = _compute_radau_collocation_components(N)
+        comp2 = _compute_radau_collocation_components(N)
+        comp3 = _compute_radau_collocation_components(N)
 
         # Should be identical (same object due to caching)
         assert comp1 is comp2 is comp3, "Cache not working properly"
@@ -309,7 +309,7 @@ class TestRadauMathematicalCorrectnessFixed:
         N_values = [3, 5, 7, 9, 11]
 
         for N in N_values:
-            components = compute_radau_collocation_components(N)
+            components = _compute_radau_collocation_components(N)
             state_nodes = components.state_approximation_nodes
             colloc_nodes = components.collocation_nodes
             diff_matrix = components.differentiation_matrix
@@ -355,7 +355,7 @@ class TestRadauMathematicalCorrectnessFixed:
             return t + 0.6 * np.pi * np.cos(2 * np.pi * t) + 0.3 * t**2
 
         N = 8  # Reasonable order for trajectory optimization
-        components = compute_radau_collocation_components(N)
+        components = _compute_radau_collocation_components(N)
         state_nodes = components.state_approximation_nodes
         colloc_nodes = components.collocation_nodes
         diff_matrix = components.differentiation_matrix
@@ -431,7 +431,7 @@ class TestRadauMathematicalCorrectnessFixed:
         N_values = [4, 6, 8, 10, 12]
 
         for N in N_values:
-            components = compute_radau_collocation_components(N)
+            components = _compute_radau_collocation_components(N)
             state_nodes = components.state_approximation_nodes
             colloc_nodes = components.collocation_nodes
             diff_matrix = components.differentiation_matrix
@@ -470,7 +470,7 @@ class TestRadauMathematicalCorrectnessFixed:
         """
 
         N = 8
-        components = compute_radau_collocation_components(N)
+        components = _compute_radau_collocation_components(N)
         state_nodes = components.state_approximation_nodes
         colloc_nodes = components.collocation_nodes
         diff_matrix = components.differentiation_matrix

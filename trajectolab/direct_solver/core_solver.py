@@ -6,8 +6,8 @@ import casadi as ca
 
 from ..exceptions import DataIntegrityError, SolutionExtractionError
 from ..problem.state import PhaseDefinition
-from ..radau import RadauBasisComponents, compute_radau_collocation_components
-from ..solution_extraction import extract_and_format_multiphase_solution
+from ..radau import RadauBasisComponents, _compute_radau_collocation_components
+from ..solution_extraction import _extract_and_format_multiphase_solution
 from ..tl_types import (
     Constraint,
     FloatArray,
@@ -20,7 +20,7 @@ from .constraints_solver import (
     _apply_phase_collocation_constraints,
     _apply_phase_path_constraints,
 )
-from .initial_guess_solver import apply_multiphase_initial_guess
+from .initial_guess_solver import _apply_multiphase_initial_guess
 from .integrals_solver import _apply_phase_integral_constraints, _setup_phase_integrals
 from .types_solver import (
     MultiPhaseVariable,
@@ -37,8 +37,6 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class _MeshIntervalContext:
-    """Consolidated context for mesh interval processing."""
-
     phase_id: PhaseID
     interval_index: int
     num_states: int
@@ -66,8 +64,6 @@ class _MeshIntervalContext:
 
 @dataclass
 class _SolverConfiguration:
-    """Consolidated solver setup data."""
-
     opti: ca.Opti
     variables: MultiPhaseVariable
     phase_endpoint_data: dict[PhaseID, dict[str, ca.MX]]
@@ -77,7 +73,6 @@ class _SolverConfiguration:
 def _extract_phase_endpoint_data(
     variables: MultiPhaseVariable, problem: ProblemProtocol
 ) -> dict[PhaseID, dict[str, ca.MX]]:
-    """Extract endpoint data for all phases - cached to prevent redundant extractions."""
     phase_endpoint_data = {}
 
     for phase_id, phase_vars in variables.phase_variables.items():
@@ -102,7 +97,6 @@ def _setup_mesh_interval_variables(
     phase_vars: PhaseVariable,
     context: _MeshIntervalContext,
 ) -> tuple[ca.MX, ca.MX | None]:
-    """Setup state variables for a single mesh interval."""
     state_at_nodes, interior_nodes_var = setup_phase_interval_state_variables(
         config.opti,
         context.phase_id,
@@ -124,7 +118,6 @@ def _apply_mesh_interval_constraints(
     state_at_nodes: ca.MX,
     control_variables: ca.MX,
 ) -> None:
-    """Apply all constraints for a single mesh interval."""
     # Collocation constraints - enforce ODEs at quadrature points
     _apply_phase_collocation_constraints(
         config.opti,
@@ -166,7 +159,6 @@ def _setup_mesh_interval_integrals(
     state_at_nodes: ca.MX,
     control_variables: ca.MX,
 ) -> None:
-    """Setup integral calculations for a single mesh interval."""
     if context.num_integrals == 0 or context.integral_integrand_function is None:
         return
 
@@ -192,7 +184,6 @@ def _process_single_mesh_interval(
     phase_vars: PhaseVariable,
     context: _MeshIntervalContext,
 ) -> None:
-    """Process a single mesh interval with flattened logic."""
     try:
         # Setup variables
         state_at_nodes, _ = _setup_mesh_interval_variables(config, phase_vars, context)
@@ -222,7 +213,6 @@ def _create_mesh_interval_context(
     config: _SolverConfiguration,
     accumulated_integral_expressions: list[ca.MX],
 ) -> _MeshIntervalContext:
-    """Create consolidated context for mesh interval processing."""
     num_states, _ = config.problem._get_phase_variable_counts(phase_id)
     num_colloc_nodes = phase_def.collocation_points_per_interval[interval_index]
 
@@ -251,7 +241,7 @@ def _create_mesh_interval_context(
         num_states=num_states,
         num_colloc_nodes=num_colloc_nodes,
         global_mesh_nodes=phase_def.global_normalized_mesh_nodes,  # Now guaranteed non-None
-        basis_components=compute_radau_collocation_components(num_colloc_nodes),
+        basis_components=_compute_radau_collocation_components(num_colloc_nodes),
         initial_time_var=endpoint_data["t0"],
         terminal_time_var=endpoint_data["tf"],
         dynamics_function=dynamics_function,
@@ -269,7 +259,6 @@ def _process_phase_mesh_intervals(
     phase_id: PhaseID,
     phase_vars: PhaseVariable,
 ) -> None:
-    """Process all mesh intervals for a single phase - flattened loop structure."""
     phase_def = config.problem._phases[phase_id]
     num_mesh_intervals = len(phase_def.collocation_points_per_interval)
 
@@ -297,7 +286,6 @@ def _process_phase_mesh_intervals(
 
 
 def _process_all_phases(config: _SolverConfiguration) -> None:
-    """Process all phases with simplified structure."""
     for phase_id in config.problem._get_phase_ids():
         if phase_id not in config.variables.phase_variables:
             continue
@@ -307,7 +295,6 @@ def _process_all_phases(config: _SolverConfiguration) -> None:
 
 
 def _setup_objective_and_constraints(config: _SolverConfiguration) -> None:
-    """Setup objective function and cross-phase constraints."""
     objective_function = config.problem._get_objective_function()
 
     try:
@@ -332,7 +319,6 @@ def _setup_objective_and_constraints(config: _SolverConfiguration) -> None:
 
 
 def _configure_solver(config: _SolverConfiguration) -> None:
-    """Configure NLP solver with user options."""
     solver_options_to_use = config.problem.solver_options or {}
 
     try:
@@ -353,7 +339,6 @@ def _configure_solver(config: _SolverConfiguration) -> None:
 
 
 def _create_solver_configuration(problem: ProblemProtocol) -> _SolverConfiguration:
-    """Create and setup solver configuration with all required components."""
     try:
         opti = ca.Opti()
         variables = _setup_multiphase_optimization_variables(opti, problem)
@@ -376,13 +361,12 @@ def _create_solver_configuration(problem: ProblemProtocol) -> _SolverConfigurati
 
 
 def _execute_solve(config: _SolverConfiguration) -> OptimalControlSolution:
-    """Execute NLP solve and extract solution with consolidated error handling."""
     try:
         solver_solution = config.opti.solve()
         logger.debug("Multiphase NLP solver completed successfully")
 
         try:
-            solution_obj = extract_and_format_multiphase_solution(
+            solution_obj = _extract_and_format_multiphase_solution(
                 solver_solution, config.opti, config.problem
             )
             logger.debug("Multiphase solution extraction completed")
@@ -403,9 +387,8 @@ def _execute_solve(config: _SolverConfiguration) -> OptimalControlSolution:
 def _handle_solver_failure(
     config: _SolverConfiguration, error: RuntimeError
 ) -> OptimalControlSolution:
-    """Handle solver failure with debug information extraction."""
     try:
-        solution_obj = extract_and_format_multiphase_solution(None, config.opti, config.problem)
+        solution_obj = _extract_and_format_multiphase_solution(None, config.opti, config.problem)
     except Exception as extract_error:
         logger.error(
             "Critical: Multiphase solution extraction failed after solver failure: %s",
@@ -427,7 +410,6 @@ def _handle_solver_failure(
 def _extract_debug_values(
     config: _SolverConfiguration, solution_obj: OptimalControlSolution
 ) -> None:
-    """Extract debug values from failed solve for troubleshooting."""
     try:
         if hasattr(config.opti, "debug") and config.opti.debug is not None:
             for phase_id, phase_vars in config.variables.phase_variables.items():
@@ -445,23 +427,7 @@ def _extract_debug_values(
         logger.debug(f"Could not extract debug values from failed multiphase solve: {e}")
 
 
-def solve_multiphase_radau_collocation(problem: ProblemProtocol) -> OptimalControlSolution:
-    """Solve a multiphase optimal control problem using Radau pseudospectral collocation.
-
-    Transforms the continuous-time optimal control problem into a large-scale NLP
-    using Radau pseudospectral collocation for high-accuracy trajectory approximation.
-
-    Args:
-        problem: Fully configured multiphase optimal control problem
-
-    Returns:
-        OptimalControlSolution: Solution containing optimized trajectories, objective value,
-                              and solver diagnostics
-
-    Raises:
-        DataIntegrityError: Problem configuration errors or numerical corruption
-        SolutionExtractionError: Failed to extract solution from solver output
-    """
+def _solve_multiphase_radau_collocation(problem: ProblemProtocol) -> OptimalControlSolution:
     logger.debug("Starting multiphase Radau collocation solver")
 
     phase_ids = problem._get_phase_ids()
@@ -475,7 +441,7 @@ def solve_multiphase_radau_collocation(problem: ProblemProtocol) -> OptimalContr
         num_static_params,
     )
 
-    # Create consolidated configuration
+    # Create configuration
     config = _create_solver_configuration(problem)
 
     logger.debug("Processing %d phases", len(phase_ids))
@@ -485,7 +451,7 @@ def solve_multiphase_radau_collocation(problem: ProblemProtocol) -> OptimalContr
     _setup_objective_and_constraints(config)
 
     logger.debug("Applying multiphase initial guess")
-    apply_multiphase_initial_guess(config.opti, config.variables, problem)
+    _apply_multiphase_initial_guess(config.opti, config.variables, problem)
 
     logger.debug("Configuring NLP solver")
     _configure_solver(config)

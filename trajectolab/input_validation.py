@@ -15,9 +15,9 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T")
 
 
-# ============================================================================
-# CORE VALIDATION PRIMITIVES - Used everywhere, defined once
-# ============================================================================
+# ==========================
+# CORE VALIDATION PRIMITIVES
+# ==========================
 
 
 def validate_positive_integer(value: Any, name: str, min_value: int = 1) -> None:
@@ -63,9 +63,9 @@ def validate_array_shape(
         )
 
 
-# ============================================================================
-# CONSTRAINT VALIDATION - Enhanced for symbolic constraints
-# ============================================================================
+# ======================
+# CONSTRAINT VALIDATION
+# ======================
 
 
 def validate_constraint_input_format(constraint_input: Any, context: str) -> None:
@@ -102,9 +102,9 @@ def validate_constraint_input_format(constraint_input: Any, context: str) -> Non
         raise ConfigurationError(f"Invalid constraint type: {type(constraint_input)}", context)
 
 
-# ============================================================================
-# MESH VALIDATION - All mesh validation consolidated
-# ============================================================================
+# =================
+# MESH VALIDATION -
+# =================
 
 
 def validate_polynomial_degree(degree: int, context: str = "polynomial degree") -> None:
@@ -147,9 +147,9 @@ def _validate_mesh_configuration(
         )
 
 
-# ============================================================================
-# PROBLEM VALIDATION - Complete problem structure validation
-# ============================================================================
+# ===================
+# PROBLEM VALIDATION
+# ===================
 
 
 def validate_problem_dimensions(
@@ -218,9 +218,9 @@ def validate_multiphase_problem_ready_for_solving(problem: ProblemProtocol) -> N
         _validate_multiphase_initial_guess_structure(problem.initial_guess, problem)
 
 
-# ============================================================================
-# INITIAL GUESS VALIDATION - Complete initial guess validation
-# ============================================================================
+# =========================
+# INITIAL GUESS VALIDATION
+# =========================
 
 
 def validate_trajectory_consistency(
@@ -345,9 +345,9 @@ def _validate_multiphase_initial_guess_structure(
                     )
 
 
-# ============================================================================
+# ============================
 # ADAPTIVE SOLVER VALIDATION
-# ============================================================================
+# ============================
 
 
 def validate_adaptive_solver_parameters(
@@ -374,10 +374,6 @@ def validate_adaptive_solver_parameters(
 
 
 def validate_dynamics_output(output: Any, num_states: int) -> ca.MX:
-    """Dynamics validation for both legacy list format and new direct vector format.
-
-    Handles backward compatibility while optimizing for the new direct ca.MX interface.
-    """
     if output is None:
         raise DataIntegrityError("Dynamics function returned None", "Dynamics evaluation error")
 
@@ -393,15 +389,6 @@ def validate_dynamics_output(output: Any, num_states: int) -> ca.MX:
             raise DataIntegrityError(
                 f"Dynamics ca.MX shape mismatch: got {output.shape}, expected ({num_states}, 1)"
             )
-
-    # Legacy compatibility for list format (slower but maintained)
-    if isinstance(output, list):
-        if len(output) != num_states:
-            raise DataIntegrityError(
-                f"Dynamics list length mismatch: got {len(output)}, expected {num_states}"
-            )
-        result = ca.vertcat(*output) if output else ca.MX(num_states, 1)
-        return ca.MX(result)
 
     if isinstance(output, ca.DM):
         result = ca.MX(output)

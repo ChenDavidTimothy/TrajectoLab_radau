@@ -293,8 +293,7 @@ class PhaseDefinition:
     def _get_ordered_control_symbols(self) -> list[ca.MX]:
         return [info.symbol for info in self.control_info]
 
-    def get_ordered_state_initial_symbols(self) -> list[ca.MX]:
-        """Get initial symbols for state variables (guaranteed non-None)."""
+    def _get_ordered_state_initial_symbols(self) -> list[ca.MX]:
         symbols = []
         for info in self.state_info:
             if info.initial_symbol is None:
@@ -305,8 +304,7 @@ class PhaseDefinition:
             symbols.append(info.initial_symbol)
         return symbols
 
-    def get_ordered_state_final_symbols(self) -> list[ca.MX]:
-        """Get final symbols for state variables (guaranteed non-None)."""
+    def _get_ordered_state_final_symbols(self) -> list[ca.MX]:
         symbols = []
         for info in self.state_info:
             if info.final_symbol is None:

@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 def _configure_phase_mesh(
     phase_def: PhaseDefinition, polynomial_degrees: list[int], mesh_points: NumericArrayLike
 ) -> None:
-    """Configure the mesh structure for a specific phase."""
     mesh_array = np.asarray(mesh_points, dtype=np.float64)
 
     logger.debug(

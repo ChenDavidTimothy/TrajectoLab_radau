@@ -1,7 +1,7 @@
 import logging
 from typing import cast
 
-from trajectolab.direct_solver import solve_multiphase_radau_collocation
+from trajectolab.direct_solver import _solve_multiphase_radau_collocation
 from trajectolab.input_validation import (
     validate_adaptive_solver_parameters,
     validate_multiphase_problem_ready_for_solving,
@@ -108,7 +108,7 @@ def solve_fixed_mesh(
     logger.debug("NLP solver options: %s", problem.solver_options)
 
     protocol_problem = cast(ProblemProtocol, problem)
-    solution_data: OptimalControlSolution = solve_multiphase_radau_collocation(protocol_problem)
+    solution_data: OptimalControlSolution = _solve_multiphase_radau_collocation(protocol_problem)
 
     if solution_data.success:
         logger.info(

@@ -60,7 +60,7 @@ class RadauBasisCache:
 
     def _compute_components(self, num_collocation_nodes: int) -> RadauBasisComponents:
         # Expensive computation - parameter validation assumed done by caller
-        lgr_data = compute_legendre_gauss_radau_nodes_and_weights(num_collocation_nodes)
+        lgr_data = _compute_legendre_gauss_radau_nodes_and_weights(num_collocation_nodes)
 
         state_nodes = lgr_data.state_approximation_nodes
         collocation_nodes = lgr_data.collocation_nodes
@@ -75,7 +75,7 @@ class RadauBasisCache:
         diff_matrix = np.zeros((num_actual_collocation_nodes, num_state_nodes), dtype=np.float64)
         for i in range(num_actual_collocation_nodes):
             tau_c_i = collocation_nodes[i]
-            diff_matrix[i, :] = compute_lagrange_derivative_coefficients_at_point(
+            diff_matrix[i, :] = _compute_lagrange_derivative_coefficients_at_point(
                 state_nodes, bary_weights_state_nodes, tau_c_i
             )
 
@@ -134,7 +134,7 @@ def roots_jacobi(
         )
 
 
-def compute_legendre_gauss_radau_nodes_and_weights(
+def _compute_legendre_gauss_radau_nodes_and_weights(
     num_collocation_nodes: int,
 ) -> RadauNodesAndWeights:
     # Left-sided Radau quadrature includes left endpoint for boundary condition enforcement
@@ -238,7 +238,7 @@ def _evaluate_lagrange_polynomial_at_point(
     return cast(FloatArray, normalized_terms)
 
 
-def compute_lagrange_derivative_coefficients_at_point(
+def _compute_lagrange_derivative_coefficients_at_point(
     polynomial_definition_nodes: FloatArray,
     barycentric_weights: FloatArray,
     evaluation_point_tau: float,
@@ -281,7 +281,7 @@ def compute_lagrange_derivative_coefficients_at_point(
     return derivatives
 
 
-def compute_radau_collocation_components(
+def _compute_radau_collocation_components(
     num_collocation_nodes: int,
 ) -> RadauBasisComponents:
     """Get Radau components from global cache for massive speedup.

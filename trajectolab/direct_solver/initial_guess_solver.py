@@ -11,7 +11,7 @@ from .types_solver import MultiPhaseVariable, PhaseVariable
 
 @dataclass
 class _PhaseGuessContext:
-    """Consolidated context for phase guess application."""
+    """context for phase guess application."""
 
     opti: ca.Opti
     phase_vars: PhaseVariable
@@ -33,29 +33,24 @@ class _GuessApplicator:
 
 
 def _has_guess_data(guess_dict: dict | None, phase_id: PhaseID) -> bool:
-    """Check if guess dictionary contains data for phase."""
     return guess_dict is not None and phase_id in guess_dict
 
 
 def _get_guess_data(guess_dict: dict | None, phase_id: PhaseID) -> Any:
-    """Get guess data for phase from dictionary."""
     if guess_dict is not None:
         return guess_dict.get(phase_id)
     return None
 
 
 def _apply_time_initial_guess(context: _PhaseGuessContext, time_value: float) -> None:
-    """Apply initial time guess for a phase."""
     context.opti.set_initial(context.phase_vars.initial_time, time_value)
 
 
 def _apply_time_terminal_guess(context: _PhaseGuessContext, time_value: float) -> None:
-    """Apply terminal time guess for a phase."""
     context.opti.set_initial(context.phase_vars.terminal_time, time_value)
 
 
 def _apply_state_guesses(context: _PhaseGuessContext, phase_states: list[FloatArray]) -> None:
-    """Apply state guesses for all mesh intervals in a phase."""
     # Apply global mesh node states
     for k in range(context.num_mesh_intervals):
         state_guess_k = phase_states[k]
@@ -82,7 +77,6 @@ def _apply_state_guesses(context: _PhaseGuessContext, phase_states: list[FloatAr
 
 
 def _apply_control_guesses(context: _PhaseGuessContext, phase_controls: list[FloatArray]) -> None:
-    """Apply control guesses for all mesh intervals in a phase."""
     for k in range(context.num_mesh_intervals):
         control_guess_k = phase_controls[k]
         context.opti.set_initial(context.phase_vars.control_variables[k], control_guess_k)
@@ -91,7 +85,6 @@ def _apply_control_guesses(context: _PhaseGuessContext, phase_controls: list[Flo
 def _apply_integral_guesses(
     context: _PhaseGuessContext, phase_integrals: float | FloatArray
 ) -> None:
-    """Apply integral guesses for a phase."""
     if context.num_integrals > 0 and context.phase_vars.integral_variables is not None:
         # Use centralized validation function - already validated, just set values
         set_integral_guess_values(
@@ -103,7 +96,6 @@ def _apply_integral_guesses(
 
 
 def _create_guess_applicators() -> dict[str, _GuessApplicator]:
-    """Create unified guess applicators for all guess types."""
     return {
         "initial_times": _GuessApplicator(
             data_getter=lambda ig, phase_id: _get_guess_data(ig.phase_initial_times, phase_id),
@@ -138,7 +130,6 @@ def _create_guess_applicators() -> dict[str, _GuessApplicator]:
 
 
 def _apply_single_guess_type(context: _PhaseGuessContext, applicator: _GuessApplicator) -> None:
-    """Apply a single type of guess using unified pattern."""
     if applicator.existence_checker(context.initial_guess, context.phase_id):
         guess_data = applicator.data_getter(context.initial_guess, context.phase_id)
         applicator.applicator(context, guess_data)
@@ -151,7 +142,6 @@ def _create_phase_guess_context(
     problem: ProblemProtocol,
     phase_id: PhaseID,
 ) -> _PhaseGuessContext:
-    """Create consolidated context for phase guess processing."""
     num_states, num_controls = problem._get_phase_variable_counts(phase_id)
     phase_def = problem._phases[phase_id]
     num_mesh_intervals = len(phase_def.collocation_points_per_interval)
@@ -176,7 +166,6 @@ def _apply_phase_guesses(
     problem: ProblemProtocol,
     phase_id: PhaseID,
 ) -> None:
-    """Apply all guess types for a single phase using unified applicators."""
     context = _create_phase_guess_context(opti, phase_vars, initial_guess, problem, phase_id)
     applicators = _create_guess_applicators()
 
@@ -191,7 +180,6 @@ def _apply_static_parameters_guess(
     initial_guess: Any,
     problem: ProblemProtocol,
 ) -> None:
-    """Apply initial guess for static parameters."""
     if initial_guess.static_parameters is not None and variables.static_parameters is not None:
         _, _, num_static_params = problem._get_total_variable_counts()
 
@@ -199,16 +187,11 @@ def _apply_static_parameters_guess(
             opti.set_initial(variables.static_parameters, initial_guess.static_parameters)
 
 
-def apply_multiphase_initial_guess(
+def _apply_multiphase_initial_guess(
     opti: ca.Opti,
     variables: MultiPhaseVariable,
     problem: ProblemProtocol,
 ) -> None:
-    """Apply initial guess to multiphase optimization variables.
-
-    NOTE: Assumes initial guess has been validated by _validate_multiphase_initial_guess()
-    at the entry point (validate_multiphase_configuration).
-    """
     if problem.initial_guess is None:
         return
 
@@ -220,5 +203,4 @@ def apply_multiphase_initial_guess(
             phase_vars = variables.phase_variables[phase_id]
             _apply_phase_guesses(opti, phase_vars, initial_guess, problem, phase_id)
 
-    # Apply static parameters guess
     _apply_static_parameters_guess(opti, variables, initial_guess, problem)

@@ -7,7 +7,6 @@ from trajectolab.tl_types import Constraint, FloatArray, PhaseID, ProblemProtoco
 
 
 def _apply_constraint(opti: ca.Opti, constraint: Constraint) -> None:
-    """SINGLE SOURCE for applying any constraint to optimization problem."""
     if constraint.min_val is not None:
         opti.subject_to(constraint.val >= constraint.min_val)
     if constraint.max_val is not None:
@@ -30,7 +29,6 @@ def _apply_phase_collocation_constraints(
     problem: ProblemProtocol | None = None,
     static_parameters_vec: ca.MX | None = None,
 ) -> None:
-    """Collocation constraints enforce that trajectory satisfies ODEs at quadrature points."""
     from ..input_validation import validate_dynamics_output
     from ..utils.coordinates import _tau_to_time
 
@@ -92,7 +90,6 @@ def _apply_phase_path_constraints(
     static_parameters_vec: ca.MX | None = None,
     static_parameter_symbols: list[ca.MX] | None = None,
 ) -> None:
-    """Path constraints ensure operational limits are respected throughout trajectory."""
     num_colloc_nodes = len(basis_components.collocation_nodes)
     colloc_nodes_tau = basis_components.collocation_nodes.flatten()
     global_segment_length = (
@@ -143,7 +140,6 @@ def _apply_multiphase_cross_phase_event_constraints(
     static_parameters: ca.MX | None,
     problem: ProblemProtocol,
 ) -> None:
-    """Cross-phase constraints enable phase linkage and boundary conditions."""
     cross_phase_constraints_function = problem._get_cross_phase_event_constraints_function()
     if cross_phase_constraints_function is None:
         return

@@ -14,7 +14,7 @@ from .types_solver import (
 
 @dataclass
 class _BoundConstraint:
-    """Unified bound constraint representation."""
+    # Unified bound constraint representation
 
     lower: float
     upper: float
@@ -29,7 +29,7 @@ class _BoundConstraint:
 
 @dataclass
 class _VariableCreationContext:
-    """Consolidated context for variable creation operations."""
+    """context for variable creation operations."""
 
     opti: ca.Opti
     problem: ProblemProtocol
@@ -42,7 +42,7 @@ class _VariableCreationContext:
 
 @dataclass
 class _VariableCreator:
-    """Unified variable creation strategy."""
+    # Unified variable creation strategy.
 
     creator: Callable[[_VariableCreationContext], ca.MX | list[ca.MX] | None]
     constraint_applier: Callable[[ca.Opti, list[ca.MX], _VariableCreationContext], None] | None = (
@@ -51,7 +51,6 @@ class _VariableCreator:
 
 
 def _apply_bound_constraints(opti: ca.Opti, variable: ca.MX, constraint: _BoundConstraint) -> None:
-    """Apply bound constraints to a variable using unified pattern."""
     if constraint.is_fixed:
         opti.subject_to(variable == constraint.lower)
     else:
@@ -64,7 +63,6 @@ def _apply_bound_constraints(opti: ca.Opti, variable: ca.MX, constraint: _BoundC
 def _apply_time_constraints(
     opti: ca.Opti, time_variables: list[ca.MX], context: _VariableCreationContext
 ) -> None:
-    """Apply time constraints for initial and terminal time variables."""
     initial_time_var, terminal_time_var = time_variables
     phase_def = context.problem._phases[context.phase_id]
 
@@ -80,14 +78,12 @@ def _apply_time_constraints(
 
 
 def _create_time_variables(context: _VariableCreationContext) -> list[ca.MX]:
-    """Create initial and terminal time variables for a phase."""
     initial_time_variable = context.opti.variable()
     terminal_time_variable = context.opti.variable()
     return [initial_time_variable, terminal_time_variable]
 
 
 def _create_state_variables(context: _VariableCreationContext) -> list[ca.MX]:
-    """Create global mesh node state variables for a phase."""
     state_variables = []
     for _ in range(context.num_mesh_intervals + 1):
         state_var = context.opti.variable(context.num_states)
@@ -96,7 +92,6 @@ def _create_state_variables(context: _VariableCreationContext) -> list[ca.MX]:
 
 
 def _create_control_variables(context: _VariableCreationContext) -> list[ca.MX]:
-    """Create control variables for all mesh intervals in a phase."""
     phase_def = context.problem._phases[context.phase_id]
     control_variables = []
 
@@ -109,7 +104,6 @@ def _create_control_variables(context: _VariableCreationContext) -> list[ca.MX]:
 
 
 def _create_integral_variables(context: _VariableCreationContext) -> ca.MX | None:
-    """Create integral variables for a phase."""
     if context.num_integrals > 0:
         return (
             context.opti.variable(context.num_integrals)
@@ -120,7 +114,6 @@ def _create_integral_variables(context: _VariableCreationContext) -> ca.MX | Non
 
 
 def _create_static_parameter_variables(context: _VariableCreationContext) -> ca.MX:
-    """Create static parameter variables shared across all phases."""
     _, _, num_static_params = context.problem._get_total_variable_counts()
     return (
         context.opti.variable(num_static_params)
@@ -130,7 +123,6 @@ def _create_static_parameter_variables(context: _VariableCreationContext) -> ca.
 
 
 def _create_variable_creators() -> dict[str, _VariableCreator]:
-    """Create unified variable creators for all variable types."""
     return {
         "time": _VariableCreator(
             creator=_create_time_variables,
@@ -154,7 +146,6 @@ def _create_variable_creators() -> dict[str, _VariableCreator]:
 def _create_phase_variables_unified(
     context: _VariableCreationContext,
 ) -> dict[str, ca.MX | list[ca.MX] | None]:
-    """Create all phase variables using unified creators."""
     creators = _create_variable_creators()
     variables: dict[str, ca.MX | list[ca.MX] | None] = {}
 
@@ -173,7 +164,6 @@ def _create_phase_variables_unified(
 def _create_variable_context(
     opti: ca.Opti, problem: ProblemProtocol, phase_id: PhaseID
 ) -> _VariableCreationContext:
-    """Create consolidated context for variable creation."""
     num_states, num_controls = problem._get_phase_variable_counts(phase_id)
     phase_def = problem._phases[phase_id]
     num_mesh_intervals = len(phase_def.collocation_points_per_interval)
@@ -195,7 +185,6 @@ def _setup_phase_optimization_variables(
     problem: ProblemProtocol,
     phase_id: PhaseID,
 ) -> PhaseVariable:
-    """Setup optimization variables for a single phase using unified approach."""
     context = _create_variable_context(opti, problem, phase_id)
     variables = _create_phase_variables_unified(context)
 
@@ -233,7 +222,6 @@ def _setup_multiphase_optimization_variables(
     opti: ca.Opti,
     problem: ProblemProtocol,
 ) -> MultiPhaseVariable:
-    """Setup optimization variables for all phases using flattened approach."""
     multiphase_vars = MultiPhaseVariable()
 
     # Process all phases with flattened loop
@@ -260,8 +248,6 @@ def _setup_multiphase_optimization_variables(
 
 @dataclass
 class _InteriorNodeContext:
-    """Consolidated context for interior node processing."""
-
     opti: ca.Opti
     phase_id: PhaseID
     num_states: int
@@ -271,7 +257,6 @@ class _InteriorNodeContext:
 
 
 def _create_interior_variables(context: _InteriorNodeContext) -> ca.MX:
-    """Create interior state variables for mesh interval."""
     num_interior_nodes = context.num_colloc_nodes - 1
     return context.opti.variable(context.num_states, num_interior_nodes)
 
@@ -279,14 +264,12 @@ def _create_interior_variables(context: _InteriorNodeContext) -> ca.MX:
 def _populate_state_columns_with_interior(
     state_columns: list[ca.MX], interior_nodes_var: ca.MX
 ) -> None:
-    """Populate state columns with interior node variables."""
     num_interior_nodes = interior_nodes_var.shape[1]
     for i in range(num_interior_nodes):
         state_columns[i + 1] = interior_nodes_var[:, i]
 
 
 def _setup_interior_nodes(context: _InteriorNodeContext) -> tuple[list[ca.MX], ca.MX | None]:
-    """Setup interior nodes for mesh interval with flattened logic."""
     # Early return for simple case
     if context.num_colloc_nodes <= 1:
         return [], None
@@ -319,7 +302,6 @@ def setup_phase_interval_state_variables(
     num_colloc_nodes: int,
     state_at_global_mesh_nodes: list[ca.MX],
 ) -> _PhaseIntervalBundle:
-    """Setup state variables for single mesh interval with flattened structure."""
     context = _InteriorNodeContext(
         opti=opti,
         phase_id=phase_id,

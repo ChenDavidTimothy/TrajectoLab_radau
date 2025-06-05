@@ -80,20 +80,20 @@ def _process_single_symbolic_boundary_constraint(
     state_index = phase_def.state_name_to_index[var_name]
 
     if constraint_type == "initial":
-        state_initial_sym = phase_def.get_ordered_state_initial_symbols()[state_index]
+        state_initial_sym = phase_def._get_ordered_state_initial_symbols()[state_index]
         constraint_expr = state_initial_sym - symbolic_expr
         cross_phase_constraints.append(constraint_expr)
         logger.debug(f"Added automatic initial constraint for phase {phase_id} state '{var_name}'")
 
     elif constraint_type == "final":
-        state_final_sym = phase_def.get_ordered_state_final_symbols()[state_index]
+        state_final_sym = phase_def._get_ordered_state_final_symbols()[state_index]
         constraint_expr = state_final_sym - symbolic_expr
         cross_phase_constraints.append(constraint_expr)
         logger.debug(f"Added automatic final constraint for phase {phase_id} state '{var_name}'")
 
     elif constraint_type == "boundary":
-        state_initial_sym = phase_def.get_ordered_state_initial_symbols()[state_index]
-        state_final_sym = phase_def.get_ordered_state_final_symbols()[state_index]
+        state_initial_sym = phase_def._get_ordered_state_initial_symbols()[state_index]
+        state_final_sym = phase_def._get_ordered_state_final_symbols()[state_index]
 
         initial_constraint = state_initial_sym - symbolic_expr
         final_constraint = state_final_sym - symbolic_expr

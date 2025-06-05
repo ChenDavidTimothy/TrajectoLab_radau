@@ -453,7 +453,6 @@ def _get_phase_mesh_intervals(solution: "Solution", phase_id: PhaseID) -> list[t
 
 
 def _determine_subplot_layout(num_plots: int) -> tuple[int, int]:
-    """Mathematical approach to subplot layout."""
     if num_plots <= 1:
         return (1, 1)
 

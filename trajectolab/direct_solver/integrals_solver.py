@@ -29,7 +29,7 @@ def _setup_phase_integrals(
     colloc_nodes_tau = basis_components.collocation_nodes.flatten()
     quad_weights = basis_components.quadrature_weights.flatten()
 
-    # SIMPLIFIED: Single scaling factor calculation
+    # Single scaling factor calculation
     global_segment_length = (
         global_normalized_mesh_nodes[mesh_interval_index + 1]
         - global_normalized_mesh_nodes[mesh_interval_index]

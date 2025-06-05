@@ -29,7 +29,7 @@ from trajectolab.adaptive.phs.refinement import (
 from trajectolab.radau import (
     RadauBasisComponents,
     _compute_barycentric_weights,
-    compute_radau_collocation_components,
+    _compute_radau_collocation_components,
 )
 from trajectolab.tl_types import (
     AdaptiveAlgorithmData,
@@ -136,7 +136,7 @@ def _get_or_create_basis_components(
 ) -> RadauBasisComponents:
     """Get basis components from cache or create new ones."""
     if N_k not in basis_cache:
-        basis_cache[N_k] = compute_radau_collocation_components(N_k)
+        basis_cache[N_k] = _compute_radau_collocation_components(N_k)
     return basis_cache[N_k]
 
 
@@ -919,7 +919,7 @@ def solve_multiphase_phs_adaptive_internal(
 
     adaptive_state = _initialize_adaptive_state(problem, adaptive_params)
 
-    from trajectolab.direct_solver import solve_multiphase_radau_collocation
+    from trajectolab.direct_solver import _solve_multiphase_radau_collocation
 
     final_phase_errors: dict[PhaseID, list[float]] = {}
     final_gamma_factors: dict[PhaseID, FloatArray | None] = {}
@@ -932,7 +932,7 @@ def solve_multiphase_phs_adaptive_internal(
         adaptive_state._configure_problem_meshes(problem)
         _configure_initial_guess(iteration, problem, initial_guess, adaptive_state)
 
-        solution = solve_multiphase_radau_collocation(problem)
+        solution = _solve_multiphase_radau_collocation(problem)
 
         if not solution.success:
             return _handle_solver_failure(solution, iteration, adaptive_state)

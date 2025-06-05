@@ -40,7 +40,7 @@ from trajectolab.adaptive.phs.refinement import (
     p_refine_interval,
 )
 from trajectolab.exceptions import InterpolationError
-from trajectolab.radau import _compute_barycentric_weights, compute_radau_collocation_components
+from trajectolab.radau import _compute_barycentric_weights, _compute_radau_collocation_components
 
 
 class TestAdaptiveMathematicalCorrectness:
@@ -246,7 +246,7 @@ class TestAdaptiveMathematicalCorrectness:
     @pytest.mark.parametrize("N", [3, 5, 7, 9])
     def test_polynomial_interpolant_with_radau_nodes(self, N):
         """Test polynomial interpolation using actual Radau nodes."""
-        components = compute_radau_collocation_components(N)
+        components = _compute_radau_collocation_components(N)
         nodes = components.state_approximation_nodes
         weights = components.barycentric_weights_for_state_nodes
 
