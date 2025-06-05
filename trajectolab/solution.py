@@ -20,7 +20,47 @@ logger = logging.getLogger(__name__)
 
 
 class Solution:
-    """Clean, bundled interface for multiphase optimal control problem solutions."""
+    """Clean, bundled interface for multiphase optimal control problem solutions.
+
+    The Solution class provides a comprehensive interface for accessing optimization
+    results, including trajectories, solver diagnostics, mesh information, and
+    adaptive refinement data. It supports both single-phase and multiphase problems
+    with a unified API design.
+
+    Examples:
+        Basic solution usage:
+
+        >>> solution = tl.solve_fixed_mesh(problem)
+        >>> if solution.status["success"]:
+        ...     print(f"Objective: {solution.status['objective']:.6f}")
+        ...     solution.plot()
+
+        Accessing trajectory data:
+
+        >>> # Get specific variable data
+        >>> altitude = solution["altitude"]  # Auto-finds in any phase
+        >>> thrust_p1 = solution[(1, "thrust")]  # Specific phase
+        >>>
+        >>> # Get time arrays
+        >>> time_states = solution[(1, "time_states")]
+        >>> time_controls = solution[(1, "time_controls")]
+
+        Working with multiphase results:
+
+        >>> # Examine all phases
+        >>> for phase_id, phase_data in solution.phases.items():
+        ...     duration = phase_data["times"]["duration"]
+        ...     states = phase_data["variables"]["state_names"]
+        ...     print(f"Phase {phase_id}: {duration:.3f}s, states: {states}")
+
+        Adaptive algorithm analysis:
+
+        >>> if solution.adaptive:
+        ...     print(f"Converged: {solution.adaptive['converged']}")
+        ...     print(f"Iterations: {solution.adaptive['iterations']}")
+        ...     for phase_id, errors in solution.adaptive['final_errors'].items():
+        ...         print(f"Phase {phase_id} max error: {max(errors):.2e}")
+    """
 
     def __init__(
         self,
@@ -73,14 +113,45 @@ class Solution:
     @property
     def status(self) -> dict[str, Any]:
         """
-        Complete solution status information.
+        Complete solution status and optimization results.
+
+        Provides comprehensive information about the optimization outcome,
+        including success status, objective value, and mission duration.
+        This is typically the first property to check after solving.
 
         Returns:
             Dictionary containing:
-            - success: Whether optimization succeeded
-            - message: Solver status message
-            - objective: Objective function value
-            - total_mission_time: Total time across all phases
+
+            - **success** (bool): Whether optimization succeeded
+            - **message** (str): Solver status message with details
+            - **objective** (float): Final objective function value
+            - **total_mission_time** (float): Total time across all phases
+
+        Examples:
+            Check if optimization succeeded:
+
+            >>> solution = tl.solve_fixed_mesh(problem)
+            >>> if solution.status["success"]:
+            ...     print("Optimization successful!")
+            ...     print(f"Optimal objective: {solution.status['objective']:.6f}")
+            ... else:
+            ...     print(f"Optimization failed: {solution.status['message']}")
+
+            Get mission duration:
+
+            >>> if solution.status["success"]:
+            ...     total_time = solution.status["total_mission_time"]
+            ...     objective = solution.status["objective"]
+            ...     print(f"Mission completed in {total_time:.3f} seconds")
+            ...     print(f"Final cost: {objective:.6e}")
+
+            Handle optimization failures:
+
+            >>> status = solution.status
+            >>> if not status["success"]:
+            ...     print("Optimization failed!")
+            ...     print(f"Reason: {status['message']}")
+            ...     print("Try different initial guess or solver options")
         """
         if self._raw_solution is None:
             return {
@@ -110,15 +181,74 @@ class Solution:
     @property
     def phases(self) -> dict[PhaseID, dict[str, Any]]:
         """
-        Complete phase information for all phases.
+        Comprehensive information for all phases in the optimal control problem.
+
+        Provides detailed data about each phase including timing, variables,
+        mesh configuration, and time arrays. Essential for understanding
+        multiphase mission structure and accessing phase-specific data.
 
         Returns:
             Dictionary mapping phase IDs to phase data containing:
-            - times: {initial, final, duration}
-            - variables: {state_names, control_names, num_states, num_controls}
-            - mesh: {polynomial_degrees, mesh_nodes, num_intervals}
-            - time_arrays: {states, controls}
-            - integrals: Integral values for this phase
+
+            - **times** (dict): Phase timing information
+
+              - initial (float): Phase start time
+              - final (float): Phase end time
+              - duration (float): Phase duration
+
+            - **variables** (dict): Variable information
+
+              - state_names (list): Ordered state variable names
+              - control_names (list): Ordered control variable names
+              - num_states (int): Number of state variables
+              - num_controls (int): Number of control variables
+
+            - **mesh** (dict): Mesh configuration details
+
+              - polynomial_degrees (list): Polynomial degree per interval
+              - mesh_nodes (FloatArray): Normalized mesh node locations
+              - num_intervals (int): Total number of mesh intervals
+
+            - **time_arrays** (dict): Time coordinate arrays
+
+              - states (FloatArray): Time points for state trajectories
+              - controls (FloatArray): Time points for control trajectories
+
+            - **integrals** (float | FloatArray | None): Integral values for this phase
+
+        Examples:
+            Examine all phases in a multiphase mission:
+
+            >>> for phase_id, phase_data in solution.phases.items():
+            ...     times = phase_data["times"]
+            ...     variables = phase_data["variables"]
+            ...     print(f"Phase {phase_id}:")
+            ...     print(f"  Duration: {times['duration']:.3f} seconds")
+            ...     print(f"  States: {variables['state_names']}")
+            ...     print(f"  Controls: {variables['control_names']}")
+
+            Get specific phase information:
+
+            >>> phase_1 = solution.phases[1]
+            >>> launch_duration = phase_1["times"]["duration"]
+            >>> num_states = phase_1["variables"]["num_states"]
+            >>> mesh_intervals = phase_1["mesh"]["num_intervals"]
+            >>> print(f"Launch phase: {launch_duration:.1f}s, {num_states} states, {mesh_intervals} intervals")
+
+            Check mesh refinement results:
+
+            >>> for phase_id, phase_data in solution.phases.items():
+            ...     mesh = phase_data["mesh"]
+            ...     degrees = mesh["polynomial_degrees"]
+            ...     intervals = mesh["num_intervals"]
+            ...     print(f"Phase {phase_id}: {intervals} intervals, degrees {degrees}")
+
+            Access time arrays for custom analysis:
+
+            >>> phase_2 = solution.phases[2]
+            >>> state_times = phase_2["time_arrays"]["states"]
+            >>> control_times = phase_2["time_arrays"]["controls"]
+            >>> print(f"State points: {len(state_times)}, Control points: {len(control_times)}")
         """
         if self._raw_solution is None:
             return {}
@@ -180,14 +310,46 @@ class Solution:
     @property
     def parameters(self) -> dict[str, Any] | None:
         """
-        Static parameter information.
+        Static parameter optimization results and information.
+
+        Provides access to optimized static parameters that remain constant
+        throughout the mission but are optimized by the solver. Returns None
+        if no static parameters were defined in the problem.
 
         Returns:
-            Dictionary containing:
-            - values: Parameter values array
-            - names: Parameter names (if available)
-            - count: Number of parameters
-            Returns None if no static parameters.
+            Dictionary containing parameter information, or None if no parameters:
+
+            - **values** (FloatArray): Optimized parameter values
+            - **names** (list[str] | None): Parameter names if available
+            - **count** (int): Number of static parameters
+
+        Examples:
+            Check if problem has static parameters:
+
+            >>> if solution.parameters is not None:
+            ...     param_info = solution.parameters
+            ...     print(f"Found {param_info['count']} static parameters")
+            ...     print(f"Values: {param_info['values']}")
+            ... else:
+            ...     print("No static parameters in this problem")
+
+            Access specific parameter values:
+
+            >>> params = solution.parameters
+            >>> if params and params["names"]:
+            ...     for name, value in zip(params["names"], params["values"]):
+            ...         print(f"{name}: {value:.6f}")
+            ... else:
+            ...     # Parameters exist but no names available
+            ...     for i, value in enumerate(params["values"]):
+            ...         print(f"Parameter {i}: {value:.6f}")
+
+            Use parameters in post-processing:
+
+            >>> if solution.parameters:
+            ...     optimal_mass = solution.parameters["values"][0]
+            ...     optimal_thrust = solution.parameters["values"][1]
+            ...     print(f"Optimal design: mass={optimal_mass:.1f}, thrust={optimal_thrust:.1f}")
         """
         if self._raw_solution is None or self._raw_solution.static_parameters is None:
             return None
@@ -211,17 +373,58 @@ class Solution:
     @property
     def adaptive(self) -> dict[str, Any] | None:
         """
-        Adaptive algorithm information (if adaptive solver was used).
+        Adaptive mesh refinement algorithm results and convergence information.
+
+        Provides detailed information about the adaptive algorithm's performance,
+        convergence status, and final error estimates. Only available when using
+        the adaptive solver (solve_adaptive). Returns None for fixed mesh solutions.
 
         Returns:
-            Dictionary containing:
-            - converged: Whether algorithm converged
-            - iterations: Number of iterations performed
-            - target_tolerance: Target error tolerance
-            - phase_converged: Per-phase convergence status
-            - final_errors: Final error estimates per phase
-            - gamma_factors: Normalization factors per phase
-            Returns None if fixed mesh solver was used.
+            Dictionary containing adaptive algorithm data, or None if fixed mesh was used:
+
+            - **converged** (bool): Whether algorithm achieved target tolerance
+            - **iterations** (int): Number of refinement iterations performed
+            - **target_tolerance** (float): Target error tolerance specified
+            - **phase_converged** (dict): Per-phase convergence status mapping
+            - **final_errors** (dict): Final error estimates per phase (list of floats)
+            - **gamma_factors** (dict): Normalization factors used per phase
+
+        Examples:
+            Check adaptive convergence status:
+
+            >>> if solution.adaptive:
+            ...     adaptive_info = solution.adaptive
+            ...     if adaptive_info["converged"]:
+            ...         print(f"Converged in {adaptive_info['iterations']} iterations")
+            ...         print(f"Target tolerance: {adaptive_info['target_tolerance']:.1e}")
+            ...     else:
+            ...         print("Did not converge within iteration limit")
+            ... else:
+            ...     print("Fixed mesh solution - no adaptive data available")
+
+            Analyze per-phase convergence:
+
+            >>> if solution.adaptive:
+            ...     for phase_id, converged in solution.adaptive["phase_converged"].items():
+            ...         status = "✓" if converged else "✗"
+            ...         print(f"Phase {phase_id}: {status}")
+
+            Examine final error estimates:
+
+            >>> if solution.adaptive:
+            ...     for phase_id, errors in solution.adaptive["final_errors"].items():
+            ...         max_error = max(errors) if errors else 0.0
+            ...         avg_error = np.mean(errors) if errors else 0.0
+            ...         print(f"Phase {phase_id}: max_error={max_error:.2e}, avg_error={avg_error:.2e}")
+
+            Get refinement statistics:
+
+            >>> if solution.adaptive:
+            ...     total_iterations = solution.adaptive["iterations"]
+            ...     target_tol = solution.adaptive["target_tolerance"]
+            ...     converged = solution.adaptive["converged"]
+            ...     print(f"Adaptive refinement: {total_iterations} iterations")
+            ...     print(f"Target: {target_tol:.1e}, Converged: {converged}")
         """
         if self._raw_solution is None or self._raw_solution.adaptive_data is None:
             return None
@@ -253,26 +456,70 @@ class Solution:
         """
         Dictionary-style access to solution variables and time arrays.
 
+        Provides convenient access to trajectory data using either variable names
+        (searches all phases) or explicit (phase_id, variable_name) tuples.
+        This is the primary method for extracting solution data for analysis.
+
         Args:
             key: Either a variable name (searches all phases) or (phase_id, variable_name) tuple
 
         Returns:
-            FloatArray containing the requested data
+            FloatArray containing the requested trajectory or time data
 
         Raises:
-            KeyError: If the variable name is not found
+            KeyError: If the variable name is not found in any phase
 
         Examples:
-            >>> # Access by variable name (searches all phases)
-            >>> altitude_data = solution["altitude"]  # Returns first phase with "altitude"
+            Access variables by name (auto-search all phases):
+
+            >>> # Get trajectory data from any phase containing this variable
+            >>> altitude_data = solution["altitude"]
+            >>> velocity_data = solution["velocity"]
+            >>> thrust_data = solution["thrust"]
+
+            Access variables from specific phases:
+
+            >>> # Get data from specific phases (useful for multiphase problems)
+            >>> launch_altitude = solution[(1, "altitude")]  # Phase 1 altitude
+            >>> orbit_velocity = solution[(2, "velocity")]   # Phase 2 velocity
+            >>> descent_thrust = solution[(3, "thrust")]     # Phase 3 thrust
+
+            Access time coordinate arrays:
+
+            >>> # Get time points for state and control trajectories
+            >>> state_times = solution[(1, "time_states")]    # Time points for states
+            >>> control_times = solution[(1, "time_controls")] # Time points for controls
+
+            Use in plotting and analysis:
+
+            >>> # Extract data for custom plotting
+            >>> import matplotlib.pyplot as plt
+            >>> t = solution[(1, "time_states")]
+            >>> x = solution[(1, "position")]
+            >>> v = solution[(1, "velocity")]
             >>>
-            >>> # Access by phase and variable name
-            >>> altitude_phase1 = solution[(1, "altitude")]
-            >>> thrust_phase2 = solution[(2, "thrust")]
+            >>> plt.figure(figsize=(12, 4))
+            >>> plt.subplot(1, 2, 1)
+            >>> plt.plot(t, x)
+            >>> plt.xlabel("Time (s)")
+            >>> plt.ylabel("Position")
             >>>
-            >>> # Access time arrays
-            >>> time_states_p1 = solution[(1, "time_states")]
-            >>> time_controls_p2 = solution[(2, "time_controls")]
+            >>> plt.subplot(1, 2, 2)
+            >>> plt.plot(t, v)
+            >>> plt.xlabel("Time (s)")
+            >>> plt.ylabel("Velocity")
+            >>> plt.show()
+
+            Handle missing variables gracefully:
+
+            >>> try:
+            ...     fuel_data = solution["fuel_mass"]
+            >>> except KeyError:
+            ...     print("Fuel mass not found in solution")
+            ...     # List available variables
+            ...     for phase_id, phase_info in solution.phases.items():
+            ...         vars_list = phase_info["variables"]["state_names"] + phase_info["variables"]["control_names"]
+            ...         print(f"Phase {phase_id} variables: {vars_list}")
         """
         if not self.status["success"]:
             logger.warning("Cannot access variable '%s': Solution not successful", key)
@@ -350,6 +597,9 @@ class Solution:
         """
         Check if a variable exists in the solution.
 
+        Convenient method to verify variable availability before attempting
+        to access it, preventing KeyError exceptions.
+
         Args:
             key: Either a variable name or (phase_id, variable_name) tuple
 
@@ -357,10 +607,33 @@ class Solution:
             True if variable exists, False otherwise
 
         Examples:
+            Check variable availability before access:
+
             >>> if "altitude" in solution:
-            ...     altitude = solution["altitude"]
-            >>> if (1, "altitude") in solution:
-            ...     altitude_p1 = solution[(1, "altitude")]
+            ...     altitude_data = solution["altitude"]
+            ...     print(f"Altitude range: {altitude_data.min():.1f} to {altitude_data.max():.1f}")
+            ... else:
+            ...     print("Altitude not available in this solution")
+
+            Check phase-specific variables:
+
+            >>> if (1, "thrust") in solution:
+            ...     thrust_data = solution[(1, "thrust")]
+            ...     max_thrust = thrust_data.max()
+            ...     print(f"Maximum thrust in phase 1: {max_thrust:.2f}")
+            ... else:
+            ...     print("Thrust not available in phase 1")
+
+            Validate multiple variables:
+
+            >>> required_vars = ["position", "velocity", "acceleration"]
+            >>> available_vars = [var for var in required_vars if var in solution]
+            >>> missing_vars = [var for var in required_vars if var not in solution]
+            >>>
+            >>> if missing_vars:
+            ...     print(f"Missing variables: {missing_vars}")
+            ... else:
+            ...     print("All required variables available")
         """
         try:
             self[key]
@@ -376,19 +649,60 @@ class Solution:
         show_phase_boundaries: bool = True,
     ) -> None:
         """
-        Plot multiphase trajectories with interval coloring and phase boundaries.
+        Plot multiphase trajectories with professional formatting and phase boundaries.
+
+        Creates comprehensive trajectory plots with automatic layout, interval coloring,
+        and phase boundary indicators. Supports both single-phase and multiphase
+        visualization with customizable variable selection.
 
         Args:
             phase_id: Specific phase to plot (None plots all phases)
             *variable_names: Optional specific variable names to plot
-            figsize: Figure size for each window
+            figsize: Figure size for each plotting window
             show_phase_boundaries: Whether to show vertical lines at phase boundaries
 
         Examples:
-            >>> solution.plot()  # Plot all phases with interval colors
-            >>> solution.plot(1)  # Plot only phase 1
-            >>> solution.plot(phase_id=None, "position", "velocity")  # Specific variables
-            >>> solution.plot(1, "thrust")  # Specific variable for specific phase
+            Plot all variables for all phases:
+
+            >>> solution.plot()  # Comprehensive plot with all variables
+
+            Plot specific phase only:
+
+            >>> solution.plot(phase_id=1)  # Only phase 1 trajectories
+
+            Plot specific variables across all phases:
+
+            >>> solution.plot(phase_id=None, "altitude", "velocity", "thrust")
+
+            Plot specific variables for specific phase:
+
+            >>> solution.plot(1, "position", "velocity")  # Phase 1, specific variables
+
+            Customize plot appearance:
+
+            >>> solution.plot(
+            ...     figsize=(16, 10),           # Larger figure
+            ...     show_phase_boundaries=False  # Hide phase boundaries
+            ... )
+
+            Plot with custom analysis:
+
+            >>> # Plot solution then add custom annotations
+            >>> solution.plot(1, "altitude", "velocity")
+            >>> import matplotlib.pyplot as plt
+            >>>
+            >>> # Add custom annotations to the current plot
+            >>> plt.figure(1)  # Access the altitude plot
+            >>> plt.axhline(y=10000, color='red', linestyle='--', label='Target altitude')
+            >>> plt.legend()
+            >>> plt.show()
+
+        Note:
+            - Automatically handles both state and control variables
+            - Uses distinct colors for different mesh intervals in adaptive solutions
+            - Shows phase boundaries as vertical lines in multiphase problems
+            - Creates separate subplots for each variable with proper scaling
+            - Includes time units and variable labels automatically
         """
         from .plot import plot_multiphase_solution
 
@@ -396,15 +710,64 @@ class Solution:
 
     def summary(self, comprehensive: bool = True) -> None:
         """
-        Print solution summary.
+        Display detailed solution summary with optimization results and diagnostics.
+
+        Prints a comprehensive overview of the solution including solver status,
+        objective value, phase information, mesh details, and adaptive algorithm
+        results if applicable. Essential for solution validation and analysis.
 
         Args:
-            comprehensive: If True (default), show exhaustive summary.
-                          If False, show simple summary.
+            comprehensive: If True (default), show exhaustive summary with all details.
+                          If False, show concise summary with key information only.
 
         Examples:
-            >>> solution.summary()  # Comprehensive summary (default)
-            >>> solution.summary(comprehensive=False)  # Simple summary
+            Display full solution summary (default):
+
+            >>> solution.summary()
+            # Prints comprehensive summary including:
+            # - Solver status and objective value
+            # - Phase-by-phase breakdown with timing
+            # - Mesh configuration and refinement details
+            # - Adaptive algorithm convergence (if applicable)
+            # - Variable counts and trajectory statistics
+
+            Display concise summary:
+
+            >>> solution.summary(comprehensive=False)
+            # Prints brief summary with:
+            # - Success status and objective
+            # - Total mission time
+            # - Number of phases
+            # - Adaptive convergence status
+
+            Use in solution validation workflow:
+
+            >>> solution = tl.solve_adaptive(problem)
+            >>>
+            >>> # Always check summary first
+            >>> solution.summary()
+            >>>
+            >>> # Then proceed with detailed analysis if successful
+            >>> if solution.status["success"]:
+            ...     # Extract specific data
+            ...     trajectory_data = solution["altitude"]
+            ...     solution.plot()
+            ... else:
+            ...     print("Solution failed - check summary for details")
+
+            Suppress automatic summary:
+
+            >>> # Solve without automatic summary display
+            >>> solution = tl.solve_fixed_mesh(problem, show_summary=False)
+            >>>
+            >>> # Display summary manually when needed
+            >>> solution.summary(comprehensive=True)
+
+        Note:
+            - Comprehensive summary includes mesh refinement details and error estimates
+            - Concise summary focuses on key results for quick validation
+            - Automatically adapts display based on single-phase vs multiphase problems
+            - Shows adaptive algorithm performance when applicable
         """
         if comprehensive:
             try:
