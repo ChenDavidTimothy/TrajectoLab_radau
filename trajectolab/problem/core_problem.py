@@ -1175,7 +1175,6 @@ class Problem:
             >>> # ... create state/control arrays from analytical_trajectory
 
         Note:
-            - Mesh must be configured before calling guess()
             - Array dimensions must match mesh configuration exactly
             - Poor initial guesses can cause convergence failure
             - Linear interpolation between boundary conditions often works well
