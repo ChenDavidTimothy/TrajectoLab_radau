@@ -21,7 +21,7 @@ _PhaseIntervalBundle: TypeAlias = tuple[ca.MX, ca.MX | None]  # state_matrix, in
 
 
 @dataclass
-class PhaseVariableReferences:
+class PhaseVariable:
     """Container for optimization variable references for a single phase."""
 
     phase_id: PhaseID
@@ -35,8 +35,8 @@ class PhaseVariableReferences:
 
 
 @dataclass
-class MultiPhaseVariableReferences:
+class MultiPhaseVariable:
     """Container for optimization variable references for multiphase problems."""
 
-    phase_variables: dict[PhaseID, PhaseVariableReferences] = field(default_factory=dict)
+    phase_variables: dict[PhaseID, PhaseVariable] = field(default_factory=dict)
     static_parameters: ca.MX | None = None

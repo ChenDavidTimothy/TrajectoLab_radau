@@ -23,8 +23,8 @@ from .constraints_solver import (
 from .initial_guess_solver import apply_multiphase_initial_guess
 from .integrals_solver import _apply_phase_integral_constraints, _setup_phase_integrals
 from .types_solver import (
-    MultiPhaseVariableReferences,
-    PhaseVariableReferences,
+    MultiPhaseVariable,
+    PhaseVariable,
 )
 from .variables_solver import (
     _setup_multiphase_optimization_variables,
@@ -69,13 +69,13 @@ class _SolverConfiguration:
     """Consolidated solver setup data."""
 
     opti: ca.Opti
-    variables: MultiPhaseVariableReferences
+    variables: MultiPhaseVariable
     phase_endpoint_data: dict[PhaseID, dict[str, ca.MX]]
     problem: ProblemProtocol
 
 
 def _extract_phase_endpoint_data(
-    variables: MultiPhaseVariableReferences, problem: ProblemProtocol
+    variables: MultiPhaseVariable, problem: ProblemProtocol
 ) -> dict[PhaseID, dict[str, ca.MX]]:
     """Extract endpoint data for all phases - cached to prevent redundant extractions."""
     phase_endpoint_data = {}
@@ -99,7 +99,7 @@ def _extract_phase_endpoint_data(
 
 def _setup_mesh_interval_variables(
     config: _SolverConfiguration,
-    phase_vars: PhaseVariableReferences,
+    phase_vars: PhaseVariable,
     context: _MeshIntervalContext,
 ) -> tuple[ca.MX, ca.MX | None]:
     """Setup state variables for a single mesh interval."""
@@ -189,7 +189,7 @@ def _setup_mesh_interval_integrals(
 
 def _process_single_mesh_interval(
     config: _SolverConfiguration,
-    phase_vars: PhaseVariableReferences,
+    phase_vars: PhaseVariable,
     context: _MeshIntervalContext,
 ) -> None:
     """Process a single mesh interval with flattened logic."""
@@ -267,7 +267,7 @@ def _create_mesh_interval_context(
 def _process_phase_mesh_intervals(
     config: _SolverConfiguration,
     phase_id: PhaseID,
-    phase_vars: PhaseVariableReferences,
+    phase_vars: PhaseVariable,
 ) -> None:
     """Process all mesh intervals for a single phase - flattened loop structure."""
     phase_def = config.problem._phases[phase_id]
