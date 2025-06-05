@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+from collections.abc import Callable  # ADD THIS IMPORT
 from dataclasses import dataclass, field
 from typing import TypeAlias, cast
 
@@ -56,13 +57,13 @@ def _create_variable_info_with_rollback(
     name_to_index: dict[str, int],
     names_list: list[str],
     error_context: str,
-    var_info_factory: callable,
+    var_info_factory: Callable[[], _VariableInfo],  # FIX: Use Callable instead of callable
 ) -> None:
     _register_variable_name(name, name_to_index, names_list, error_context)
 
     try:
         var_info = var_info_factory()
-        if hasattr(var_info, "_target_list"):
+        if hasattr(var_info, "_target_list") and var_info._target_list is not None:
             var_info._target_list.append(var_info)
     except Exception as e:
         _rollback_variable_registration(name, name_to_index, names_list)
@@ -75,7 +76,7 @@ def _create_variable_info_with_rollback(
 def _collect_symbolic_constraint(
     name: str,
     constraint_type: str,
-    constraint: _BoundaryConstraint,
+    constraint: _BoundaryConstraint | None,  # FIX: Accept None values
     symbolic_constraints: list[tuple[str, str, ca.MX]],
 ) -> None:
     if constraint is not None and constraint.is_symbolic():
@@ -141,8 +142,10 @@ class _VariableInfo:
     initial_constraint: _BoundaryConstraint | None = None
     final_constraint: _BoundaryConstraint | None = None
     boundary_constraint: _BoundaryConstraint | None = None
+    _target_list: list[_VariableInfo] | None = None  # FIX: Add missing attribute
 
 
+# Rest of the file remains unchanged...
 @dataclass
 class PhaseDefinition:
     phase_id: PhaseID

@@ -1,6 +1,6 @@
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any
 
 import casadi as ca
 
@@ -39,7 +39,9 @@ def _has_guess_data(guess_dict: dict | None, phase_id: PhaseID) -> bool:
 
 def _get_guess_data(guess_dict: dict | None, phase_id: PhaseID) -> Any:
     """Get guess data for phase from dictionary."""
-    return guess_dict[phase_id] if _has_guess_data(guess_dict, phase_id) else None
+    if guess_dict is not None:
+        return guess_dict.get(phase_id)
+    return None
 
 
 def _apply_time_initial_guess(context: _PhaseGuessContext, time_value: float) -> None:
@@ -56,7 +58,7 @@ def _apply_state_guesses(context: _PhaseGuessContext, phase_states: list[FloatAr
     """Apply state guesses for all mesh intervals in a phase."""
     # Apply global mesh node states
     for k in range(context.num_mesh_intervals):
-        state_guess_k = cast(FloatArray, phase_states[k])
+        state_guess_k = phase_states[k]
 
         # Set initial node guess (only once)
         if k == 0:
@@ -71,7 +73,7 @@ def _apply_state_guesses(context: _PhaseGuessContext, phase_states: list[FloatAr
     for k in range(context.num_mesh_intervals):
         interior_var = context.phase_vars.interior_variables[k]
         if interior_var is not None:
-            state_guess_k = cast(FloatArray, phase_states[k])
+            state_guess_k = phase_states[k]
             num_interior_nodes = interior_var.shape[1]
 
             # Extract interior guess
@@ -82,7 +84,7 @@ def _apply_state_guesses(context: _PhaseGuessContext, phase_states: list[FloatAr
 def _apply_control_guesses(context: _PhaseGuessContext, phase_controls: list[FloatArray]) -> None:
     """Apply control guesses for all mesh intervals in a phase."""
     for k in range(context.num_mesh_intervals):
-        control_guess_k = cast(FloatArray, phase_controls[k])
+        control_guess_k = phase_controls[k]
         context.opti.set_initial(context.phase_vars.control_variables[k], control_guess_k)
 
 
