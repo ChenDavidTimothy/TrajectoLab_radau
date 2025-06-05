@@ -28,7 +28,7 @@ def generate_examples_docs():
     print("Generating examples documentation...")
 
     if not examples_dir.exists():
-        print(f"❌ Examples directory not found: {examples_dir}")
+        print(f"Examples directory not found: {examples_dir}")
         return
 
     # Create output directory
@@ -41,7 +41,7 @@ def generate_examples_docs():
     example_dirs.sort()  # Consistent ordering
 
     if not example_dirs:
-        print("❌ No example directories found")
+        print("No example directories found")
         return
 
     print(f"Found {len(example_dirs)} example directories")
@@ -58,18 +58,18 @@ def generate_examples_docs():
 
         # Validate required files exist
         if not python_file.exists():
-            print(f"    ⚠ Skipping - missing Python file: {python_file.name}")
+            print(f"Skipping - missing Python file: {python_file.name}")
             continue
 
         if not readme_file.exists():
-            print("    ⚠ Skipping - missing README.md")
+            print("Skipping - missing README.md")
             continue
 
         # Read README content
         try:
             readme_content = readme_file.read_text(encoding="utf-8").strip()
         except Exception as e:
-            print(f"    ❌ Error reading README.md: {e}")
+            print(f"Error reading README.md: {e}")
             continue
 
         # Generate MyST markdown content
@@ -86,19 +86,19 @@ def generate_examples_docs():
         md_file.write_text(md_content, encoding="utf-8")
 
         generated_examples.append((safe_name, example_name, readme_content))
-        print(f"    ✓ Generated: {md_file.name}")
+        print(f"Generated: {md_file.name}")
 
     # Generate examples index
     if generated_examples:
         index_content = generate_examples_index(generated_examples)
         index_file = docs_examples_dir / "index.md"
         index_file.write_text(index_content, encoding="utf-8")
-        print(f"  ✓ Generated index: {index_file.name}")
+        print(f"Generated index: {index_file.name}")
 
-        print("\n✓ Examples documentation complete!")
-        print(f"  Generated {len(generated_examples)} example docs in {docs_examples_dir}")
+        print("\nExamples documentation complete!")
+        print(f"Generated {len(generated_examples)} example docs in {docs_examples_dir}")
     else:
-        print("❌ No valid examples found to document")
+        print("No valid examples found to document")
 
 
 def generate_example_md(

@@ -12,17 +12,17 @@ help:
 
 # Generate API docs before building
 api:
-	@echo "🔄 Generating API documentation..."
+	@echo "Generating API documentation..."
 	cd $(SOURCEDIR) && python generate_api_docs.py
 
 # Generate examples docs before building
 examples:
-	@echo "🔄 Generating examples documentation..."
+	@echo "Generating examples documentation..."
 	cd $(SOURCEDIR) && python generate_examples_docs.py
 
 # Build HTML with API and examples generation
 html: api examples
-	@echo "🔨 Building HTML documentation..."
+	@echo "Building HTML documentation..."
 	@$(SPHINXBUILD) -M html "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
 	@echo "✓ Documentation built in _build/html/"
 
@@ -35,7 +35,7 @@ clean:
 
 # Quick build without API regeneration
 html-fast:
-	@echo "🔨 Building HTML documentation (fast mode)..."
+	@echo "Building HTML documentation (fast mode)..."
 	@$(SPHINXBUILD) -M html "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
 
 %: Makefile

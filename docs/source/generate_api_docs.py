@@ -29,7 +29,7 @@ def generate_api_docs():
         print(f"TrajectoLab imported from: {trajectolab.__file__}")
     except ImportError as e:
         print(f"Error importing TrajectoLab: {e}")
-        print("   Ensure TrajectoLab is installed: pip install -e .")
+        print("Ensure TrajectoLab is installed: pip install -e .")
         return
 
     # Create output directory
@@ -152,11 +152,11 @@ Quick Start
     index_path = api_dir / "index.rst"
     index_path.write_text(index_content)
 
-    print(f"\n✓ Generated API index: {index_path.name}")
+    print(f"\nGenerated API index: {index_path.name}")
     print("PUBLIC API documentation complete!")
-    print(f"   Generated {len(all_generated_modules)} module docs in {api_dir}")
+    print(f"Generated {len(all_generated_modules)} module docs in {api_dir}")
     print(
-        f"   Total public modules: {sum(len(cat['modules']) for cat in PUBLIC_API_MODULES.values())}"
+        f"Total public modules: {sum(len(cat['modules']) for cat in PUBLIC_API_MODULES.values())}"
     )
 
 

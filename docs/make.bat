@@ -25,29 +25,29 @@ echo Cleaning documentation...
 %SPHINXBUILD% -M clean %SOURCEDIR% %BUILDDIR% %SPHINXOPTS% %O%
 if exist %SOURCEDIR%\api rmdir /s /q %SOURCEDIR%\api
 if exist %SOURCEDIR%\examples rmdir /s /q %SOURCEDIR%\examples
-echo ✓ Cleaned all build files
+echo Cleaned all build files
 goto end
 
 :api
-echo 🔄 Generating API documentation...
+echo Generating API documentation...
 cd %SOURCEDIR% && python generate_api_docs.py
 goto end
 
 :examples
-echo 🔄 Generating examples documentation...
+echo Generating examples documentation...
 cd %SOURCEDIR% && python generate_examples_docs.py
 goto end
 
 :html
-echo 🔄 Generating API documentation...
+echo Generating API documentation...
 cd %SOURCEDIR% && python generate_api_docs.py
 cd ..
-echo 🔄 Generating examples documentation...
+echo Generating examples documentation...
 cd %SOURCEDIR% && python generate_examples_docs.py
 cd ..
-echo 🔨 Building HTML documentation...
+echo Building HTML documentation...
 %SPHINXBUILD% -M html %SOURCEDIR% %BUILDDIR% %SPHINXOPTS% %O%
-echo ✓ Documentation built in _build/html/
+echo Documentation built in _build/html/
 goto end
 
 :end
