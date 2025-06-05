@@ -1,4 +1,4 @@
-# Hypersensitive Problem
+# Hypersensitive
 
 ## Mathematical Formulation
 
