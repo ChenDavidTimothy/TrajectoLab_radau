@@ -182,18 +182,7 @@ Each example can be run directly from its folder:
     # Or run from project root
     python examples/hypersensitive/hypersensitive.py
 
-The examples demonstrate:
-
 """
-
-    # Add brief descriptions for each example
-    for _, example_name, readme_content in generated_examples:
-        # Extract first line as brief description
-        first_line = readme_content.split("\n")[0].strip()
-        if first_line and not first_line.startswith("#"):
-            example_title = example_name.replace("_", " ").replace("-", " ").title()
-            index_content += f"* **{example_title}**: {first_line}\n"
-
     return index_content
 
 
