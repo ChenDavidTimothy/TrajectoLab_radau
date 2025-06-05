@@ -1,5 +1,5 @@
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import cast
 
 import numpy as np
@@ -234,8 +234,8 @@ def _estimate_phase_errors(
     solution: OptimalControlSolution,
     problem: ProblemProtocol,
     phase_id: PhaseID,
-    state_evaluators: list[Callable[[float | FloatArray], FloatArray] | None],
-    control_evaluators: list[Callable[[float | FloatArray], FloatArray] | None],
+    state_evaluators: Sequence[Callable[[float | FloatArray], FloatArray] | None],
+    control_evaluators: Sequence[Callable[[float | FloatArray], FloatArray] | None],
     adaptive_params: AdaptiveParameters,
     gamma_factors: FloatArray,
 ) -> list[float]:

@@ -218,10 +218,7 @@ def _create_merged_dynamics_functions(
         dynamics_result = phase_dynamics_function(
             ca.MX(np.clip(state, -1e6, 1e6)), ca.MX(u_val), ca.MX(alpha * global_tau + alpha_0)
         )
-        return cast(
-            FloatArray,
-            scaling_k * _convert_casadi_dynamics_result_to_numpy(dynamics_result, num_states),
-        )
+        return scaling_k * _convert_casadi_dynamics_result_to_numpy(dynamics_result, num_states)
 
     def merged_bwd_rhs(local_tau_kp1: float, state: FloatArray) -> FloatArray:
         u_val = get_control_second(local_tau_kp1)
@@ -231,10 +228,7 @@ def _create_merged_dynamics_functions(
         dynamics_result = phase_dynamics_function(
             ca.MX(np.clip(state, -1e6, 1e6)), ca.MX(u_val), ca.MX(alpha * global_tau + alpha_0)
         )
-        return cast(
-            FloatArray,
-            scaling_kp1 * _convert_casadi_dynamics_result_to_numpy(dynamics_result, num_states),
-        )
+        return scaling_kp1 * _convert_casadi_dynamics_result_to_numpy(dynamics_result, num_states)
 
     return merged_fwd_rhs, merged_bwd_rhs
 
