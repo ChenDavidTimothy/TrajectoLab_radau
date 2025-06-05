@@ -6,8 +6,8 @@ import casadi as ca
 from ..tl_types import PhaseID, ProblemProtocol
 from ..utils.constants import MINIMUM_TIME_INTERVAL
 from .types_solver import (
-    MultiPhaseVariable,
-    PhaseVariable,
+    _MultiPhaseVariable,
+    _PhaseVariable,
     _PhaseIntervalBundle,
 )
 
@@ -184,7 +184,7 @@ def _setup_phase_optimization_variables(
     opti: ca.Opti,
     problem: ProblemProtocol,
     phase_id: PhaseID,
-) -> PhaseVariable:
+) -> _PhaseVariable:
     context = _create_variable_context(opti, problem, phase_id)
     variables = _create_phase_variables_unified(context)
 
@@ -208,7 +208,7 @@ def _setup_phase_optimization_variables(
     # integral_vars can be ca.MX or None
     integral_variables = integral_vars if isinstance(integral_vars, ca.MX) else None
 
-    return PhaseVariable(
+    return _PhaseVariable(
         phase_id=phase_id,
         initial_time=initial_time,
         terminal_time=terminal_time,
@@ -221,8 +221,8 @@ def _setup_phase_optimization_variables(
 def _setup_multiphase_optimization_variables(
     opti: ca.Opti,
     problem: ProblemProtocol,
-) -> MultiPhaseVariable:
-    multiphase_vars = MultiPhaseVariable()
+) -> _MultiPhaseVariable:
+    multiphase_vars = _MultiPhaseVariable()
 
     # Process all phases with flattened loop
     for phase_id in problem._get_phase_ids():

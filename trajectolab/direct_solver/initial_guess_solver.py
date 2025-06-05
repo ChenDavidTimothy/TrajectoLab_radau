@@ -6,7 +6,7 @@ import casadi as ca
 
 from ..input_validation import set_integral_guess_values
 from ..tl_types import FloatArray, PhaseID, ProblemProtocol
-from .types_solver import MultiPhaseVariable, PhaseVariable
+from .types_solver import _MultiPhaseVariable, _PhaseVariable
 
 
 @dataclass
@@ -14,7 +14,7 @@ class _PhaseGuessContext:
     """context for phase guess application."""
 
     opti: ca.Opti
-    phase_vars: PhaseVariable
+    phase_vars: _PhaseVariable
     phase_id: PhaseID
     num_states: int
     num_controls: int
@@ -137,7 +137,7 @@ def _apply_single_guess_type(context: _PhaseGuessContext, applicator: _GuessAppl
 
 def _create_phase_guess_context(
     opti: ca.Opti,
-    phase_vars: PhaseVariable,
+    phase_vars: _PhaseVariable,
     initial_guess: Any,
     problem: ProblemProtocol,
     phase_id: PhaseID,
@@ -161,7 +161,7 @@ def _create_phase_guess_context(
 
 def _apply_phase_guesses(
     opti: ca.Opti,
-    phase_vars: PhaseVariable,
+    phase_vars: _PhaseVariable,
     initial_guess: Any,
     problem: ProblemProtocol,
     phase_id: PhaseID,
@@ -176,7 +176,7 @@ def _apply_phase_guesses(
 
 def _apply_static_parameters_guess(
     opti: ca.Opti,
-    variables: MultiPhaseVariable,
+    variables: _MultiPhaseVariable,
     initial_guess: Any,
     problem: ProblemProtocol,
 ) -> None:
@@ -189,7 +189,7 @@ def _apply_static_parameters_guess(
 
 def _apply_multiphase_initial_guess(
     opti: ca.Opti,
-    variables: MultiPhaseVariable,
+    variables: _MultiPhaseVariable,
     problem: ProblemProtocol,
 ) -> None:
     if problem.initial_guess is None:

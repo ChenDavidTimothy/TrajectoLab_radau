@@ -8,23 +8,14 @@ from ..tl_types import Constraint, PhaseID
 from .state import MultiPhaseVariableState, PhaseDefinition, _BoundaryConstraint
 
 
-def add_path_constraint(phase_def: PhaseDefinition, constraint_expr: ca.MX | float | int) -> None:
+def _add_path_constraint(phase_def: PhaseDefinition, constraint_expr: ca.MX | float | int) -> None:
     if isinstance(constraint_expr, ca.MX):
         phase_def.path_constraints.append(constraint_expr)
     else:
         phase_def.path_constraints.append(ca.MX(constraint_expr))
 
 
-def add_event_constraint(
-    multiphase_state: MultiPhaseVariableState, constraint_expr: ca.MX | float | int
-) -> None:
-    if isinstance(constraint_expr, ca.MX):
-        multiphase_state.cross_phase_constraints.append(constraint_expr)
-    else:
-        multiphase_state.cross_phase_constraints.append(ca.MX(constraint_expr))
-
-
-def add_cross_phase_constraint(
+def _add_event_constraint(
     multiphase_state: MultiPhaseVariableState, constraint_expr: ca.MX | float | int
 ) -> None:
     if isinstance(constraint_expr, ca.MX):

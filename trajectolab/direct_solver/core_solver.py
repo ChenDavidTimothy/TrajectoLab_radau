@@ -23,8 +23,8 @@ from .constraints_solver import (
 from .initial_guess_solver import _apply_multiphase_initial_guess
 from .integrals_solver import _apply_phase_integral_constraints, _setup_phase_integrals
 from .types_solver import (
-    MultiPhaseVariable,
-    PhaseVariable,
+    _MultiPhaseVariable,
+    _PhaseVariable,
 )
 from .variables_solver import (
     _setup_multiphase_optimization_variables,
@@ -65,13 +65,13 @@ class _MeshIntervalContext:
 @dataclass
 class _SolverConfiguration:
     opti: ca.Opti
-    variables: MultiPhaseVariable
+    variables: _MultiPhaseVariable
     phase_endpoint_data: dict[PhaseID, dict[str, ca.MX]]
     problem: ProblemProtocol
 
 
 def _extract_phase_endpoint_data(
-    variables: MultiPhaseVariable, problem: ProblemProtocol
+    variables: _MultiPhaseVariable, problem: ProblemProtocol
 ) -> dict[PhaseID, dict[str, ca.MX]]:
     phase_endpoint_data = {}
 
@@ -94,7 +94,7 @@ def _extract_phase_endpoint_data(
 
 def _setup_mesh_interval_variables(
     config: _SolverConfiguration,
-    phase_vars: PhaseVariable,
+    phase_vars: _PhaseVariable,
     context: _MeshIntervalContext,
 ) -> tuple[ca.MX, ca.MX | None]:
     state_at_nodes, interior_nodes_var = setup_phase_interval_state_variables(
@@ -181,7 +181,7 @@ def _setup_mesh_interval_integrals(
 
 def _process_single_mesh_interval(
     config: _SolverConfiguration,
-    phase_vars: PhaseVariable,
+    phase_vars: _PhaseVariable,
     context: _MeshIntervalContext,
 ) -> None:
     try:
@@ -257,7 +257,7 @@ def _create_mesh_interval_context(
 def _process_phase_mesh_intervals(
     config: _SolverConfiguration,
     phase_id: PhaseID,
-    phase_vars: PhaseVariable,
+    phase_vars: _PhaseVariable,
 ) -> None:
     phase_def = config.problem._phases[phase_id]
     num_mesh_intervals = len(phase_def.collocation_points_per_interval)

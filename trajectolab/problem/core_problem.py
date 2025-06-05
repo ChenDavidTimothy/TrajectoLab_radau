@@ -592,7 +592,7 @@ class Phase:
         _validate_constraint_expressions_not_empty(constraint_expressions, self.phase_id, "path")
 
         for expr in constraint_expressions:
-            constraints_problem.add_path_constraint(self._phase_def, expr)
+            constraints_problem._add_path_constraint(self._phase_def, expr)
 
         _log_constraint_addition(len(constraint_expressions), self.phase_id, "path")
 
@@ -668,7 +668,7 @@ class Phase:
         _validate_constraint_expressions_not_empty(constraint_expressions, self.phase_id, "event")
 
         for expr in constraint_expressions:
-            constraints_problem.add_event_constraint(self.problem._multiphase_state, expr)
+            constraints_problem._add_event_constraint(self.problem._multiphase_state, expr)
 
         _log_constraint_addition(len(constraint_expressions), self.phase_id, "event")
 
