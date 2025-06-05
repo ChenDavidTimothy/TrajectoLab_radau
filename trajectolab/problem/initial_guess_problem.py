@@ -14,9 +14,105 @@ from ..tl_types import FloatArray, MultiPhaseInitialGuess, PhaseID
 from .state import MultiPhaseVariableState
 
 
-class MultiPhaseInitialGuessRequirements:
-    """Requirements for multiphase initial guess specification."""
+def _validate_phase_exists(phases: dict[PhaseID, Any], phase_id: PhaseID) -> None:
+    if phase_id not in phases:
+        raise ValueError(f"Phase {phase_id} does not exist in problem")
 
+
+def _validate_and_convert_arrays(arrays: Sequence[Any], array_type: str) -> list[np.ndarray]:
+    return [np.array(arr, dtype=np.float64) for arr in arrays]
+
+
+def _process_single_or_multi_integral(
+    integrals: float | FloatArray, num_integrals: int
+) -> float | np.ndarray:
+    if num_integrals == 1:
+        return integrals
+    return np.array(integrals)
+
+
+def _validate_time_values(time_values: dict[PhaseID, float] | None, time_type: str) -> None:
+    if time_values is not None:
+        for phase_id, time_val in time_values.items():
+            validate_array_numerical_integrity(
+                np.array([time_val]), f"Phase {phase_id} {time_type} time"
+            )
+
+
+def _validate_static_parameters(
+    static_parameters: FloatArray | None, expected_count: int
+) -> np.ndarray | None:
+    if static_parameters is None:
+        return None
+
+    if expected_count == 0:
+        raise ValueError("Problem has no static parameters, but parameter guess was provided")
+
+    params_array = np.array(static_parameters, dtype=np.float64)
+    if params_array.size != expected_count:
+        raise ValueError(
+            f"Static parameters guess must have {expected_count} elements, got {params_array.size}"
+        )
+    return params_array
+
+
+def _validate_phase_states(
+    phase_states: dict[PhaseID, Sequence[FloatArray]] | None, phases: dict[PhaseID, Any]
+) -> dict[PhaseID, list[np.ndarray]]:
+    validated_states = {}
+    if phase_states is not None:
+        for phase_id, states_list in phase_states.items():
+            _validate_phase_exists(phases, phase_id)
+            validated_states[phase_id] = _validate_and_convert_arrays(states_list, "states")
+    return validated_states
+
+
+def _validate_phase_controls(
+    phase_controls: dict[PhaseID, Sequence[FloatArray]] | None, phases: dict[PhaseID, Any]
+) -> dict[PhaseID, list[np.ndarray]]:
+    validated_controls = {}
+    if phase_controls is not None:
+        for phase_id, controls_list in phase_controls.items():
+            _validate_phase_exists(phases, phase_id)
+            validated_controls[phase_id] = _validate_and_convert_arrays(controls_list, "controls")
+    return validated_controls
+
+
+def _validate_phase_integrals(
+    phase_integrals: dict[PhaseID, float | FloatArray] | None, phases: dict[PhaseID, Any]
+) -> dict[PhaseID, float | np.ndarray]:
+    validated_integrals = {}
+    if phase_integrals is not None:
+        for phase_id, integrals in phase_integrals.items():
+            _validate_phase_exists(phases, phase_id)
+            phase_def = phases[phase_id]
+
+            validate_integral_values(integrals, phase_def.num_integrals)
+            validated_integrals[phase_id] = _process_single_or_multi_integral(
+                integrals, phase_def.num_integrals
+            )
+    return validated_integrals
+
+
+def _create_validated_initial_guess(
+    validated_states: dict[PhaseID, list[np.ndarray]],
+    validated_controls: dict[PhaseID, list[np.ndarray]],
+    phase_initial_times: dict[PhaseID, float] | None,
+    phase_terminal_times: dict[PhaseID, float] | None,
+    validated_integrals: dict[PhaseID, float | np.ndarray],
+    validated_static_parameters: np.ndarray | None,
+) -> MultiPhaseInitialGuess:
+    return MultiPhaseInitialGuess(
+        phase_states=validated_states if validated_states else None,
+        phase_controls=validated_controls if validated_controls else None,
+        phase_initial_times=phase_initial_times,
+        phase_terminal_times=phase_terminal_times,
+        phase_integrals=validated_integrals if validated_integrals else None,
+        static_parameters=validated_static_parameters,
+    )
+
+
+class MultiPhaseInitialGuessRequirements:
     def __init__(
         self, phase_requirements: dict[PhaseID, dict[str, Any]], static_parameters_length: int
     ) -> None:
@@ -51,8 +147,6 @@ class MultiPhaseInitialGuessRequirements:
 
 
 class MultiPhaseSolverInputSummary:
-    """Summary of multiphase solver input configuration."""
-
     def __init__(
         self,
         num_phases: int,
@@ -94,69 +188,56 @@ def _set_multiphase_initial_guess(
     phase_integrals: dict[PhaseID, float | FloatArray] | None = None,
     static_parameters: FloatArray | None = None,
 ) -> None:
-    validated_phase_states = {}
-    if phase_states is not None:
-        for phase_id, states_list in phase_states.items():
-            if phase_id not in multiphase_state.phases:
-                raise ValueError(f"Phase {phase_id} does not exist in problem")
-            validated_phase_states[phase_id] = [np.array(s, dtype=np.float64) for s in states_list]
+    validated_states = _validate_phase_states(phase_states, multiphase_state.phases)
+    validated_controls = _validate_phase_controls(phase_controls, multiphase_state.phases)
+    validated_integrals = _validate_phase_integrals(phase_integrals, multiphase_state.phases)
 
-    validated_phase_controls = {}
-    if phase_controls is not None:
-        for phase_id, controls_list in phase_controls.items():
-            if phase_id not in multiphase_state.phases:
-                raise ValueError(f"Phase {phase_id} does not exist in problem")
-            validated_phase_controls[phase_id] = [
-                np.array(c, dtype=np.float64) for c in controls_list
-            ]
+    expected_static_params = multiphase_state.static_parameters.get_parameter_count()
+    validated_static_parameters = _validate_static_parameters(
+        static_parameters, expected_static_params
+    )
 
-    validated_phase_integrals = {}
-    if phase_integrals is not None:
-        for phase_id, integrals in phase_integrals.items():
-            if phase_id not in multiphase_state.phases:
-                raise ValueError(f"Phase {phase_id} does not exist in problem")
+    _validate_time_values(phase_initial_times, "initial")
+    _validate_time_values(phase_terminal_times, "terminal")
 
-            validate_integral_values(integrals, multiphase_state.phases[phase_id].num_integrals)
-
-            phase_def = multiphase_state.phases[phase_id]
-            if phase_def.num_integrals == 1:
-                validated_phase_integrals[phase_id] = integrals
-            else:
-                validated_phase_integrals[phase_id] = np.array(integrals)
-
-    validated_static_parameters = None
-    if static_parameters is not None:
-        num_static_params = multiphase_state.static_parameters.get_parameter_count()
-        if num_static_params == 0:
-            raise ValueError("Problem has no static parameters, but parameter guess was provided")
-
-        params_array = np.array(static_parameters, dtype=np.float64)
-        if params_array.size != num_static_params:
-            raise ValueError(
-                f"Static parameters guess must have {num_static_params} elements, got {params_array.size}"
-            )
-        validated_static_parameters = params_array
-
-    if phase_initial_times is not None:
-        for phase_id, t0 in phase_initial_times.items():
-            validate_array_numerical_integrity(np.array([t0]), f"Phase {phase_id} initial time")
-
-    if phase_terminal_times is not None:
-        for phase_id, tf in phase_terminal_times.items():
-            validate_array_numerical_integrity(np.array([tf]), f"Phase {phase_id} terminal time")
-
-    current_guess_container[0] = MultiPhaseInitialGuess(
-        phase_states=validated_phase_states if validated_phase_states else None,
-        phase_controls=validated_phase_controls if validated_phase_controls else None,
-        phase_initial_times=phase_initial_times,
-        phase_terminal_times=phase_terminal_times,
-        phase_integrals=validated_phase_integrals if validated_phase_integrals else None,
-        static_parameters=validated_static_parameters,
+    current_guess_container[0] = _create_validated_initial_guess(
+        validated_states,
+        validated_controls,
+        phase_initial_times,
+        phase_terminal_times,
+        validated_integrals,
+        validated_static_parameters,
     )
 
 
 def _can__validate_multiphase_initial_guess(multiphase_state: MultiPhaseVariableState) -> bool:
     return all(phase_def.mesh_configured for phase_def in multiphase_state.phases.values())
+
+
+def _create_phase_requirements_without_mesh(phase_def: Any) -> dict[str, Any]:
+    return {
+        "states_shapes": [],
+        "controls_shapes": [],
+        "needs_initial_time": True,
+        "needs_terminal_time": True,
+        "integrals_length": phase_def.num_integrals,
+    }
+
+
+def _create_phase_requirements_with_mesh(phase_def: Any) -> dict[str, Any]:
+    num_states, num_controls = phase_def.get_variable_counts()
+    states_shapes = [(num_states, N + 1) for N in phase_def.collocation_points_per_interval]
+    controls_shapes = [(num_controls, N) for N in phase_def.collocation_points_per_interval]
+    needs_initial_time = phase_def.t0_bounds[0] != phase_def.t0_bounds[1]
+    needs_terminal_time = phase_def.tf_bounds[0] != phase_def.tf_bounds[1]
+
+    return {
+        "states_shapes": states_shapes,
+        "controls_shapes": controls_shapes,
+        "needs_initial_time": needs_initial_time,
+        "needs_terminal_time": needs_terminal_time,
+        "integrals_length": phase_def.num_integrals,
+    }
 
 
 def get_multiphase_initial_guess_requirements(
@@ -166,27 +247,9 @@ def get_multiphase_initial_guess_requirements(
 
     for phase_id, phase_def in multiphase_state.phases.items():
         if not phase_def.mesh_configured:
-            phase_requirements[phase_id] = {
-                "states_shapes": [],
-                "controls_shapes": [],
-                "needs_initial_time": True,
-                "needs_terminal_time": True,
-                "integrals_length": phase_def.num_integrals,
-            }
+            phase_requirements[phase_id] = _create_phase_requirements_without_mesh(phase_def)
         else:
-            num_states, num_controls = phase_def.get_variable_counts()
-            states_shapes = [(num_states, N + 1) for N in phase_def.collocation_points_per_interval]
-            controls_shapes = [(num_controls, N) for N in phase_def.collocation_points_per_interval]
-            needs_initial_time = phase_def.t0_bounds[0] != phase_def.t0_bounds[1]
-            needs_terminal_time = phase_def.tf_bounds[0] != phase_def.tf_bounds[1]
-
-            phase_requirements[phase_id] = {
-                "states_shapes": states_shapes,
-                "controls_shapes": controls_shapes,
-                "needs_initial_time": needs_initial_time,
-                "needs_terminal_time": needs_terminal_time,
-                "integrals_length": phase_def.num_integrals,
-            }
+            phase_requirements[phase_id] = _create_phase_requirements_with_mesh(phase_def)
 
     static_parameters_length = multiphase_state.static_parameters.get_parameter_count()
 
@@ -199,7 +262,6 @@ def get_multiphase_initial_guess_requirements(
 def _validate_multiphase_initial_guess(
     current_guess, multiphase_state: MultiPhaseVariableState
 ) -> None:
-    """Validate the current multiphase initial guess using CENTRALIZED validation."""
     if current_guess is None:
         return
 
@@ -220,71 +282,95 @@ def _validate_multiphase_initial_guess(
     )
 
 
+def _create_phase_summary_without_mesh() -> dict[str, Any]:
+    return {
+        "mesh_intervals": 0,
+        "polynomial_degrees": [],
+        "mesh_points_str": "mesh_not_configured",
+    }
+
+
+def _create_phase_summary_with_mesh(phase_def: Any) -> dict[str, Any]:
+    return {
+        "mesh_intervals": len(phase_def.collocation_points_per_interval),
+        "polynomial_degrees": phase_def.collocation_points_per_interval.copy(),
+        "mesh_points_str": (
+            np.array2string(phase_def.global_normalized_mesh_nodes, precision=4)
+            if phase_def.global_normalized_mesh_nodes is not None
+            else "None"
+        ),
+    }
+
+
+def _check_states_completeness(current_guess, phase_id: int, phase_def: Any) -> bool:
+    return (
+        current_guess.phase_states is not None
+        and phase_id in current_guess.phase_states
+        and len(current_guess.phase_states[phase_id])
+        == len(phase_def.collocation_points_per_interval)
+    )
+
+
+def _check_controls_completeness(current_guess, phase_id: int, phase_def: Any) -> bool:
+    return (
+        current_guess.phase_controls is not None
+        and phase_id in current_guess.phase_controls
+        and len(current_guess.phase_controls[phase_id])
+        == len(phase_def.collocation_points_per_interval)
+    )
+
+
+def _check_integrals_completeness(current_guess, phase_id: int, phase_def: Any) -> bool:
+    if phase_def.num_integrals > 0:
+        return (
+            current_guess.phase_integrals is not None and phase_id in current_guess.phase_integrals
+        )
+    return True
+
+
+def _determine_initial_guess_source(
+    current_guess, multiphase_state: MultiPhaseVariableState
+) -> str:
+    if current_guess is None:
+        return "no_initial_guess"
+
+    is_complete = True
+    for phase_id, phase_def in multiphase_state.phases.items():
+        if not phase_def.mesh_configured:
+            is_complete = False
+            break
+
+        if not _check_states_completeness(current_guess, phase_id, phase_def):
+            is_complete = False
+            break
+
+        if not _check_controls_completeness(current_guess, phase_id, phase_def):
+            is_complete = False
+            break
+
+        if not _check_integrals_completeness(current_guess, phase_id, phase_def):
+            is_complete = False
+            break
+
+    num_static_params = multiphase_state.static_parameters.get_parameter_count()
+    if num_static_params > 0 and current_guess.static_parameters is None:
+        is_complete = False
+
+    return "complete_multiphase_provided" if is_complete else "partial_multiphase_provided"
+
+
 def get_multiphase_solver_input_summary(
     current_guess, multiphase_state: MultiPhaseVariableState
 ) -> MultiPhaseSolverInputSummary:
     phase_summaries = {}
-    initial_guess_source = "no_initial_guess"
 
     for phase_id, phase_def in multiphase_state.phases.items():
         if not phase_def.mesh_configured:
-            phase_summaries[phase_id] = {
-                "mesh_intervals": 0,
-                "polynomial_degrees": [],
-                "mesh_points_str": "mesh_not_configured",
-            }
+            phase_summaries[phase_id] = _create_phase_summary_without_mesh()
         else:
-            phase_summaries[phase_id] = {
-                "mesh_intervals": len(phase_def.collocation_points_per_interval),
-                "polynomial_degrees": phase_def.collocation_points_per_interval.copy(),
-                "mesh_points_str": (
-                    np.array2string(phase_def.global_normalized_mesh_nodes, precision=4)
-                    if phase_def.global_normalized_mesh_nodes is not None
-                    else "None"
-                ),
-            }
+            phase_summaries[phase_id] = _create_phase_summary_with_mesh(phase_def)
 
-    if current_guess is not None:
-        initial_guess_source = "partial_multiphase_provided"
-
-        is_complete = True
-        for phase_id, phase_def in multiphase_state.phases.items():
-            if not phase_def.mesh_configured:
-                is_complete = False
-                break
-
-            if (
-                current_guess.phase_states is None
-                or phase_id not in current_guess.phase_states
-                or len(current_guess.phase_states[phase_id])
-                != len(phase_def.collocation_points_per_interval)
-            ):
-                is_complete = False
-                break
-
-            if (
-                current_guess.phase_controls is None
-                or phase_id not in current_guess.phase_controls
-                or len(current_guess.phase_controls[phase_id])
-                != len(phase_def.collocation_points_per_interval)
-            ):
-                is_complete = False
-                break
-
-            if phase_def.num_integrals > 0 and (
-                current_guess.phase_integrals is None
-                or phase_id not in current_guess.phase_integrals
-            ):
-                is_complete = False
-                break
-
-        num_static_params = multiphase_state.static_parameters.get_parameter_count()
-        if num_static_params > 0 and current_guess.static_parameters is None:
-            is_complete = False
-
-        if is_complete:
-            initial_guess_source = "complete_multiphase_provided"
-
+    initial_guess_source = _determine_initial_guess_source(current_guess, multiphase_state)
     static_parameters_length = multiphase_state.static_parameters.get_parameter_count()
 
     return MultiPhaseSolverInputSummary(

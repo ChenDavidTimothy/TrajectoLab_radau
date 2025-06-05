@@ -15,15 +15,68 @@ from .state import (
 
 
 def _extract_casadi_symbol(expr: Any) -> ca.MX:
-    """Extract CasADi symbol from wrapper objects, otherwise return as-is."""
     if hasattr(expr, "_symbolic_var"):
         return expr._symbolic_var
     return expr
 
 
-class _SymbolicVariableBase:
-    """Base class for symbolic variable wrappers with CasADi integration."""
+def _create_phase_symbol(base_name: str, phase_id: int, suffix: str = "") -> ca.MX:
+    name = f"{base_name}_p{phase_id}{suffix}" if suffix else f"{base_name}_p{phase_id}"
+    return ca.MX.sym(name, 1)  # type: ignore[arg-type]
 
+
+def _validate_constraint_and_name(name: str, constraint: ConstraintInput, context: str) -> None:
+    validate_string_not_empty(name, f"{context} name")
+    validate_constraint_input_format(constraint, f"{context} '{name}' constraint")
+
+
+def _convert_expression_to_casadi(
+    expr: Any, expression_type: str, allow_callable_error: bool = True
+) -> ca.MX:
+    try:
+        if isinstance(expr, ca.MX):
+            return expr
+        elif hasattr(expr, "_symbolic_var"):
+            return _extract_casadi_symbol(expr)
+        else:
+            return ca.MX(expr)
+    except Exception as e:
+        if callable(expr) and allow_callable_error:
+            raise ValueError(
+                f"{expression_type} appears to be a function {expr}. Did you forget to call it?"
+            ) from e
+        else:
+            raise ValueError(
+                f"Cannot convert {expression_type} of type {type(expr)} to CasADi MX: {expr}"
+            ) from e
+
+
+def _validate_dynamics_key_exists(
+    state_sym: ca.MX, ordered_state_symbols: list[ca.MX], phase_id: int
+) -> None:
+    underlying_sym = _extract_casadi_symbol(state_sym)
+
+    for sym in ordered_state_symbols:
+        if underlying_sym is sym:
+            return
+
+    raise ValueError(f"Dynamics provided for undefined state variable in phase {phase_id}")
+
+
+def _convert_dynamics_dict_to_casadi(
+    dynamics_dict: dict[ca.MX | Any, ca.MX | float | int | Any], phase_id: int
+) -> dict[ca.MX, ca.MX]:
+    converted_dict = {}
+
+    for key, value in dynamics_dict.items():
+        storage_key = _extract_casadi_symbol(key)
+        storage_value = _convert_expression_to_casadi(value, "Dynamics expression")
+        converted_dict[storage_key] = storage_value
+
+    return converted_dict
+
+
+class _SymbolicVariableBase:
     def __init__(self, symbolic_var: ca.MX) -> None:
         self._symbolic_var = symbolic_var
 
@@ -99,8 +152,6 @@ class _SymbolicVariableBase:
 
 
 class TimeVariableImpl(_SymbolicVariableBase):
-    """Implementation of time variable with initial/final properties."""
-
     def __init__(self, sym_var: ca.MX, sym_initial: ca.MX, sym_final: ca.MX) -> None:
         super().__init__(sym_var)
         self._sym_initial = sym_initial
@@ -116,8 +167,6 @@ class TimeVariableImpl(_SymbolicVariableBase):
 
 
 class StateVariableImpl(_SymbolicVariableBase):
-    """Implementation of state variable with initial/final properties."""
-
     def __init__(self, sym_var: ca.MX, sym_initial: ca.MX, sym_final: ca.MX) -> None:
         super().__init__(sym_var)
         self._sym_initial = sym_initial
@@ -132,15 +181,27 @@ class StateVariableImpl(_SymbolicVariableBase):
         return self._sym_final
 
 
+def _create_time_symbols(phase_id: int) -> tuple[ca.MX, ca.MX, ca.MX]:
+    sym_time = _create_phase_symbol("t", phase_id)
+    sym_t0 = _create_phase_symbol("t0", phase_id)
+    sym_tf = _create_phase_symbol("tf", phase_id)
+    return sym_time, sym_t0, sym_tf
+
+
+def _create_state_symbols(name: str, phase_id: int) -> tuple[ca.MX, ca.MX, ca.MX]:
+    sym_var = _create_phase_symbol(name, phase_id)
+    sym_initial = _create_phase_symbol(f"{name}_initial", phase_id)
+    sym_final = _create_phase_symbol(f"{name}_final", phase_id)
+    return sym_var, sym_initial, sym_final
+
+
 def create_phase_time_variable(
     phase_def: PhaseDefinition, initial: ConstraintInput = 0.0, final: ConstraintInput = None
 ) -> TimeVariableImpl:
     validate_constraint_input_format(initial, f"phase {phase_def.phase_id} initial time")
     validate_constraint_input_format(final, f"phase {phase_def.phase_id} final time")
 
-    sym_time = ca.MX.sym(f"t_p{phase_def.phase_id}", 1)  # type: ignore[arg-type]
-    sym_t0 = ca.MX.sym(f"t0_p{phase_def.phase_id}", 1)  # type: ignore[arg-type]
-    sym_tf = ca.MX.sym(f"tf_p{phase_def.phase_id}", 1)  # type: ignore[arg-type]
+    sym_time, sym_t0, sym_tf = _create_time_symbols(phase_def.phase_id)
 
     if initial is None:
         initial = 0.0
@@ -164,16 +225,15 @@ def _create_phase_state_variable(
     final: ConstraintInput = None,
     boundary: ConstraintInput = None,
 ) -> StateVariableImpl:
-    validate_string_not_empty(name, "State variable name")
-    validate_constraint_input_format(initial, f"phase {phase_def.phase_id} state '{name}' initial")
-    validate_constraint_input_format(final, f"phase {phase_def.phase_id} state '{name}' final")
-    validate_constraint_input_format(
-        boundary, f"phase {phase_def.phase_id} state '{name}' boundary"
+    _validate_constraint_and_name(
+        name, initial, f"phase {phase_def.phase_id} state '{name}' initial"
+    )
+    _validate_constraint_and_name(name, final, f"phase {phase_def.phase_id} state '{name}' final")
+    _validate_constraint_and_name(
+        name, boundary, f"phase {phase_def.phase_id} state '{name}' boundary"
     )
 
-    sym_var = ca.MX.sym(f"{name}_p{phase_def.phase_id}", 1)  # type: ignore[arg-type]
-    sym_initial = ca.MX.sym(f"{name}_initial_p{phase_def.phase_id}", 1)  # type: ignore[arg-type]
-    sym_final = ca.MX.sym(f"{name}_final_p{phase_def.phase_id}", 1)  # type: ignore[arg-type]
+    sym_var, sym_initial, sym_final = _create_state_symbols(name, phase_def.phase_id)
 
     initial_constraint = _BoundaryConstraint(initial) if initial is not None else None
     final_constraint = _BoundaryConstraint(final) if final is not None else None
@@ -195,12 +255,9 @@ def _create_phase_state_variable(
 def create_phase_control_variable(
     phase_def: PhaseDefinition, name: str, boundary: ConstraintInput = None
 ) -> ca.MX:
-    validate_string_not_empty(name, "Control variable name")
-    validate_constraint_input_format(
-        boundary, f"phase {phase_def.phase_id} control '{name}' boundary"
-    )
+    _validate_constraint_and_name(name, boundary, f"phase {phase_def.phase_id} control '{name}'")
 
-    sym_var = ca.MX.sym(f"{name}_p{phase_def.phase_id}", 1)  # type: ignore[arg-type]
+    sym_var = _create_phase_symbol(name, phase_def.phase_id)
     boundary_constraint = _BoundaryConstraint(boundary) if boundary is not None else None
 
     phase_def.add_control(name=name, symbol=sym_var, boundary_constraint=boundary_constraint)
@@ -211,8 +268,7 @@ def create_phase_control_variable(
 def _create_static_parameter(
     static_params: StaticParameterState, name: str, boundary: ConstraintInput = None
 ) -> ca.MX:
-    validate_string_not_empty(name, "Parameter name")
-    validate_constraint_input_format(boundary, f"parameter '{name}' boundary")
+    _validate_constraint_and_name(name, boundary, f"parameter '{name}'")
 
     sym_var = ca.MX.sym(f"param_{name}", 1)  # type: ignore[arg-type]
     boundary_constraint = _BoundaryConstraint(boundary) if boundary is not None else None
@@ -228,65 +284,21 @@ def _set_phase_dynamics(
 ) -> None:
     ordered_state_symbols = phase_def._get_ordered_state_symbols()
 
-    # Validate that all keys are known state variables for this phase
     for state_sym in dynamics_dict.keys():
-        found = False
-        underlying_sym = _extract_casadi_symbol(state_sym)
+        _validate_dynamics_key_exists(state_sym, ordered_state_symbols, phase_def.phase_id)
 
-        for sym in ordered_state_symbols:
-            if underlying_sym is sym:
-                found = True
-                break
-
-        if not found:
-            raise ValueError(
-                f"Dynamics provided for undefined state variable in phase {phase_def.phase_id}"
-            )
-
-    converted_dict = {}
-    for key, value in dynamics_dict.items():
-        storage_key = _extract_casadi_symbol(key)
-
-        try:
-            if isinstance(value, ca.MX):
-                storage_value = value
-            elif isinstance(value, StateVariableImpl):
-                storage_value = _extract_casadi_symbol(value)
-            else:
-                storage_value = ca.MX(value)
-        except Exception as e:
-            if callable(value):
-                raise ValueError(
-                    f"Dynamics expression appears to be a function {value}. Did you forget to call it?"
-                ) from e
-            else:
-                raise ValueError(
-                    f"Cannot convert dynamics expression of type {type(value)} to CasADi MX: {value}"
-                ) from e
-
-        converted_dict[storage_key] = storage_value
-
+    converted_dict = _convert_dynamics_dict_to_casadi(dynamics_dict, phase_def.phase_id)
     phase_def.dynamics_expressions = converted_dict
 
 
-def _set_phase_integral(phase_def: PhaseDefinition, integrand_expr: ca.MX | float | int) -> ca.MX:
+def _create_integral_symbol(phase_def: PhaseDefinition) -> ca.MX:
     integral_name = f"integral_{len(phase_def.integral_expressions)}_p{phase_def.phase_id}"
-    integral_sym = ca.MX.sym(integral_name, 1)  # type: ignore[arg-type]
+    return ca.MX.sym(integral_name, 1)  # type: ignore[arg-type]
 
-    try:
-        if isinstance(integrand_expr, ca.MX):
-            pure_expr = integrand_expr
-        else:
-            pure_expr = ca.MX(integrand_expr)
-    except Exception as e:
-        if callable(integrand_expr):
-            raise ValueError(
-                f"Integrand appears to be a function {integrand_expr}. Did you forget to call it?"
-            ) from e
-        else:
-            raise ValueError(
-                f"Cannot convert integrand expression of type {type(integrand_expr)} to CasADi MX: {integrand_expr}"
-            ) from e
+
+def _set_phase_integral(phase_def: PhaseDefinition, integrand_expr: ca.MX | float | int) -> ca.MX:
+    integral_sym = _create_integral_symbol(phase_def)
+    pure_expr = _convert_expression_to_casadi(integrand_expr, "Integrand")
 
     phase_def.integral_expressions.append(pure_expr)
     phase_def.integral_symbols.append(integral_sym)
@@ -298,19 +310,5 @@ def _set_phase_integral(phase_def: PhaseDefinition, integrand_expr: ca.MX | floa
 def _set_multiphase_objective(
     multiphase_state: MultiPhaseVariableState, objective_expr: ca.MX | float | int
 ) -> None:
-    try:
-        if isinstance(objective_expr, ca.MX):
-            pure_expr = objective_expr
-        else:
-            pure_expr = ca.MX(objective_expr)
-    except Exception as e:
-        if callable(objective_expr):
-            raise ValueError(
-                f"Objective appears to be a function {objective_expr}. Did you forget to call it?"
-            ) from e
-        else:
-            raise ValueError(
-                f"Cannot convert objective expression of type {type(objective_expr)} to CasADi MX: {objective_expr}"
-            ) from e
-
+    pure_expr = _convert_expression_to_casadi(objective_expr, "Objective")
     multiphase_state.objective_expression = pure_expr

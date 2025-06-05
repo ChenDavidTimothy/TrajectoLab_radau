@@ -9,7 +9,6 @@ from .state import MultiPhaseVariableState, PhaseDefinition, _BoundaryConstraint
 
 
 def add_path_constraint(phase_def: PhaseDefinition, constraint_expr: ca.MX | float | int) -> None:
-    """Add a path constraint expression to a specific phase."""
     if isinstance(constraint_expr, ca.MX):
         phase_def.path_constraints.append(constraint_expr)
     else:
@@ -19,7 +18,6 @@ def add_path_constraint(phase_def: PhaseDefinition, constraint_expr: ca.MX | flo
 def add_event_constraint(
     multiphase_state: MultiPhaseVariableState, constraint_expr: ca.MX | float | int
 ) -> None:
-    """Add an event constraint expression to the multiphase problem."""
     if isinstance(constraint_expr, ca.MX):
         multiphase_state.cross_phase_constraints.append(constraint_expr)
     else:
@@ -36,7 +34,6 @@ def add_cross_phase_constraint(
 
 
 def _symbolic_constraint_to_constraint(expr: ca.MX) -> Constraint:
-    # converting symbolic constraint to unified Constraint.
     try:
         OP_EQ = getattr(ca, "OP_EQ", None)
         OP_LE = getattr(ca, "OP_LE", None)
@@ -72,7 +69,6 @@ def _symbolic_constraint_to_constraint(expr: ca.MX) -> Constraint:
 def _boundary_constraint_to_constraints(
     boundary_constraint: _BoundaryConstraint, variable_expression: ca.MX
 ) -> list[Constraint]:
-    """SINGLE SOURCE for converting boundary constraint to list of Constraint objects."""
     constraints: list[Constraint] = []
 
     if boundary_constraint.equals is not None:
@@ -90,16 +86,33 @@ def _boundary_constraint_to_constraints(
     return constraints
 
 
+def _map_symbol_to_vector_element(
+    symbol: ca.MX, vector: ca.MX, index: int, vector_length: int
+) -> ca.MX:
+    return vector if vector_length == 1 else vector[index]
+
+
+def _process_boundary_constraints(
+    boundary_constraints: list[_BoundaryConstraint | None],
+    variables_vec: ca.MX,
+    result: list[Constraint],
+) -> None:
+    for i, boundary_constraint in enumerate(boundary_constraints):
+        if boundary_constraint is None or not boundary_constraint.has_constraint():
+            continue
+
+        variable_expr = _map_symbol_to_vector_element(
+            variables_vec, variables_vec, i, len(boundary_constraints)
+        )
+        result.extend(_boundary_constraint_to_constraints(boundary_constraint, variable_expr))
+
+
 def _process_state_boundary_constraints(
     state_boundary_constraints: list[_BoundaryConstraint | None],
     states_vec: ca.MX,
     result: list[Constraint],
 ) -> None:
-    for i, boundary_constraint in enumerate(state_boundary_constraints):
-        if boundary_constraint is None or not boundary_constraint.has_constraint():
-            continue
-
-        result.extend(_boundary_constraint_to_constraints(boundary_constraint, states_vec[i]))
+    _process_boundary_constraints(state_boundary_constraints, states_vec, result)
 
 
 def _process_control_boundary_constraints(
@@ -107,11 +120,7 @@ def _process_control_boundary_constraints(
     controls_vec: ca.MX,
     result: list[Constraint],
 ) -> None:
-    for i, boundary_constraint in enumerate(control_boundary_constraints):
-        if boundary_constraint is None or not boundary_constraint.has_constraint():
-            continue
-
-        result.extend(_boundary_constraint_to_constraints(boundary_constraint, controls_vec[i]))
+    _process_boundary_constraints(control_boundary_constraints, controls_vec, result)
 
 
 def _process_symbolic_path_constraints(
@@ -124,13 +133,11 @@ def _process_symbolic_path_constraints(
         result.append(_symbolic_constraint_to_constraint(substituted_expr))
 
 
-def _build_substitution_map(
+def _map_phase_symbols_to_substitution(
     phase_def: PhaseDefinition,
     states_vec: ca.MX,
     controls_vec: ca.MX,
     time: ca.MX,
-    static_parameters_vec: ca.MX | None,
-    static_parameter_symbols: list[ca.MX] | None,
     initial_time_variable: ca.MX | None,
     terminal_time_variable: ca.MX | None,
 ) -> dict[ca.MX, ca.MX]:
@@ -138,11 +145,15 @@ def _build_substitution_map(
 
     state_syms = phase_def._get_ordered_state_symbols()
     for i, state_sym in enumerate(state_syms):
-        subs_map[state_sym] = states_vec[i]
+        subs_map[state_sym] = _map_symbol_to_vector_element(
+            state_sym, states_vec, i, len(state_syms)
+        )
 
     control_syms = phase_def._get_ordered_control_symbols()
     for i, control_sym in enumerate(control_syms):
-        subs_map[control_sym] = controls_vec[i]
+        subs_map[control_sym] = _map_symbol_to_vector_element(
+            control_sym, controls_vec, i, len(control_syms)
+        )
 
     if phase_def.sym_time is not None:
         subs_map[phase_def.sym_time] = time
@@ -153,20 +164,44 @@ def _build_substitution_map(
     if phase_def.sym_time_final is not None and terminal_time_variable is not None:
         subs_map[phase_def.sym_time_final] = terminal_time_variable
 
+    return subs_map
+
+
+def _map_static_parameters_to_substitution(
+    static_parameters_vec: ca.MX | None,
+    static_parameter_symbols: list[ca.MX] | None,
+    subs_map: dict[ca.MX, ca.MX],
+) -> None:
     if static_parameters_vec is not None and static_parameter_symbols is not None:
+        num_params = len(static_parameter_symbols)
         for i, param_sym in enumerate(static_parameter_symbols):
-            if len(static_parameter_symbols) == 1:
-                subs_map[param_sym] = static_parameters_vec
-            else:
-                subs_map[param_sym] = static_parameters_vec[i]
+            subs_map[param_sym] = _map_symbol_to_vector_element(
+                param_sym, static_parameters_vec, i, num_params
+            )
+
+
+def _build_substitution_map(
+    phase_def: PhaseDefinition,
+    states_vec: ca.MX,
+    controls_vec: ca.MX,
+    time: ca.MX,
+    static_parameters_vec: ca.MX | None,
+    static_parameter_symbols: list[ca.MX] | None,
+    initial_time_variable: ca.MX | None,
+    terminal_time_variable: ca.MX | None,
+) -> dict[ca.MX, ca.MX]:
+    subs_map = _map_phase_symbols_to_substitution(
+        phase_def, states_vec, controls_vec, time, initial_time_variable, terminal_time_variable
+    )
+
+    _map_static_parameters_to_substitution(
+        static_parameters_vec, static_parameter_symbols, subs_map
+    )
 
     return subs_map
 
 
-def _get_phase_path_constraints_function(
-    phase_def: PhaseDefinition,
-) -> Callable[..., list[Constraint]] | None:
-    """Get path constraints function for a specific phase."""
+def _check_has_path_constraints(phase_def: PhaseDefinition) -> bool:
     has_path_constraints = bool(phase_def.path_constraints)
 
     state_boundary_constraints = [info.boundary_constraint for info in phase_def.state_info]
@@ -181,8 +216,14 @@ def _get_phase_path_constraints_function(
         for constraint in control_boundary_constraints
     )
 
-    if not has_path_constraints and not has_state_boundary and not has_control_boundary:
-        return None
+    return has_path_constraints or has_state_boundary or has_control_boundary
+
+
+def _create_vectorized_path_constraints(
+    phase_def: PhaseDefinition,
+) -> Callable[..., list[Constraint]]:
+    state_boundary_constraints = [info.boundary_constraint for info in phase_def.state_info]
+    control_boundary_constraints = [info.boundary_constraint for info in phase_def.control_info]
 
     def vectorized_path_constraints(
         states_vec: ca.MX,
@@ -215,6 +256,68 @@ def _get_phase_path_constraints_function(
     return vectorized_path_constraints
 
 
+def _get_phase_path_constraints_function(
+    phase_def: PhaseDefinition,
+) -> Callable[..., list[Constraint]] | None:
+    if not _check_has_path_constraints(phase_def):
+        return None
+
+    return _create_vectorized_path_constraints(phase_def)
+
+
+def _map_phase_time_symbols(
+    phase_def: PhaseDefinition, endpoint_data: dict[str, ca.MX], subs_map: dict[ca.MX, ca.MX]
+) -> None:
+    if phase_def.sym_time_initial is not None:
+        subs_map[phase_def.sym_time_initial] = endpoint_data["t0"]
+    if phase_def.sym_time_final is not None:
+        subs_map[phase_def.sym_time_final] = endpoint_data["tf"]
+    if phase_def.sym_time is not None:
+        subs_map[phase_def.sym_time] = endpoint_data["tf"]
+
+
+def _map_phase_state_symbols(
+    phase_def: PhaseDefinition, endpoint_data: dict[str, ca.MX], subs_map: dict[ca.MX, ca.MX]
+) -> None:
+    state_initial_syms = phase_def.get_ordered_state_initial_symbols()
+    state_final_syms = phase_def.get_ordered_state_final_symbols()
+    state_syms = phase_def._get_ordered_state_symbols()
+
+    x0_vec = endpoint_data["x0"]
+    xf_vec = endpoint_data["xf"]
+    num_states = len(state_syms)
+
+    for i, (sym_initial, sym_final, sym_current) in enumerate(
+        zip(state_initial_syms, state_final_syms, state_syms, strict=True)
+    ):
+        subs_map[sym_initial] = _map_symbol_to_vector_element(sym_initial, x0_vec, i, num_states)
+        subs_map[sym_final] = _map_symbol_to_vector_element(sym_final, xf_vec, i, num_states)
+        subs_map[sym_current] = _map_symbol_to_vector_element(sym_current, xf_vec, i, num_states)
+
+
+def _map_phase_integral_symbols(
+    phase_def: PhaseDefinition, endpoint_data: dict[str, ca.MX], subs_map: dict[ca.MX, ca.MX]
+) -> None:
+    if "q" in endpoint_data and endpoint_data["q"] is not None:
+        for i, integral_sym in enumerate(phase_def.integral_symbols):
+            if i < endpoint_data["q"].shape[0]:
+                subs_map[integral_sym] = endpoint_data["q"][i]
+
+
+def _map_cross_phase_static_parameters(
+    multiphase_state: MultiPhaseVariableState,
+    static_parameters_vec: ca.MX | None,
+    subs_map: dict[ca.MX, ca.MX],
+) -> None:
+    if static_parameters_vec is not None:
+        static_param_syms = multiphase_state.static_parameters.get_ordered_parameter_symbols()
+        num_params = len(static_param_syms)
+        for i, param_sym in enumerate(static_param_syms):
+            subs_map[param_sym] = _map_symbol_to_vector_element(
+                param_sym, static_parameters_vec, i, num_params
+            )
+
+
 def _process_cross_phase_substitution_map(
     multiphase_state: MultiPhaseVariableState,
     phase_endpoint_vectors: dict[PhaseID, dict[str, ca.MX]],
@@ -228,44 +331,11 @@ def _process_cross_phase_substitution_map(
 
         endpoint_data = phase_endpoint_vectors[phase_id]
 
-        if phase_def.sym_time_initial is not None:
-            subs_map[phase_def.sym_time_initial] = endpoint_data["t0"]
-        if phase_def.sym_time_final is not None:
-            subs_map[phase_def.sym_time_final] = endpoint_data["tf"]
-        if phase_def.sym_time is not None:
-            subs_map[phase_def.sym_time] = endpoint_data["tf"]
+        _map_phase_time_symbols(phase_def, endpoint_data, subs_map)
+        _map_phase_state_symbols(phase_def, endpoint_data, subs_map)
+        _map_phase_integral_symbols(phase_def, endpoint_data, subs_map)
 
-        state_initial_syms = phase_def.get_ordered_state_initial_symbols()
-        state_final_syms = phase_def.get_ordered_state_final_symbols()
-        state_syms = phase_def._get_ordered_state_symbols()
-
-        x0_vec = endpoint_data["x0"]
-        xf_vec = endpoint_data["xf"]
-
-        for i, (sym_initial, sym_final, sym_current) in enumerate(
-            zip(state_initial_syms, state_final_syms, state_syms, strict=True)
-        ):
-            if len(state_syms) == 1:
-                subs_map[sym_initial] = x0_vec
-                subs_map[sym_final] = xf_vec
-                subs_map[sym_current] = xf_vec
-            else:
-                subs_map[sym_initial] = x0_vec[i]
-                subs_map[sym_final] = xf_vec[i]
-                subs_map[sym_current] = xf_vec[i]
-
-        if "q" in endpoint_data and endpoint_data["q"] is not None:
-            for i, integral_sym in enumerate(phase_def.integral_symbols):
-                if i < endpoint_data["q"].shape[0]:
-                    subs_map[integral_sym] = endpoint_data["q"][i]
-
-    if static_parameters_vec is not None:
-        static_param_syms = multiphase_state.static_parameters.get_ordered_parameter_symbols()
-        for i, param_sym in enumerate(static_param_syms):
-            if len(static_param_syms) == 1:
-                subs_map[param_sym] = static_parameters_vec
-            else:
-                subs_map[param_sym] = static_parameters_vec[i]
+    _map_cross_phase_static_parameters(multiphase_state, static_parameters_vec, subs_map)
 
     return subs_map
 
@@ -281,9 +351,10 @@ def _process_cross_phase_symbolic_constraints(
         result.append(constraint)
 
 
-def _process_phase_initial_boundary_constraints(
+def _process_phase_endpoint_boundary_constraints(
     multiphase_state: MultiPhaseVariableState,
     phase_endpoint_vectors: dict[PhaseID, dict[str, ca.MX]],
+    constraint_type: str,
     result: list[Constraint],
 ) -> None:
     for phase_id, phase_def in multiphase_state.phases.items():
@@ -291,13 +362,16 @@ def _process_phase_initial_boundary_constraints(
             continue
 
         endpoint_data = phase_endpoint_vectors[phase_id]
-        x0_vec = endpoint_data["x0"]
 
-        state_initial_constraints: list[_BoundaryConstraint | None] = [
-            info.initial_constraint for info in phase_def.state_info
-        ]
+        if constraint_type == "initial":
+            boundary_constraints = [info.initial_constraint for info in phase_def.state_info]
+            endpoint_vec = endpoint_data["x0"]
+        else:
+            boundary_constraints = [info.final_constraint for info in phase_def.state_info]
+            endpoint_vec = endpoint_data["xf"]
 
-        for i, boundary_constraint in enumerate(state_initial_constraints):
+        num_states = len(phase_def.state_info)
+        for i, boundary_constraint in enumerate(boundary_constraints):
             if (
                 boundary_constraint is None
                 or not boundary_constraint.has_constraint()
@@ -305,10 +379,20 @@ def _process_phase_initial_boundary_constraints(
             ):
                 continue
 
-            if len(phase_def.state_info) == 1:
-                result.extend(_boundary_constraint_to_constraints(boundary_constraint, x0_vec))
-            else:
-                result.extend(_boundary_constraint_to_constraints(boundary_constraint, x0_vec[i]))
+            constraint_expr = _map_symbol_to_vector_element(
+                endpoint_vec, endpoint_vec, i, num_states
+            )
+            result.extend(_boundary_constraint_to_constraints(boundary_constraint, constraint_expr))
+
+
+def _process_phase_initial_boundary_constraints(
+    multiphase_state: MultiPhaseVariableState,
+    phase_endpoint_vectors: dict[PhaseID, dict[str, ca.MX]],
+    result: list[Constraint],
+) -> None:
+    _process_phase_endpoint_boundary_constraints(
+        multiphase_state, phase_endpoint_vectors, "initial", result
+    )
 
 
 def _process_phase_final_boundary_constraints(
@@ -316,35 +400,12 @@ def _process_phase_final_boundary_constraints(
     phase_endpoint_vectors: dict[PhaseID, dict[str, ca.MX]],
     result: list[Constraint],
 ) -> None:
-    for phase_id, phase_def in multiphase_state.phases.items():
-        if phase_id not in phase_endpoint_vectors:
-            continue
-
-        endpoint_data = phase_endpoint_vectors[phase_id]
-        xf_vec = endpoint_data["xf"]
-
-        state_final_constraints: list[_BoundaryConstraint | None] = [
-            info.final_constraint for info in phase_def.state_info
-        ]
-
-        for i, boundary_constraint in enumerate(state_final_constraints):
-            if (
-                boundary_constraint is None
-                or not boundary_constraint.has_constraint()
-                or boundary_constraint.is_symbolic()
-            ):
-                continue
-
-            if len(phase_def.state_info) == 1:
-                result.extend(_boundary_constraint_to_constraints(boundary_constraint, xf_vec))
-            else:
-                result.extend(_boundary_constraint_to_constraints(boundary_constraint, xf_vec[i]))
+    _process_phase_endpoint_boundary_constraints(
+        multiphase_state, phase_endpoint_vectors, "final", result
+    )
 
 
-def _get_cross_phase_event_constraints_function(
-    multiphase_state: MultiPhaseVariableState,
-) -> Callable[..., list[Constraint]] | None:
-    """Get cross-phase event constraints function for multiphase problems."""
+def _check_has_cross_phase_constraints(multiphase_state: MultiPhaseVariableState) -> bool:
     has_cross_phase_constraints = bool(multiphase_state.cross_phase_constraints)
 
     has_phase_event_constraints = False
@@ -352,7 +413,6 @@ def _get_cross_phase_event_constraints_function(
         state_initial_constraints = [info.initial_constraint for info in phase_def.state_info]
         state_final_constraints = [info.final_constraint for info in phase_def.state_info]
 
-        # Only count NON-SYMBOLIC constraints (symbolic ones already processed)
         if any(
             constraint is not None and constraint.has_constraint() and not constraint.is_symbolic()
             for constraint in (state_initial_constraints + state_final_constraints)
@@ -360,9 +420,12 @@ def _get_cross_phase_event_constraints_function(
             has_phase_event_constraints = True
             break
 
-    if not has_cross_phase_constraints and not has_phase_event_constraints:
-        return None
+    return has_cross_phase_constraints or has_phase_event_constraints
 
+
+def _create_vectorized_cross_phase_event_constraints(
+    multiphase_state: MultiPhaseVariableState,
+) -> Callable[..., list[Constraint]]:
     def vectorized_cross_phase_event_constraints(
         phase_endpoint_vectors: dict[PhaseID, dict[str, ca.MX]], static_parameters_vec: ca.MX | None
     ) -> list[Constraint]:
@@ -381,3 +444,12 @@ def _get_cross_phase_event_constraints_function(
         return result
 
     return vectorized_cross_phase_event_constraints
+
+
+def _get_cross_phase_event_constraints_function(
+    multiphase_state: MultiPhaseVariableState,
+) -> Callable[..., list[Constraint]] | None:
+    if not _check_has_cross_phase_constraints(multiphase_state):
+        return None
+
+    return _create_vectorized_cross_phase_event_constraints(multiphase_state)
