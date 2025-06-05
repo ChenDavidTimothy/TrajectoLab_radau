@@ -45,12 +45,12 @@ def plot_multiphase_solution(
         >>> plot_multiphase_solution(solution, 1)  # Plot only phase 1
         >>> plot_multiphase_solution(solution, None, ("position", "velocity"))
     """
-    if not solution.success:
+    if not solution.status["success"]:
         logger.warning("Cannot plot: Solution not successful")
         return
 
     if phase_id is not None:
-        if phase_id not in solution._get_phase_ids():
+        if phase_id not in solution.phases:
             raise ValueError(f"Phase {phase_id} not found in solution")
         _plot_single_phase(solution, phase_id, variable_names, figsize)
     else:
@@ -66,8 +66,9 @@ def _plot_single_phase(
     variable_names: tuple[str, ...],
     figsize: tuple[float, float],
 ) -> None:
-    phase_state_names = solution._phase_state_names.get(phase_id, [])
-    phase_control_names = solution._phase_control_names.get(phase_id, [])
+    phase_data = solution.phases[phase_id]
+    state_names = phase_data["variables"]["state_names"]
+    control_names = phase_data["variables"]["control_names"]
 
     if variable_names:
         _create_variable_plot(
@@ -79,21 +80,21 @@ def _plot_single_phase(
     else:
         figures_created = []
 
-        if phase_state_names:
+        if state_names:
             fig = _create_variable_plot(
                 solution,
                 f"Phase {phase_id} States",
-                [(phase_id, var) for var in phase_state_names],
+                [(phase_id, var) for var in state_names],
                 figsize,
                 show_immediately=False,
             )
             figures_created.append(fig)
 
-        if phase_control_names:
+        if control_names:
             fig = _create_variable_plot(
                 solution,
                 f"Phase {phase_id} Controls",
-                [(phase_id, var) for var in phase_control_names],
+                [(phase_id, var) for var in control_names],
                 figsize,
                 show_immediately=False,
             )
@@ -116,7 +117,7 @@ def _plot_multiphase_variables(
 ) -> None:
     phase_var_pairs = []
     for var_name in variable_names:
-        for phase_id in solution._get_phase_ids():
+        for phase_id in solution.phases.keys():
             if (phase_id, var_name) in solution:
                 phase_var_pairs.append((phase_id, var_name))
 
@@ -137,14 +138,14 @@ def _plot_multiphase_default(
     all_state_vars = set()
     all_control_vars = set()
 
-    for phase_id in solution._get_phase_ids():
-        all_state_vars.update(solution._phase_state_names.get(phase_id, []))
-        all_control_vars.update(solution._phase_control_names.get(phase_id, []))
+    for phase_data in solution.phases.values():
+        all_state_vars.update(phase_data["variables"]["state_names"])
+        all_control_vars.update(phase_data["variables"]["control_names"])
 
     if all_state_vars:
         state_pairs = []
         for var_name in sorted(all_state_vars):
-            for phase_id in solution._get_phase_ids():
+            for phase_id in solution.phases.keys():
                 if (phase_id, var_name) in solution:
                     state_pairs.append((phase_id, var_name))
 
@@ -162,7 +163,7 @@ def _plot_multiphase_default(
     if all_control_vars:
         control_pairs = []
         for var_name in sorted(all_control_vars):
-            for phase_id in solution._get_phase_ids():
+            for phase_id in solution.phases.keys():
                 if (phase_id, var_name) in solution:
                     control_pairs.append((phase_id, var_name))
 
@@ -250,18 +251,19 @@ def _create_multiphase_variable_plot(
 ) -> MplFigure:
     fig = _create_variable_plot(solution, title, phase_var_pairs, figsize, show_immediately=False)
 
-    if show_phase_boundaries and len(solution._get_phase_ids()) > 1:
+    if show_phase_boundaries and len(solution.phases) > 1:
+        phase_ids = sorted(solution.phases.keys())
         for ax in fig.get_axes():
             if ax.get_visible():
-                for phase_id in solution._get_phase_ids()[:-1]:
-                    final_time = solution.get_phase_final_time(phase_id)
+                for phase_id in phase_ids[:-1]:
+                    final_time = solution.phases[phase_id]["times"]["final"]
                     ax.axvline(
                         final_time,
                         color="red",
                         linestyle="--",
                         alpha=0.7,
                         linewidth=2,
-                        label="Phase Boundary" if phase_id == solution._get_phase_ids()[0] else "",
+                        label="Phase Boundary" if phase_id == phase_ids[0] else "",
                     )
 
                 handles, labels = ax.get_legend_handles_labels()
@@ -277,17 +279,13 @@ def _create_multiphase_variable_plot(
 def _plot_single_variable_with_intervals(
     solution: "Solution", ax: MplAxes, phase_id: PhaseID, var_name: str
 ) -> None:
-    if (
-        phase_id in solution._phase_state_names
-        and var_name in solution._phase_state_names[phase_id]
-    ):
+    phase_data = solution.phases[phase_id]
+
+    if var_name in phase_data["variables"]["state_names"]:
         var_type = "state"
         time_data = solution[(phase_id, "time_states")]
         var_data = solution[(phase_id, var_name)]
-    elif (
-        phase_id in solution._phase_control_names
-        and var_name in solution._phase_control_names[phase_id]
-    ):
+    elif var_name in phase_data["variables"]["control_names"]:
         var_type = "control"
         time_data = solution[(phase_id, "time_controls")]
         var_data = solution[(phase_id, var_name)]
@@ -418,10 +416,9 @@ def _plot_state_linear_simple(
 
 
 def _get_phase_interval_colors(solution: "Solution", phase_id: PhaseID) -> np.ndarray | None:
-    if phase_id not in solution.phase_mesh_intervals:
-        return None
+    phase_data = solution.phases[phase_id]
+    num_intervals = phase_data["mesh"]["num_intervals"]
 
-    num_intervals = len(solution.phase_mesh_intervals[phase_id])
     if num_intervals <= 1:
         return None
 
@@ -432,17 +429,19 @@ def _get_phase_interval_colors(solution: "Solution", phase_id: PhaseID) -> np.nd
 
 
 def _get_phase_mesh_intervals(solution: "Solution", phase_id: PhaseID) -> list[tuple[float, float]]:
+    phase_data = solution.phases[phase_id]
+
+    mesh_nodes = phase_data["mesh"]["mesh_nodes"]
+    initial_time = phase_data["times"]["initial"]
+    terminal_time = phase_data["times"]["final"]
+
     if (
-        phase_id not in solution.phase_mesh_nodes
-        or solution.phase_mesh_nodes[phase_id] is None
-        or phase_id not in solution.phase_initial_times
-        or phase_id not in solution.phase_terminal_times
+        mesh_nodes is None
+        or len(mesh_nodes) == 0
+        or np.isnan(initial_time)
+        or np.isnan(terminal_time)
     ):
         return []
-
-    mesh_nodes = solution.phase_mesh_nodes[phase_id]
-    initial_time = solution.phase_initial_times[phase_id]
-    terminal_time = solution.phase_terminal_times[phase_id]
 
     # Convert normalized mesh nodes to physical time
     alpha = (terminal_time - initial_time) / 2.0

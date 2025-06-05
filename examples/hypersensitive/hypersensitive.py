@@ -38,8 +38,8 @@ solution = tl.solve_adaptive(
 )
 
 # Results
-if solution.success:
-    print(f"Adaptive objective: {solution.objective:.6f}")
+if solution.status["success"]:
+    print(f"Adaptive objective: {solution.status['objective']:.6f}")
     solution.plot()
 
     # Compare with fixed mesh
@@ -65,11 +65,13 @@ if solution.success:
         problem, nlp_options={"ipopt.print_level": 0, "ipopt.max_iter": 200}
     )
 
-    if fixed_solution.success:
-        print(f"Fixed mesh objective: {fixed_solution.objective:.6f}")
-        print(f"Difference: {abs(solution.objective - fixed_solution.objective):.2e}")
+    if fixed_solution.status["success"]:
+        print(f"Fixed mesh objective: {fixed_solution.status['objective']:.6f}")
+        print(
+            f"Difference: {abs(solution.status['objective'] - fixed_solution.status['objective']):.2e}"
+        )
     else:
-        print(f"Fixed mesh failed: {fixed_solution.message}")
+        print(f"Fixed mesh failed: {fixed_solution.status['message']}")
 
 else:
-    print(f"Failed: {solution.message}")
+    print(f"Failed: {solution.status['message']}")

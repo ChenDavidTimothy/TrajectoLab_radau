@@ -82,11 +82,11 @@ solution = tl.solve_adaptive(
 )
 
 # Results
-if solution.success:
-    print(f"Objective: {solution.objective:.8f}")
+if solution.status["success"]:
+    print(f"Objective: {solution.status['objective']:.8f}")
     print(
-        f"Reference: 0.0375195 (Error: {abs(solution.objective - 0.0375195) / 0.0375195 * 100:.2f}%)"
+        f"Reference: 0.0375195 (Error: {abs(solution.status['objective'] - 0.0375195) / 0.0375195 * 100:.2f}%)"
     )
     solution.plot()
 else:
-    print(f"Failed: {solution.message}")
+    print(f"Failed: {solution.status['message']}")

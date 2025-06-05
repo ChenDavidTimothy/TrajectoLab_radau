@@ -43,8 +43,8 @@ solution = tl.solve_adaptive(
 )
 
 # Results
-if solution.success:
-    print(f"Lap time: {solution.objective:.6f}")
+if solution.status["success"]:
+    print(f"Lap time: {solution.status['objective']:.6f}")
     solution.plot()
 else:
-    print(f"Failed: {solution.message}")
+    print(f"Failed: {solution.status['message']}")

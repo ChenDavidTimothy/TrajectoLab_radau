@@ -135,10 +135,10 @@ solution = tl.solve_adaptive(
 )
 
 # Results
-if solution.success:
-    final_velocity = -solution.objective  # Convert back from minimization
+if solution.status["success"]:
+    final_velocity = -solution.status["objective"]  # Convert back from minimization
     print(f"Final velocity: {final_velocity:.4f} ft/sec")
-    print(f"Final time: {solution.get_phase_final_time(1):.4f} sec")
+    print(f"Final time: {solution.phases[1]['times']['final']:.4f} sec")
     print("Reference: v_f = 22043.5079 ft/sec, t_f = 1005.8778 sec")
 
     error_v = abs(final_velocity - 22043.5079) / 22043.5079 * 100
@@ -146,4 +146,4 @@ if solution.success:
 
     solution.plot()
 else:
-    print(f"Failed: {solution.message}")
+    print(f"Failed: {solution.status['message']}")

@@ -101,10 +101,10 @@ solution = tl.solve_adaptive(
 )
 
 # Results
-if solution.success:
-    crossrange_deg = -solution.objective * 180.0 / np.pi
-    print(f"Final time: {solution.get_phase_final_time(1):.1f} seconds")
+if solution.status["success"]:
+    crossrange_deg = -solution.status["objective"] * 180.0 / np.pi
+    print(f"Final time: {solution.phases[1]['times']['final']:.1f} seconds")
     print(f"Crossrange: {crossrange_deg:.2f} degrees")
     solution.plot()
 else:
-    print(f"Failed: {solution.message}")
+    print(f"Failed: {solution.status['message']}")

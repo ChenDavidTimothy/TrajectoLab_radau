@@ -1,26 +1,26 @@
 """
 Solution interface for optimal control problem results.
 
-This module provides the Solution class that wraps optimization results
-in a user-friendly interface with trajectory access capabilities.
+This module provides the Solution class with a clean, bundled API design
+that eliminates fragmentation and provides logical information grouping.
 """
 
 import logging
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 from .tl_types import FloatArray, OptimalControlSolution, PhaseID, ProblemProtocol
 
 
+if TYPE_CHECKING:
+    pass
+
 logger = logging.getLogger(__name__)
 
 
 class Solution:
-    """User-friendly interface for multiphase optimal control problem solutions."""
-
-    success: bool
-    objective: float
-    _problem: ProblemProtocol | None
+    """Clean, bundled interface for multiphase optimal control problem solutions."""
 
     def __init__(
         self,
@@ -36,63 +36,16 @@ class Solution:
             problem: Problem protocol instance
             auto_summary: Whether to automatically display comprehensive summary (default: True)
         """
-        if raw_solution is not None:
-            self.success = raw_solution.success
-            self.message = raw_solution.message
+        # Store raw data for internal use and direct CasADi access
+        self._raw_solution = raw_solution
+        self._problem = problem
 
-            self.objective = (
-                raw_solution.objective if raw_solution.objective is not None else float("nan")
-            )
+        # Store raw CasADi objects for advanced users
+        self.raw_solution = raw_solution.raw_solution if raw_solution else None
+        self.opti = raw_solution.opti_object if raw_solution else None
 
-            self.phase_initial_times = raw_solution.phase_initial_times
-            self.phase_terminal_times = raw_solution.phase_terminal_times
-            self.phase_time_states = raw_solution.phase_time_states
-            self.phase_states = raw_solution.phase_states
-            self.phase_time_controls = raw_solution.phase_time_controls
-            self.phase_controls = raw_solution.phase_controls
-            self.phase_integrals = raw_solution.phase_integrals
-            self.static_parameters = raw_solution.static_parameters
-
-            self.raw_solution = raw_solution.raw_solution
-            self.opti = raw_solution.opti_object
-
-            self.phase_mesh_intervals = raw_solution.phase_mesh_intervals
-            self.phase_mesh_nodes = raw_solution.phase_mesh_nodes
-
-            self.phase_solved_state_trajectories_per_interval = (
-                raw_solution.phase_solved_state_trajectories_per_interval
-            )
-            self.phase_solved_control_trajectories_per_interval = (
-                raw_solution.phase_solved_control_trajectories_per_interval
-            )
-
-            self.adaptive_data = raw_solution.adaptive_data
-
-        else:
-            self.success = False
-            self.message = "No multiphase solution"
-            self.objective = float("nan")
-
-            self.phase_initial_times = {}
-            self.phase_terminal_times = {}
-            self.phase_time_states = {}
-            self.phase_states = {}
-            self.phase_time_controls = {}
-            self.phase_controls = {}
-            self.phase_integrals = {}
-            self.static_parameters = None
-
-            self.raw_solution = None
-            self.opti = None
-            self.phase_mesh_intervals = {}
-            self.phase_mesh_nodes = {}
-            self.phase_solved_state_trajectories_per_interval = {}
-            self.phase_solved_control_trajectories_per_interval = {}
-
-            self.adaptive_data = None
-
+        # Build variable name mappings for dictionary access
         if problem is not None:
-            self._problem = problem
             self._phase_state_names = {}
             self._phase_control_names = {}
             for phase_id in problem._get_phase_ids():
@@ -101,7 +54,6 @@ class Solution:
                     phase_id
                 )
         else:
-            self._problem = None
             self._phase_state_names = {}
             self._phase_control_names = {}
 
@@ -118,33 +70,184 @@ class Solution:
         except Exception as e:
             logger.warning(f"Error in comprehensive summary: {e}")
 
+    @property
+    def status(self) -> dict[str, Any]:
+        """
+        Complete solution status information.
+
+        Returns:
+            Dictionary containing:
+            - success: Whether optimization succeeded
+            - message: Solver status message
+            - objective: Objective function value
+            - total_mission_time: Total time across all phases
+        """
+        if self._raw_solution is None:
+            return {
+                "success": False,
+                "message": "No solution available",
+                "objective": float("nan"),
+                "total_mission_time": float("nan"),
+            }
+
+        # Calculate total mission time
+        if self._raw_solution.phase_initial_times and self._raw_solution.phase_terminal_times:
+            earliest_start = min(self._raw_solution.phase_initial_times.values())
+            latest_end = max(self._raw_solution.phase_terminal_times.values())
+            total_time = latest_end - earliest_start
+        else:
+            total_time = float("nan")
+
+        return {
+            "success": self._raw_solution.success,
+            "message": self._raw_solution.message,
+            "objective": self._raw_solution.objective
+            if self._raw_solution.objective is not None
+            else float("nan"),
+            "total_mission_time": total_time,
+        }
+
+    @property
+    def phases(self) -> dict[PhaseID, dict[str, Any]]:
+        """
+        Complete phase information for all phases.
+
+        Returns:
+            Dictionary mapping phase IDs to phase data containing:
+            - times: {initial, final, duration}
+            - variables: {state_names, control_names, num_states, num_controls}
+            - mesh: {polynomial_degrees, mesh_nodes, num_intervals}
+            - time_arrays: {states, controls}
+            - integrals: Integral values for this phase
+        """
+        if self._raw_solution is None:
+            return {}
+
+        phases_data = {}
+
+        for phase_id in self._get_phase_ids():
+            # Time information
+            initial_time = self._raw_solution.phase_initial_times.get(phase_id, float("nan"))
+            final_time = self._raw_solution.phase_terminal_times.get(phase_id, float("nan"))
+            duration = (
+                final_time - initial_time
+                if not (np.isnan(initial_time) or np.isnan(final_time))
+                else float("nan")
+            )
+
+            # Variable information
+            state_names = self._phase_state_names.get(phase_id, [])
+            control_names = self._phase_control_names.get(phase_id, [])
+
+            # Mesh information
+            polynomial_degrees = self._raw_solution.phase_mesh_intervals.get(phase_id, [])
+            mesh_nodes = self._raw_solution.phase_mesh_nodes.get(
+                phase_id, np.array([], dtype=np.float64)
+            )
+
+            # Time arrays
+            time_states = self._raw_solution.phase_time_states.get(
+                phase_id, np.array([], dtype=np.float64)
+            )
+            time_controls = self._raw_solution.phase_time_controls.get(
+                phase_id, np.array([], dtype=np.float64)
+            )
+
+            # Integrals
+            integrals = self._raw_solution.phase_integrals.get(phase_id, None)
+
+            phases_data[phase_id] = {
+                "times": {"initial": initial_time, "final": final_time, "duration": duration},
+                "variables": {
+                    "state_names": state_names.copy(),
+                    "control_names": control_names.copy(),
+                    "num_states": len(state_names),
+                    "num_controls": len(control_names),
+                },
+                "mesh": {
+                    "polynomial_degrees": polynomial_degrees.copy() if polynomial_degrees else [],
+                    "mesh_nodes": mesh_nodes.copy()
+                    if mesh_nodes.size > 0
+                    else np.array([], dtype=np.float64),
+                    "num_intervals": len(polynomial_degrees) if polynomial_degrees else 0,
+                },
+                "time_arrays": {"states": time_states.copy(), "controls": time_controls.copy()},
+                "integrals": integrals,
+            }
+
+        return phases_data
+
+    @property
+    def parameters(self) -> dict[str, Any] | None:
+        """
+        Static parameter information.
+
+        Returns:
+            Dictionary containing:
+            - values: Parameter values array
+            - names: Parameter names (if available)
+            - count: Number of parameters
+            Returns None if no static parameters.
+        """
+        if self._raw_solution is None or self._raw_solution.static_parameters is None:
+            return None
+
+        # Try to get parameter names if available
+        param_names = None
+        if self._problem is not None and hasattr(self._problem, "_static_parameters"):
+            try:
+                static_params = self._problem._static_parameters
+                if hasattr(static_params, "parameter_names"):
+                    param_names = static_params.parameter_names.copy()
+            except (AttributeError, IndexError):
+                pass
+
+        return {
+            "values": self._raw_solution.static_parameters.copy(),
+            "names": param_names,
+            "count": len(self._raw_solution.static_parameters),
+        }
+
+    @property
+    def adaptive(self) -> dict[str, Any] | None:
+        """
+        Adaptive algorithm information (if adaptive solver was used).
+
+        Returns:
+            Dictionary containing:
+            - converged: Whether algorithm converged
+            - iterations: Number of iterations performed
+            - target_tolerance: Target error tolerance
+            - phase_converged: Per-phase convergence status
+            - final_errors: Final error estimates per phase
+            - gamma_factors: Normalization factors per phase
+            Returns None if fixed mesh solver was used.
+        """
+        if self._raw_solution is None or self._raw_solution.adaptive_data is None:
+            return None
+
+        adaptive_data = self._raw_solution.adaptive_data
+
+        return {
+            "converged": adaptive_data.converged,
+            "iterations": adaptive_data.total_iterations,
+            "target_tolerance": adaptive_data.target_tolerance,
+            "phase_converged": adaptive_data.phase_converged.copy(),
+            "final_errors": {
+                phase_id: errors.copy()
+                for phase_id, errors in adaptive_data.final_phase_error_estimates.items()
+            },
+            "gamma_factors": {
+                phase_id: factors.copy() if factors is not None else None
+                for phase_id, factors in adaptive_data.phase_gamma_factors.items()
+            },
+        }
+
     def _get_phase_ids(self) -> list[PhaseID]:
-        return sorted(self.phase_initial_times.keys())
-
-    def get_phase_initial_time(self, phase_id: PhaseID) -> float:
-        """Get initial time for a specific phase."""
-        if phase_id not in self.phase_initial_times:
-            raise ValueError(f"Phase {phase_id} not found in solution")
-        return self.phase_initial_times[phase_id]
-
-    def get_phase_final_time(self, phase_id: PhaseID) -> float:
-        """Get final time for a specific phase."""
-        if phase_id not in self.phase_terminal_times:
-            raise ValueError(f"Phase {phase_id} not found in solution")
-        return self.phase_terminal_times[phase_id]
-
-    def get_phase_duration(self, phase_id: PhaseID) -> float:
-        """Get duration of a specific phase."""
-        return self.get_phase_final_time(phase_id) - self.get_phase_initial_time(phase_id)
-
-    def get_total_mission_time(self) -> float:
-        """Get total mission time across all phases."""
-        if not self.phase_initial_times or not self.phase_terminal_times:
-            return float("nan")
-
-        earliest_start = min(self.phase_initial_times.values())
-        latest_end = max(self.phase_terminal_times.values())
-        return latest_end - earliest_start
+        """Get sorted list of phase IDs."""
+        if self._raw_solution is None:
+            return []
+        return sorted(self._raw_solution.phase_initial_times.keys())
 
     def __getitem__(self, key: str | tuple[PhaseID, str]) -> FloatArray:
         """
@@ -171,7 +274,7 @@ class Solution:
             >>> time_states_p1 = solution[(1, "time_states")]
             >>> time_controls_p2 = solution[(2, "time_controls")]
         """
-        if not self.success:
+        if not self.status["success"]:
             logger.warning("Cannot access variable '%s': Solution not successful", key)
             return np.array([], dtype=np.float64)
 
@@ -194,22 +297,30 @@ class Solution:
             raise KeyError(f"Phase {phase_id} not found in solution")
 
         if var_name == "time_states":
-            return self.phase_time_states.get(phase_id, np.array([], dtype=np.float64))
+            return self._raw_solution.phase_time_states.get(
+                phase_id, np.array([], dtype=np.float64)
+            )
         elif var_name == "time_controls":
-            return self.phase_time_controls.get(phase_id, np.array([], dtype=np.float64))
+            return self._raw_solution.phase_time_controls.get(
+                phase_id, np.array([], dtype=np.float64)
+            )
 
         if phase_id in self._phase_state_names and var_name in self._phase_state_names[phase_id]:
             var_index = self._phase_state_names[phase_id].index(var_name)
-            if phase_id in self.phase_states and var_index < len(self.phase_states[phase_id]):
-                return self.phase_states[phase_id][var_index]
+            if phase_id in self._raw_solution.phase_states and var_index < len(
+                self._raw_solution.phase_states[phase_id]
+            ):
+                return self._raw_solution.phase_states[phase_id][var_index]
 
         if (
             phase_id in self._phase_control_names
             and var_name in self._phase_control_names[phase_id]
         ):
             var_index = self._phase_control_names[phase_id].index(var_name)
-            if phase_id in self.phase_controls and var_index < len(self.phase_controls[phase_id]):
-                return self.phase_controls[phase_id][var_index]
+            if phase_id in self._raw_solution.phase_controls and var_index < len(
+                self._raw_solution.phase_controls[phase_id]
+            ):
+                return self._raw_solution.phase_controls[phase_id][var_index]
 
         raise KeyError(f"Variable '{var_name}' not found in phase {phase_id}")
 
@@ -252,25 +363,6 @@ class Solution:
             return True
         except KeyError:
             return False
-
-    @property
-    def phase_state_names(self) -> dict[PhaseID, list[str]]:
-        """Get dictionary mapping phase IDs to state variable names."""
-        return {phase_id: names.copy() for phase_id, names in self._phase_state_names.items()}
-
-    @property
-    def phase_control_names(self) -> dict[PhaseID, list[str]]:
-        """Get dictionary mapping phase IDs to control variable names."""
-        return {phase_id: names.copy() for phase_id, names in self._phase_control_names.items()}
-
-    @property
-    def all_variable_names(self) -> list[str]:
-        """Get list of all unique variable names across all phases."""
-        all_vars = set()
-        for phase_id in self._get_phase_ids():
-            all_vars.update(self._phase_state_names.get(phase_id, []))
-            all_vars.update(self._phase_control_names.get(phase_id, []))
-        return sorted(all_vars)
 
     def plot(
         self,
@@ -320,4 +412,10 @@ class Solution:
             except Exception as e:
                 logger.warning(f"Error in comprehensive summary: {e}")
         else:
-            pass
+            # Simple summary using new API
+            print(f"Solution Status: {self.status['success']}")
+            print(f"Objective: {self.status['objective']:.6e}")
+            print(f"Total Mission Time: {self.status['total_mission_time']:.6f}")
+            print(f"Phases: {len(self.phases)}")
+            if self.adaptive:
+                print(f"Adaptive: Converged in {self.adaptive['iterations']} iterations")

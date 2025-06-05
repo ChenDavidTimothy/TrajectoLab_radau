@@ -115,13 +115,15 @@ class TestAdaptiveSystemValidation:
         )
 
         # CRITICAL VALIDATION: Must converge successfully
-        assert solution.success, f"Brachistochrone adaptive solution failed: {solution.message}"
+        assert solution.status["success"], (
+            f"Brachistochrone adaptive solution failed: {solution.status['message']}"
+        )
 
         # CRITICAL VALIDATION: Final time should be close to analytical solution
         # For (0,0) to (1,-1), analytical minimum time ≈ 1.8138 (depends on exact cycloid parameters)
         # We allow some tolerance due to discretization, but should be in the right ballpark
         analytical_time_approx = 1.8138
-        final_time = solution.get_phase_final_time(1)
+        final_time = solution.phases[1]["times"]["final"]
         relative_error = abs(final_time - analytical_time_approx) / analytical_time_approx
 
         # Allow more tolerance since this is a complex problem
@@ -189,16 +191,18 @@ class TestAdaptiveSystemValidation:
         )
 
         # CRITICAL VALIDATION: Must converge successfully
-        assert solution.success, f"Two-point BVP adaptive solution failed: {solution.message}"
+        assert solution.status["success"], (
+            f"Two-point BVP adaptive solution failed: {solution.status['message']}"
+        )
 
         # CRITICAL VALIDATION: Compare against analytical solution
         # Analytical solution: u*(t) = 1, cost = ∫u²dt = 1
         analytical_control = 1.0
         analytical_cost = 1.0
 
-        cost_error = abs(solution.objective - analytical_cost) / analytical_cost
+        cost_error = abs(solution.status["objective"] - analytical_cost) / analytical_cost
         assert cost_error < 1e-5, (
-            f"Two-point BVP cost error too large: computed={solution.objective:.8f}, "
+            f"Two-point BVP cost error too large: computed={solution.status['objective']:.8f}, "
             f"analytical={analytical_cost:.8f}, relative_error={cost_error:.2e}"
         )
 
@@ -280,7 +284,9 @@ class TestAdaptiveSystemValidation:
         )
 
         # CRITICAL VALIDATION: Must converge successfully
-        assert solution.success, f"Simple LQR adaptive solution failed: {solution.message}"
+        assert solution.status["success"], (
+            f"Simple LQR adaptive solution failed: {solution.status['message']}"
+        )
 
         # CRITICAL VALIDATION: Solution should be reasonable
         x_traj = solution[(1, "x")]
@@ -301,8 +307,12 @@ class TestAdaptiveSystemValidation:
         assert avg_control < 0, f"Average control should be negative: {avg_control:.3f}"
 
         # Cost should be finite and positive
-        assert solution.objective > 0, f"Cost should be positive: {solution.objective}"
-        assert np.isfinite(solution.objective), f"Cost should be finite: {solution.objective}"
+        assert solution.status["objective"] > 0, (
+            f"Cost should be positive: {solution.status['objective']}"
+        )
+        assert np.isfinite(solution.status["objective"]), (
+            f"Cost should be finite: {solution.status['objective']}"
+        )
 
     # ========================================================================
     # ERROR TOLERANCE HONESTY VERIFICATION
@@ -354,14 +364,14 @@ class TestAdaptiveSystemValidation:
             )
 
             # CRITICAL VALIDATION: Solution must converge
-            assert solution.success, (
-                f"Solution failed for tolerance {tolerance:.1e}: {solution.message}"
+            assert solution.status["success"], (
+                f"Solution failed for tolerance {tolerance:.1e}: {solution.status['message']}"
             )
 
             # CRITICAL VALIDATION: Verify actual error is within reasonable bounds
             # For this problem, analytical solution is u* = 1, cost* = 1
             analytical_cost = 1.0
-            actual_error = abs(solution.objective - analytical_cost) / analytical_cost
+            actual_error = abs(solution.status["objective"] - analytical_cost) / analytical_cost
 
             # The error should be reasonable (allow some discretization effects)
             safety_factor = 100.0  # More generous for this test
@@ -451,15 +461,21 @@ class TestAdaptiveSystemValidation:
         )
 
         # CRITICAL VALIDATION: All solutions must converge
-        assert coarse_solution.success, f"Coarse solution failed: {coarse_solution.message}"
-        assert medium_solution.success, f"Medium solution failed: {medium_solution.message}"
-        assert adaptive_solution.success, f"Adaptive solution failed: {adaptive_solution.message}"
+        assert coarse_solution.status["success"], (
+            f"Coarse solution failed: {coarse_solution.status['message']}"
+        )
+        assert medium_solution.status["success"], (
+            f"Medium solution failed: {medium_solution.status['message']}"
+        )
+        assert adaptive_solution.status["success"], (
+            f"Adaptive solution failed: {adaptive_solution.status['message']}"
+        )
 
         # CRITICAL VALIDATION: Refined solutions should have lower objective
         # (For minimization problems, lower is better)
-        coarse_obj = coarse_solution.objective
-        medium_obj = medium_solution.objective
-        adaptive_obj = adaptive_solution.objective
+        coarse_obj = coarse_solution.status["objective"]
+        medium_obj = medium_solution.status["objective"]
+        adaptive_obj = adaptive_solution.status["objective"]
 
         # Medium mesh should be better than coarse mesh
         improvement_medium = (coarse_obj - medium_obj) / abs(coarse_obj)
@@ -516,11 +532,13 @@ class TestAdaptiveSystemValidation:
                 nlp_options={"ipopt.print_level": 0, "ipopt.max_iter": 300, "ipopt.tol": 1e-12},
             )
 
-            assert solution.success, f"Solution failed for degree {degree}: {solution.message}"
+            assert solution.status["success"], (
+                f"Solution failed for degree {degree}: {solution.status['message']}"
+            )
 
             # Analytical solution: u*(t) = A (constant), cost = A²
             analytical_cost = A**2
-            error = abs(solution.objective - analytical_cost) / analytical_cost
+            error = abs(solution.status["objective"] - analytical_cost) / analytical_cost
             errors.append(error)
 
         # CRITICAL VALIDATION: Errors should decrease with polynomial degree
@@ -575,9 +593,10 @@ class TestAdaptiveSystemValidation:
                 nlp_options={"ipopt.print_level": 0, "ipopt.max_iter": 1000, "ipopt.tol": 1e-10},
             )
 
-            if not solution.success:
+            if not solution.status["success"]:
                 warnings.warn(
-                    f"Solution failed for {n_intervals} intervals: {solution.message}", stacklevel=3
+                    f"Solution failed for {n_intervals} intervals: {solution.status['message']}",
+                    stacklevel=3,
                 )
                 continue
 
@@ -586,7 +605,7 @@ class TestAdaptiveSystemValidation:
                 reference_solution = solution
                 continue
 
-            errors.append(solution.objective)
+            errors.append(solution.status["objective"])
 
         # CRITICAL VALIDATION: Need at least 2 points for convergence analysis
         if len(errors) < 2:
@@ -595,8 +614,8 @@ class TestAdaptiveSystemValidation:
         # CRITICAL VALIDATION: Each mesh refinement should improve the solution
         for i in range(1, len(errors)):
             if reference_solution is not None:
-                error_prev = abs(errors[i - 1] - reference_solution.objective)
-                error_curr = abs(errors[i] - reference_solution.objective)
+                error_prev = abs(errors[i - 1] - reference_solution.status["objective"])
+                error_curr = abs(errors[i] - reference_solution.status["objective"])
 
                 if error_prev > 1e-12 and error_curr > 1e-12:
                     reduction_factor = error_prev / error_curr
@@ -651,7 +670,9 @@ class TestAdaptiveSystemValidation:
         )
 
         # CRITICAL VALIDATION: Must converge successfully
-        assert solution.success, f"Boundary layer solution failed: {solution.message}"
+        assert solution.status["success"], (
+            f"Boundary layer solution failed: {solution.status['message']}"
+        )
 
         # CRITICAL VALIDATION: Solution should have boundary layer characteristics
         x_traj = solution[(1, "x")]
@@ -733,7 +754,9 @@ class TestAdaptiveSystemValidation:
         )
 
         # CRITICAL VALIDATION: Must converge successfully
-        assert solution.success, f"Multi-scale solution failed: {solution.message}"
+        assert solution.status["success"], (
+            f"Multi-scale solution failed: {solution.status['message']}"
+        )
 
         # CRITICAL VALIDATION: Check solution quality
         x1_traj = solution[(1, "x1")]
@@ -782,12 +805,14 @@ def _verify_solution_basic_properties(solution, problem_name: str):
         problem_name: Name of the problem for error messages
     """
     # Solution should be successful
-    assert solution.success, f"{problem_name}: Solution not successful: {solution.message}"
+    assert solution.status["success"], (
+        f"{problem_name}: Solution not successful: {solution.status['message']}"
+    )
 
     # Objective should exist and be finite
-    assert solution.objective is not None, f"{problem_name}: Missing objective value"
-    assert np.isfinite(solution.objective), (
-        f"{problem_name}: Objective not finite: {solution.objective}"
+    assert solution.status["objective"] is not None, f"{problem_name}: Missing objective value"
+    assert np.isfinite(solution.status["objective"]), (
+        f"{problem_name}: Objective not finite: {solution.status['objective']}"
     )
 
     # Time should be reasonable

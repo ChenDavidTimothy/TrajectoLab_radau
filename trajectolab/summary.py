@@ -70,25 +70,22 @@ def _print_problem_structure_section(solution: Solution) -> None:
         print("│  Name: Not available")
 
     # Basic counts
-    phase_ids = solution._get_phase_ids()
-    print(f"│  Phases: {len(phase_ids)}")
+    phases = solution.phases
+    print(f"│  Phases: {len(phases)}")
 
     # Variable counts
     total_states = 0
     total_controls = 0
-    for phase_id in phase_ids:
-        if phase_id in solution._phase_state_names:
-            total_states += len(solution._phase_state_names[phase_id])
-        if phase_id in solution._phase_control_names:
-            total_controls += len(solution._phase_control_names[phase_id])
+    for phase_data in phases.values():
+        total_states += phase_data["variables"]["num_states"]
+        total_controls += phase_data["variables"]["num_controls"]
 
     print(f"│  Total State Variables: {total_states}")
     print(f"│  Total Control Variables: {total_controls}")
 
     # Static parameters
-    num_static_params = 0
-    if solution.static_parameters is not None:
-        num_static_params = len(solution.static_parameters)
+    parameters = solution.parameters
+    num_static_params = parameters["count"] if parameters else 0
     print(f"│  Static Parameters: {num_static_params}")
 
     print("│")
@@ -99,11 +96,12 @@ def _print_solution_status_section(solution: Solution) -> None:
     print("┌─ SOLUTION STATUS")
     print("│")
 
-    print(f"│  Success: {solution.success}")
-    print(f"│  Message: {solution.message}")
+    status = solution.status
+    print(f"│  Success: {status['success']}")
+    print(f"│  Message: {status['message']}")
 
-    if solution.success:
-        print(f"│  Objective: {solution.objective:.12e}")
+    if status["success"]:
+        print(f"│  Objective: {status['objective']:.12e}")
     else:
         print("│  Objective: Not available")
 
@@ -135,46 +133,43 @@ def _print_phase_data_section(solution: Solution) -> None:
     print("┌─ PHASE DATA")
     print("│")
 
-    phase_ids = solution._get_phase_ids()
-    if not phase_ids:
+    phases = solution.phases
+    if not phases:
         print("│  No phases available")
         print("│")
         return
 
-    for phase_id in phase_ids:
+    for phase_id, phase_data in phases.items():
         print(f"│  Phase {phase_id}:")
 
         # Timing data
-        try:
-            t_initial = solution.get_phase_initial_time(phase_id)
-            t_final = solution.get_phase_final_time(phase_id)
-            duration = t_final - t_initial
+        times = phase_data["times"]
+        t_initial = times["initial"]
+        t_final = times["final"]
+        duration = times["duration"]
+
+        if not np.isnan(t_initial):
             print(f"│    Initial Time: {t_initial:.12e}")
             print(f"│    Final Time: {t_final:.12e}")
             print(f"│    Duration: {duration:.12e}")
-        except (ValueError, KeyError):
+        else:
             print("│    Timing: Not available")
 
         # Variable names
-        if phase_id in solution._phase_state_names:
-            state_names = solution._phase_state_names[phase_id]
-            print(f"│    State Variables ({len(state_names)}): {state_names}")
-        else:
-            print("│    State Variables: Not available")
+        variables = phase_data["variables"]
+        state_names = variables["state_names"]
+        control_names = variables["control_names"]
 
-        if phase_id in solution._phase_control_names:
-            control_names = solution._phase_control_names[phase_id]
-            print(f"│    Control Variables ({len(control_names)}): {control_names}")
-        else:
-            print("│    Control Variables: Not available")
+        print(f"│    State Variables ({len(state_names)}): {state_names}")
+        print(f"│    Control Variables ({len(control_names)}): {control_names}")
 
         # Integral values (raw data)
-        if phase_id in solution.phase_integrals:
-            integral_val = solution.phase_integrals[phase_id]
-            if isinstance(integral_val, int | float):
-                print(f"│    Integral: {integral_val:.12e}")
+        integrals = phase_data["integrals"]
+        if integrals is not None:
+            if isinstance(integrals, int | float):
+                print(f"│    Integral: {integrals:.12e}")
             else:
-                print(f"│    Integrals: {integral_val}")
+                print(f"│    Integrals: {integrals}")
         else:
             print("│    Integral: Not available")
 
@@ -183,27 +178,20 @@ def _print_phase_data_section(solution: Solution) -> None:
 
 def _print_static_parameters_section(solution: Solution) -> None:
     """Present static parameter data."""
-    if solution.static_parameters is None or len(solution.static_parameters) == 0:
+    parameters = solution.parameters
+    if parameters is None or parameters["count"] == 0:
         return
 
     print("┌─ STATIC PARAMETERS")
     print("│")
 
-    params = solution.static_parameters
-    print(f"│  Count: {len(params)}")
+    print(f"│  Count: {parameters['count']}")
 
-    # Parameter names if available
-    param_names = None
-    if solution._problem is not None and hasattr(solution._problem, "_static_parameters"):
-        try:
-            static_params = solution._problem._static_parameters
-            if hasattr(static_params, "parameter_names"):
-                param_names = static_params.parameter_names
-        except (AttributeError, IndexError):
-            pass
+    param_names = parameters["names"]
+    param_values = parameters["values"]
 
     print("│  Values:")
-    for i, value in enumerate(params):
+    for i, value in enumerate(param_values):
         param_name = (
             f"param_{i + 1}" if param_names is None or i >= len(param_names) else param_names[i]
         )
@@ -217,7 +205,8 @@ def _print_mesh_configuration_section(solution: Solution) -> None:
     print("┌─ MESH CONFIGURATION")
     print("│")
 
-    if not solution.phase_mesh_intervals:
+    phases = solution.phases
+    if not phases:
         print("│  Mesh data not available")
         print("│")
         return
@@ -229,30 +218,25 @@ def _print_mesh_configuration_section(solution: Solution) -> None:
     print("│  ├─────────┼───────────┼─────────────┼──────────────")
 
     total_intervals = 0
-    for phase_id in sorted(solution._get_phase_ids()):
-        if phase_id in solution.phase_mesh_intervals:
-            intervals = solution.phase_mesh_intervals[phase_id]
-            num_intervals = len(intervals)
-            total_intervals += num_intervals
+    for phase_id in sorted(phases.keys()):
+        phase_data = phases[phase_id]
+        mesh_data = phase_data["mesh"]
 
-            # Polynomial degrees
-            if intervals:
-                degrees_str = f"{intervals}"
-            else:
-                degrees_str = "[]"
+        intervals = mesh_data["polynomial_degrees"]
+        num_intervals = mesh_data["num_intervals"]
+        total_intervals += num_intervals
 
-            # Mesh bounds
+        # Polynomial degrees
+        degrees_str = f"{intervals}" if intervals else "[]"
+
+        # Mesh bounds
+        mesh_nodes = mesh_data["mesh_nodes"]
+        if mesh_nodes is not None and len(mesh_nodes) > 0:
+            mesh_bounds = f"[{mesh_nodes[0]:.3f}, {mesh_nodes[-1]:.3f}]"
+        else:
             mesh_bounds = "Not available"
-            if (
-                phase_id in solution.phase_mesh_nodes
-                and solution.phase_mesh_nodes[phase_id] is not None
-            ):
-                mesh_nodes = solution.phase_mesh_nodes[phase_id]
-                mesh_bounds = f"[{mesh_nodes[0]:.3f}, {mesh_nodes[-1]:.3f}]"
 
-            print(
-                f"│  │ {phase_id:7d} │ {num_intervals:9d} │ {degrees_str:11s} │ {mesh_bounds:12s}"
-            )
+        print(f"│  │ {phase_id:7d} │ {num_intervals:9d} │ {degrees_str:11s} │ {mesh_bounds:12s}")
 
     print("│  └─────────┴───────────┴─────────────┴──────────────")
     print(f"│  Total Intervals: {total_intervals}")
@@ -261,30 +245,28 @@ def _print_mesh_configuration_section(solution: Solution) -> None:
 
 def _print_adaptive_algorithm_data_section(solution: Solution) -> None:
     """Present adaptive algorithm data if available."""
-    # Check if adaptive data is stored in solution
-    if not hasattr(solution, "adaptive_data") or solution.adaptive_data is None:
+    adaptive = solution.adaptive
+    if adaptive is None:
         return
-
-    adaptive_data = solution.adaptive_data
 
     print("┌─ ADAPTIVE ALGORITHM DATA")
     print("│")
 
     # Basic adaptive information
-    print(f"│  Target Tolerance: {adaptive_data.target_tolerance:.3e}")
-    print(f"│  Total Iterations: {adaptive_data.total_iterations}")
-    print(f"│  Converged: {adaptive_data.converged}")
+    print(f"│  Target Tolerance: {adaptive['target_tolerance']:.3e}")
+    print(f"│  Total Iterations: {adaptive['iterations']}")
+    print(f"│  Converged: {adaptive['converged']}")
 
     # Phase convergence status
     print("│  Phase Convergence:")
-    for phase_id in sorted(adaptive_data.phase_converged.keys()):
-        converged = adaptive_data.phase_converged[phase_id]
+    for phase_id in sorted(adaptive["phase_converged"].keys()):
+        converged = adaptive["phase_converged"][phase_id]
         print(f"│    Phase {phase_id}: {converged}")
 
     # Final error estimates per phase
     print("│  Final Error Estimates:")
-    for phase_id in sorted(adaptive_data.final_phase_error_estimates.keys()):
-        errors = adaptive_data.final_phase_error_estimates[phase_id]
+    for phase_id in sorted(adaptive["final_errors"].keys()):
+        errors = adaptive["final_errors"][phase_id]
         print(f"│    Phase {phase_id}:")
         for k, error in enumerate(errors):
             if np.isnan(error) or np.isinf(error):
@@ -295,8 +277,8 @@ def _print_adaptive_algorithm_data_section(solution: Solution) -> None:
 
     # Maximum error per phase
     print("│  Maximum Error Per Phase:")
-    for phase_id in sorted(adaptive_data.final_phase_error_estimates.keys()):
-        errors = adaptive_data.final_phase_error_estimates[phase_id]
+    for phase_id in sorted(adaptive["final_errors"].keys()):
+        errors = adaptive["final_errors"][phase_id]
         finite_errors = [e for e in errors if not (np.isnan(e) or np.isinf(e))]
         if finite_errors:
             max_error = max(finite_errors)
@@ -306,7 +288,7 @@ def _print_adaptive_algorithm_data_section(solution: Solution) -> None:
 
     # Global maximum error
     all_finite_errors = []
-    for errors in adaptive_data.final_phase_error_estimates.values():
+    for errors in adaptive["final_errors"].values():
         all_finite_errors.extend([e for e in errors if not (np.isnan(e) or np.isinf(e))])
 
     if all_finite_errors:

@@ -85,8 +85,8 @@ solution = tl.solve_adaptive(
 )
 
 # Results
-if solution.success:
-    final_time = solution.get_phase_final_time(1)
+if solution.status["success"]:
+    final_time = solution.phases[1]["times"]["final"]
     print(f"Minimum time: {final_time:.8f}")
     print(f"Reference: 9.14093620 (Error: {abs(final_time - 9.14093620) / 9.14093620 * 100:.3f}%)")
 
@@ -108,4 +108,4 @@ if solution.success:
 
     solution.plot()
 else:
-    print(f"Failed: {solution.message}")
+    print(f"Failed: {solution.status['message']}")

@@ -66,8 +66,8 @@ solution = tl.solve_adaptive(
 )
 
 # Results
-if solution.success:
-    print(f"Objective: {solution.objective:.8f}")
+if solution.status["success"]:
+    print(f"Objective: {solution.status['objective']:.8f}")
     solution.plot(show_phase_boundaries=True)
 else:
-    print(f"Failed: {solution.message}")
+    print(f"Failed: {solution.status['message']}")

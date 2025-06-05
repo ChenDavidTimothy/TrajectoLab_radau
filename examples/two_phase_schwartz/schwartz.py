@@ -95,12 +95,45 @@ solution = tl.solve_adaptive(
     nlp_options={"ipopt.print_level": 0, "ipopt.max_iter": 3000, "ipopt.tol": 1e-8},
 )
 
-# Results
-if solution.success:
-    print(f"Objective: {solution.objective:.8f}")
+# Results using new bundle API
+if solution.status["success"]:
+    print(f"Objective: {solution.status['objective']:.8f}")
+    print(f"Total mission time: {solution.status['total_mission_time']:.6f}")
+
+    # Variable access unchanged - still excellent
     x0_final = solution[(2, "x0")][-1]
     x1_final = solution[(2, "x1")][-1]
     print(f"Final state: x0={x0_final:.6f}, x1={x1_final:.6f}")
+
+    # Show phase information using new bundles
+    print("\nPhase Information:")
+    for phase_id, phase_data in solution.phases.items():
+        times = phase_data["times"]
+        variables = phase_data["variables"]
+        mesh = phase_data["mesh"]
+
+        print(f"  Phase {phase_id}:")
+        print(
+            f"    Duration: {times['duration']:.6f} (from {times['initial']:.3f} to {times['final']:.3f})"
+        )
+        print(f"    States: {variables['state_names']}")
+        print(f"    Controls: {variables['control_names']}")
+        print(f"    Mesh intervals: {mesh['num_intervals']}")
+        print(f"    Polynomial degrees: {mesh['polynomial_degrees']}")
+
+    # Show adaptive algorithm results if available
+    if solution.adaptive:
+        print("\nAdaptive Algorithm:")
+        print(f"  Converged: {solution.adaptive['converged']}")
+        print(f"  Iterations: {solution.adaptive['iterations']}")
+        print(f"  Target tolerance: {solution.adaptive['target_tolerance']:.1e}")
+
+        print("  Phase convergence:")
+        for phase_id, converged in solution.adaptive["phase_converged"].items():
+            print(f"    Phase {phase_id}: {converged}")
+
+    # Plotting unchanged - still excellent
     solution.plot(show_phase_boundaries=True)
+
 else:
-    print(f"Failed: {solution.message}")
+    print(f"Failed: {solution.status['message']}")

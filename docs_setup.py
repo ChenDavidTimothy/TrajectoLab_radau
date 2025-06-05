@@ -275,7 +275,7 @@ TrajectoLab is a Python framework for solving optimal control problems using the
     problem.mesh([8, 8], np.linspace(-1, 1, 3))
     solution = tl.solve_adaptive(problem)
 
-    if solution.success:
+    if solution.status["success"]:
         print(f"Optimal time: {solution.final_time:.3f}")
         solution.plot()
 
@@ -497,7 +497,7 @@ Example: Minimum Time Problem
     solution = tl.solve_fixed_mesh(problem)
 
     # 6. Results
-    if solution.success:
+    if solution.status["success"]:
         print(f"Minimum time: {solution.final_time:.3f} seconds")
         solution.plot()
 
@@ -530,7 +530,7 @@ Key Patterns
 
 .. code-block:: python
 
-    if solution.success:
+    if solution.status["success"]:
         # Get trajectory data
         time, position = solution.get_trajectory("position")
         time, velocity = solution.get_trajectory("velocity")
@@ -540,7 +540,7 @@ Key Patterns
 
         # Access final values
         print(f"Final time: {solution.final_time}")
-        print(f"Objective: {solution.objective}")
+        print(f"Objective: {solution.status['objective']}")
 
 Next Steps
 ----------

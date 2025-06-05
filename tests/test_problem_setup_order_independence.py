@@ -63,10 +63,10 @@ class TestProblemSetupOrderIndependence:
         problem.guess(phase_states={1: states}, phase_controls={1: controls})
 
         solution = solve_fixed_mesh(problem)
-        assert solution.success, f"Mesh→Guess→Solve failed: {solution.message}"
+        assert solution.status["success"], f"Mesh→Guess→Solve failed: {solution.status['message']}"
 
         # NEW API: Access results by phase
-        return solution.objective, solution[(1, "x")][-1]
+        return solution.status["objective"], solution[(1, "x")][-1]
 
     def _solve_with_guess_first_order(self) -> tuple[float, float]:
         """Helper method: guess() → mesh() → solve()"""
@@ -81,10 +81,10 @@ class TestProblemSetupOrderIndependence:
         phase.mesh([3], [-1.0, 1.0])
 
         solution = solve_fixed_mesh(problem)
-        assert solution.success, f"Guess→Mesh→Solve failed: {solution.message}"
+        assert solution.status["success"], f"Guess→Mesh→Solve failed: {solution.status['message']}"
 
         x_trajectory = solution[(1, "x")]
-        return solution.objective, float(x_trajectory[-1])
+        return solution.status["objective"], float(x_trajectory[-1])
 
     def test_mesh_first_then_guess_then_solve(self):
         """Test: mesh() → guess() → solve() - Integration Test"""
@@ -138,7 +138,7 @@ class TestProblemSetupOrderIndependence:
         phase1.mesh([3], [-1.0, 1.0])
         problem1.guess(phase_states={1: states1}, phase_controls={1: controls1})
         solution1a = solve_fixed_mesh(problem1)
-        assert solution1a.success, "Initial solve failed"
+        assert solution1a.status["success"], "Initial solve failed"
 
         # Refine mesh and solve again
         states1_refined = [np.array([[0.0, 0.25, 0.5, 0.75, 1.0]])]  # For N=4
@@ -147,10 +147,10 @@ class TestProblemSetupOrderIndependence:
         phase1.mesh([4], [-1.0, 1.0])  # Finer mesh
         problem1.guess(phase_states={1: states1_refined}, phase_controls={1: controls1_refined})
         solution1b = solve_fixed_mesh(problem1)
-        assert solution1b.success, "Refined solve failed"
+        assert solution1b.status["success"], "Refined solve failed"
 
         # Refined solution should be at least as good (lower objective)
-        assert solution1b.objective <= solution1a.objective + 1e-6, (
+        assert solution1b.status["objective"] <= solution1a.status["objective"] + 1e-6, (
             "Mesh refinement should not worsen the solution significantly"
         )
 
@@ -164,7 +164,7 @@ class TestProblemSetupOrderIndependence:
         phase.mesh([3], [-1.0, 1.0])
         problem.guess(phase_states={1: states}, phase_controls={1: controls})
         solution1 = solve_fixed_mesh(problem)
-        assert solution1.success, "Initial solve failed"
+        assert solution1.status["success"], "Initial solve failed"
 
         # Scenario: Change only mesh, keep same initial guess structure
         phase.mesh([5], [-1.0, 1.0])  # Different polynomial degree
@@ -174,7 +174,7 @@ class TestProblemSetupOrderIndependence:
 
         problem.guess(phase_states={1: states_new}, phase_controls={1: controls_new})
         solution2 = solve_fixed_mesh(problem)
-        assert solution2.success, "Modified mesh solve failed"
+        assert solution2.status["success"], "Modified mesh solve failed"
 
         # Scenario: Change mesh without changing initial guess (should validate at solve time)
         problem3, phase3 = self.create_standard_problem()
@@ -206,7 +206,7 @@ class TestProblemSetupOrderIndependence:
         # No initial guess set - should work (solver uses defaults)
 
         solution1 = solve_fixed_mesh(problem1)
-        assert solution1.success, "No initial guess should work with defaults"
+        assert solution1.status["success"], "No initial guess should work with defaults"
 
         # Test 2: Initial guess set but no mesh (should fail at solve time)
         problem2, _phase2 = self.create_standard_problem()
@@ -266,7 +266,7 @@ class TestProblemSetupOrderIndependence:
         phase1.mesh([2, 3], [-1.0, 0.0, 1.0])
         problem1.guess(phase_states={1: states}, phase_controls={1: controls})
         solution1 = solve_fixed_mesh(problem1)
-        assert solution1.success, "Multi-interval mesh-first failed"
+        assert solution1.status["success"], "Multi-interval mesh-first failed"
 
         # Test guess-first order
         problem2, phase2 = create_multi_interval_problem()
@@ -275,10 +275,10 @@ class TestProblemSetupOrderIndependence:
         problem2.guess(phase_states={1: states2}, phase_controls={1: controls2})
         phase2.mesh([2, 3], [-1.0, 0.0, 1.0])
         solution2 = solve_fixed_mesh(problem2)
-        assert solution2.success, "Multi-interval guess-first failed"
+        assert solution2.status["success"], "Multi-interval guess-first failed"
 
         # Results should be identical
-        assert abs(solution1.objective - solution2.objective) < 1e-12, (
+        assert abs(solution1.status["objective"] - solution2.status["objective"]) < 1e-12, (
             "Multi-interval order dependence detected"
         )
 
@@ -316,4 +316,4 @@ class TestProblemSetupOrderIndependence:
         problem.guess(phase_states={1: correct_states}, phase_controls={1: correct_controls})
 
         solution = solve_fixed_mesh(problem)
-        assert solution.success, "System should recover after fixing initial guess"
+        assert solution.status["success"], "System should recover after fixing initial guess"
