@@ -44,7 +44,6 @@ This example demonstrates:
 
 Reference objective value: $J^* \approx 0.035$ (problem-dependent based on discretization)
 
-The adaptive algorithm should converge within 30 iterations, automatically refining the mesh in regions with steep gradients while maintaining efficiency in smooth regions.
 
 ## Running This Example
 
