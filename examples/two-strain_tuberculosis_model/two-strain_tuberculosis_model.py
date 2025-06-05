@@ -1,7 +1,3 @@
-"""
-TrajectoLab Example: Two-Strain Tuberculosis Model
-"""
-
 import numpy as np
 
 import trajectolab as tl

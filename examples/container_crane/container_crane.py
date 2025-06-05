@@ -1,7 +1,3 @@
-"""
-TrajectoLab Example: Container Crane Problem
-"""
-
 import numpy as np
 
 import trajectolab as tl

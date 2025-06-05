@@ -1,10 +1,3 @@
-"""
-Solution interface for optimal control problem results.
-
-This module provides the Solution class with a clean, bundled API design
-that eliminates fragmentation and provides logical information grouping.
-"""
-
 import logging
 from typing import TYPE_CHECKING, Any
 

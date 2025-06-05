@@ -1,10 +1,3 @@
-"""
-Solution data presentation for TrajectoLab optimal control problems.
-
-This module provides factual presentation of optimization results without
-analysis or interpretation. Presents raw solver output data for user evaluation.
-"""
-
 from __future__ import annotations
 
 import logging

@@ -1,4 +1,3 @@
-# trajectolab/__init__.py
 """
 TrajectoLab: A Python framework for multiphase optimal trajectory generation
 

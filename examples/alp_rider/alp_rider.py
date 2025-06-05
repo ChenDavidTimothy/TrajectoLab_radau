@@ -1,7 +1,3 @@
-"""
-TrajectoLab Example: Alp Rider Problem
-"""
-
 import casadi as ca
 import numpy as np
 

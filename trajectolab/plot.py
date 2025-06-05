@@ -1,10 +1,3 @@
-"""
-Plotting functionality for multiphase optimal control solutions.
-
-This module provides comprehensive plotting capabilities with interval-based coloring,
-phase boundary visualization, and smart layout management for multiphase solutions.
-"""
-
 import logging
 from typing import TYPE_CHECKING
 

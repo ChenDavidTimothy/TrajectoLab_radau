@@ -1,7 +1,3 @@
-"""
-TrajectoLab Example: Robot Arm Control
-"""
-
 import casadi as ca
 import numpy as np
 

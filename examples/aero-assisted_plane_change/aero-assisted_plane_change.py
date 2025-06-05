@@ -1,8 +1,3 @@
-"""
-TrajectoLab Example: Optimal Aero-Assisted Plane Change
-Converted to new constraint API
-"""
-
 import casadi as ca
 import numpy as np
 

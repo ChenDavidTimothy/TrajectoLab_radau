@@ -1,7 +1,3 @@
-"""
-TrajectoLab Example: Two-Phase Schwartz Problem
-"""
-
 import numpy as np
 
 import trajectolab as tl

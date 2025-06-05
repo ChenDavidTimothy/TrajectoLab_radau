@@ -8,14 +8,6 @@ import casadi as ca
 from ..tl_types import PhaseID
 
 
-# Internal type aliases for multiphase solver
-_PhaseVariableBundle: TypeAlias = tuple[
-    ca.MX,  # initial_time
-    ca.MX,  # terminal_time
-    list[ca.MX],  # state_at_mesh_nodes
-    list[ca.MX],  # control_variables
-    ca.MX | None,  # integral_variables
-]
 
 _PhaseIntervalBundle: TypeAlias = tuple[ca.MX, ca.MX | None]  # state_matrix, interior_nodes
 

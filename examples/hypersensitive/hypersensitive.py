@@ -1,7 +1,3 @@
-"""
-TrajectoLab Example: Hypersensitive Problem
-"""
-
 import numpy as np
 
 import trajectolab as tl

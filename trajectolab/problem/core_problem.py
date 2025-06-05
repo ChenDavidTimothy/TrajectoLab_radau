@@ -1,11 +1,3 @@
-"""
-Optimal control problem definition interface.
-
-This module provides the primary user interface for defining multiphase optimal
-control problems in TrajectoLab. Users interact exclusively with the Problem and
-Phase classes to construct their optimization problems.
-"""
-
 import logging
 from collections.abc import Sequence
 from typing import Any

@@ -18,7 +18,6 @@ def _extract_multiphase_integral_values(
     phase_id: PhaseID,
     num_integrals: int,
 ) -> float | FloatArray | None:
-    """SINGLE SOURCE for extracting integral values for a specific phase from the CasADi solution."""
     if (
         num_integrals == 0
         or not hasattr(opti_object, "multiphase_variables_reference")
@@ -108,7 +107,6 @@ def _phase_trajectory_extraction(
 ) -> tuple[
     dict[str, FloatArray], list[FloatArray], list[FloatArray], list[FloatArray], list[FloatArray]
 ]:
-    """Single extraction pass with simple coordinate transformation."""
     phase_def = problem._phases[phase_id]
     num_states, num_controls = problem._get_phase_variable_counts(phase_id)
     num_mesh_intervals = len(phase_def.collocation_points_per_interval)
@@ -243,7 +241,6 @@ def _extract_and_format_multiphase_solution(
     casadi_optimization_problem_object: ca.Opti,
     problem: ProblemProtocol,
 ) -> OptimalControlSolution:
-    """Single extraction pass eliminates duplicate CasADi value calls."""
     solution = OptimalControlSolution()
     solution.opti_object = casadi_optimization_problem_object
 

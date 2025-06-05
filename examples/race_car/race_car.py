@@ -1,7 +1,3 @@
-"""
-TrajectoLab Example: Car Race
-"""
-
 import casadi as ca
 import numpy as np
 
