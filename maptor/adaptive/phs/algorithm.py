@@ -47,7 +47,6 @@ logger = logging.getLogger(__name__)
 def _extract_state_matrices_for_phase(
     phase_vars, polynomial_degrees: list[int], raw_sol, num_states: int, phase_id: PhaseID
 ) -> list[FloatArray]:
-    """Extract state trajectory matrices for a phase."""
     state_trajectories = []
     for k, state_matrix in enumerate(phase_vars.state_matrices):
         state_vals = raw_sol.value(state_matrix)
@@ -60,7 +59,6 @@ def _extract_state_matrices_for_phase(
 def _extract_control_variables_for_phase(
     phase_vars, polynomial_degrees: list[int], raw_sol, num_controls: int, phase_id: PhaseID
 ) -> list[FloatArray]:
-    """Extract control variable trajectories for a phase."""
     if num_controls == 0:
         return [
             np.empty((0, polynomial_degrees[k]), dtype=np.float64)
@@ -77,7 +75,6 @@ def _extract_control_variables_for_phase(
 
 
 def _validate_solution_for_extraction(solution: OptimalControlSolution) -> None:
-    """Validate solution has required components for trajectory extraction."""
     if solution.raw_solution is None:
         raise ValueError("Raw solution is None")
     if solution.opti_object is None:
@@ -89,7 +86,6 @@ def _validate_solution_for_extraction(solution: OptimalControlSolution) -> None:
 def _extract_multiphase_solution_trajectories(
     solution: OptimalControlSolution, problem: ProblemProtocol
 ) -> None:
-    """Extract trajectory data from solution for all phases."""
     _validate_solution_for_extraction(solution)
 
     # Assert non-None after validation for type narrowing
@@ -126,7 +122,6 @@ def _extract_multiphase_solution_trajectories(
 def _validate_interpolant_creation_inputs(
     solution: OptimalControlSolution, phase_id: PhaseID
 ) -> None:
-    """Validate inputs for interpolant creation."""
     if phase_id not in solution.phase_solved_state_trajectories_per_interval:
         raise ValueError(f"Missing state trajectories for phase {phase_id}")
 
@@ -143,7 +138,6 @@ def _get_or_create_basis_components(
 def _get_or_create_control_weights(
     control_weights_cache: dict[int, FloatArray], basis: RadauBasisComponents, N_k: int
 ) -> FloatArray:
-    """Get control barycentric weights from cache or create new ones."""
     if N_k not in control_weights_cache:
         control_weights_cache[N_k] = _compute_barycentric_weights(basis.collocation_nodes)
     return control_weights_cache[N_k]
@@ -152,7 +146,6 @@ def _get_or_create_control_weights(
 def _create_state_interpolant(
     basis: RadauBasisComponents, state_data: FloatArray
 ) -> PolynomialInterpolant:
-    """Create state interpolant using basis components."""
     return PolynomialInterpolant(
         basis.state_approximation_nodes,
         state_data,
@@ -166,7 +159,6 @@ def _create_control_interpolant(
     control_weights: FloatArray,
     num_controls: int,
 ) -> PolynomialInterpolant:
-    """Create control interpolant or empty interpolant if no controls."""
     if num_controls > 0 and control_data.size > 0:
         return PolynomialInterpolant(basis.collocation_nodes, control_data, control_weights)
 
@@ -186,7 +178,6 @@ def _create_phase_interpolants(
     list[Callable[[float | FloatArray], FloatArray]],
     list[Callable[[float | FloatArray], FloatArray]],
 ]:
-    """Create interpolants for continuous trajectory evaluation."""
     _validate_interpolant_creation_inputs(solution, phase_id)
 
     phase_def = problem._phases[phase_id]
@@ -239,7 +230,6 @@ def _estimate_phase_errors(
     adaptive_params: AdaptiveParameters,
     gamma_factors: FloatArray,
 ) -> list[float]:
-    """Estimate errors for all intervals in a phase."""
     phase_def = problem._phases[phase_id]
     polynomial_degrees = phase_def.collocation_points_per_interval
     num_intervals = len(polynomial_degrees)
@@ -290,7 +280,6 @@ def _estimate_phase_errors(
 def _classify_intervals_by_error(
     polynomial_degrees: list[int], errors: list[float], adaptive_params: AdaptiveParameters
 ) -> tuple[set[int], set[int]]:
-    """Classify intervals into refinement and reduction categories."""
     intervals_needing_refinement = set()
     intervals_for_reduction = set()
 
@@ -309,7 +298,6 @@ def _process_refinement_intervals(
     errors: list[float],
     adaptive_params: AdaptiveParameters,
 ) -> dict[int, tuple[str, int] | tuple[str, list[int]]]:
-    """Process intervals needing refinement with p/h-refinement strategy."""
     refinement_actions: dict[int, tuple[str, int] | tuple[str, list[int]]] = {}
 
     for k in intervals_needing_refinement:
@@ -333,8 +321,6 @@ def _process_refinement_intervals(
 
 
 class MergeCandidate:
-    """Container for merge candidate information."""
-
     def __init__(
         self, first_idx: int, second_idx: int, overall_max_error: float, merged_degree: int
     ):
@@ -347,7 +333,6 @@ class MergeCandidate:
 def _create_merge_candidate(
     k: int, errors: list[float], polynomial_degrees: list[int], adaptive_params: AdaptiveParameters
 ) -> MergeCandidate:
-    """Create merge candidate for adjacent intervals."""
     error_k = errors[k]
     error_k_plus_1 = errors[k + 1]
     overall_max_error = max(error_k, error_k_plus_1)
@@ -374,7 +359,6 @@ def _check_merge_feasibility(
     adaptive_params: AdaptiveParameters,
     gamma_factors: FloatArray,
 ) -> bool:
-    """Check if intervals k and k+1 can be merged."""
     # Structural checks
     if (k + 1) not in intervals_for_reduction or (k + 1) >= num_intervals:
         return False
@@ -417,7 +401,6 @@ def _identify_merge_candidates(
     control_evaluators: list[Callable],
     gamma_factors: FloatArray,
 ) -> list[MergeCandidate]:
-    """Identify feasible merge candidates."""
     merge_candidates = []
 
     for k in intervals_for_reduction:
@@ -444,7 +427,6 @@ def _identify_merge_candidates(
 def _select_approved_merges(
     merge_candidates: list[MergeCandidate],
 ) -> tuple[list[MergeCandidate], set[int]]:
-    """Select non-conflicting merges ordered by error magnitude."""
     merge_candidates.sort(key=lambda x: x.overall_max_error)
 
     merged_intervals = set()
@@ -470,7 +452,6 @@ def _apply_p_reduction(
     errors: list[float],
     adaptive_params: AdaptiveParameters,
 ) -> dict[int, int]:
-    """Apply p-reduction to unmerged intervals."""
     reduction_actions = {}
 
     for k in intervals_for_reduction:
@@ -494,7 +475,6 @@ def _apply_p_refinement(
     next_polynomial_degrees: list[int],
     next_mesh_points: list[float],
 ) -> int:
-    """Apply p-refinement to interval k."""
     next_polynomial_degrees.append(action_data)
     next_mesh_points.append(mesh_points[k + 1])
     return k + 1
@@ -507,7 +487,6 @@ def _apply_h_refinement(
     next_polynomial_degrees: list[int],
     next_mesh_points: list[float],
 ) -> int:
-    """Apply h-refinement to interval k."""
     next_polynomial_degrees.extend(action_data)
     # Uniform subdivision of original interval for new subintervals
     tau_start = mesh_points[k]
@@ -525,7 +504,6 @@ def _apply_h_reduction_merge(
     next_polynomial_degrees: list[int],
     next_mesh_points: list[float],
 ) -> int:
-    """Apply h-reduction merge to intervals k and k+1."""
     merge = next(merge for merge in approved_merges if merge.first_idx == k)
     next_polynomial_degrees.append(merge.merged_degree)
     next_mesh_points.append(mesh_points[k + 2])  # Skip shared mesh point
@@ -540,7 +518,6 @@ def _apply_standard_processing(
     next_polynomial_degrees: list[int],
     next_mesh_points: list[float],
 ) -> int:
-    """Apply standard interval processing (no refinement/merge)."""
     if k in reduction_actions:
         next_polynomial_degrees.append(reduction_actions[k])
     else:
@@ -556,7 +533,6 @@ def _build_new_mesh_configuration(
     approved_merges: list[MergeCandidate],
     reduction_actions: dict[int, int],
 ) -> tuple[list[int], FloatArray]:
-    """Build new mesh configuration by processing all intervals sequentially."""
     next_polynomial_degrees: list[int] = []
     next_mesh_points = [mesh_points[0]]
     num_intervals = len(polynomial_degrees)
@@ -607,7 +583,6 @@ def _refine_phase_mesh(
     control_evaluators: list[Callable[[float | FloatArray], FloatArray]],
     gamma_factors: FloatArray,
 ) -> tuple[list[int], FloatArray]:
-    """Comprehensive mesh adaptation balancing accuracy and computational efficiency."""
     intervals_needing_refinement, intervals_for_reduction = _classify_intervals_by_error(
         polynomial_degrees, errors, adaptive_params
     )
@@ -643,7 +618,6 @@ def _refine_phase_mesh(
 def _initialize_adaptive_state(
     problem: ProblemProtocol, adaptive_params: AdaptiveParameters
 ) -> MultiphaseAdaptiveState:
-    """Initialize adaptive state from problem configuration."""
     phase_ids = problem._get_phase_ids()
     adaptive_state = MultiphaseAdaptiveState(
         phase_polynomial_degrees={},
@@ -672,7 +646,6 @@ def _configure_initial_guess(
     initial_guess: MultiPhaseInitialGuess | None,
     adaptive_state: MultiphaseAdaptiveState,
 ) -> None:
-    """Configure initial guess for current iteration."""
     if iteration == 0:
         if problem.initial_guess is not None:
             pass
@@ -695,7 +668,6 @@ def _configure_initial_guess(
 
 
 def _store_mesh_information(solution: OptimalControlSolution, problem: ProblemProtocol) -> None:
-    """Store mesh information in solution for continuity."""
     solution.phase_mesh_intervals = {}
     solution.phase_mesh_nodes = {}
 
@@ -710,7 +682,6 @@ def _handle_solver_failure(
     iteration: int,
     adaptive_state: MultiphaseAdaptiveState,
 ) -> OptimalControlSolution:
-    """Handle solver failure during adaptive iteration."""
     logger.warning("Unified NLP solve failed in iteration %d: %s", iteration + 1, solution.message)
 
     if adaptive_state.most_recent_unified_solution is not None:
@@ -731,7 +702,6 @@ def _process_single_phase_convergence(
     final_phase_errors: dict[PhaseID, list[float]],
     final_gamma_factors: dict[PhaseID, FloatArray | None],
 ) -> bool:
-    """Process convergence for a single phase. Returns True if phase needs refinement."""
     # Gamma normalization prevents ill-conditioning in error calculations
     gamma_factors = _calculate_gamma_normalizers_for_phase(solution, problem, phase_id)
     num_states, _ = problem._get_phase_variable_counts(phase_id)
@@ -802,7 +772,6 @@ def _check_convergence_across_phases(
     final_phase_errors: dict[PhaseID, list[float]],
     final_gamma_factors: dict[PhaseID, FloatArray | None],
 ) -> bool:
-    """Check convergence across all phases. Returns True if any phase needs refinement."""
     any_phase_needs_refinement = False
 
     for phase_id in problem._get_phase_ids():
@@ -829,7 +798,6 @@ def _create_convergence_result(
     final_phase_errors: dict[PhaseID, list[float]],
     final_gamma_factors: dict[PhaseID, FloatArray | None],
 ) -> OptimalControlSolution:
-    """Create successful convergence result."""
     logger.info("Multiphase adaptive refinement converged in %d iterations", iteration + 1)
 
     solution.adaptive_data = AdaptiveAlgorithmData(
@@ -854,7 +822,6 @@ def _create_max_iterations_result(
     final_phase_errors: dict[PhaseID, list[float]],
     final_gamma_factors: dict[PhaseID, FloatArray | None],
 ) -> OptimalControlSolution:
-    """Create result when maximum iterations reached."""
     logger.warning(
         "Multiphase adaptive refinement reached maximum iterations (%d) without convergence",
         adaptive_params.max_iterations,
@@ -897,7 +864,6 @@ def solve_multiphase_phs_adaptive_internal(
     num_error_sim_points: int,
     initial_guess: MultiPhaseInitialGuess | None = None,
 ) -> OptimalControlSolution:
-    """Multiphase PHS-Adaptive mesh refinement algorithm implementation."""
     logger.info(
         "Starting multiphase adaptive mesh refinement: tolerance=%.1e, max_iter=%d",
         error_tolerance,
