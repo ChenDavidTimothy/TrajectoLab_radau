@@ -142,7 +142,7 @@ def generate_examples_index(generated_examples: list) -> str:
 
     index_content = """# Examples Gallery
 
-TrajectoLab comes with comprehensive example problems demonstrating different optimal control scenarios.
+MAPTOR comes with comprehensive example problems demonstrating different optimal control scenarios.
 Each example includes detailed explanations and complete, runnable code.
 
 All examples follow the same structure:

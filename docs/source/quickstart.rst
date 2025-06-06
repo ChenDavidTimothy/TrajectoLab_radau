@@ -7,7 +7,7 @@ This guide gets you solving optimal control problems in 5 minutes.
 Basic Problem Structure
 -----------------------
 
-Every TrajectoLab problem follows this pattern:
+Every MAPTOR problem follows this pattern:
 
 1. **Create Problem**
 2. **Define Variables** (states, controls, time)
@@ -21,7 +21,7 @@ Example: Minimum Time Problem
 
 .. code-block:: python
 
-    import trajectolab as tl
+    import maptor as tl
     import numpy as np
 
     # 1. Create problem

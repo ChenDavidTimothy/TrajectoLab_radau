@@ -4,14 +4,14 @@ on:
   push:
     branches: [ main ]
     paths:
-      - 'trajectolab/**'
+      - 'maptor/**'
       - 'examples/**'
       - 'docs/**'
       - 'pyproject.toml'
   pull_request:
     branches: [ main ]
     paths:
-      - 'trajectolab/**'
+      - 'maptor/**'
       - 'examples/**'
       - 'docs/**'
 

@@ -740,7 +740,7 @@ class Problem:
     Multiphase optimal control problem definition and configuration interface.
 
     The Problem class is the main entry point for defining optimal control problems
-    in TrajectoLab. It supports both single-phase and multiphase trajectory optimization
+    in MAPTOR. It supports both single-phase and multiphase trajectory optimization
     with automatic phase linking, static parameter optimization, and comprehensive
     constraint specification.
 
@@ -758,7 +758,7 @@ class Problem:
     Examples:
         Single-phase minimum time problem:
 
-        >>> import trajectolab as tl
+        >>> import maptor as tl
         >>>
         >>> problem = tl.Problem("Minimum Time")
         >>> phase = problem.set_phase(1)

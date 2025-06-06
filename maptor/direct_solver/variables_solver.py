@@ -7,8 +7,8 @@ from ..tl_types import PhaseID, ProblemProtocol
 from ..utils.constants import MINIMUM_TIME_INTERVAL
 from .types_solver import (
     _MultiPhaseVariable,
-    _PhaseVariable,
     _PhaseIntervalBundle,
+    _PhaseVariable,
 )
 
 

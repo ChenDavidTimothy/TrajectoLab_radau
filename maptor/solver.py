@@ -1,20 +1,20 @@
 import logging
 from typing import cast
 
-from trajectolab.direct_solver import _solve_multiphase_radau_collocation
-from trajectolab.input_validation import (
+from maptor.direct_solver import _solve_multiphase_radau_collocation
+from maptor.input_validation import (
     validate_adaptive_solver_parameters,
     validate_multiphase_problem_ready_for_solving,
 )
-from trajectolab.problem import Problem
-from trajectolab.solution import Solution
-from trajectolab.tl_types import (
+from maptor.problem import Problem
+from maptor.solution import Solution
+from maptor.tl_types import (
     MultiPhaseInitialGuess,
     ODESolverCallable,
     OptimalControlSolution,
     ProblemProtocol,
 )
-from trajectolab.utils.constants import (
+from maptor.utils.constants import (
     DEFAULT_ERROR_SIM_POINTS,
     DEFAULT_ODE_ATOL_FACTOR,
     DEFAULT_ODE_MAX_STEP,
@@ -49,7 +49,7 @@ def solve_fixed_mesh(
         Solution object containing optimization results, trajectories, and metadata.
 
     Raises:
-        trajectolab.ConfigurationError: If problem is not properly configured
+        maptor.ConfigurationError: If problem is not properly configured
 
     Examples:
         >>> # Create a simple rocket ascent problem
@@ -160,7 +160,7 @@ def solve_adaptive(
         Solution object with final refined meshes and high-accuracy results.
 
     Raises:
-        trajectolab.ConfigurationError: If problem is not properly configured or parameters are invalid
+        maptor.ConfigurationError: If problem is not properly configured or parameters are invalid
 
     Examples:
         >>> # Create a multiphase spacecraft trajectory problem
@@ -265,7 +265,7 @@ def solve_adaptive(
                     else 0,
                 )
 
-    from trajectolab.adaptive.phs.algorithm import solve_multiphase_phs_adaptive_internal
+    from maptor.adaptive.phs.algorithm import solve_multiphase_phs_adaptive_internal
 
     solution_data: OptimalControlSolution = solve_multiphase_phs_adaptive_internal(
         problem=protocol_problem,

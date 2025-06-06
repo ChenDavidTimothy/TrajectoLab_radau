@@ -7,15 +7,15 @@ Quick Installation
 
 .. code-block:: bash
 
-    pip install trajectolab
+    pip install maptor
 
 Development Installation
 ------------------------
 
 .. code-block:: bash
 
-    git clone https://github.com/trajectolab/trajectolab.git
-    cd trajectolab
+    git clone https://github.com/maptor/maptor.git
+    cd maptor
     pip install -e .
 
 Requirements
@@ -48,9 +48,9 @@ Verification
 
 .. code-block:: python
 
-    import trajectolab as tl
-    print(f"TrajectoLab {tl.__version__} installed successfully!")
+    import maptor as tl
+    print(f"MAPTOR {tl.__version__} installed successfully!")
 
     # Run a quick test
     problem = tl.Problem("Test")
-    print("✓ TrajectoLab working correctly!")
+    print("✓ MAPTOR working correctly!")

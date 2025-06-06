@@ -1,4 +1,4 @@
-# TrajectoLab Sphinx Configuration - CORRECTED VERSION
+# MAPTOR Sphinx Configuration - CORRECTED VERSION
 import sys
 from pathlib import Path
 
@@ -8,15 +8,15 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 # Project information
-project = "TrajectoLab"
-copyright = "2025, TrajectoLab"
+project = "MAPTOR"
+copyright = "2025, MAPTOR"
 author = "David Timothy"
 
 # Get version
 try:
-    import trajectolab
+    import maptor
 
-    version = trajectolab.__version__
+    version = maptor.__version__
     release = version
 except ImportError:
     version = "0.1.0"

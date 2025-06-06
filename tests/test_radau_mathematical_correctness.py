@@ -14,7 +14,7 @@ import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 
-from trajectolab.radau import (
+from maptor.radau import (
     _compute_barycentric_weights,
     _compute_radau_collocation_components,
     _evaluate_lagrange_polynomial_at_point,

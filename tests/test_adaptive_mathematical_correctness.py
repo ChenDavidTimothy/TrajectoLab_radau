@@ -16,31 +16,31 @@ import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 
-from trajectolab.adaptive.phs.error_estimation import (
+from maptor.adaptive.phs.error_estimation import (
     _calculate_combined_error_estimate,
     _calculate_gamma_normalization_factors,
     _calculate_trajectory_error_differences,
 )
-from trajectolab.adaptive.phs.initial_guess import (
+from maptor.adaptive.phs.initial_guess import (
     _determine_interpolation_parameters,
     _find_containing_interval_index,
 )
-from trajectolab.adaptive.phs.numerical import (
+from maptor.adaptive.phs.numerical import (
     PolynomialInterpolant,
     _map_global_normalized_tau_to_local_interval_tau,
     _map_local_interval_tau_to_global_normalized_tau,
     _map_local_tau_from_interval_k_plus_1_to_equivalent_in_interval_k,
     _map_local_tau_from_interval_k_to_equivalent_in_interval_k_plus_1,
 )
-from trajectolab.adaptive.phs.refinement import (
+from maptor.adaptive.phs.refinement import (
     _calculate_merge_feasibility_from_errors,
     _calculate_trajectory_errors_with_gamma,
     _h_refine_params,
     _p_reduce_interval,
     _p_refine_interval,
 )
-from trajectolab.exceptions import InterpolationError
-from trajectolab.radau import _compute_barycentric_weights, _compute_radau_collocation_components
+from maptor.exceptions import InterpolationError
+from maptor.radau import _compute_barycentric_weights, _compute_radau_collocation_components
 
 
 class TestAdaptiveMathematicalCorrectness:

@@ -4,12 +4,12 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class TrajectoLabBaseError(Exception):
+class MAPTORBaseError(Exception):
     """
-    Base class for all TrajectoLab-specific errors.
+    Base class for all MAPTOR-specific errors.
 
-    All TrajectoLab exceptions inherit from this class, allowing users to catch
-    any TrajectoLab-specific error with a single except clause.
+    All MAPTOR exceptions inherit from this class, allowing users to catch
+    any MAPTOR-specific error with a single except clause.
 
     Args:
         message: The error message describing what went wrong
@@ -20,7 +20,7 @@ class TrajectoLabBaseError(Exception):
         self.message = message
         self.context = context
 
-        logger.debug("TrajectoLab exception: %s", self._format_message())
+        logger.debug("MAPTOR exception: %s", self._format_message())
         super().__init__(self._format_message())
 
     def _format_message(self) -> str:
@@ -29,9 +29,9 @@ class TrajectoLabBaseError(Exception):
         return self.message
 
 
-class ConfigurationError(TrajectoLabBaseError):
+class ConfigurationError(MAPTORBaseError):
     """
-    Raised when there is an invalid or incomplete TrajectoLab configuration.
+    Raised when there is an invalid or incomplete MAPTOR configuration.
 
     This exception indicates that the user has provided invalid parameters,
     missing required configuration, or conflicting settings that prevent
@@ -47,13 +47,13 @@ class ConfigurationError(TrajectoLabBaseError):
     pass
 
 
-class DataIntegrityError(TrajectoLabBaseError):
+class DataIntegrityError(MAPTORBaseError):
     """
     Raised when internal data corruption or inconsistency is detected.
 
-    This exception indicates an internal TrajectoLab error where data structures
+    This exception indicates an internal MAPTOR error where data structures
     have become corrupted or inconsistent. This typically represents a bug in
-    TrajectoLab rather than user error.
+    MAPTOR rather than user error.
 
     Examples:
         - NaN or infinite values in computed results
@@ -64,11 +64,11 @@ class DataIntegrityError(TrajectoLabBaseError):
     pass
 
 
-class SolutionExtractionError(TrajectoLabBaseError):
+class SolutionExtractionError(MAPTORBaseError):
     """
     Raised when solution data cannot be extracted from the optimization result.
 
-    This exception occurs when TrajectoLab fails to process the raw solver output
+    This exception occurs when MAPTOR fails to process the raw solver output
     into the user-friendly Solution format, typically due to unexpected solver
     behavior or corrupted optimization results.
     """
@@ -76,11 +76,11 @@ class SolutionExtractionError(TrajectoLabBaseError):
     pass
 
 
-class InterpolationError(TrajectoLabBaseError):
+class InterpolationError(MAPTORBaseError):
     """
     Raised when adaptive mesh interpolation operations fail.
 
-    This exception occurs during adaptive mesh refinement when TrajectoLab
+    This exception occurs during adaptive mesh refinement when MAPTOR
     cannot successfully interpolate solution data between different mesh
     configurations, typically due to numerical issues or corrupted trajectory data.
     """

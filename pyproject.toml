@@ -3,7 +3,7 @@ requires = ["setuptools>=42", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "trajectolab"
+name = "maptor"
 version = "0.1.0"
 description = "Optimal control framework using Radau Pseudospectral Method"
 authors = [{name = "David Timothy"}]
@@ -103,7 +103,7 @@ ignore = [
 
 [tool.ruff.lint.isort]
 # Known first-party packages
-known-first-party = ["trajectolab"]
+known-first-party = ["maptor"]
 
 # Import sections
 section-order = [
@@ -173,12 +173,12 @@ exclude = [".venv", "venv", "build", "dist", "__pycache__"]
 
 # Per-module configuration for incremental typing
 [[tool.mypy.overrides]]
-module = ["trajectolab.utils", "trajectolab.radau"]  # Core numerical modules
+module = ["maptor.utils", "maptor.radau"]  # Core numerical modules
 disallow_untyped_defs = true     # Enforce full typing in core modules
 disallow_incomplete_defs = true
 
 [[tool.mypy.overrides]]
-module = "trajectolab.adaptive.*"  # Complex algorithmic code
+module = "maptor.adaptive.*"  # Complex algorithmic code
 disallow_untyped_defs = false      # More flexibility in complex adaptive code
 check_untyped_defs = true
 
@@ -196,7 +196,7 @@ addopts = [
     "--strict-config",
     "--verbose",
     "--tb=short",
-    "--cov=trajectolab",
+    "--cov=maptor",
     "--cov-report=term-missing",
     "--cov-report=html",
 ]
@@ -211,7 +211,7 @@ markers = [
 # ============================================================================
 
 [tool.coverage.run]
-source = ["trajectolab"]
+source = ["maptor"]
 omit = [
     "*/tests/*",
     "*/test_*",

@@ -2,13 +2,13 @@ import logging
 
 import numpy as np
 
-from trajectolab.adaptive.phs.numerical import (
+from maptor.adaptive.phs.numerical import (
     PolynomialInterpolant,
     _map_global_normalized_tau_to_local_interval_tau,
 )
-from trajectolab.exceptions import ConfigurationError, DataIntegrityError, InterpolationError
-from trajectolab.radau import _compute_radau_collocation_components
-from trajectolab.tl_types import (
+from maptor.exceptions import ConfigurationError, DataIntegrityError, InterpolationError
+from maptor.radau import _compute_radau_collocation_components
+from maptor.tl_types import (
     FloatArray,
     MultiPhaseInitialGuess,
     OptimalControlSolution,
@@ -99,7 +99,7 @@ def _create_phase_interpolants(
             local_nodes = basis_components.state_approximation_nodes
             barycentric_weights = basis_components.barycentric_weights_for_state_nodes
         else:
-            from trajectolab.radau import _compute_barycentric_weights
+            from maptor.radau import _compute_barycentric_weights
 
             local_nodes = basis_components.collocation_nodes
             barycentric_weights = _compute_barycentric_weights(basis_components.collocation_nodes)

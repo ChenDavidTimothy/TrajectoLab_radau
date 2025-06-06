@@ -1,38 +1,38 @@
 """
-TrajectoLab: A Python framework for multiphase optimal trajectory generation
+MAPTOR: A Python framework for multiphase optimal trajectory generation
 
 This package provides a unified interface for solving multiphase optimal control problems
 using the Radau Pseudospectral Method for direct collocation.
 
 Logging:
-By default, TrajectoLab produces no output. To enable logging::
+By default, MAPTOR produces no output. To enable logging::
 
     import logging
-    logging.getLogger('trajectolab').setLevel(logging.INFO)  # Major operations
-    logging.getLogger('trajectolab').setLevel(logging.DEBUG)  # Detailed debugging
+    logging.getLogger('maptor').setLevel(logging.INFO)  # Major operations
+    logging.getLogger('maptor').setLevel(logging.DEBUG)  # Detailed debugging
 """
 
 import logging
 
-# Import TrajectoLab-specific exceptions for user access
-from trajectolab.exceptions import (
+# Import MAPTOR-specific exceptions for user access
+from maptor.exceptions import (
     ConfigurationError,
     DataIntegrityError,
     InterpolationError,
+    MAPTORBaseError,
     SolutionExtractionError,
-    TrajectoLabBaseError,
 )
-from trajectolab.problem import Problem
-from trajectolab.solver import solve_adaptive, solve_fixed_mesh
+from maptor.problem import Problem
+from maptor.solver import solve_adaptive, solve_fixed_mesh
 
 
 __all__ = [
     "ConfigurationError",
     "DataIntegrityError",
     "InterpolationError",
+    "MAPTORBaseError",
     "Problem",
     "SolutionExtractionError",
-    "TrajectoLabBaseError",
     "solve_adaptive",
     "solve_fixed_mesh",
 ]

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Generate ONLY public API documentation for TrajectoLab users.
+Generate ONLY public API documentation for MAPTOR users.
 
 This script creates documentation for the public interface only - what users
-can import directly from trajectolab. Internal implementation details are excluded.
+can import directly from maptor. Internal implementation details are excluded.
 """
 
 import sys
@@ -14,7 +14,7 @@ def generate_api_docs():
     """
     Generate API documentation for PUBLIC interfaces only.
 
-    Only documents what's in trajectolab.__all__ - the official public API.
+    Only documents what's in maptor.__all__ - the official public API.
     """
     # Determine project root (docs/source/ -> project_root)
     project_root = Path(__file__).resolve().parent.parent.parent
@@ -24,12 +24,12 @@ def generate_api_docs():
     print("Generating PUBLIC API documentation only...")
 
     try:
-        import trajectolab
+        import maptor
 
-        print(f"TrajectoLab imported from: {trajectolab.__file__}")
+        print(f"MAPTOR imported from: {maptor.__file__}")
     except ImportError as e:
-        print(f"Error importing TrajectoLab: {e}")
-        print("Ensure TrajectoLab is installed: pip install -e .")
+        print(f"Error importing MAPTOR: {e}")
+        print("Ensure MAPTOR is installed: pip install -e .")
         return
 
     # Create output directory
@@ -37,32 +37,32 @@ def generate_api_docs():
     api_dir.mkdir(exist_ok=True)
     print(f"Output directory: {api_dir}")
 
-    # Define ONLY the public API - matches trajectolab.__all__
+    # Define ONLY the public API - matches maptor.__all__
     PUBLIC_API_MODULES = {
-        "trajectolab": {
+        "maptor": {
             "title": "Main Package",
-            "description": "The primary TrajectoLab interface with all public exports.",
-            "modules": ["trajectolab"],
+            "description": "The primary MAPTOR interface with all public exports.",
+            "modules": ["maptor"],
         },
         "problem": {
             "title": "Problem Definition",
             "description": "Classes for defining optimal control problems.",
-            "modules": ["trajectolab.problem.core_problem"],
+            "modules": ["maptor.problem.core_problem"],
         },
         "solution": {
             "title": "Solution Interface",
             "description": "Classes for working with optimization results.",
-            "modules": ["trajectolab.solution"],
+            "modules": ["maptor.solution"],
         },
         "solver": {
             "title": "Solver Functions",
             "description": "Functions for solving optimal control problems.",
-            "modules": ["trajectolab.solver"],
+            "modules": ["maptor.solver"],
         },
         "exceptions": {
             "title": "Exceptions",
             "description": "Exception classes for error handling.",
-            "modules": ["trajectolab.exceptions"],
+            "modules": ["maptor.exceptions"],
         },
     }
 
@@ -101,7 +101,7 @@ def generate_api_docs():
 API Reference
 =============
 
-This is the complete **public API** for TrajectoLab.
+This is the complete **public API** for MAPTOR.
 
 .. important::
 
@@ -116,7 +116,7 @@ Quick Start
 
 .. code-block:: python
 
-   import trajectolab as tl
+   import maptor as tl
 
    # Define problem
    problem = tl.Problem("My Problem")

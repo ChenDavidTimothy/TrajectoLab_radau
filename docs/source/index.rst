@@ -1,15 +1,15 @@
 
-TrajectoLab: Optimal Control Made Simple
+MAPTOR: Optimal Control Made Simple
 ========================================
 
-TrajectoLab is a Python framework for solving optimal control problems using the Radau Pseudospectral Method.
+MAPTOR is a Python framework for solving optimal control problems using the Radau Pseudospectral Method.
 
 🚀 Quick Example
 ----------------
 
 .. code-block:: python
 
-    import trajectolab as tl
+    import maptor as tl
     import numpy as np
 
     # Create problem
@@ -49,7 +49,7 @@ TrajectoLab is a Python framework for solving optimal control problems using the
 
 .. code-block:: bash
 
-    pip install trajectolab
+    pip install maptor
 
 ✨ Features
 -----------

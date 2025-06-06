@@ -5,20 +5,20 @@ from typing import cast
 import casadi as ca
 import numpy as np
 
-from trajectolab.adaptive.phs.data_structures import (
+from maptor.adaptive.phs.data_structures import (
     AdaptiveParameters,
     HRefineResult,
     PReduceResult,
     PRefineResult,
     _ensure_2d_array,
 )
-from trajectolab.adaptive.phs.error_estimation import _convert_casadi_dynamics_result_to_numpy
-from trajectolab.adaptive.phs.numerical import (
+from maptor.adaptive.phs.error_estimation import _convert_casadi_dynamics_result_to_numpy
+from maptor.adaptive.phs.numerical import (
     _map_local_interval_tau_to_global_normalized_tau,
     _map_local_tau_from_interval_k_plus_1_to_equivalent_in_interval_k,
     _map_local_tau_from_interval_k_to_equivalent_in_interval_k_plus_1,
 )
-from trajectolab.tl_types import (
+from maptor.tl_types import (
     FloatArray,
     OptimalControlSolution,
     PhaseID,

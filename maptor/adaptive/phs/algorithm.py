@@ -4,34 +4,34 @@ from typing import cast
 
 import numpy as np
 
-from trajectolab.adaptive.phs.data_structures import (
+from maptor.adaptive.phs.data_structures import (
     AdaptiveParameters,
     MultiphaseAdaptiveState,
     _ensure_2d_array,
 )
-from trajectolab.adaptive.phs.error_estimation import (
+from maptor.adaptive.phs.error_estimation import (
     _calculate_gamma_normalizers_for_phase,
     _calculate_relative_error_estimate,
     _simulate_dynamics_for_phase_interval_error_estimation,
 )
-from trajectolab.adaptive.phs.initial_guess import (
+from maptor.adaptive.phs.initial_guess import (
     _propagate_multiphase_solution_to_new_meshes,
 )
-from trajectolab.adaptive.phs.numerical import (
+from maptor.adaptive.phs.numerical import (
     PolynomialInterpolant,
 )
-from trajectolab.adaptive.phs.refinement import (
+from maptor.adaptive.phs.refinement import (
     _h_reduce_intervals,
     _h_refine_params,
     _p_reduce_interval,
     _p_refine_interval,
 )
-from trajectolab.radau import (
+from maptor.radau import (
     RadauBasisComponents,
     _compute_barycentric_weights,
     _compute_radau_collocation_components,
 )
-from trajectolab.tl_types import (
+from maptor.tl_types import (
     AdaptiveAlgorithmData,
     FloatArray,
     MultiPhaseInitialGuess,
@@ -919,7 +919,7 @@ def solve_multiphase_phs_adaptive_internal(
 
     adaptive_state = _initialize_adaptive_state(problem, adaptive_params)
 
-    from trajectolab.direct_solver import _solve_multiphase_radau_collocation
+    from maptor.direct_solver import _solve_multiphase_radau_collocation
 
     final_phase_errors: dict[PhaseID, list[float]] = {}
     final_gamma_factors: dict[PhaseID, FloatArray | None] = {}

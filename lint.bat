@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 echo ============================================================================
-echo TrajectoLab Code Quality Check
+echo MAPTOR Code Quality Check
 echo ============================================================================
 
 set "OVERALL_SUCCESS=1"
@@ -39,7 +39,7 @@ if !errorlevel! neq 0 (
 
 echo.
 echo [4/4] Running MyPy for type checking...
-python -m mypy --exclude build trajectolab
+python -m mypy --exclude build maptor
 if !errorlevel! neq 0 (
     echo WARNING: MyPy type checking found issues!
     set "OVERALL_SUCCESS=0"

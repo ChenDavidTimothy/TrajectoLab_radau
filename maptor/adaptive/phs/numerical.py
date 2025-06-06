@@ -1,10 +1,10 @@
 import numpy as np
 
-from trajectolab.radau import (
+from maptor.radau import (
     _compute_barycentric_weights,
     _evaluate_lagrange_polynomial_at_point,
 )
-from trajectolab.tl_types import FloatArray
+from maptor.tl_types import FloatArray
 
 
 __all__ = [

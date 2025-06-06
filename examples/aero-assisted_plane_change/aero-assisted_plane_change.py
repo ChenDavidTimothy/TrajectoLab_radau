@@ -1,7 +1,7 @@
 import casadi as ca
 import numpy as np
 
-import trajectolab as tl
+import maptor as tl
 
 
 # Constants from Table 10.3

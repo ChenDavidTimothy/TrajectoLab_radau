@@ -14,9 +14,9 @@ Aligned with Grug's Pragmatic Testing Philosophy:
 import numpy as np
 import pytest
 
-from trajectolab import ConfigurationError, DataIntegrityError, Problem, solve_fixed_mesh
-from trajectolab.problem.core_problem import Phase
-from trajectolab.tl_types import FloatArray
+from maptor import ConfigurationError, DataIntegrityError, Problem, solve_fixed_mesh
+from maptor.problem.core_problem import Phase
+from maptor.tl_types import FloatArray
 
 
 class TestProblemSetupOrderIndependence:

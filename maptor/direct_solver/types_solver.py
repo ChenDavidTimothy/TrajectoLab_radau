@@ -8,7 +8,6 @@ import casadi as ca
 from ..tl_types import PhaseID
 
 
-
 _PhaseIntervalBundle: TypeAlias = tuple[ca.MX, ca.MX | None]  # state_matrix, interior_nodes
 
 

@@ -5,7 +5,7 @@ from typing import cast
 import casadi as ca
 import numpy as np
 
-from trajectolab.tl_types import (
+from maptor.tl_types import (
     FloatArray,
     ODESolverCallable,
     OptimalControlSolution,

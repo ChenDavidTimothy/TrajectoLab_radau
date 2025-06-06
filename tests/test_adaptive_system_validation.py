@@ -23,7 +23,7 @@ import casadi as ca
 import numpy as np
 import pytest
 
-import trajectolab as tl
+import maptor as tl
 
 
 class TestAdaptiveSystemValidation:
@@ -801,7 +801,7 @@ def _verify_solution_basic_properties(solution, problem_name: str):
     Verify basic properties that all optimal control solutions should satisfy.
 
     Args:
-        solution: TrajectoLab solution object
+        solution: MAPTOR solution object
         problem_name: Name of the problem for error messages
     """
     # Solution should be successful

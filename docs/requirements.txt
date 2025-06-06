@@ -1,4 +1,4 @@
-# TrajectoLab Documentation Requirements - FIXED VERSIONS
+# MAPTOR Documentation Requirements - FIXED VERSIONS
 # Match versions with main package to avoid conflicts
 
 # Core Sphinx

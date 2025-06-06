@@ -5,8 +5,8 @@ from typing import Any
 import numpy as np
 from scipy.integrate import solve_ivp
 
-from trajectolab.tl_types import FloatArray, ODESolverCallable, PhaseID
-from trajectolab.utils.constants import (
+from maptor.tl_types import FloatArray, ODESolverCallable, PhaseID
+from maptor.utils.constants import (
     DEFAULT_ERROR_SIM_POINTS,
     DEFAULT_ODE_ATOL_FACTOR,
     DEFAULT_ODE_MAX_STEP,
@@ -56,7 +56,6 @@ def _create_configured_ode_solver(
     atol_factor: float,
     max_step: float | None,
 ) -> ODESolverCallable:
-
     def configured_solver(fun, t_span, y0, t_eval=None, **kwargs):
         kwargs["method"] = method
         kwargs["rtol"] = rtol
@@ -72,7 +71,6 @@ def _create_configured_ode_solver(
 
 @dataclass
 class AdaptiveParameters:
-
     error_tolerance: float
     max_iterations: int
     min_polynomial_degree: int

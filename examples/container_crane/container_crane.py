@@ -1,6 +1,6 @@
 import numpy as np
 
-import trajectolab as tl
+import maptor as tl
 
 
 # Constants
