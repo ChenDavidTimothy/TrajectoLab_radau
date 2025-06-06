@@ -772,7 +772,7 @@ class Solution:
             except Exception as e:
                 logger.warning(f"Error in comprehensive summary: {e}")
         else:
-            # Simple summary using new API
+            # Simple summary
             print(f"Solution Status: {self.status['success']}")
             print(f"Objective: {self.status['objective']:.6e}")
             print(f"Total Mission Time: {self.status['total_mission_time']:.6f}")
