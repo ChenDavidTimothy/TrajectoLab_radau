@@ -1,5 +1,5 @@
 
-MAPTOR: Multiphase and Adaptive Trajectory Optimizer
+MAPTOR: Multiphase Adaptive Trajectory Optimizer
 ====================================================
 
 MAPTOR is a Python framework for solving optimal control problems using the Radau Pseudospectral Method.
