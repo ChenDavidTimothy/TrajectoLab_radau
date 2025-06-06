@@ -41,7 +41,7 @@ class _MeshIntervalContext:
     interval_index: int
     num_states: int
     num_colloc_nodes: int
-    global_mesh_nodes: FloatArray  # FIX: Changed from ca.MX to FloatArray
+    global_mesh_nodes: FloatArray
     basis_components: RadauBasisComponents
 
     # Time variables
@@ -209,7 +209,7 @@ def _process_single_mesh_interval(
 def _create_mesh_interval_context(
     phase_id: PhaseID,
     interval_index: int,
-    phase_def: PhaseDefinition,  # FIX: Changed from object
+    phase_def: PhaseDefinition,
     config: _SolverConfiguration,
     accumulated_integral_expressions: list[ca.MX],
 ) -> _MeshIntervalContext:

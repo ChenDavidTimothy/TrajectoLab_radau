@@ -96,7 +96,7 @@ if solution.status["success"]:
     print(f"Objective: {solution.status['objective']:.8f}")
     print(f"Total mission time: {solution.status['total_mission_time']:.6f}")
 
-    # Variable access unchanged - still excellent
+    # Variable access
     x0_final = solution[(2, "x0")][-1]
     x1_final = solution[(2, "x1")][-1]
     print(f"Final state: x0={x0_final:.6f}, x1={x1_final:.6f}")
@@ -128,7 +128,7 @@ if solution.status["success"]:
         for phase_id, converged in solution.adaptive["phase_converged"].items():
             print(f"    Phase {phase_id}: {converged}")
 
-    # Plotting unchanged - still excellent
+    # Plotting
     solution.plot(show_phase_boundaries=True)
 
 else:
