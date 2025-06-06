@@ -7,7 +7,6 @@ Logging:
 
 import logging
 
-# Import MAPTOR-specific exceptions for user access
 from maptor.exceptions import (
     ConfigurationError,
     DataIntegrityError,
