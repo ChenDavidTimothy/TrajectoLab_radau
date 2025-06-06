@@ -1,10 +1,10 @@
 
-MAPTOR: Optimal Control Made Simple
-========================================
+MAPTOR: Multiphase and Adaptive Trajectory Optimizer
+====================================================
 
 MAPTOR is a Python framework for solving optimal control problems using the Radau Pseudospectral Method.
 
-🚀 Quick Example
+Quick Example
 ----------------
 
 .. code-block:: python
@@ -33,7 +33,7 @@ MAPTOR is a Python framework for solving optimal control problems using the Rada
         print(f"Optimal time: {solution.final_time:.3f}")
         solution.plot()
 
-📚 Documentation
+Documentation
 ----------------
 
 .. toctree::
@@ -51,7 +51,7 @@ MAPTOR is a Python framework for solving optimal control problems using the Rada
 
     pip install maptor
 
-✨ Features
+Features
 -----------
 
 * Simple problem definition API
