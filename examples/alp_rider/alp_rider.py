@@ -1,11 +1,11 @@
 import casadi as ca
 import numpy as np
 
-import maptor as tl
+import maptor as mtor
 
 
 # Problem setup
-problem = tl.Problem("Alp Rider")
+problem = mtor.Problem("Alp Rider")
 phase = problem.set_phase(1)
 
 # Variables
@@ -74,7 +74,7 @@ problem.guess(
 )
 
 # Solve
-solution = tl.solve_adaptive(
+solution = mtor.solve_adaptive(
     problem,
     error_tolerance=1e-4,
     max_iterations=20,

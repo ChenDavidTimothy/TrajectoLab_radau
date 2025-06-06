@@ -48,9 +48,9 @@ Verification
 
 .. code-block:: python
 
-    import maptor as tl
-    print(f"MAPTOR {tl.__version__} installed successfully!")
+    import maptor as mtor
+    print(f"MAPTOR {mtor.__version__} installed successfully!")
 
     # Run a quick test
-    problem = tl.Problem("Test")
+    problem = mtor.Problem("Test")
     print("✓ MAPTOR working correctly!")

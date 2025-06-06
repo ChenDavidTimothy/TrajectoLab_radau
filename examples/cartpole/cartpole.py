@@ -1,11 +1,11 @@
 import casadi as ca
 import numpy as np
 
-import maptor as tl
+import maptor as mtor
 
 
 # Problem setup
-problem = tl.Problem("Cart-Pole Swing-Up")
+problem = mtor.Problem("Cart-Pole Swing-Up")
 phase = problem.set_phase(1)
 
 # Variables
@@ -81,7 +81,7 @@ problem.guess(
 )
 
 # Solve
-solution = tl.solve_adaptive(
+solution = mtor.solve_adaptive(
     problem,
     error_tolerance=1e-6,
     max_iterations=20,

@@ -23,7 +23,7 @@ class Solution:
     Examples:
         Basic solution usage:
 
-        >>> solution = tl.solve_fixed_mesh(problem)
+        >>> solution = mtor.solve_fixed_mesh(problem)
         >>> if solution.status["success"]:
         ...     print(f"Objective: {solution.status['objective']:.6f}")
         ...     solution.plot()
@@ -123,7 +123,7 @@ class Solution:
         Examples:
             Check if optimization succeeded:
 
-            >>> solution = tl.solve_fixed_mesh(problem)
+            >>> solution = mtor.solve_fixed_mesh(problem)
             >>> if solution.status["success"]:
             ...     print("Optimization successful!")
             ...     print(f"Optimal objective: {solution.status['objective']:.6f}")
@@ -735,7 +735,7 @@ class Solution:
 
             Use in solution validation workflow:
 
-            >>> solution = tl.solve_adaptive(problem)
+            >>> solution = mtor.solve_adaptive(problem)
             >>>
             >>> # Always check summary first
             >>> solution.summary()
@@ -751,7 +751,7 @@ class Solution:
             Suppress automatic summary:
 
             >>> # Solve without automatic summary display
-            >>> solution = tl.solve_fixed_mesh(problem, show_summary=False)
+            >>> solution = mtor.solve_fixed_mesh(problem, show_summary=False)
             >>>
             >>> # Display summary manually when needed
             >>> solution.summary(comprehensive=True)

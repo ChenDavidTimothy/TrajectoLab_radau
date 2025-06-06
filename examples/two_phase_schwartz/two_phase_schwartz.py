@@ -1,10 +1,10 @@
 import numpy as np
 
-import maptor as tl
+import maptor as mtor
 
 
 # Problem setup
-problem = tl.Problem("Two-Phase Schwartz Problem")
+problem = mtor.Problem("Two-Phase Schwartz Problem")
 
 # Phase 1
 phase1 = problem.set_phase(1)
@@ -82,7 +82,7 @@ problem.guess(
 )
 
 # Solve
-solution = tl.solve_adaptive(
+solution = mtor.solve_adaptive(
     problem,
     error_tolerance=1e-6,
     max_iterations=25,

@@ -1,7 +1,7 @@
 import casadi as ca
 import numpy as np
 
-import maptor as tl
+import maptor as mtor
 
 
 # Constants
@@ -18,7 +18,7 @@ H_SCALE = 1e5
 V_SCALE = 1e4
 
 # Problem setup
-problem = tl.Problem("Shuttle Reentry")
+problem = mtor.Problem("Shuttle Reentry")
 phase = problem.set_phase(1)
 
 # Variables
@@ -90,7 +90,7 @@ problem.guess(
 )
 
 # Solve
-solution = tl.solve_adaptive(
+solution = mtor.solve_adaptive(
     problem,
     error_tolerance=1e-7,
     nlp_options={"ipopt.print_level": 0, "ipopt.max_iter": 2000, "ipopt.tol": 1e-7},

@@ -1,6 +1,6 @@
 import numpy as np
 
-import maptor as tl
+import maptor as mtor
 
 
 # Constants
@@ -13,7 +13,7 @@ c5 = 27.0756
 t_final = 9.0
 
 # Problem setup
-problem = tl.Problem("Container Crane")
+problem = mtor.Problem("Container Crane")
 phase = problem.set_phase(1)
 
 # Variables
@@ -69,7 +69,7 @@ problem.guess(
 )
 
 # Solve
-solution = tl.solve_adaptive(
+solution = mtor.solve_adaptive(
     problem,
     error_tolerance=5e-7,
     ode_method="Radau",

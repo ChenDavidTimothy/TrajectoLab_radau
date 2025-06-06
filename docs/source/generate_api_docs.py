@@ -116,10 +116,10 @@ Quick Start
 
 .. code-block:: python
 
-   import maptor as tl
+   import maptor as mtor
 
    # Define problem
-   problem = tl.Problem("My Problem")
+   problem = mtor.Problem("My Problem")
 
    # Define variables and dynamics
    t = problem.time()
@@ -130,7 +130,7 @@ Quick Start
 
    # Set mesh and solve
    problem.mesh([5], [-1, 1])
-   solution = tl.solve_fixed_mesh(problem)
+   solution = mtor.solve_fixed_mesh(problem)
    solution.plot()
 
 """

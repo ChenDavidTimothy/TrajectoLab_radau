@@ -9,11 +9,11 @@ MAPTOR is a Python framework for solving optimal control problems using the Rada
 
 .. code-block:: python
 
-    import maptor as tl
+    import maptor as mtor
     import numpy as np
 
     # Create problem
-    problem = tl.Problem("Car Race")
+    problem = mtor.Problem("Car Race")
 
     # Define variables
     t = problem.time(initial=0.0)
@@ -27,7 +27,7 @@ MAPTOR is a Python framework for solving optimal control problems using the Rada
 
     # Solve
     problem.mesh([8, 8], np.linspace(-1, 1, 3))
-    solution = tl.solve_adaptive(problem)
+    solution = mtor.solve_adaptive(problem)
 
     if solution.status["success"]:
         print(f"Optimal time: {solution.final_time:.3f}")

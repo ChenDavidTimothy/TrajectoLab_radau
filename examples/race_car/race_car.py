@@ -1,11 +1,11 @@
 import casadi as ca
 import numpy as np
 
-import maptor as tl
+import maptor as mtor
 
 
 # Problem setup
-problem = tl.Problem("Car Race")
+problem = mtor.Problem("Car Race")
 phase = problem.set_phase(1)
 
 # Variables
@@ -29,7 +29,7 @@ phase.mesh([8, 8, 8], np.array([-1.0, -0.3, 0.3, 1.0]))
 problem.guess(phase_terminal_times={1: 2.0})
 
 # Solve
-solution = tl.solve_adaptive(
+solution = mtor.solve_adaptive(
     problem,
     error_tolerance=1e-6,
     max_iterations=20,

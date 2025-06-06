@@ -1,6 +1,6 @@
 import numpy as np
 
-import maptor as tl
+import maptor as mtor
 
 
 # Problem parameters from Table 10.30
@@ -22,7 +22,7 @@ B2 = 500
 Lambda = mu * N  # 429
 
 # Problem setup
-problem = tl.Problem("Two-Strain Tuberculosis Model")
+problem = mtor.Problem("Two-Strain Tuberculosis Model")
 phase = problem.set_phase(1)
 
 # Variables
@@ -96,7 +96,7 @@ problem.guess(
 )
 
 # Solve
-solution = tl.solve_adaptive(
+solution = mtor.solve_adaptive(
     problem,
     error_tolerance=1e-6,
     max_iterations=20,

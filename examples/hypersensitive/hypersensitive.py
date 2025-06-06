@@ -1,10 +1,10 @@
 import numpy as np
 
-import maptor as tl
+import maptor as mtor
 
 
 # Problem setup
-problem = tl.Problem("Hypersensitive Problem")
+problem = mtor.Problem("Hypersensitive Problem")
 phase = problem.set_phase(1)
 
 # Variables
@@ -24,7 +24,7 @@ problem.minimize(integral_var)
 phase.mesh([8, 8, 8], [-1.0, -1 / 3, 1 / 3, 1.0])
 
 # Solve with adaptive mesh
-solution = tl.solve_adaptive(
+solution = mtor.solve_adaptive(
     problem,
     error_tolerance=1e-3,
     max_iterations=30,
@@ -57,7 +57,7 @@ if solution.status["success"]:
         phase_integrals={1: 0.1},
     )
 
-    fixed_solution = tl.solve_fixed_mesh(
+    fixed_solution = mtor.solve_fixed_mesh(
         problem, nlp_options={"ipopt.print_level": 0, "ipopt.max_iter": 200}
     )
 

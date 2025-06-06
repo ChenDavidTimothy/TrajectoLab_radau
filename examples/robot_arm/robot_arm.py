@@ -1,14 +1,14 @@
 import casadi as ca
 import numpy as np
 
-import maptor as tl
+import maptor as mtor
 
 
 # Problem parameters
 L = 5
 
 # Problem setup
-problem = tl.Problem("Robot Arm Control")
+problem = mtor.Problem("Robot Arm Control")
 phase = problem.set_phase(1)
 
 # Variables (free final time - minimum time problem)
@@ -66,7 +66,7 @@ problem.guess(
 )
 
 # Solve
-solution = tl.solve_adaptive(
+solution = mtor.solve_adaptive(
     problem,
     error_tolerance=1e-6,
     max_iterations=25,

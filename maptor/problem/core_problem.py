@@ -161,7 +161,7 @@ class Phase:
     Examples:
         Basic single-phase problem setup:
 
-        >>> problem = tl.Problem("Rocket Ascent")
+        >>> problem = mtor.Problem("Rocket Ascent")
         >>> phase = problem.set_phase(1)
         >>>
         >>> # Define time and variables
@@ -758,9 +758,9 @@ class Problem:
     Examples:
         Single-phase minimum time problem:
 
-        >>> import maptor as tl
+        >>> import maptor as mtor
         >>>
-        >>> problem = tl.Problem("Minimum Time")
+        >>> problem = mtor.Problem("Minimum Time")
         >>> phase = problem.set_phase(1)
         >>>
         >>> # Variables and dynamics
@@ -774,11 +774,11 @@ class Problem:
         >>>
         >>> # Solve
         >>> phase.mesh([5, 5], [-1, 0, 1])
-        >>> solution = tl.solve_fixed_mesh(problem)
+        >>> solution = mtor.solve_fixed_mesh(problem)
 
         Multiphase rocket trajectory:
 
-        >>> problem = tl.Problem("Rocket Launch")
+        >>> problem = mtor.Problem("Rocket Launch")
         >>>
         >>> # Boost phase
         >>> boost = problem.set_phase(1)
@@ -809,7 +809,7 @@ class Problem:
 
         Problem with static parameters:
 
-        >>> problem = tl.Problem("Design Optimization")
+        >>> problem = mtor.Problem("Design Optimization")
         >>>
         >>> # Design parameters to optimize
         >>> engine_mass = problem.parameter("engine_mass", boundary=(50, 200))
@@ -833,9 +833,9 @@ class Problem:
             name: Descriptive name for the problem (used in logging and output)
 
         Examples:
-            >>> problem = tl.Problem("Spacecraft Trajectory")
-            >>> problem = tl.Problem("Robot Path Planning")
-            >>> problem = tl.Problem()  # Uses default name
+            >>> problem = mtor.Problem("Spacecraft Trajectory")
+            >>> problem = mtor.Problem("Robot Path Planning")
+            >>> problem = mtor.Problem()  # Uses default name
         """
         validate_string_not_empty(name, "Problem name")
         self.name = name
@@ -866,13 +866,13 @@ class Problem:
         Examples:
             Single phase problem:
 
-            >>> problem = tl.Problem("Single Phase")
+            >>> problem = mtor.Problem("Single Phase")
             >>> phase = problem.set_phase(1)
             >>> # Define phase variables, dynamics, constraints...
 
             Sequential multiphase problem:
 
-            >>> problem = tl.Problem("Three Phase Mission")
+            >>> problem = mtor.Problem("Three Phase Mission")
             >>>
             >>> # Launch phase
             >>> launch = problem.set_phase(1)

@@ -21,11 +21,11 @@ Example: Minimum Time Problem
 
 .. code-block:: python
 
-    import maptor as tl
+    import maptor as mtor
     import numpy as np
 
     # 1. Create problem
-    problem = tl.Problem("Minimum Time")
+    problem = mtor.Problem("Minimum Time")
 
     # 2. Define variables
     t = problem.time(initial=0.0)                          # Free final time
@@ -44,7 +44,7 @@ Example: Minimum Time Problem
 
     # 5. Configure mesh and solve
     problem.mesh([10], np.array([-1.0, 1.0]))
-    solution = tl.solve_fixed_mesh(problem)
+    solution = mtor.solve_fixed_mesh(problem)
 
     # 6. Results
     if solution.status["success"]:
@@ -71,10 +71,10 @@ Key Patterns
 .. code-block:: python
 
     # Fixed mesh - fast
-    solution = tl.solve_fixed_mesh(problem)
+    solution = mtor.solve_fixed_mesh(problem)
 
     # Adaptive mesh - high accuracy
-    solution = tl.solve_adaptive(problem, error_tolerance=1e-8)
+    solution = mtor.solve_adaptive(problem, error_tolerance=1e-8)
 
 **Working with Solutions:**
 

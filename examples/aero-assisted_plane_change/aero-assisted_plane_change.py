@@ -1,7 +1,7 @@
 import casadi as ca
 import numpy as np
 
-import maptor as tl
+import maptor as mtor
 
 
 # Constants from Table 10.3
@@ -24,7 +24,7 @@ a1 = (CD0 * S) / (2 * m)
 vs = ca.sqrt(mu / Re)
 
 # Problem setup
-problem = tl.Problem("Optimal Aero-Assisted Plane Change")
+problem = mtor.Problem("Optimal Aero-Assisted Plane Change")
 phase = problem.set_phase(1)
 
 # Variables
@@ -115,7 +115,7 @@ problem.guess(
 )
 
 # Solve
-solution = tl.solve_adaptive(
+solution = mtor.solve_adaptive(
     problem,
     error_tolerance=1e-6,
     max_iterations=50,

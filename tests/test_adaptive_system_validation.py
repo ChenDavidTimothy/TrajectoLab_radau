@@ -23,7 +23,7 @@ import casadi as ca
 import numpy as np
 import pytest
 
-import maptor as tl
+import maptor as mtor
 
 
 class TestAdaptiveSystemValidation:
@@ -44,7 +44,7 @@ class TestAdaptiveSystemValidation:
         This test verifies the adaptive algorithm converges to the correct solution.
         """
         # Create brachistochrone problem: particle slides from (0,0) to (1,-1) in minimum time
-        problem = tl.Problem("Brachistochrone Validation")
+        problem = mtor.Problem("Brachistochrone Validation")
 
         # NEW API: Create phase first
         phase = problem.set_phase(1)
@@ -107,7 +107,7 @@ class TestAdaptiveSystemValidation:
         )
 
         # Solve with adaptive refinement
-        solution = tl.solve_adaptive(
+        solution = mtor.solve_adaptive(
             problem,
             error_tolerance=1e-6,
             max_iterations=15,
@@ -154,7 +154,7 @@ class TestAdaptiveSystemValidation:
         """
         # Two-point BVP: minimize ∫u²dt subject to ẋ = u, x(0) = 0, x(1) = 1
         # Analytical solution: u(t) = constant = 1, cost = 1
-        problem = tl.Problem("Two-Point BVP Validation")
+        problem = mtor.Problem("Two-Point BVP Validation")
 
         # NEW API: Create phase first
         phase = problem.set_phase(1)
@@ -183,7 +183,7 @@ class TestAdaptiveSystemValidation:
         phase.mesh([3, 3, 3], np.array([-1.0, -0.3, 0.5, 1.0]))
 
         # Solve with adaptive refinement
-        solution = tl.solve_adaptive(
+        solution = mtor.solve_adaptive(
             problem,
             error_tolerance=1e-8,
             max_iterations=15,
@@ -247,7 +247,7 @@ class TestAdaptiveSystemValidation:
         Simple quadratic problem with known solution for validation.
         """
         # Simple problem: minimize ∫(x² + u²)dt subject to ẋ = u, x(0) = 1, x(2) = 0
-        problem = tl.Problem("Simple LQR Validation")
+        problem = mtor.Problem("Simple LQR Validation")
 
         # NEW API: Create phase first
         phase = problem.set_phase(1)
@@ -276,7 +276,7 @@ class TestAdaptiveSystemValidation:
         phase.mesh([4, 4], np.array([-1.0, 0.0, 1.0]))
 
         # Solve with adaptive refinement
-        solution = tl.solve_adaptive(
+        solution = mtor.solve_adaptive(
             problem,
             error_tolerance=1e-6,
             max_iterations=15,
@@ -331,7 +331,7 @@ class TestAdaptiveSystemValidation:
 
         for tolerance in test_tolerances:
             # Use a problem with known solution for error verification
-            problem = tl.Problem("Error Tolerance Honesty")
+            problem = mtor.Problem("Error Tolerance Honesty")
 
             # NEW API: Create phase first
             phase = problem.set_phase(1)
@@ -352,7 +352,7 @@ class TestAdaptiveSystemValidation:
             phase.mesh([3, 3], np.array([-1.0, 0.0, 1.0]))
 
             # Solve with specific error tolerance
-            solution = tl.solve_adaptive(
+            solution = mtor.solve_adaptive(
                 problem,
                 error_tolerance=tolerance,
                 max_iterations=20,
@@ -397,7 +397,7 @@ class TestAdaptiveSystemValidation:
         This validates that each adaptive iteration actually improves the solution.
         """
         # Use hypersensitive problem (known to need adaptive refinement)
-        coarse_problem = tl.Problem("Mesh Refinement Validation - Coarse")
+        coarse_problem = mtor.Problem("Mesh Refinement Validation - Coarse")
         coarse_phase = coarse_problem.set_phase(1)
 
         # Hypersensitive problem parameters
@@ -413,13 +413,13 @@ class TestAdaptiveSystemValidation:
         # Solve with coarse mesh first
         coarse_phase.mesh([3, 3], np.array([-1.0, 0.0, 1.0]))
 
-        coarse_solution = tl.solve_fixed_mesh(
+        coarse_solution = mtor.solve_fixed_mesh(
             coarse_problem,
             nlp_options={"ipopt.print_level": 0, "ipopt.max_iter": 500, "ipopt.tol": 1e-8},
         )
 
         # Solve with medium mesh
-        medium_problem = tl.Problem("Mesh Refinement Validation - Medium")
+        medium_problem = mtor.Problem("Mesh Refinement Validation - Medium")
         medium_phase = medium_problem.set_phase(1)
 
         _t_medium = medium_phase.time(initial=0, final=40)
@@ -433,13 +433,13 @@ class TestAdaptiveSystemValidation:
 
         medium_phase.mesh([6, 6, 6], np.array([-1.0, -0.3, 0.4, 1.0]))
 
-        medium_solution = tl.solve_fixed_mesh(
+        medium_solution = mtor.solve_fixed_mesh(
             medium_problem,
             nlp_options={"ipopt.print_level": 0, "ipopt.max_iter": 500, "ipopt.tol": 1e-8},
         )
 
         # Solve with adaptive refinement
-        adaptive_problem = tl.Problem("Mesh Refinement Validation - Adaptive")
+        adaptive_problem = mtor.Problem("Mesh Refinement Validation - Adaptive")
         adaptive_phase = adaptive_problem.set_phase(1)
 
         _t_adaptive = adaptive_phase.time(initial=0, final=40)
@@ -453,7 +453,7 @@ class TestAdaptiveSystemValidation:
 
         adaptive_phase.mesh([3, 3], np.array([-1.0, 0.0, 1.0]))  # Start coarse
 
-        adaptive_solution = tl.solve_adaptive(
+        adaptive_solution = mtor.solve_adaptive(
             adaptive_problem,
             error_tolerance=1e-6,
             max_iterations=10,
@@ -512,7 +512,7 @@ class TestAdaptiveSystemValidation:
         errors = []
 
         for degree in degrees_to_test:
-            problem_simple = tl.Problem("Simple Smooth Test")
+            problem_simple = mtor.Problem("Simple Smooth Test")
             phase_simple = problem_simple.set_phase(1)
 
             _t_simple = phase_simple.time(initial=0.0, final=1.0)
@@ -527,7 +527,7 @@ class TestAdaptiveSystemValidation:
             # Single interval with given degree
             phase_simple.mesh([degree], np.array([-1.0, 1.0]))
 
-            solution = tl.solve_fixed_mesh(
+            solution = mtor.solve_fixed_mesh(
                 problem_simple,
                 nlp_options={"ipopt.print_level": 0, "ipopt.max_iter": 300, "ipopt.tol": 1e-12},
             )
@@ -566,7 +566,7 @@ class TestAdaptiveSystemValidation:
         for n_intervals in mesh_sizes:
             # Problem with sharp transition: minimize ∫u²dt subject to ẋ = u, x(0) = 0, x(1) = 1
             # But with a penalty that creates a sharp corner
-            problem = tl.Problem("Algebraic Convergence Test")
+            problem = mtor.Problem("Algebraic Convergence Test")
             phase = problem.set_phase(1)
 
             _t = phase.time(initial=0.0, final=1.0)
@@ -588,7 +588,7 @@ class TestAdaptiveSystemValidation:
 
             phase.mesh(degrees, mesh_points)
 
-            solution = tl.solve_fixed_mesh(
+            solution = mtor.solve_fixed_mesh(
                 problem,
                 nlp_options={"ipopt.print_level": 0, "ipopt.max_iter": 1000, "ipopt.tol": 1e-10},
             )
@@ -637,7 +637,7 @@ class TestAdaptiveSystemValidation:
         """
         # Boundary layer problem: minimize ∫u²dt subject to εẍ + ẋ = u, x(0) = 0, x(1) = 1
         # where ε is small (creates boundary layer near x = 1)
-        problem = tl.Problem("Boundary Layer Test")
+        problem = mtor.Problem("Boundary Layer Test")
         phase = problem.set_phase(1)
 
         epsilon = 0.01  # Small parameter creates boundary layer
@@ -660,7 +660,7 @@ class TestAdaptiveSystemValidation:
         phase.mesh([3, 3, 3], np.array([-1.0, -0.2, 0.3, 1.0]))
 
         # Solve with adaptive refinement
-        solution = tl.solve_adaptive(
+        solution = mtor.solve_adaptive(
             problem,
             error_tolerance=1e-5,
             max_iterations=15,
@@ -714,7 +714,7 @@ class TestAdaptiveSystemValidation:
         creating intervals that are too small or too large relative to others.
         """
         # Use a challenging problem that might cause mesh degeneracy
-        problem = tl.Problem("Mesh Degeneracy Test")
+        problem = mtor.Problem("Mesh Degeneracy Test")
         phase = problem.set_phase(1)
 
         # Problem with multiple time scales
@@ -744,7 +744,7 @@ class TestAdaptiveSystemValidation:
         phase.mesh([4, 4], np.array([-1.0, 0.0, 1.0]))
 
         # Solve with adaptive refinement
-        solution = tl.solve_adaptive(
+        solution = mtor.solve_adaptive(
             problem,
             error_tolerance=1e-4,
             max_iterations=20,
