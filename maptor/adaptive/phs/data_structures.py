@@ -34,6 +34,8 @@ def _convert_casadi_to_numpy(casadi_value: Any) -> np.ndarray:
 
 
 def _reshape_1d_array(np_array: np.ndarray, expected_rows: int, expected_cols: int) -> np.ndarray:
+    # CasADi returns inconsistent array shapes depending on problem size and solver backend
+
     array_length = len(np_array)
     expected_total = expected_rows * expected_cols
 

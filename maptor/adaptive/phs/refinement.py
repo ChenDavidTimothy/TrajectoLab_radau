@@ -107,7 +107,8 @@ def _compute_p_reduce_delta(current_Nk: int, N_min: int, N_max: int) -> float:
 
 
 def _calculate_nodes_to_remove(error_tol: float, max_error: float, delta: float) -> int:
-    # Calculate number of nodes to remove in p-reduction.
+    # Implements polynomial degree reduction formula per Eq. 36 in referenced literature
+
     try:
         ratio = error_tol / max_error
         if ratio >= 1.0:
@@ -450,7 +451,7 @@ def _h_reduce_intervals(
     except (Exception, ValueError):
         return False
 
-    # Setup simulation points
+    # Bidirectional simulation validates that merged interval maintains solution accuracy
     fwd_tau_points, bwd_tau_points = _setup_merge_simulation_points(
         adaptive_params, tau_start_k, tau_shared, tau_end_kp1
     )

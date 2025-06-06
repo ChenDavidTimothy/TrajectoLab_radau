@@ -24,6 +24,8 @@ logger = logging.getLogger(__name__)
 
 
 def _calculate_gamma_normalization_factors(max_state_values: FloatArray) -> FloatArray:
+    # Gamma normalization prevents ill-conditioning when state magnitudes vary significantly
+
     gamma_denominator = 1.0 + max_state_values
     return (1.0 / np.maximum(gamma_denominator, np.float64(1e-12))).reshape(-1, 1)
 
