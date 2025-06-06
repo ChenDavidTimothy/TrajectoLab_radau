@@ -35,8 +35,13 @@ dev = [
     "pytest-cov>=4.0.0",
 ]
 
+[project.urls]
+"Homepage" = "https://github.com/ChenDavidTimothy/maptor"
+"Repository" = "https://github.com/ChenDavidTimothy/maptor"
+"Issues" = "https://github.com/ChenDavidTimothy/maptor/issues"
+
 # ============================================================================
-# RUFF CONFIGURATION (Replaces Black + isort + flake8)
+# RUFF CONFIGURATION
 # ============================================================================
 
 [tool.ruff]
@@ -98,7 +103,7 @@ ignore = [
 "*/test_*.py" = ["S101", "S311"] # Same for test files
 
 # ============================================================================
-# IMPORT SORTING (Replaces isort)
+# IMPORT SORTING
 # ============================================================================
 
 [tool.ruff.lint.isort]
@@ -124,7 +129,7 @@ force-single-line = false
 lines-after-imports = 2
 
 # ============================================================================
-# CODE FORMATTING (Replaces Black)
+# CODE FORMATTING
 # ============================================================================
 
 [tool.ruff.format]
