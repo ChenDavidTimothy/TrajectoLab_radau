@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "maptor"
 version = "0.1.0"
-description = "Optimal control framework using Radau Pseudospectral Method"
+description = "Multiphase and Adaptive Trajectory Optimizer"
 authors = [{name = "David Timothy"}]
 readme = "README.md"
 requires-python = ">=3.10"
@@ -19,7 +19,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
 ]
-keywords = ["optimal control", "trajectory optimization", "collocation", "pseudospectral methods"]
+keywords = ["optimal control", "trajectory optimization", "collocation", "pseudospectral methods", "robotics", "aerospace"]
 dependencies = [
     "numpy>=1.18.0",
     "matplotlib>=3.1.0",
