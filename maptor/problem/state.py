@@ -8,7 +8,7 @@ from typing import TypeAlias, cast
 import casadi as ca
 
 from ..exceptions import DataIntegrityError
-from ..input_validation import validate_constraint_input_format, validate_string_not_empty
+from ..input_validation import _validate_constraint_input_format, _validate_string_not_empty
 from ..tl_types import FloatArray, PhaseID
 
 
@@ -87,7 +87,7 @@ def _collect_symbolic_constraint(
 
 class _BoundaryConstraint:
     def __init__(self, constraint_input: ConstraintInput = None) -> None:
-        validate_constraint_input_format(constraint_input, "boundary constraint")
+        _validate_constraint_input_format(constraint_input, "boundary constraint")
 
         self.equals: float | None = None
         self.lower: float | None = None
@@ -239,7 +239,7 @@ class PhaseDefinition:
         final_constraint: _BoundaryConstraint | None = None,
         boundary_constraint: _BoundaryConstraint | None = None,
     ) -> None:
-        validate_string_not_empty(name, "State variable name")
+        _validate_string_not_empty(name, "State variable name")
 
         with self._ordering_lock:
 
@@ -268,7 +268,7 @@ class PhaseDefinition:
     def add_control(
         self, name: str, symbol: ca.MX, boundary_constraint: _BoundaryConstraint | None = None
     ) -> None:
-        validate_string_not_empty(name, "Control variable name")
+        _validate_string_not_empty(name, "Control variable name")
 
         with self._ordering_lock:
 
@@ -358,7 +358,7 @@ class StaticParameterState:
     def add_parameter(
         self, name: str, symbol: ca.MX, boundary_constraint: _BoundaryConstraint | None = None
     ) -> None:
-        validate_string_not_empty(name, "Parameter name")
+        _validate_string_not_empty(name, "Parameter name")
 
         with self._ordering_lock:
 

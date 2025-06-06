@@ -6,9 +6,9 @@ from typing import Any
 import numpy as np
 
 from ..input_validation import (
+    _validate_array_numerical_integrity,
+    _validate_integral_values,
     _validate_multiphase_initial_guess_structure,
-    validate_array_numerical_integrity,
-    validate_integral_values,
 )
 from ..tl_types import FloatArray, MultiPhaseInitialGuess, PhaseID
 from .state import MultiPhaseVariableState
@@ -34,7 +34,7 @@ def _process_single_or_multi_integral(
 def _validate_time_values(time_values: dict[PhaseID, float] | None, time_type: str) -> None:
     if time_values is not None:
         for phase_id, time_val in time_values.items():
-            validate_array_numerical_integrity(
+            _validate_array_numerical_integrity(
                 np.array([time_val]), f"Phase {phase_id} {time_type} time"
             )
 
@@ -87,7 +87,7 @@ def _validate_phase_integrals(
             _validate_phase_exists(phases, phase_id)
             phase_def = phases[phase_id]
 
-            validate_integral_values(integrals, phase_def.num_integrals)
+            _validate_integral_values(integrals, phase_def.num_integrals)
             validated_integrals[phase_id] = _process_single_or_multi_integral(
                 integrals, phase_def.num_integrals
             )

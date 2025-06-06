@@ -3,8 +3,8 @@ from typing import cast
 
 from maptor.direct_solver import _solve_multiphase_radau_collocation
 from maptor.input_validation import (
-    validate_adaptive_solver_parameters,
-    validate_multiphase_problem_ready_for_solving,
+    _validate_adaptive_solver_parameters,
+    _validate_multiphase_problem_ready_for_solving,
 )
 from maptor.problem import Problem
 from maptor.solution import Solution
@@ -102,7 +102,7 @@ def solve_fixed_mesh(
             num_static_params,
         )
 
-    validate_multiphase_problem_ready_for_solving(cast(ProblemProtocol, problem))
+    _validate_multiphase_problem_ready_for_solving(cast(ProblemProtocol, problem))
 
     problem.solver_options = nlp_options or DEFAULT_NLP_OPTIONS
     logger.debug("NLP solver options: %s", problem.solver_options)
@@ -241,10 +241,10 @@ def solve_adaptive(
         num_error_sim_points,
     )
 
-    validate_adaptive_solver_parameters(
+    _validate_adaptive_solver_parameters(
         error_tolerance, max_iterations, min_polynomial_degree, max_polynomial_degree
     )
-    validate_multiphase_problem_ready_for_solving(cast(ProblemProtocol, problem))
+    _validate_multiphase_problem_ready_for_solving(cast(ProblemProtocol, problem))
 
     problem.solver_options = nlp_options or DEFAULT_NLP_OPTIONS
     protocol_problem = cast(ProblemProtocol, problem)

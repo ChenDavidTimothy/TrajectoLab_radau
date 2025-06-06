@@ -4,7 +4,7 @@ from typing import Any
 
 import casadi as ca
 
-from ..input_validation import set_integral_guess_values
+from ..input_validation import _set_integral_guess_values
 from ..tl_types import FloatArray, PhaseID, ProblemProtocol
 from .types_solver import _MultiPhaseVariable, _PhaseVariable
 
@@ -87,7 +87,7 @@ def _apply_integral_guesses(
 ) -> None:
     if context.num_integrals > 0 and context.phase_vars.integral_variables is not None:
         # Use centralized validation function - already validated, just set values
-        set_integral_guess_values(
+        _set_integral_guess_values(
             context.opti,
             context.phase_vars.integral_variables,
             phase_integrals,

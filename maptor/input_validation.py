@@ -20,14 +20,14 @@ T = TypeVar("T")
 # ==========================
 
 
-def validate_positive_integer(value: Any, name: str, min_value: int = 1) -> None:
+def _validate_positive_integer(value: Any, name: str, min_value: int = 1) -> None:
     if not isinstance(value, int):
         raise ConfigurationError(f"{name} must be integer, got {type(value)}")
     if value < min_value:
         raise ConfigurationError(f"{name} must be >= {min_value}, got {value}")
 
 
-def validate_positive_number(value: Any, name: str) -> None:
+def _validate_positive_number(value: Any, name: str) -> None:
     if not isinstance(value, int | float):
         raise ConfigurationError(f"{name} must be numeric, got {type(value)}")
     if value <= 0:
@@ -36,14 +36,14 @@ def validate_positive_number(value: Any, name: str) -> None:
         raise ConfigurationError(f"{name} cannot be NaN or infinite, got {value}")
 
 
-def validate_string_not_empty(value: Any, name: str) -> None:
+def _validate_string_not_empty(value: Any, name: str) -> None:
     if not isinstance(value, str):
         raise ConfigurationError(f"{name} must be string, got {type(value)}")
     if not value.strip():
         raise ConfigurationError(f"{name} cannot be empty")
 
 
-def validate_array_numerical_integrity(
+def _validate_array_numerical_integrity(
     array: FloatArray, name: str, context: str = "validation"
 ) -> None:
     # External boundary check prevents corruption propagation into solver
@@ -53,7 +53,7 @@ def validate_array_numerical_integrity(
         )
 
 
-def validate_array_shape(
+def _validate_array_shape(
     array: FloatArray, expected_shape: tuple[int, ...], name: str, context: str = "validation"
 ) -> None:
     if array.shape != expected_shape:
@@ -68,7 +68,7 @@ def validate_array_shape(
 # ======================
 
 
-def validate_constraint_input_format(constraint_input: Any, context: str) -> None:
+def _validate_constraint_input_format(constraint_input: Any, context: str) -> None:
     # Unified validation supports both numerical and symbolic constraints
     if constraint_input is None or isinstance(constraint_input, ca.MX):
         return
@@ -107,10 +107,6 @@ def validate_constraint_input_format(constraint_input: Any, context: str) -> Non
 # ================
 
 
-def validate_polynomial_degree(degree: int, context: str = "polynomial degree") -> None:
-    validate_positive_integer(degree, context, min_value=1)
-
-
 def _validate_mesh_configuration(
     polynomial_degrees: list[int], mesh_points: FloatArray, num_intervals: int
 ) -> None:
@@ -119,9 +115,9 @@ def _validate_mesh_configuration(
         raise ConfigurationError("Polynomial degrees must be non-empty list")
 
     for i, degree in enumerate(polynomial_degrees):
-        validate_polynomial_degree(degree, f"polynomial degree for interval {i}")
+        _validate_positive_integer(degree, f"polynomial degree for interval {i}")
 
-    validate_positive_integer(num_intervals, "number of mesh intervals")
+    _validate_positive_integer(num_intervals, "number of mesh intervals")
 
     if len(polynomial_degrees) != num_intervals:
         raise ConfigurationError(
@@ -152,7 +148,7 @@ def _validate_mesh_configuration(
 # ===================
 
 
-def validate_problem_dimensions(
+def _validate_problem_dimensions(
     num_states: int, num_controls: int, num_static_params: int, context: str = "problem"
 ) -> None:
     for count, name in [
@@ -166,7 +162,7 @@ def validate_problem_dimensions(
             )
 
 
-def validate_phase_configuration(problem: ProblemProtocol, phase_id: PhaseID) -> None:
+def _validate_phase_configuration(problem: ProblemProtocol, phase_id: PhaseID) -> None:
     # Phase validation ensures solver requirements are met
     if phase_id not in problem._phases:
         raise ConfigurationError(f"Phase {phase_id} not found in problem")
@@ -192,18 +188,18 @@ def validate_phase_configuration(problem: ProblemProtocol, phase_id: PhaseID) ->
         raise ConfigurationError(f"Phase {phase_id} must have at least one state variable")
 
 
-def validate_multiphase_problem_ready_for_solving(problem: ProblemProtocol) -> None:
+def _validate_multiphase_problem_ready_for_solving(problem: ProblemProtocol) -> None:
     # Master validation ensures complete problem specification before solver invocation
     if not hasattr(problem, "_phases") or not problem._phases:
         raise ConfigurationError("Problem must have at least one phase - use problem.phase()")
 
     total_states, total_controls, num_static_params = problem._get_total_variable_counts()
-    validate_problem_dimensions(
+    _validate_problem_dimensions(
         total_states, total_controls, num_static_params, "multiphase problem"
     )
 
     for phase_id in problem._get_phase_ids():
-        validate_phase_configuration(problem, phase_id)
+        _validate_phase_configuration(problem, phase_id)
 
     if (
         not hasattr(problem, "_multiphase_state")
@@ -223,7 +219,7 @@ def validate_multiphase_problem_ready_for_solving(problem: ProblemProtocol) -> N
 # =========================
 
 
-def validate_trajectory_consistency(
+def _validate_trajectory_consistency(
     trajectories: list[FloatArray],
     expected_intervals: int,
     expected_shapes: list[tuple[int, int]],
@@ -236,10 +232,10 @@ def validate_trajectory_consistency(
         )
 
     for k, (traj, expected_shape) in enumerate(zip(trajectories, expected_shapes, strict=False)):
-        validate_array_shape(traj, expected_shape, f"{trajectory_type} interval {k}")
+        _validate_array_shape(traj, expected_shape, f"{trajectory_type} interval {k}")
 
 
-def validate_integral_values(integrals: float | FloatArray | None, num_integrals: int) -> None:
+def _validate_integral_values(integrals: float | FloatArray | None, num_integrals: int) -> None:
     # Integral validation handles both scalar and vector cases
     if integrals is None:
         return
@@ -247,7 +243,7 @@ def validate_integral_values(integrals: float | FloatArray | None, num_integrals
     if num_integrals == 1:
         if not isinstance(integrals, int | float):
             raise DataIntegrityError(f"Single integral must be scalar, got {type(integrals)}")
-        validate_array_numerical_integrity(np.array([integrals]), "integral value")
+        _validate_array_numerical_integrity(np.array([integrals]), "integral value")
     elif num_integrals > 1:
         if isinstance(integrals, int | float):
             raise DataIntegrityError(f"Multiple integrals ({num_integrals}) need array, got scalar")
@@ -257,7 +253,7 @@ def validate_integral_values(integrals: float | FloatArray | None, num_integrals
             raise DataIntegrityError(
                 f"Integral count mismatch: expected {num_integrals}, got {integrals_array.size}"
             )
-        validate_array_numerical_integrity(integrals_array, "integral values")
+        _validate_array_numerical_integrity(integrals_array, "integral values")
 
 
 def _validate_multiphase_initial_guess_structure(
@@ -281,7 +277,7 @@ def _validate_multiphase_initial_guess_structure(
             expected_shapes = [
                 (num_states, N + 1) for N in phase_def.collocation_points_per_interval
             ]
-            validate_trajectory_consistency(
+            _validate_trajectory_consistency(
                 states_list, len(expected_shapes), expected_shapes, f"phase {phase_id} states"
             )
 
@@ -293,7 +289,7 @@ def _validate_multiphase_initial_guess_structure(
             phase_def = problem._phases[phase_id]
             _, num_controls = phase_def.get_variable_counts()
             expected_shapes = [(num_controls, N) for N in phase_def.collocation_points_per_interval]
-            validate_trajectory_consistency(
+            _validate_trajectory_consistency(
                 controls_list, len(expected_shapes), expected_shapes, f"phase {phase_id} controls"
             )
 
@@ -301,7 +297,7 @@ def _validate_multiphase_initial_guess_structure(
         for phase_id, integrals in initial_guess.phase_integrals.items():
             if phase_id not in phase_ids:
                 raise ConfigurationError(f"Initial guess for undefined phase {phase_id}")
-            validate_integral_values(integrals, problem._phases[phase_id].num_integrals)
+            _validate_integral_values(integrals, problem._phases[phase_id].num_integrals)
 
     if initial_guess.static_parameters is not None:
         _, _, num_static_params = problem._get_total_variable_counts()
@@ -315,7 +311,7 @@ def _validate_multiphase_initial_guess_structure(
             raise ConfigurationError(
                 f"Static parameter count mismatch: expected {num_static_params}, got {params_array.size}"
             )
-        validate_array_numerical_integrity(params_array, "static parameters")
+        _validate_array_numerical_integrity(params_array, "static parameters")
 
     # Time validation at user input boundary only
     for time_dict, time_type in [
@@ -324,7 +320,7 @@ def _validate_multiphase_initial_guess_structure(
     ]:
         if time_dict is not None:
             for phase_id, time_val in time_dict.items():
-                validate_array_numerical_integrity(
+                _validate_array_numerical_integrity(
                     np.array([time_val]), f"phase {phase_id} {time_type} time"
                 )
 
@@ -350,17 +346,17 @@ def _validate_multiphase_initial_guess_structure(
 # ============================
 
 
-def validate_adaptive_solver_parameters(
+def _validate_adaptive_solver_parameters(
     error_tolerance: float,
     max_iterations: int,
     min_polynomial_degree: int,
     max_polynomial_degree: int,
 ) -> None:
     # Parameter bounds ensure adaptive algorithm convergence properties
-    validate_positive_number(error_tolerance, "error tolerance")
-    validate_positive_integer(max_iterations, "max iterations")
-    validate_positive_integer(min_polynomial_degree, "min polynomial degree")
-    validate_positive_integer(max_polynomial_degree, "max polynomial degree")
+    _validate_positive_number(error_tolerance, "error tolerance")
+    _validate_positive_integer(max_iterations, "max iterations")
+    _validate_positive_integer(min_polynomial_degree, "min polynomial degree")
+    _validate_positive_integer(max_polynomial_degree, "max polynomial degree")
 
     if max_polynomial_degree < min_polynomial_degree:
         raise ConfigurationError(
@@ -373,7 +369,7 @@ def validate_adaptive_solver_parameters(
 # ===========================
 
 
-def validate_dynamics_output(output: Any, num_states: int) -> ca.MX:
+def _validate_dynamics_output(output: Any, num_states: int) -> ca.MX:
     if output is None:
         raise DataIntegrityError("Dynamics function returned None", "Dynamics evaluation error")
 
@@ -397,7 +393,7 @@ def validate_dynamics_output(output: Any, num_states: int) -> ca.MX:
         return result
 
     if isinstance(output, Sequence):
-        return validate_dynamics_output(list(output), num_states)
+        return _validate_dynamics_output(list(output), num_states)
 
     raise DataIntegrityError(
         f"Unsupported dynamics output type: {type(output)}", "Dynamics type error"
@@ -409,7 +405,7 @@ def validate_dynamics_output(output: Any, num_states: int) -> ca.MX:
 # ============================================================================
 
 
-def set_integral_guess_values(
+def _set_integral_guess_values(
     opti: ca.Opti, integral_vars: ca.MX, guess: float | FloatArray | None, num_integrals: int
 ) -> None:
     # Integral guess setting handles scalar/vector distinction for CasADi compatibility

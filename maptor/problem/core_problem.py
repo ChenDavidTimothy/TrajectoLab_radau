@@ -5,8 +5,8 @@ from typing import Any
 import casadi as ca
 
 from ..input_validation import (
-    validate_constraint_input_format,
-    validate_string_not_empty,
+    _validate_constraint_input_format,
+    _validate_string_not_empty,
 )
 from ..tl_types import FloatArray, NumericArrayLike, PhaseID
 from . import constraints_problem, initial_guess_problem, mesh, solver_interface, variables_problem
@@ -28,8 +28,8 @@ def _validate_phase_exists(phases: dict[PhaseID, Any], phase_id: PhaseID) -> Non
 
 
 def _validate_constraint_inputs(name: str, boundary: ConstraintInput, context: str) -> None:
-    validate_string_not_empty(name, f"{context} name")
-    validate_constraint_input_format(boundary, f"{context} '{name}' boundary")
+    _validate_string_not_empty(name, f"{context} name")
+    _validate_constraint_input_format(boundary, f"{context} '{name}' boundary")
 
 
 def _log_constraint_addition(
@@ -837,7 +837,7 @@ class Problem:
             >>> problem = mtor.Problem("Robot Path Planning")
             >>> problem = mtor.Problem()  # Uses default name
         """
-        validate_string_not_empty(name, "Problem name")
+        _validate_string_not_empty(name, "Problem name")
         self.name = name
         logger.debug("Created multiphase problem: '%s'", name)
 

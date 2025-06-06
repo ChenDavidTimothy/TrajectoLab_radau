@@ -5,7 +5,7 @@ from typing import ClassVar, Literal, cast, overload
 import numpy as np
 from scipy.special import roots_jacobi as _scipy_roots_jacobi
 
-from .input_validation import validate_polynomial_degree
+from .input_validation import _validate_positive_integer
 from .tl_types import FloatArray
 from .utils.constants import ZERO_TOLERANCE
 
@@ -51,7 +51,7 @@ class RadauBasisCache:
                     cls._instance = super().__new__(cls)
         return cls._instance
 
-    def get_components(self, num_collocation_nodes: int) -> RadauBasisComponents:
+    def _get_components(self, num_collocation_nodes: int) -> RadauBasisComponents:
         # Cache prevents expensive recomputation of basis functions and differentiation matrices
         with self._lock:
             if num_collocation_nodes not in self._cache:
@@ -99,18 +99,18 @@ _radau_cache = RadauBasisCache()
 
 
 @overload
-def roots_jacobi(
+def _roots_jacobi(
     n: int, alpha: float, beta: float, mu: Literal[False]
 ) -> tuple[FloatArray, FloatArray]: ...
 
 
 @overload
-def roots_jacobi(
+def _roots_jacobi(
     n: int, alpha: float, beta: float, mu: Literal[True]
 ) -> tuple[FloatArray, FloatArray, float]: ...
 
 
-def roots_jacobi(
+def _roots_jacobi(
     n: int, alpha: float, beta: float, mu: bool = False
 ) -> tuple[FloatArray, FloatArray] | tuple[FloatArray, FloatArray, float]:
     # Wrapper for scipy roots_jacobi with proper typing - parameter validation assumed
@@ -145,7 +145,7 @@ def _compute_legendre_gauss_radau_nodes_and_weights(
     else:
         # Interior roots from Jacobi polynomial for optimal quadrature accuracy
         num_interior_roots = num_collocation_nodes - 1
-        interior_roots, jacobi_weights, _ = roots_jacobi(num_interior_roots, 0.0, 1.0, mu=True)
+        interior_roots, jacobi_weights, _ = _roots_jacobi(num_interior_roots, 0.0, 1.0, mu=True)
         interior_weights = jacobi_weights / (np.add(1.0, interior_roots))
         left_endpoint_weight = 2.0 / (num_collocation_nodes**2)
         collocation_nodes_list.extend(list(interior_roots))
@@ -288,6 +288,6 @@ def _compute_radau_collocation_components(
 
     Centralized validation and caching for Radau pseudospectral basis components.
     """
-    validate_polynomial_degree(num_collocation_nodes, "collocation nodes")
+    _validate_positive_integer(num_collocation_nodes, "collocation nodes")
 
-    return _radau_cache.get_components(num_collocation_nodes)
+    return _radau_cache._get_components(num_collocation_nodes)

@@ -29,7 +29,7 @@ def _apply_phase_collocation_constraints(
     problem: ProblemProtocol | None = None,
     static_parameters_vec: ca.MX | None = None,
 ) -> None:
-    from ..input_validation import validate_dynamics_output
+    from ..input_validation import _validate_dynamics_output
     from ..utils.coordinates import _tau_to_time
 
     num_colloc_nodes = len(basis_components.collocation_nodes)
@@ -67,7 +67,7 @@ def _apply_phase_collocation_constraints(
         )
 
         num_states = state_at_nodes.shape[0]
-        state_derivative_rhs_vector = validate_dynamics_output(state_derivative_rhs, num_states)
+        state_derivative_rhs_vector = _validate_dynamics_output(state_derivative_rhs, num_states)
 
         opti.subject_to(
             state_derivative_at_colloc[:, i_colloc]

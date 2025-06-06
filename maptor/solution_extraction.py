@@ -4,7 +4,7 @@ import casadi as ca
 import numpy as np
 
 from .exceptions import DataIntegrityError, SolutionExtractionError
-from .input_validation import validate_array_numerical_integrity
+from .input_validation import _validate_array_numerical_integrity
 from .tl_types import FloatArray, OptimalControlSolution, PhaseID, ProblemProtocol
 from .utils.coordinates import _tau_to_time
 
@@ -42,7 +42,7 @@ def _extract_multiphase_integral_values(
             if num_integrals == 1:
                 if np_array_value.size == 1:
                     result = float(np_array_value.item())
-                    validate_array_numerical_integrity(
+                    _validate_array_numerical_integrity(
                         np.array([result]),
                         f"Phase {phase_id} integral value",
                         "integral extraction",
@@ -59,7 +59,7 @@ def _extract_multiphase_integral_values(
                         return np.nan
             else:
                 result_array = np_array_value.flatten().astype(np.float64)
-                validate_array_numerical_integrity(
+                _validate_array_numerical_integrity(
                     result_array, f"Phase {phase_id} integral array", "integral extraction"
                 )
                 return result_array
@@ -67,7 +67,7 @@ def _extract_multiphase_integral_values(
         elif isinstance(raw_value, float | int):
             if num_integrals == 1:
                 result = float(raw_value)
-                validate_array_numerical_integrity(
+                _validate_array_numerical_integrity(
                     np.array([result]), f"Phase {phase_id} integral value", "integral extraction"
                 )
                 return result
@@ -137,7 +137,7 @@ def _phase_trajectory_extraction(
             if num_points * num_states == len(state_vals):
                 state_vals = state_vals.reshape(num_states, num_points)
 
-        validate_array_numerical_integrity(
+        _validate_array_numerical_integrity(
             state_vals, f"Phase {phase_id} state values for interval {mesh_idx}"
         )
         per_interval_states.append(state_vals)
@@ -158,7 +158,7 @@ def _phase_trajectory_extraction(
                 if num_points * num_controls == len(control_vals):
                     control_vals = control_vals.reshape(num_controls, num_points)
 
-            validate_array_numerical_integrity(
+            _validate_array_numerical_integrity(
                 control_vals, f"Phase {phase_id} control values for interval {mesh_idx}"
             )
             per_interval_controls.append(control_vals)
@@ -195,7 +195,7 @@ def _phase_trajectory_extraction(
             state_trajectory_times.append(physical_time)
             for var_idx in range(num_states):
                 value = state_vals[var_idx, node_idx]
-                validate_array_numerical_integrity(
+                _validate_array_numerical_integrity(
                     np.array([value]),
                     f"Phase {phase_id} state trajectory value at interval {mesh_idx}, node {node_idx}",
                 )
@@ -207,7 +207,7 @@ def _phase_trajectory_extraction(
                 control_trajectory_times.append(physical_time)
                 for var_idx in range(num_controls):
                     value = control_vals[var_idx, node_idx]
-                    validate_array_numerical_integrity(
+                    _validate_array_numerical_integrity(
                         np.array([value]),
                         f"Phase {phase_id} control trajectory value at interval {mesh_idx}, node {node_idx}",
                     )
@@ -266,7 +266,7 @@ def _extract_and_format_multiphase_solution(
             )
         )
 
-        validate_array_numerical_integrity(
+        _validate_array_numerical_integrity(
             np.array([objective]), "multiphase objective value", "core solution extraction"
         )
         solution.objective = objective
@@ -290,7 +290,7 @@ def _extract_and_format_multiphase_solution(
             else:
                 static_params_array = np.array(static_params_raw).flatten()
 
-            validate_array_numerical_integrity(
+            _validate_array_numerical_integrity(
                 static_params_array, "static parameters", "static parameter extraction"
             )
             solution.static_parameters = static_params_array.astype(np.float64)
@@ -313,7 +313,7 @@ def _extract_and_format_multiphase_solution(
             initial_time = float(casadi_solution_object.value(phase_vars.initial_time))
             terminal_time = float(casadi_solution_object.value(phase_vars.terminal_time))
 
-            validate_array_numerical_integrity(
+            _validate_array_numerical_integrity(
                 np.array([initial_time, terminal_time]),
                 f"Phase {phase_id} times",
                 "phase time extraction",

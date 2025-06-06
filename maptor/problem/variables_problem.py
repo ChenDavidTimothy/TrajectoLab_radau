@@ -4,7 +4,7 @@ from typing import Any, cast
 
 import casadi as ca
 
-from ..input_validation import validate_constraint_input_format, validate_string_not_empty
+from ..input_validation import _validate_constraint_input_format, _validate_string_not_empty
 from .state import (
     ConstraintInput,
     MultiPhaseVariableState,
@@ -26,8 +26,8 @@ def _create_phase_symbol(base_name: str, phase_id: int, suffix: str = "") -> ca.
 
 
 def _validate_constraint_and_name(name: str, constraint: ConstraintInput, context: str) -> None:
-    validate_string_not_empty(name, f"{context} name")
-    validate_constraint_input_format(constraint, f"{context} '{name}' constraint")
+    _validate_string_not_empty(name, f"{context} name")
+    _validate_constraint_input_format(constraint, f"{context} '{name}' constraint")
 
 
 def _convert_expression_to_casadi(
@@ -198,8 +198,8 @@ def _create_state_symbols(name: str, phase_id: int) -> tuple[ca.MX, ca.MX, ca.MX
 def create_phase_time_variable(
     phase_def: PhaseDefinition, initial: ConstraintInput = 0.0, final: ConstraintInput = None
 ) -> TimeVariableImpl:
-    validate_constraint_input_format(initial, f"phase {phase_def.phase_id} initial time")
-    validate_constraint_input_format(final, f"phase {phase_def.phase_id} final time")
+    _validate_constraint_input_format(initial, f"phase {phase_def.phase_id} initial time")
+    _validate_constraint_input_format(final, f"phase {phase_def.phase_id} final time")
 
     sym_time, sym_t0, sym_tf = _create_time_symbols(phase_def.phase_id)
 
