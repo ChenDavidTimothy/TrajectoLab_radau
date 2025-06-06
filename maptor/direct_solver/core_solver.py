@@ -391,12 +391,12 @@ def _handle_solver_failure(
         solution_obj = _extract_and_format_multiphase_solution(None, config.opti, config.problem)
     except Exception as extract_error:
         logger.error(
-            "Critical: Multiphase solution extraction failed after solver failure: %s",
+            "Multiphase solution extraction failed after solver failure: %s",
             str(extract_error),
         )
         raise SolutionExtractionError(
             f"Failed to extract multiphase solution after solver failure: {extract_error}",
-            "Critical multiphase solution extraction error",
+            "multiphase solution extraction error",
         ) from extract_error
 
     solution_obj.success = False

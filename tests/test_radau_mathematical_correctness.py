@@ -1,15 +1,3 @@
-# test_radau_mathematical_correctness_fixed.py
-"""
-CORRECTED safety-critical tests for Radau pseudospectral mathematical foundation.
-Tests against known analytical solutions with CORRECT mathematical expectations.
-
-Following Grug's Pragmatic Testing Philosophy:
-- Focus on integration tests that verify system correctness
-- Test what can actually be mathematically exact
-- Avoid overly brittle unit tests that fail due to incorrect expectations
-- Ensure tests provide real value for safety-critical systems
-"""
-
 import numpy as np
 import pytest
 from numpy.testing import assert_allclose
@@ -22,11 +10,8 @@ from maptor.radau import (
 
 
 class TestRadauMathematicalCorrectnessFixed:
-    """Test mathematical correctness with CORRECT polynomial degree expectations."""
-
     @pytest.mark.parametrize("N", [1, 2, 3, 4, 5, 8, 10, 15])
     def test_radau_nodes_orthogonality_property(self, N):
-        """Test that Radau nodes satisfy orthogonality properties (SAFETY CRITICAL)."""
         components = _compute_radau_collocation_components(N)
         nodes = components.collocation_nodes
         weights = components.quadrature_weights
@@ -49,7 +34,6 @@ class TestRadauMathematicalCorrectnessFixed:
 
     @pytest.mark.parametrize("N", [1, 2, 3, 4, 5])
     def test_radau_quadrature_exactness(self, N):
-        """Test that Radau quadrature is exact for polynomials up to degree 2N-2."""
         components = _compute_radau_collocation_components(N)
         nodes = components.collocation_nodes
         weights = components.quadrature_weights
@@ -80,7 +64,6 @@ class TestRadauMathematicalCorrectnessFixed:
             )
 
     def test_barycentric_weights_mathematical_properties(self):
-        """Test mathematical properties of barycentric weights."""
         # Test with various node configurations
         test_cases = [
             np.array([-1.0, 1.0]),  # Simple case
@@ -112,7 +95,6 @@ class TestRadauMathematicalCorrectnessFixed:
                 )
 
     def test_lagrange_interpolation_accuracy(self):
-        """Test Lagrange interpolation accuracy against known functions."""
         # Test interpolation of polynomial functions (should be exact)
         nodes = np.array([-1.0, -0.5, 0.0, 0.5, 1.0])
         weights = _compute_barycentric_weights(nodes)
@@ -149,20 +131,11 @@ class TestRadauMathematicalCorrectnessFixed:
 
     @pytest.mark.parametrize("N", [2, 3, 4, 5])
     def test_differentiation_matrix_accuracy_corrected(self, N):
-        """
-        Test differentiation matrix accuracy against analytical derivatives.
-        CORRECTED: Only test polynomials that can be exactly represented.
-
-        With N collocation nodes and N+1 state nodes, we can exactly represent
-        polynomials up to degree N. Therefore, we should only test polynomials
-        of degree <= N.
-        """
         components = _compute_radau_collocation_components(N)
         state_nodes = components.state_approximation_nodes
         colloc_nodes = components.collocation_nodes
         diff_matrix = components.differentiation_matrix
 
-        # CORRECTED: Test cases based on what can be exactly represented
         # For N collocation nodes, we can exactly represent polynomials up to degree N
         test_cases = []
 
@@ -202,13 +175,6 @@ class TestRadauMathematicalCorrectnessFixed:
 
     @pytest.mark.parametrize("N", [2, 3, 4, 5])
     def test_differentiation_matrix_approximate_accuracy(self, N):
-        """
-        Test differentiation matrix on polynomials that CANNOT be exactly represented.
-        These should have bounded errors that decrease with increasing N.
-
-        This test verifies that the method gracefully handles higher-degree polynomials
-        with reasonable approximation quality.
-        """
         components = _compute_radau_collocation_components(N)
         state_nodes = components.state_approximation_nodes
         colloc_nodes = components.collocation_nodes
@@ -259,8 +225,6 @@ class TestRadauMathematicalCorrectnessFixed:
             # This is a weaker test that verifies reasonable approximation behavior
 
     def test_numerical_stability_edge_cases(self):
-        """Test numerical stability in edge cases that could cause NASA mission failures."""
-
         # Test with very close nodes (could cause division by zero)
         close_nodes = np.array([-1.0, -0.999999999, 1.0])
         weights = _compute_barycentric_weights(close_nodes)
@@ -276,7 +240,6 @@ class TestRadauMathematicalCorrectnessFixed:
         assert abs(np.sum(lagrange_vals) - 1.0) < 1e-10, "Partition of unity violated"
 
     def test_radau_cache_consistency(self):
-        """Test that cached Radau components are consistent across calls."""
         N = 5
 
         # Get components multiple times
@@ -293,11 +256,6 @@ class TestRadauMathematicalCorrectnessFixed:
         assert_allclose(comp1.differentiation_matrix, comp2.differentiation_matrix, rtol=1e-15)
 
     def test_spectral_convergence_property(self):
-        """
-        Integration test: Verify spectral convergence for smooth functions.
-        This is a high-value test that verifies the overall system behavior.
-        """
-
         # Test function: exp(x) (smooth, infinitely differentiable)
         def test_func(x):
             return np.exp(x)
@@ -337,14 +295,6 @@ class TestRadauMathematicalCorrectnessFixed:
             )
 
     def test_realistic_trajectory_optimization_scenario_fixed(self):
-        """
-        Integration test: Test on a realistic trajectory optimization function.
-        CORRECTED: Uses appropriate tolerances for mixed polynomial/trigonometric functions.
-
-        This represents actual use case for NASA missions but with realistic expectations
-        for approximating transcendental functions with finite collocation points.
-        """
-
         # Realistic trajectory function: position as function of time
         def position(t):
             # Scaled to [-1, 1] interval, realistic trajectory shape
@@ -373,21 +323,21 @@ class TestRadauMathematicalCorrectnessFixed:
         max_error = np.max(np.abs(computed_velocity - exact_velocity))
         relative_error = max_error / np.max(np.abs(exact_velocity))
 
-        # CORRECTED EXPECTATIONS:
+        # EXPECTATIONS:
         # For mixed polynomial/trigonometric functions with N=8 collocation points,
         # absolute errors of O(1) are mathematically reasonable due to:
         # 1. sin(2πt) cannot be exactly represented by degree-8 polynomials
         # 2. High-frequency oscillations (2 cycles in [-1,1]) require many points
         # 3. Differentiation amplifies approximation errors
 
-        # Test 1: Error should be finite and bounded (safety critical)
+        # Test 1: Error should be finite and bounded
         assert np.isfinite(max_error), f"Non-finite error detected: {max_error}"
         assert max_error < 10.0, f"Excessive error suggests implementation bug: {max_error}"
 
         # Test 2: Relative error should be reasonable (< 50% for this challenging case)
         assert relative_error < 0.5, f"Relative error too large: {relative_error:.3f}"
 
-        # Test 3: Verify no NaN or Inf values (critical for mission safety)
+        # Test 3: Verify no NaN or Inf values (for mission safety)
         assert np.all(np.isfinite(computed_velocity)), "Non-finite values in trajectory computation"
 
         # Test 4: Verify spectral accuracy on polynomial components
@@ -416,11 +366,6 @@ class TestRadauMathematicalCorrectnessFixed:
         )
 
     def test_trajectory_convergence_behavior(self):
-        """
-        Integration test: Verify that trajectory approximation improves with more collocation points.
-        This tests the fundamental spectral convergence property for mixed functions.
-        """
-
         def position(t):
             return 0.5 * t**2 + 0.3 * np.sin(2 * np.pi * t) + 0.1 * t**3
 
@@ -464,11 +409,6 @@ class TestRadauMathematicalCorrectnessFixed:
         print(f"  Improvement ratio (N=4 to N=12): {improvement_ratio:.2f}")
 
     def test_polynomial_vs_transcendental_accuracy(self):
-        """
-        Educational test: Demonstrate the difference between polynomial and transcendental
-        function approximation accuracy. This validates our understanding of the method's limitations.
-        """
-
         N = 8
         components = _compute_radau_collocation_components(N)
         state_nodes = components.state_approximation_nodes

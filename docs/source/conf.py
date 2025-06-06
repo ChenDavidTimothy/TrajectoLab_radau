@@ -1,4 +1,3 @@
-# MAPTOR Sphinx Configuration - CORRECTED VERSION
 import sys
 from pathlib import Path
 

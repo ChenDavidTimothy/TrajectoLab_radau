@@ -9,8 +9,8 @@ import numpy as np
 from numpy.typing import NDArray
 
 
-# --- NUMERICAL SAFETY TYPES (Non-negotiable) ---
-FloatArray: TypeAlias = NDArray[np.float64]  # Critical for numerical precision
+# NUMERICAL SAFETY TYPES
+FloatArray: TypeAlias = NDArray[np.float64]  # for numerical precision
 NumericArrayLike: TypeAlias = (
     NDArray[np.floating[Any]]
     | NDArray[np.integer[Any]]
@@ -20,7 +20,7 @@ NumericArrayLike: TypeAlias = (
     | list[int]
 )
 
-# --- USER API TYPES (High value) ---
+# USER API TYPES (High value)
 ConstraintInput: TypeAlias = float | int | tuple[float | int | None, float | int | None] | None
 """
 Type alias for unified constraint specification.
@@ -35,7 +35,7 @@ PhaseID: TypeAlias = int
 """Phase identifier for multiphase problems."""
 
 
-# --- EXTERNAL INTERFACE PROTOCOLS (Required) ---
+# EXTERNAL INTERFACE PROTOCOLS (Required)
 class ODESolverResult(Protocol):
     """Protocol for the result of ODE solvers like solve_ivp."""
 
@@ -110,7 +110,7 @@ class ProblemProtocol(Protocol):
         ...
 
 
-# --- UNIFIED CONSTRAINT SYSTEM ---
+# UNIFIED CONSTRAINT SYSTEM
 class Constraint:
     """Unified constraint class for optimal control problems."""
 
@@ -146,7 +146,7 @@ class Constraint:
         return f"Constraint({' '.join(bounds)})"
 
 
-# --- ADAPTIVE ALGORITHM DATA ---
+# ADAPTIVE ALGORITHM DATA
 @dataclass
 class AdaptiveAlgorithmData:
     """Data from adaptive mesh refinement algorithm."""
@@ -159,7 +159,7 @@ class AdaptiveAlgorithmData:
     phase_gamma_factors: dict[PhaseID, FloatArray | None] = field(default_factory=dict)
 
 
-# --- MULTIPHASE DATA CONTAINERS ---
+# MULTIPHASE DATA CONTAINERS
 class MultiPhaseInitialGuess:
     """Initial guess for multiphase optimal control problems."""
 

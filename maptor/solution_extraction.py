@@ -278,7 +278,7 @@ def _extract_and_format_multiphase_solution(
         solution.message = f"Failed to extract core multiphase solution values: {e}"
         solution.raw_solution = casadi_solution_object
         raise SolutionExtractionError(
-            f"Critical failure in multiphase core value extraction: {e}",
+            f"failure in multiphase core value extraction: {e}",
             "Core solution processing error",
         ) from e
 

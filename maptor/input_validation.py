@@ -102,9 +102,9 @@ def validate_constraint_input_format(constraint_input: Any, context: str) -> Non
         raise ConfigurationError(f"Invalid constraint type: {type(constraint_input)}", context)
 
 
-# =================
-# MESH VALIDATION -
-# =================
+# ================
+# MESH VALIDATION
+# ================
 
 
 def validate_polynomial_degree(degree: int, context: str = "polynomial degree") -> None:

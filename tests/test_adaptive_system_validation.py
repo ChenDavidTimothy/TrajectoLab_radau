@@ -1,22 +1,3 @@
-# test_adaptive_system_validation.py
-"""
-SAFETY-CRITICAL system-level validation tests for adaptive mesh refinement.
-Tests the complete adaptive algorithm against known analytical solutions.
-
-UPDATED: Now uses the NEW DIRECT PHASE API while preserving all mathematical validation.
-
-These tests address the critical gaps in mathematical component testing:
-- End-to-end algorithmic validation against known solutions
-- Error tolerance honesty verification
-- Convergence rate validation
-- Pathological case detection
-
-Following Grug's Pragmatic Testing Philosophy:
-- Test what can be mathematically verified against known solutions
-- Focus on system-level integration that matters for safety-critical applications
-- Avoid brittle unit tests that don't provide real algorithmic confidence
-"""
-
 import warnings
 
 import casadi as ca
@@ -27,22 +8,7 @@ import maptor as mtor
 
 
 class TestAdaptiveSystemValidation:
-    """
-    SAFETY-CRITICAL system-level validation of adaptive mesh refinement.
-    These tests validate the complete adaptive algorithm, not just components.
-    """
-
-    # ========================================================================
-    # END-TO-END ALGORITHMIC VALIDATION AGAINST KNOWN SOLUTIONS
-    # ========================================================================
-
     def test_adaptive_brachistochrone_convergence_to_cycloid(self):
-        """
-        CRITICAL: Test adaptive algorithm on brachistochrone with known cycloid solution.
-
-        The brachistochrone problem has a known analytical solution: the cycloid curve.
-        This test verifies the adaptive algorithm converges to the correct solution.
-        """
         # Create brachistochrone problem: particle slides from (0,0) to (1,-1) in minimum time
         problem = mtor.Problem("Brachistochrone Validation")
 
@@ -114,12 +80,12 @@ class TestAdaptiveSystemValidation:
             nlp_options={"ipopt.print_level": 0, "ipopt.max_iter": 1000, "ipopt.tol": 1e-8},
         )
 
-        # CRITICAL VALIDATION: Must converge successfully
+        # VALIDATION: Must converge successfully
         assert solution.status["success"], (
             f"Brachistochrone adaptive solution failed: {solution.status['message']}"
         )
 
-        # CRITICAL VALIDATION: Final time should be close to analytical solution
+        # VALIDATION: Final time should be close to analytical solution
         # For (0,0) to (1,-1), analytical minimum time ≈ 1.8138 (depends on exact cycloid parameters)
         # We allow some tolerance due to discretization, but should be in the right ballpark
         analytical_time_approx = 1.8138
@@ -132,7 +98,7 @@ class TestAdaptiveSystemValidation:
             f"expected≈{analytical_time_approx:.4f}, relative_error={relative_error:.3f}"
         )
 
-        # CRITICAL VALIDATION: Solution should satisfy basic physics
+        # VALIDATION: Solution should satisfy basic physics
         x_traj = solution[(1, "x")]
         y_traj = solution[(1, "y")]
 
@@ -147,11 +113,6 @@ class TestAdaptiveSystemValidation:
         assert np.all(np.diff(y_traj) <= 1e-8), "y trajectory should be non-increasing"
 
     def test_adaptive_two_point_boundary_value_problem_convergence(self):
-        """
-        CRITICAL: Test adaptive algorithm on two-point BVP with known analytical solution.
-
-        Two-point boundary value problem with known solution for validation.
-        """
         # Two-point BVP: minimize ∫u²dt subject to ẋ = u, x(0) = 0, x(1) = 1
         # Analytical solution: u(t) = constant = 1, cost = 1
         problem = mtor.Problem("Two-Point BVP Validation")
@@ -190,12 +151,12 @@ class TestAdaptiveSystemValidation:
             nlp_options={"ipopt.print_level": 0, "ipopt.max_iter": 300, "ipopt.tol": 1e-10},
         )
 
-        # CRITICAL VALIDATION: Must converge successfully
+        # VALIDATION: Must converge successfully
         assert solution.status["success"], (
             f"Two-point BVP adaptive solution failed: {solution.status['message']}"
         )
 
-        # CRITICAL VALIDATION: Compare against analytical solution
+        # VALIDATION: Compare against analytical solution
         # Analytical solution: u*(t) = 1, cost = ∫u²dt = 1
         analytical_control = 1.0
         analytical_cost = 1.0
@@ -206,7 +167,7 @@ class TestAdaptiveSystemValidation:
             f"analytical={analytical_cost:.8f}, relative_error={cost_error:.2e}"
         )
 
-        # CRITICAL VALIDATION: Control should be approximately constant
+        # VALIDATION: Control should be approximately constant
         u_traj = solution[(1, "u")]
         control_mean = np.mean(u_traj)
         control_std = np.std(u_traj)
@@ -225,7 +186,7 @@ class TestAdaptiveSystemValidation:
             f"variation={control_variation:.4f}"
         )
 
-        # CRITICAL VALIDATION: State trajectory should be linear
+        # VALIDATION: State trajectory should be linear
         x_traj = solution[(1, "x")]
         time_states = solution[(1, "time_states")]
 
@@ -241,11 +202,6 @@ class TestAdaptiveSystemValidation:
         )
 
     def test_adaptive_simple_lqr_convergence(self):
-        """
-        CRITICAL: Test adaptive algorithm on simple LQR-like problem.
-
-        Simple quadratic problem with known solution for validation.
-        """
         # Simple problem: minimize ∫(x² + u²)dt subject to ẋ = u, x(0) = 1, x(2) = 0
         problem = mtor.Problem("Simple LQR Validation")
 
@@ -283,12 +239,12 @@ class TestAdaptiveSystemValidation:
             nlp_options={"ipopt.print_level": 0, "ipopt.max_iter": 500, "ipopt.tol": 1e-8},
         )
 
-        # CRITICAL VALIDATION: Must converge successfully
+        # VALIDATION: Must converge successfully
         assert solution.status["success"], (
             f"Simple LQR adaptive solution failed: {solution.status['message']}"
         )
 
-        # CRITICAL VALIDATION: Solution should be reasonable
+        # VALIDATION: Solution should be reasonable
         x_traj = solution[(1, "x")]
         u_traj = solution[(1, "u")]
 
@@ -319,12 +275,6 @@ class TestAdaptiveSystemValidation:
     # ========================================================================
 
     def test_error_tolerance_claims_are_honest(self):
-        """
-        CRITICAL: When algorithm claims error < ε, verify actual error < ε.
-
-        This is THE most important test for adaptive algorithms.
-        The algorithm must be honest about its error tolerance claims.
-        """
         # Test multiple error tolerances
         test_tolerances = [1e-3, 1e-4, 1e-5]
         previous_error = float("inf")
@@ -363,12 +313,12 @@ class TestAdaptiveSystemValidation:
                 },
             )
 
-            # CRITICAL VALIDATION: Solution must converge
+            # VALIDATION: Solution must converge
             assert solution.status["success"], (
                 f"Solution failed for tolerance {tolerance:.1e}: {solution.status['message']}"
             )
 
-            # CRITICAL VALIDATION: Verify actual error is within reasonable bounds
+            # VALIDATION: Verify actual error is within reasonable bounds
             # For this problem, analytical solution is u* = 1, cost* = 1
             analytical_cost = 1.0
             actual_error = abs(solution.status["objective"] - analytical_cost) / analytical_cost
@@ -380,7 +330,7 @@ class TestAdaptiveSystemValidation:
                 f"actual_error={actual_error:.2e}, allowed_error={tolerance * safety_factor:.2e}"
             )
 
-            # CRITICAL VALIDATION: Tighter tolerance should generally give better accuracy
+            # VALIDATION: Tighter tolerance should generally give better accuracy
             if actual_error <= previous_error * 2.0:  # Allow some variation
                 previous_error = actual_error
             else:
@@ -391,11 +341,6 @@ class TestAdaptiveSystemValidation:
                 )
 
     def test_adaptive_mesh_actually_reduces_error(self):
-        """
-        CRITICAL: Verify refined mesh has lower error than coarse mesh.
-
-        This validates that each adaptive iteration actually improves the solution.
-        """
         # Use hypersensitive problem (known to need adaptive refinement)
         coarse_problem = mtor.Problem("Mesh Refinement Validation - Coarse")
         coarse_phase = coarse_problem.set_phase(1)
@@ -460,7 +405,7 @@ class TestAdaptiveSystemValidation:
             nlp_options={"ipopt.print_level": 0, "ipopt.max_iter": 500, "ipopt.tol": 1e-8},
         )
 
-        # CRITICAL VALIDATION: All solutions must converge
+        # VALIDATION: All solutions must converge
         assert coarse_solution.status["success"], (
             f"Coarse solution failed: {coarse_solution.status['message']}"
         )
@@ -471,7 +416,7 @@ class TestAdaptiveSystemValidation:
             f"Adaptive solution failed: {adaptive_solution.status['message']}"
         )
 
-        # CRITICAL VALIDATION: Refined solutions should have lower objective
+        # VALIDATION: Refined solutions should have lower objective
         # (For minimization problems, lower is better)
         coarse_obj = coarse_solution.status["objective"]
         medium_obj = medium_solution.status["objective"]
@@ -496,13 +441,6 @@ class TestAdaptiveSystemValidation:
     # ========================================================================
 
     def test_adaptive_achieves_exponential_convergence_on_smooth_problems(self):
-        """
-        CRITICAL: For smooth problems, p-refinement should give exponential convergence.
-
-        When the solution is smooth, increasing polynomial degree should decrease
-        error exponentially with the degree.
-        """
-
         # smooth problem: minimize ∫u²dt subject to ẋ = u, x(0) = 0, x(1) = A
         # where A is chosen to make the solution smooth
         A = 0.5  # Small final condition
@@ -541,7 +479,6 @@ class TestAdaptiveSystemValidation:
             error = abs(solution.status["objective"] - analytical_cost) / analytical_cost
             errors.append(error)
 
-        # CRITICAL VALIDATION: Errors should decrease with polynomial degree
         # Each higher degree should reduce error
         for i in range(1, len(errors)):
             if errors[i] > 1e-12:  # Only check if error is meaningful
@@ -552,12 +489,6 @@ class TestAdaptiveSystemValidation:
                 )
 
     def test_adaptive_achieves_algebraic_convergence_with_h_refinement(self):
-        """
-        CRITICAL: For problems with singularities, h-refinement should give algebraic convergence.
-
-        When solution has singularities, mesh refinement should decrease error
-        algebraically as O(h^p) where h is mesh size and p is polynomial degree.
-        """
         # Test convergence with increasing mesh density
         mesh_sizes = [2, 4, 8]  # Number of intervals
         errors = []
@@ -607,11 +538,11 @@ class TestAdaptiveSystemValidation:
 
             errors.append(solution.status["objective"])
 
-        # CRITICAL VALIDATION: Need at least 2 points for convergence analysis
+        # VALIDATION: Need at least 2 points for convergence analysis
         if len(errors) < 2:
             pytest.skip("Insufficient successful solutions for convergence analysis")
 
-        # CRITICAL VALIDATION: Each mesh refinement should improve the solution
+        # VALIDATION: Each mesh refinement should improve the solution
         for i in range(1, len(errors)):
             if reference_solution is not None:
                 error_prev = abs(errors[i - 1] - reference_solution.status["objective"])
@@ -629,12 +560,6 @@ class TestAdaptiveSystemValidation:
     # ========================================================================
 
     def test_adaptive_handles_boundary_layers_correctly(self):
-        """
-        CRITICAL: Test on problems with boundary layers (rapid solution changes).
-
-        The adaptive algorithm should automatically place more grid points
-        where the solution changes rapidly (boundary layers).
-        """
         # Boundary layer problem: minimize ∫u²dt subject to εẍ + ẋ = u, x(0) = 0, x(1) = 1
         # where ε is small (creates boundary layer near x = 1)
         problem = mtor.Problem("Boundary Layer Test")
@@ -669,12 +594,12 @@ class TestAdaptiveSystemValidation:
             nlp_options={"ipopt.print_level": 0, "ipopt.max_iter": 1000, "ipopt.tol": 1e-8},
         )
 
-        # CRITICAL VALIDATION: Must converge successfully
+        # VALIDATION: Must converge successfully
         assert solution.status["success"], (
             f"Boundary layer solution failed: {solution.status['message']}"
         )
 
-        # CRITICAL VALIDATION: Solution should have boundary layer characteristics
+        # VALIDATION: Solution should have boundary layer characteristics
         x_traj = solution[(1, "x")]
         v_traj = solution[(1, "v")]
         time_states = solution[(1, "time_states")]
@@ -683,7 +608,7 @@ class TestAdaptiveSystemValidation:
         assert abs(x_traj[0] - 0.0) < 1e-5, f"Initial x condition violated: {x_traj[0]}"
         assert abs(x_traj[-1] - 1.0) < 1e-5, f"Final x condition violated: {x_traj[-1]}"
 
-        # CRITICAL VALIDATION: Velocity should show boundary layer behavior
+        # VALIDATION: Velocity should show boundary layer behavior
         # Near the end (right boundary), velocity should change rapidly
 
         # Find indices in the last 20% of the time interval
@@ -707,12 +632,6 @@ class TestAdaptiveSystemValidation:
                 )
 
     def test_adaptive_avoids_mesh_degeneracy(self):
-        """
-        CRITICAL: Verify algorithm doesn't create pathologically small/large intervals.
-
-        The adaptive algorithm should maintain reasonable mesh quality and avoid
-        creating intervals that are too small or too large relative to others.
-        """
         # Use a challenging problem that might cause mesh degeneracy
         problem = mtor.Problem("Mesh Degeneracy Test")
         phase = problem.set_phase(1)
@@ -753,12 +672,12 @@ class TestAdaptiveSystemValidation:
             nlp_options={"ipopt.print_level": 0, "ipopt.max_iter": 1000, "ipopt.tol": 1e-8},
         )
 
-        # CRITICAL VALIDATION: Must converge successfully
+        # VALIDATION: Must converge successfully
         assert solution.status["success"], (
             f"Multi-scale solution failed: {solution.status['message']}"
         )
 
-        # CRITICAL VALIDATION: Check solution quality
+        # VALIDATION: Check solution quality
         x1_traj = solution[(1, "x1")]
         x2_traj = solution[(1, "x2")]
 
@@ -768,7 +687,7 @@ class TestAdaptiveSystemValidation:
         assert abs(x2_traj[0] - 0.0) < 1e-4, f"Initial x2 condition violated: {x2_traj[0]}"
         assert abs(x2_traj[-1] - 1.0) < 1e-4, f"Final x2 condition violated: {x2_traj[-1]}"
 
-        # CRITICAL VALIDATION: Solution should be smooth (no wild oscillations)
+        # VALIDATION: Solution should be smooth (no wild oscillations)
         def check_smoothness(trajectory, name):
             """Check that trajectory doesn't have wild oscillations."""
             if len(trajectory) < 3:
@@ -789,100 +708,3 @@ class TestAdaptiveSystemValidation:
 
         check_smoothness(x1_traj, "x1")
         check_smoothness(x2_traj, "x2")
-
-
-# ========================================================================
-# ADDITIONAL UTILITY FUNCTIONS FOR VALIDATION
-# ========================================================================
-
-
-def _verify_solution_basic_properties(solution, problem_name: str):
-    """
-    Verify basic properties that all optimal control solutions should satisfy.
-
-    Args:
-        solution: MAPTOR solution object
-        problem_name: Name of the problem for error messages
-    """
-    # Solution should be successful
-    assert solution.status["success"], (
-        f"{problem_name}: Solution not successful: {solution.status['message']}"
-    )
-
-    # Objective should exist and be finite
-    assert solution.status["objective"] is not None, f"{problem_name}: Missing objective value"
-    assert np.isfinite(solution.status["objective"]), (
-        f"{problem_name}: Objective not finite: {solution.status['objective']}"
-    )
-
-    # Time should be reasonable
-    if hasattr(solution, "get_phase_final_time"):
-        final_time = solution.get_phase_final_time(1)
-        assert final_time > 0, f"{problem_name}: Negative final time: {final_time}"
-        assert np.isfinite(final_time), f"{problem_name}: Final time not finite: {final_time}"
-
-    # State and control trajectories should exist and be finite
-    if hasattr(solution, "phase_state_names"):
-        for phase_id, state_names in solution.phase_state_names.items():
-            for state_name in state_names:
-                if (phase_id, state_name) in solution:
-                    state_traj = solution[(phase_id, state_name)]
-                    assert len(state_traj) > 0, f"{problem_name}: Empty {state_name} trajectory"
-                    assert np.all(np.isfinite(state_traj)), (
-                        f"{problem_name}: Non-finite values in {state_name}"
-                    )
-
-    if hasattr(solution, "phase_control_names"):
-        for phase_id, control_names in solution.phase_control_names.items():
-            for control_name in control_names:
-                if (phase_id, control_name) in solution:
-                    control_traj = solution[(phase_id, control_name)]
-                    assert len(control_traj) > 0, f"{problem_name}: Empty {control_name} trajectory"
-                    assert np.all(np.isfinite(control_traj)), (
-                        f"{problem_name}: Non-finite values in {control_name}"
-                    )
-
-
-def _calculate_solution_convergence_metrics(solutions_list, analytical_value=None):
-    """
-    Calculate convergence metrics for a sequence of solutions.
-
-    Args:
-        solutions_list: List of solution objects with increasing accuracy
-        analytical_value: Known analytical value for comparison (optional)
-
-    Returns:
-        dict: Convergence metrics including rates and error estimates
-    """
-    if len(solutions_list) < 2:
-        return {"error": "Need at least 2 solutions for convergence analysis"}
-
-    objectives = [
-        sol.objective for sol in solutions_list if sol.success and sol.objective is not None
-    ]
-
-    if len(objectives) < 2:
-        return {"error": "Need at least 2 successful solutions with objectives"}
-
-    # Calculate errors relative to finest solution or analytical value
-    if analytical_value is not None:
-        reference_value = analytical_value
-        errors = [abs(obj - reference_value) / abs(reference_value) for obj in objectives]
-    else:
-        reference_value = objectives[-1]  # Use finest solution as reference
-        errors = [abs(obj - reference_value) / abs(reference_value) for obj in objectives[:-1]]
-
-    # Calculate convergence rates
-    convergence_rates = []
-    for i in range(1, len(errors)):
-        if errors[i] > 0 and errors[i - 1] > 0:
-            rate = np.log(errors[i - 1] / errors[i]) / np.log(2)  # Assuming 2x refinement
-            convergence_rates.append(rate)
-
-    return {
-        "errors": errors,
-        "convergence_rates": convergence_rates,
-        "mean_convergence_rate": np.mean(convergence_rates) if convergence_rates else 0,
-        "final_error": errors[-1] if errors else None,
-        "reference_value": reference_value,
-    }

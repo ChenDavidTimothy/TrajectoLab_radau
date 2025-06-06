@@ -1,15 +1,3 @@
-# test_adaptive_mathematical_correctness.py
-"""
-SAFETY-CRITICAL tests for adaptive refinement mathematical foundation.
-Tests against known analytical solutions and mathematical properties.
-
-Following Grug's Pragmatic Testing Philosophy:
-- Focus on integration tests that verify mathematical correctness
-- Test what can actually be mathematically exact
-- Avoid overly brittle unit tests that fail due to incorrect expectations
-- Ensure tests provide real value for safety-critical adaptive refinement
-"""
-
 import math
 
 import numpy as np
@@ -44,14 +32,7 @@ from maptor.radau import _compute_barycentric_weights, _compute_radau_collocatio
 
 
 class TestAdaptiveMathematicalCorrectness:
-    """Test mathematical correctness of adaptive refinement algorithms."""
-
-    # ========================================================================
-    # COORDINATE TRANSFORMATION MATHEMATICAL CORRECTNESS
-    # ========================================================================
-
     def test_coordinate_transformation_invertibility(self):
-        """Test that coordinate transformations are mathematically invertible."""
         # Test various interval configurations
         test_cases = [
             (-1.0, 1.0),  # Standard interval
@@ -83,7 +64,6 @@ class TestAdaptiveMathematicalCorrectness:
                 )
 
     def test_coordinate_transformation_boundary_mapping(self):
-        """Test that coordinate transformations correctly map boundaries."""
         test_intervals = [(-1.0, 1.0), (-0.5, 0.3), (0.1, 0.9)]
 
         for global_start, global_end in test_intervals:
@@ -104,7 +84,6 @@ class TestAdaptiveMathematicalCorrectness:
             )
 
     def test_cross_interval_tau_mapping_mathematical_consistency(self):
-        """Test mathematical consistency of cross-interval tau mappings."""
         # Test configuration: three intervals
         global_start_k = -1.0
         global_shared = 0.2
@@ -132,7 +111,6 @@ class TestAdaptiveMathematicalCorrectness:
             )
 
     def test_coordinate_transformation_preserves_global_consistency(self):
-        """Test that cross-interval mappings preserve global tau consistency."""
         # Test setup: two adjacent intervals
         global_start_k = -0.6
         global_shared = 0.1
@@ -194,7 +172,6 @@ class TestAdaptiveMathematicalCorrectness:
                 )
 
     def test_polynomial_interpolant_partition_of_unity(self):
-        """Test that Lagrange polynomials satisfy partition of unity."""
         nodes = np.array([-1.0, -0.3, 0.2, 0.8, 1.0])
         weights = _compute_barycentric_weights(nodes)
 
@@ -221,7 +198,6 @@ class TestAdaptiveMathematicalCorrectness:
             )
 
     def test_polynomial_interpolant_polynomial_exactness(self):
-        """Test that polynomial interpolants are exact for polynomials up to degree n-1."""
         nodes = np.array([-1.0, -0.5, 0.0, 0.5, 1.0])  # 5 nodes
 
         # Test polynomials of degree 0 to 4 (should be exact)
@@ -245,7 +221,6 @@ class TestAdaptiveMathematicalCorrectness:
 
     @pytest.mark.parametrize("N", [3, 5, 7, 9])
     def test_polynomial_interpolant_with_radau_nodes(self, N):
-        """Test polynomial interpolation using actual Radau nodes."""
         components = _compute_radau_collocation_components(N)
         nodes = components.state_approximation_nodes
         weights = components.barycentric_weights_for_state_nodes
@@ -282,7 +257,6 @@ class TestAdaptiveMathematicalCorrectness:
     # ========================================================================
 
     def test_gamma_normalization_factors_mathematical_properties(self):
-        """Test mathematical properties of gamma normalization factors."""
         # Test case 1: Known maximum values
         max_state_values = np.array([1.0, 10.0, 100.0])
         gamma_factors = _calculate_gamma_normalization_factors(max_state_values)
@@ -307,7 +281,6 @@ class TestAdaptiveMathematicalCorrectness:
         assert np.all(gamma_factors_small > 0)
 
     def test_trajectory_error_differences_mathematical_correctness(self):
-        """Test trajectory error difference calculations."""
         # Test setup
         sim_trajectory = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])  # 2 states, 3 points
         nlp_trajectory = np.array([[1.1, 1.9, 3.2], [3.8, 5.1, 5.9]])  # 2 states, 3 points
@@ -329,7 +302,6 @@ class TestAdaptiveMathematicalCorrectness:
         assert_allclose(max_errors, expected_max_errors, rtol=1e-15)
 
     def test_combined_error_estimate_mathematical_properties(self):
-        """Test combined error estimate calculation properties."""
         # Test case 1: Known error values
         fwd_errors = np.array([0.1, 0.05, 0.2])
         bwd_errors = np.array([0.08, 0.12, 0.15])
@@ -362,7 +334,6 @@ class TestAdaptiveMathematicalCorrectness:
     # ========================================================================
 
     def test_p_refinement_mathematical_scaling(self):
-        """Test p-refinement polynomial degree scaling mathematics."""
         # Test case 1: Error exactly at tolerance (no refinement needed)
         result = _p_refine_interval(max_error=1e-6, current_Nk=5, error_tol=1e-6, N_max=10)
         assert not result.was_p_successful
@@ -391,7 +362,6 @@ class TestAdaptiveMathematicalCorrectness:
         assert result.actual_Nk_to_use == 10  # Capped at N_max
 
     def test_h_refinement_mathematical_subdivision(self):
-        """Test h-refinement subdivision mathematics."""
         # Test case 1: Small target degree (should create 2 subintervals)
         result = _h_refine_params(target_Nk=6, N_min=3)
         assert result.num_new_subintervals == 2
@@ -410,7 +380,6 @@ class TestAdaptiveMathematicalCorrectness:
         assert result.collocation_nodes_for_new_subintervals == [3, 3]
 
     def test_p_reduction_equation_36_mathematical_correctness(self):
-        """Test p-reduction Equation 36 mathematical formula correctness."""
         # Test the mathematical formula: P_k^- = floor(log10((ε/e_max^(k))^(1/δ)))
         # where δ = N_min + N_max - N_k
 
@@ -462,7 +431,6 @@ class TestAdaptiveMathematicalCorrectness:
         assert not result.was_reduction_applied
 
     def test_merge_feasibility_mathematical_logic(self):
-        """Test mathematical logic for merge feasibility calculation."""
         # Test case 1: All errors within tolerance
         fwd_errors_list = [1e-8, 5e-9, 2e-8]
         bwd_errors_list = [3e-8, 1e-9, 1.5e-8]
@@ -515,7 +483,6 @@ class TestAdaptiveMathematicalCorrectness:
         assert max_error == float(np.inf)  # Or just np.inf
 
     def test_trajectory_errors_with_gamma_mathematical_scaling(self):
-        """Test trajectory error calculation with gamma scaling."""
         # Test setup
         X_sim = np.array([1.0, 2.0, 3.0])
         X_nlp = np.array([1.1, 1.9, 3.2])
@@ -539,7 +506,6 @@ class TestAdaptiveMathematicalCorrectness:
     # ========================================================================
 
     def test_interval_location_boundary_cases(self):
-        """Test interval location algorithm with boundary cases."""
         mesh_points = np.array([-1.0, -0.5, 0.0, 0.5, 1.0])
 
         # Test exact mesh points (boundary points belong to left interval)
@@ -571,7 +537,6 @@ class TestAdaptiveMathematicalCorrectness:
         assert slightly_outside_right == len(mesh_points) - 2  # Should be in last interval
 
     def test_interpolation_parameters_mathematical_consistency(self):
-        """Test interpolation parameter determination mathematical consistency."""
         prev_mesh_points = np.array([-1.0, -0.3, 0.4, 1.0])
 
         # Test case 1: Point within mesh
@@ -612,7 +577,6 @@ class TestAdaptiveMathematicalCorrectness:
     # ========================================================================
 
     def test_end_to_end_coordinate_transformation_consistency(self):
-        """Integration test for coordinate transformation mathematical consistency."""
         # Multi-interval mesh
         mesh_points = np.array([-1.0, -0.4, 0.1, 0.7, 1.0])
 
@@ -668,8 +632,6 @@ class TestAdaptiveMathematicalCorrectness:
                 )
 
     def test_polynomial_interpolation_cross_validation(self):
-        """Cross-validation test for polynomial interpolation mathematical correctness."""
-
         # Create test function: f(x) = x^3 - 2*x^2 + x + 1
         def test_function(x):
             return x**3 - 2 * x**2 + x + 1
@@ -700,7 +662,6 @@ class TestAdaptiveMathematicalCorrectness:
                     )
 
     def test_adaptive_refinement_mathematical_invariants(self):
-        """Test mathematical invariants that should hold for adaptive refinement."""
         # Test that p-refinement followed by p-reduction can be consistent
         current_Nk = 6
         max_error = 1e-4
@@ -729,7 +690,6 @@ class TestAdaptiveMathematicalCorrectness:
                 assert p_reduce_result.new_num_collocation_nodes >= N_min
 
     def test_numerical_stability_edge_cases(self):
-        """Test numerical stability in edge cases for adaptive refinement."""
         # Test with very small mesh intervals
         small_interval_start = -1e-10
         small_interval_end = 1e-10
@@ -769,7 +729,6 @@ class TestAdaptiveMathematicalCorrectness:
             pass
 
     def test_barycentric_interpolation_mathematical_correctness(self):
-        """Test barycentric interpolation using the exact mathematical formula."""
         # Test with known analytical case
         nodes = np.array([-1.0, 0.0, 1.0])
 
