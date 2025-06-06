@@ -12,10 +12,10 @@ class TestAdaptiveSystemValidation:
         # Create brachistochrone problem: particle slides from (0,0) to (1,-1) in minimum time
         problem = mtor.Problem("Brachistochrone Validation")
 
-        # NEW API: Create phase first
+        # Create phase first
         phase = problem.set_phase(1)
 
-        # NEW API: Define variables on phase
+        # Define variables on phase
         # Free final time (this is what we're minimizing)
         t = phase.time(initial=0.0)
 
@@ -33,7 +33,7 @@ class TestAdaptiveSystemValidation:
         g = 1.0
         v_magnitude = ca.sqrt(2 * g * ca.fmax(-y, 1e-8))  # Avoid sqrt of negative
 
-        # NEW API: Define dynamics on phase
+        # Define dynamics on phase
         phase.dynamics(
             {
                 x: v_magnitude * ca.cos(theta),
@@ -46,7 +46,7 @@ class TestAdaptiveSystemValidation:
         # Objective: minimize time
         problem.minimize(t.final)
 
-        # NEW API: Set mesh on phase
+        # Set mesh on phase
         phase.mesh([4, 4, 4], np.array([-1.0, -0.2, 0.3, 1.0]))
 
         # Initial guess
@@ -65,7 +65,7 @@ class TestAdaptiveSystemValidation:
             theta_vals = -np.pi / 4 * np.ones(N)
             controls_guess.append(theta_vals.reshape(1, -1))
 
-        # NEW API: Set initial guess using multiphase format
+        # Set initial guess using multiphase format
         problem.guess(
             phase_states={1: states_guess},
             phase_controls={1: controls_guess},
@@ -117,10 +117,10 @@ class TestAdaptiveSystemValidation:
         # Analytical solution: u(t) = constant = 1, cost = 1
         problem = mtor.Problem("Two-Point BVP Validation")
 
-        # NEW API: Create phase first
+        # Create phase first
         phase = problem.set_phase(1)
 
-        # NEW API: Define variables on phase
+        # Define variables on phase
         # Fixed time horizon
         _t = phase.time(initial=0.0, final=1.0)
 
@@ -130,17 +130,17 @@ class TestAdaptiveSystemValidation:
         # Control (unbounded)
         u = phase.control("u")
 
-        # NEW API: Define dynamics on phase
+        # Define dynamics on phase
         # Integrator dynamics: ẋ = u
         phase.dynamics({x: u})
 
-        # NEW API: Define objective on phase
+        # Define objective on phase
         # Energy cost: ∫u²dt
         integrand = u**2
         integral_var = phase.add_integral(integrand)
         problem.minimize(integral_var)
 
-        # NEW API: Set mesh on phase
+        # Set mesh on phase
         phase.mesh([3, 3, 3], np.array([-1.0, -0.3, 0.5, 1.0]))
 
         # Solve with adaptive refinement
@@ -205,10 +205,10 @@ class TestAdaptiveSystemValidation:
         # Simple problem: minimize ∫(x² + u²)dt subject to ẋ = u, x(0) = 1, x(2) = 0
         problem = mtor.Problem("Simple LQR Validation")
 
-        # NEW API: Create phase first
+        # Create phase first
         phase = problem.set_phase(1)
 
-        # NEW API: Define variables on phase
+        # Define variables on phase
         # Fixed time horizon
         _t = phase.time(initial=0.0, final=2.0)
 
@@ -218,17 +218,17 @@ class TestAdaptiveSystemValidation:
         # Control (unbounded)
         u = phase.control("u")
 
-        # NEW API: Define dynamics on phase
+        # Define dynamics on phase
         # Integrator dynamics: ẋ = u
         phase.dynamics({x: u})
 
-        # NEW API: Define objective on phase
+        # Define objective on phase
         # Quadratic cost: ∫(x² + u²)dt
         integrand = x**2 + u**2
         integral_var = phase.add_integral(integrand)
         problem.minimize(integral_var)
 
-        # NEW API: Set mesh on phase
+        # Set mesh on phase
         phase.mesh([4, 4], np.array([-1.0, 0.0, 1.0]))
 
         # Solve with adaptive refinement
@@ -283,22 +283,22 @@ class TestAdaptiveSystemValidation:
             # Use a problem with known solution for error verification
             problem = mtor.Problem("Error Tolerance Honesty")
 
-            # NEW API: Create phase first
+            # Create phase first
             phase = problem.set_phase(1)
 
-            # NEW API: Define variables on phase
+            # Define variables on phase
             # Simple problem: minimize ∫u²dt subject to ẋ = u, x(0) = 0, x(1) = 1
             _t = phase.time(initial=0.0, final=1.0)
             x = phase.state("x", initial=0.0, final=1.0)
             u = phase.control("u")
 
-            # NEW API: Define dynamics and objective on phase
+            # Define dynamics and objective on phase
             phase.dynamics({x: u})
             integrand = u**2
             integral_var = phase.add_integral(integrand)
             problem.minimize(integral_var)
 
-            # NEW API: Set mesh on phase
+            # Set mesh on phase
             phase.mesh([3, 3], np.array([-1.0, 0.0, 1.0]))
 
             # Solve with specific error tolerance

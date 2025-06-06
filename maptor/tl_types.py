@@ -20,7 +20,6 @@ NumericArrayLike: TypeAlias = (
     | list[int]
 )
 
-# USER API TYPES (High value)
 ConstraintInput: TypeAlias = float | int | tuple[float | int | None, float | int | None] | None
 """
 Type alias for unified constraint specification.

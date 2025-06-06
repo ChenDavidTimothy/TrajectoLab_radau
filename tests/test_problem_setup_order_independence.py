@@ -10,18 +10,18 @@ class TestProblemSetupOrderIndependence:
     def create_standard_problem(self) -> tuple[Problem, Phase]:
         problem = Problem("Order Test Problem")
 
-        # NEW API: Create phase first
+        # Create phase first
         phase = problem.set_phase(1)
 
-        # NEW API: Define variables on phase
+        # Define variables on phase
         _t = phase.time(initial=0.0, final=1.0)
         x = phase.state("x", initial=0.0, final=1.0)
         u = phase.control("u", boundary=(-2.0, 2.0))
 
-        # NEW API: Define dynamics on phase
+        # Define dynamics on phase
         phase.dynamics({x: u})
 
-        # NEW API: Define integral on phase
+        # Define integral on phase
         integral_var = phase.add_integral(u**2)
         problem.minimize(integral_var)
 
@@ -38,16 +38,16 @@ class TestProblemSetupOrderIndependence:
         states, controls = self.create_initial_guess()
 
         # Order: mesh first, then guess, then solve
-        # NEW API: Set mesh on phase
+        # Set mesh on phase
         phase.mesh([3], [-1.0, 1.0])
 
-        # NEW API: Set initial guess using multiphase format
+        # Set initial guess using multiphase format
         problem.guess(phase_states={1: states}, phase_controls={1: controls})
 
         solution = solve_fixed_mesh(problem)
         assert solution.status["success"], f"Mesh→Guess→Solve failed: {solution.status['message']}"
 
-        # NEW API: Access results by phase
+        # Access results by phase
         return solution.status["objective"], solution[(1, "x")][-1]
 
     def _solve_with_guess_first_order(self) -> tuple[float, float]:
@@ -55,10 +55,10 @@ class TestProblemSetupOrderIndependence:
         states, controls = self.create_initial_guess()
 
         # Order: guess first, then mesh, then solve
-        # NEW API: Set initial guess using multiphase format
+        # Set initial guess using multiphase format
         problem.guess(phase_states={1: states}, phase_controls={1: controls})
 
-        # NEW API: Set mesh on phase
+        # Set mesh on phase
         phase.mesh([3], [-1.0, 1.0])
 
         solution = solve_fixed_mesh(problem)
@@ -183,15 +183,15 @@ class TestProblemSetupOrderIndependence:
         def create_multi_interval_problem():
             problem = Problem("Multi-Interval Test")
 
-            # NEW API: Create phase
+            # Create phase
             phase = problem.set_phase(1)
 
-            # NEW API: Define variables on phase
+            # Define variables on phase
             _t = phase.time(initial=0.0, final=2.0)
             x = phase.state("x", initial=0.0, final=2.0)
             u = phase.control("u", boundary=(-1.0, 1.0))
 
-            # NEW API: Define dynamics and objective on phase
+            # Define dynamics and objective on phase
             phase.dynamics({x: u})
             integral_var = phase.add_integral(u**2)
             problem.minimize(integral_var)

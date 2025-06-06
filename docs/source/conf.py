@@ -51,7 +51,7 @@ myst_enable_extensions = [
 myst_dmath_double_inline = True  # Allows $$ for display math
 myst_dmath_allow_labels = True  # Allows equation labels
 
-# FIXED: Set supported file extensions - use list format
+# Set supported file extensions - use list format
 source_suffix = [".rst", ".md"]
 
 # Auto-generate everything

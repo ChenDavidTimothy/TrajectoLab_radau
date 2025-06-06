@@ -17,8 +17,7 @@ class Solution:
 
     The Solution class provides a comprehensive interface for accessing optimization
     results, including trajectories, solver diagnostics, mesh information, and
-    adaptive refinement data. It supports both single-phase and multiphase problems
-    with a unified API design.
+    adaptive refinement data.
 
     Examples:
         Basic solution usage:

@@ -1,11 +1,3 @@
-#!/usr/bin/env python3
-"""
-Generate ONLY public API documentation for MAPTOR users.
-
-This script creates documentation for the public interface only - what users
-can import directly from maptor. Internal implementation details are excluded.
-"""
-
 import sys
 from pathlib import Path
 

@@ -1,11 +1,3 @@
-#!/usr/bin/env python3
-"""
-Generate examples documentation automatically from examples folder structure.
-
-This script scans the examples/ folder and automatically generates MyST markdown documentation
-for each example, including both README.md content and Python code with syntax highlighting.
-"""
-
 from pathlib import Path
 
 

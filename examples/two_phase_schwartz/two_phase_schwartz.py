@@ -91,7 +91,7 @@ solution = mtor.solve_adaptive(
     nlp_options={"ipopt.print_level": 0, "ipopt.max_iter": 3000, "ipopt.tol": 1e-8},
 )
 
-# Results using new bundle API
+# Results
 if solution.status["success"]:
     print(f"Objective: {solution.status['objective']:.8f}")
     print(f"Total mission time: {solution.status['total_mission_time']:.6f}")
