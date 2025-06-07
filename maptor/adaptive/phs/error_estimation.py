@@ -24,8 +24,6 @@ logger = logging.getLogger(__name__)
 
 
 def _calculate_gamma_normalization_factors(max_state_values: FloatArray) -> FloatArray:
-    # Gamma normalization prevents ill-conditioning when state magnitudes vary significantly
-
     gamma_denominator = 1.0 + max_state_values
     return (1.0 / np.maximum(gamma_denominator, np.float64(1e-12))).reshape(-1, 1)
 
@@ -215,17 +213,18 @@ def _simulate_dynamics_for_phase_interval_error_estimation(
     control_evaluator: Callable[[float | FloatArray], FloatArray],
     ode_solver: ODESolverCallable,
     n_eval_points: int = 50,
+    phase_dynamics_function: Callable[..., any] | None = None,
 ) -> tuple[bool, FloatArray, FloatArray, FloatArray, FloatArray, FloatArray, FloatArray]:
-    # Validate preconditions
     valid, error_msg = _validate_simulation_preconditions(solution, phase_id, interval_idx)
     if not valid:
         empty = np.array([], dtype=np.float64)
         return False, empty, empty, empty, empty, empty, empty
 
     num_states, _ = problem._get_phase_variable_counts(phase_id)
-    phase_dynamics_function = problem._get_phase_dynamics_function(phase_id)
 
-    # Extract parameters
+    if phase_dynamics_function is None:
+        phase_dynamics_function = problem._get_phase_dynamics_function(phase_id)
+
     alpha, alpha_0, _ = _extract_time_parameters(solution, phase_id)
 
     try:
@@ -238,7 +237,6 @@ def _simulate_dynamics_for_phase_interval_error_estimation(
 
     overall_scaling = alpha * beta_k
 
-    # Create dynamics function
     dynamics_rhs = _create_dynamics_rhs(
         phase_dynamics_function,
         control_evaluator,
@@ -250,14 +248,11 @@ def _simulate_dynamics_for_phase_interval_error_estimation(
         num_states,
     )
 
-    # Extract boundary states
     initial_state, terminal_state = _extract_boundary_states(state_evaluator)
 
-    # Setup evaluation points
     fwd_tau_points = np.linspace(-1, 1, n_eval_points, dtype=np.float64)
     bwd_tau_points = np.linspace(1, -1, n_eval_points, dtype=np.float64)
 
-    # Run simulations
     fwd_success, fwd_trajectory = _run_simulation(
         ode_solver, dynamics_rhs, (-1, 1), initial_state, fwd_tau_points, num_states
     )
@@ -266,7 +261,6 @@ def _simulate_dynamics_for_phase_interval_error_estimation(
         ode_solver, dynamics_rhs, (1, -1), terminal_state, bwd_tau_points, num_states
     )
 
-    # Process backward trajectory
     bwd_trajectory = (
         np.fliplr(bwd_trajectory_raw)
         if bwd_success

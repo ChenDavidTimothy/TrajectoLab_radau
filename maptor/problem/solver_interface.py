@@ -1,17 +1,11 @@
 from __future__ import annotations
 
-import hashlib
 from collections.abc import Callable
 from typing import cast
 
 import casadi as ca
 
 from ..tl_types import PhaseID
-from ..utils.expression_cache import (
-    _create_cache_key_from_multiphase_state,
-    _create_cache_key_from_phase_state,
-    _get_global_expression_cache,
-)
 from .casadi_build import (
     _build_static_parameter_substitution_map,
     _build_unified_casadi_function_inputs,
@@ -31,14 +25,6 @@ def _prepare_static_params_input(
     if static_parameters_vec is None or num_static_params == 0:
         return ca.MX(max(1, num_static_params), 1)
     return static_parameters_vec
-
-
-def _generate_expression_hash(expressions: list[str]) -> str:
-    return hashlib.sha256("".join(sorted(expressions)).encode()).hexdigest()[:16]
-
-
-def _create_param_info_suffix(static_parameter_symbols: list[ca.MX] | None) -> str:
-    return f"_params_{_get_static_param_count(static_parameter_symbols)}"
 
 
 def _extract_dynamics_output(result, phase_id: PhaseID) -> ca.MX:
@@ -93,22 +79,10 @@ def _create_dynamics(
     return _dynamics
 
 
-def _get_phase_dynamics_function(
+def _build_phase_dynamics_function(
     phase_def: PhaseDefinition, static_parameter_symbols: list[ca.MX] | None = None
 ) -> Callable[..., ca.MX]:
-    dynamics_exprs = [str(expr) for expr in phase_def.dynamics_expressions.values()]
-    param_info = _create_param_info_suffix(static_parameter_symbols)
-    expr_hash = _generate_expression_hash(dynamics_exprs)
-
-    cache_key = _create_cache_key_from_phase_state(phase_def, f"dynamics{param_info}", expr_hash)
-
-    def _build_dynamics_function() -> ca.Function:
-        return _build_dynamics_casadi_function(phase_def, static_parameter_symbols)
-
-    dynamics_func = _get_global_expression_cache().get_dynamics_function(
-        cache_key, _build_dynamics_function
-    )
-
+    dynamics_func = _build_dynamics_casadi_function(phase_def, static_parameter_symbols)
     num_static_params = _get_static_param_count(static_parameter_symbols)
     return _create_dynamics(dynamics_func, phase_def, num_static_params)
 
@@ -181,22 +155,13 @@ def _create_unified_multiphase_objective(
     return _unified_multiphase_objective
 
 
-def _get_multiphase_objective_function(
+def _build_multiphase_objective_function(
     multiphase_state: MultiPhaseVariableState,
 ) -> Callable[..., ca.MX]:
     if multiphase_state.objective_expression is None:
         raise ValueError("Multiphase objective expression not defined")
 
-    obj_hash = hashlib.sha256(str(multiphase_state.objective_expression).encode()).hexdigest()[:16]
-    cache_key = _create_cache_key_from_multiphase_state(multiphase_state, "objective", obj_hash)
-
-    def _build_objective_function() -> ca.Function:
-        return _build_objective_casadi_function(multiphase_state)
-
-    obj_func = _get_global_expression_cache()._get_objective_function(
-        cache_key, _build_objective_function
-    )
-
+    obj_func = _build_objective_casadi_function(multiphase_state)
     return _create_unified_multiphase_objective(obj_func, multiphase_state)
 
 
@@ -246,23 +211,12 @@ def _create_integrand(
     return _integrand
 
 
-def _get_phase_integrand_function(
+def _build_phase_integrand_function(
     phase_def: PhaseDefinition, static_parameter_symbols: list[ca.MX] | None = None
 ) -> Callable[..., ca.MX] | None:
     if not phase_def.integral_expressions:
         return None
 
-    integrand_exprs = [str(expr) for expr in phase_def.integral_expressions]
-    param_info = _create_param_info_suffix(static_parameter_symbols)
-    expr_hash = _generate_expression_hash(integrand_exprs)
-    cache_key = _create_cache_key_from_phase_state(phase_def, f"integrand{param_info}", expr_hash)
-
-    def _build_integrand_functions() -> list[ca.Function]:
-        return _build_integrand_casadi_functions(phase_def, static_parameter_symbols)
-
-    integrand_funcs = _get_global_expression_cache().get_integrand_functions(
-        cache_key, _build_integrand_functions
-    )
-
+    integrand_funcs = _build_integrand_casadi_functions(phase_def, static_parameter_symbols)
     num_static_params = _get_static_param_count(static_parameter_symbols)
     return _create_integrand(integrand_funcs, num_static_params)

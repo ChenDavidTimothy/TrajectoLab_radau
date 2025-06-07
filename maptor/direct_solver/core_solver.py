@@ -36,6 +36,13 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
+class _PhaseFunctions:
+    dynamics_function: Callable[..., ca.MX]
+    path_constraints_function: Callable[..., list[Constraint]] | None
+    integral_integrand_function: Callable[..., ca.MX] | None
+
+
+@dataclass
 class _MeshIntervalContext:
     phase_id: PhaseID
     interval_index: int
@@ -44,20 +51,12 @@ class _MeshIntervalContext:
     global_mesh_nodes: FloatArray
     basis_components: RadauBasisComponents
 
-    # Time variables
     initial_time_var: ca.MX
     terminal_time_var: ca.MX
 
-    # Functions
-    dynamics_function: Callable[..., ca.MX]
-    path_constraints_function: Callable[..., list[Constraint]] | None
-    integral_integrand_function: Callable[..., ca.MX] | None
-
-    # Static parameters
     static_parameters_vec: ca.MX | None
     static_parameter_symbols: list[ca.MX] | None
 
-    # Integral tracking
     num_integrals: int
     accumulated_integral_expressions: list[ca.MX]
 
@@ -117,8 +116,8 @@ def _apply_mesh_interval_constraints(
     context: _MeshIntervalContext,
     state_at_nodes: ca.MX,
     control_variables: ca.MX,
+    functions: _PhaseFunctions,
 ) -> None:
-    # Collocation constraints - enforce ODEs at quadrature points
     _apply_phase_collocation_constraints(
         config.opti,
         context.phase_id,
@@ -129,13 +128,12 @@ def _apply_mesh_interval_constraints(
         context.global_mesh_nodes,
         context.initial_time_var,
         context.terminal_time_var,
-        context.dynamics_function,
+        functions.dynamics_function,
         config.problem,
         context.static_parameters_vec,
     )
 
-    # Path constraints - ensure operational limits
-    if context.path_constraints_function is not None:
+    if functions.path_constraints_function is not None:
         _apply_phase_path_constraints(
             config.opti,
             context.phase_id,
@@ -146,7 +144,7 @@ def _apply_mesh_interval_constraints(
             context.global_mesh_nodes,
             context.initial_time_var,
             context.terminal_time_var,
-            context.path_constraints_function,
+            functions.path_constraints_function,
             config.problem,
             context.static_parameters_vec,
             context.static_parameter_symbols,
@@ -158,8 +156,9 @@ def _setup_mesh_interval_integrals(
     context: _MeshIntervalContext,
     state_at_nodes: ca.MX,
     control_variables: ca.MX,
+    functions: _PhaseFunctions,
 ) -> None:
-    if context.num_integrals == 0 or context.integral_integrand_function is None:
+    if context.num_integrals == 0 or functions.integral_integrand_function is None:
         return
 
     _setup_phase_integrals(
@@ -172,7 +171,7 @@ def _setup_mesh_interval_integrals(
         context.global_mesh_nodes,
         context.initial_time_var,
         context.terminal_time_var,
-        context.integral_integrand_function,
+        functions.integral_integrand_function,
         context.num_integrals,
         context.accumulated_integral_expressions,
         context.static_parameters_vec,
@@ -183,19 +182,20 @@ def _process_single_mesh_interval(
     config: _SolverConfiguration,
     phase_vars: _PhaseVariable,
     context: _MeshIntervalContext,
+    functions: _PhaseFunctions,
 ) -> None:
     try:
-        # Setup variables
         state_at_nodes, _ = _setup_mesh_interval_variables(config, phase_vars, context)
 
-        # Get control variables for this interval
         control_variables = phase_vars.control_variables[context.interval_index]
 
-        # Apply constraints
-        _apply_mesh_interval_constraints(config, context, state_at_nodes, control_variables)
+        _apply_mesh_interval_constraints(
+            config, context, state_at_nodes, control_variables, functions
+        )
 
-        # Setup integrals
-        _setup_mesh_interval_integrals(config, context, state_at_nodes, control_variables)
+        _setup_mesh_interval_integrals(
+            config, context, state_at_nodes, control_variables, functions
+        )
 
     except Exception as e:
         if isinstance(e, DataIntegrityError):
@@ -216,20 +216,12 @@ def _create_mesh_interval_context(
     num_states, _ = config.problem._get_phase_variable_counts(phase_id)
     num_colloc_nodes = phase_def.collocation_points_per_interval[interval_index]
 
-    # Get functions
-    dynamics_function = config.problem._get_phase_dynamics_function(phase_id)
-    path_constraints_function = config.problem._get_phase_path_constraints_function(phase_id)
-    integral_integrand_function = config.problem._get_phase_integrand_function(phase_id)
-
-    # Get static parameters
     static_parameter_symbols = None
     if config.variables.static_parameters is not None:
         static_parameter_symbols = config.problem._static_parameters.get_ordered_parameter_symbols()
 
-    # Get time variables from endpoint data
     endpoint_data = config.phase_endpoint_data[phase_id]
 
-    # Safety check: mesh should be configured at this point
     if phase_def.global_normalized_mesh_nodes is None:
         raise DataIntegrityError(
             f"Phase {phase_id} mesh not configured", "Mesh configuration error"
@@ -240,17 +232,22 @@ def _create_mesh_interval_context(
         interval_index=interval_index,
         num_states=num_states,
         num_colloc_nodes=num_colloc_nodes,
-        global_mesh_nodes=phase_def.global_normalized_mesh_nodes,  # Now guaranteed non-None
+        global_mesh_nodes=phase_def.global_normalized_mesh_nodes,
         basis_components=_compute_radau_collocation_components(num_colloc_nodes),
         initial_time_var=endpoint_data["t0"],
         terminal_time_var=endpoint_data["tf"],
-        dynamics_function=dynamics_function,
-        path_constraints_function=path_constraints_function,
-        integral_integrand_function=integral_integrand_function,
         static_parameters_vec=config.variables.static_parameters,
         static_parameter_symbols=static_parameter_symbols,
         num_integrals=phase_def.num_integrals,
         accumulated_integral_expressions=accumulated_integral_expressions,
+    )
+
+
+def _extract_phase_functions(config: _SolverConfiguration, phase_id: PhaseID) -> _PhaseFunctions:
+    return _PhaseFunctions(
+        dynamics_function=config.problem._get_phase_dynamics_function(phase_id),
+        path_constraints_function=config.problem._get_phase_path_constraints_function(phase_id),
+        integral_integrand_function=config.problem._get_phase_integrand_function(phase_id),
     )
 
 
@@ -262,19 +259,18 @@ def _process_phase_mesh_intervals(
     phase_def = config.problem._phases[phase_id]
     num_mesh_intervals = len(phase_def.collocation_points_per_interval)
 
-    # Initialize integral accumulation
     accumulated_integral_expressions = (
         [ca.MX(0) for _ in range(phase_def.num_integrals)] if phase_def.num_integrals > 0 else []
     )
 
-    # Process each mesh interval with flattened structure
+    functions = _extract_phase_functions(config, phase_id)
+
     for interval_index in range(num_mesh_intervals):
         context = _create_mesh_interval_context(
             phase_id, interval_index, phase_def, config, accumulated_integral_expressions
         )
-        _process_single_mesh_interval(config, phase_vars, context)
+        _process_single_mesh_interval(config, phase_vars, context, functions)
 
-    # Apply integral constraints after all intervals processed
     if phase_def.num_integrals > 0 and phase_vars.integral_variables is not None:
         _apply_phase_integral_constraints(
             config.opti,
@@ -328,7 +324,6 @@ def _configure_solver(config: _SolverConfiguration) -> None:
             f"Failed to configure solver: {e}", "Invalid solver options"
         ) from e
 
-    # Store references for solution extraction
     config.opti.multiphase_variables_reference = config.variables
 
     objective_function = config.problem._get_objective_function()
@@ -402,7 +397,6 @@ def _handle_solver_failure(
     solution_obj.success = False
     solution_obj.message = f"Multiphase solver runtime error: {error}"
 
-    # Extract debug values for troubleshooting
     _extract_debug_values(config, solution_obj)
     return solution_obj
 
@@ -441,7 +435,6 @@ def _solve_multiphase_radau_collocation(problem: ProblemProtocol) -> OptimalCont
         num_static_params,
     )
 
-    # Create configuration
     config = _create_solver_configuration(problem)
 
     logger.debug("Processing %d phases", len(phase_ids))

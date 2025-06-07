@@ -21,7 +21,6 @@ from .variables_problem import StateVariableImpl, TimeVariableImpl
 logger = logging.getLogger(__name__)
 
 
-# Internal helper functions - hidden from user documentation
 def _validate_phase_exists(phases: dict[PhaseID, Any], phase_id: PhaseID) -> None:
     if phase_id not in phases:
         raise ValueError(f"Phase {phase_id} does not exist")
@@ -133,6 +132,41 @@ def _process_symbolic_constraints_for_all_phases(
     for phase_id, phase_def in phases.items():
         _process_symbolic_time_constraints(phase_def, phase_id, cross_phase_constraints)
         _process_symbolic_state_constraints(phase_def, phase_id, cross_phase_constraints)
+
+
+def _build_all_phase_functions(multiphase_state: MultiPhaseVariableState) -> None:
+    static_parameter_symbols = multiphase_state.static_parameters.get_ordered_parameter_symbols()
+
+    logger.debug("Building functions for all phases")
+    for phase_id, phase_def in multiphase_state.phases.items():
+        if phase_def._functions_built:
+            continue
+
+        logger.debug(f"Building functions for phase {phase_id}")
+
+        phase_def._dynamics_function = solver_interface._build_phase_dynamics_function(
+            phase_def, static_parameter_symbols
+        )
+
+        phase_def._integrand_function = solver_interface._build_phase_integrand_function(
+            phase_def, static_parameter_symbols
+        )
+
+        phase_def._path_constraints_function = _get_phase_path_constraints_function(phase_def)
+
+        phase_def._functions_built = True
+
+    if not multiphase_state._functions_built:
+        logger.debug("Building multiphase objective function")
+        multiphase_state._objective_function = (
+            solver_interface._build_multiphase_objective_function(multiphase_state)
+        )
+
+        multiphase_state._cross_phase_constraints_function = (
+            _get_cross_phase_event_constraints_function(multiphase_state)
+        )
+
+        multiphase_state._functions_built = True
 
 
 class Phase:
@@ -445,6 +479,7 @@ class Phase:
             ...     vel: thrust/mass_param - drag_coeff * vel**2
             ... })
         """
+        self._phase_def._functions_built = False
         variables_problem._set_phase_dynamics(self._phase_def, dynamics_dict)
         logger.info(
             "Dynamics defined for phase %d with %d state variables",
@@ -513,6 +548,7 @@ class Phase:
             >>> # Weighted objective
             >>> problem.minimize(fuel_cost + 10*time_cost + comfort_cost)
         """
+        self._phase_def._functions_built = False
         return variables_problem._set_phase_integral(self._phase_def, integrand_expr)
 
     def path_constraints(self, *constraint_expressions: ca.MX | float | int) -> None:
@@ -591,6 +627,7 @@ class Phase:
         """
         _validate_constraint_expressions_not_empty(constraint_expressions, self.phase_id, "path")
 
+        self._phase_def._functions_built = False
         for expr in constraint_expressions:
             constraints_problem._add_path_constraint(self._phase_def, expr)
 
@@ -1041,6 +1078,7 @@ class Problem:
             >>>
             >>> problem.minimize(altitude_error + velocity_error)
         """
+        self._multiphase_state._functions_built = False
         variables_problem._set_multiphase_objective(self._multiphase_state, objective_expr)
         logger.info("Multiphase objective function defined")
 
@@ -1193,7 +1231,6 @@ class Problem:
             static_parameters=static_parameters,
         )
 
-    # Internal properties for solver interface - hidden from user documentation
     @property
     def _phases(self) -> dict[PhaseID, Any]:
         return self._multiphase_state.phases
@@ -1238,33 +1275,35 @@ class Problem:
 
     def _get_phase_dynamics_function(self, phase_id: PhaseID) -> Any:
         _validate_phase_exists(self._multiphase_state.phases, phase_id)
+        phase_def = self._multiphase_state.phases[phase_id]
 
-        static_parameter_symbols = (
-            self._multiphase_state.static_parameters.get_ordered_parameter_symbols()
-        )
-        return solver_interface._get_phase_dynamics_function(
-            self._multiphase_state.phases[phase_id], static_parameter_symbols
-        )
+        if phase_def._dynamics_function is None:
+            raise ValueError(
+                f"Phase {phase_id} dynamics function not built - call validate_multiphase_configuration() first"
+            )
+
+        return phase_def._dynamics_function
 
     def _get_objective_function(self) -> Any:
-        return solver_interface._get_multiphase_objective_function(self._multiphase_state)
+        if self._multiphase_state._objective_function is None:
+            raise ValueError(
+                "Multiphase objective function not built - call validate_multiphase_configuration() first"
+            )
+
+        return self._multiphase_state._objective_function
 
     def _get_phase_integrand_function(self, phase_id: PhaseID) -> Any:
         _validate_phase_exists(self._multiphase_state.phases, phase_id)
-
-        static_parameter_symbols = (
-            self._multiphase_state.static_parameters.get_ordered_parameter_symbols()
-        )
-        return solver_interface._get_phase_integrand_function(
-            self._multiphase_state.phases[phase_id], static_parameter_symbols
-        )
+        phase_def = self._multiphase_state.phases[phase_id]
+        return phase_def._integrand_function
 
     def _get_phase_path_constraints_function(self, phase_id: PhaseID) -> Any:
         _validate_phase_exists(self._multiphase_state.phases, phase_id)
-        return _get_phase_path_constraints_function(self._multiphase_state.phases[phase_id])
+        phase_def = self._multiphase_state.phases[phase_id]
+        return phase_def._path_constraints_function
 
     def _get_cross_phase_event_constraints_function(self) -> Any:
-        return _get_cross_phase_event_constraints_function(self._multiphase_state)
+        return self._multiphase_state._cross_phase_constraints_function
 
     def validate_multiphase_configuration(self) -> None:
         _process_symbolic_constraints_for_all_phases(
@@ -1275,6 +1314,8 @@ class Problem:
 
         if self._multiphase_state.objective_expression is None:
             raise ValueError("Problem must have objective function defined")
+
+        _build_all_phase_functions(self._multiphase_state)
 
         logger.debug(
             "Multiphase configuration validated: %d phases, %d cross-phase constraints",

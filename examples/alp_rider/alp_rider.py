@@ -76,7 +76,7 @@ problem.guess(
 # Solve
 solution = mtor.solve_adaptive(
     problem,
-    error_tolerance=1e-4,
+    error_tolerance=5e-4,
     max_iterations=20,
     min_polynomial_degree=6,
     max_polynomial_degree=12,
@@ -87,7 +87,7 @@ solution = mtor.solve_adaptive(
         "ipopt.mumps_mem_percent": 50000,
         "ipopt.linear_solver": "mumps",
         "ipopt.constr_viol_tol": 1e-7,
-        "ipopt.print_level": 0,
+        "ipopt.print_level": 5,
         "ipopt.nlp_scaling_method": "gradient-based",
         "ipopt.mu_strategy": "adaptive",
         "ipopt.check_derivatives_for_naninf": "yes",

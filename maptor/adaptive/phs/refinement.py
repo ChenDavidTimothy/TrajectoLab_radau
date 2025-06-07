@@ -72,7 +72,6 @@ def _calculate_trajectory_errors_with_gamma(
 def _compute_p_refine_target(
     max_error: float, current_Nk: int, error_tol: float, N_max: int
 ) -> int:
-    # Compute target polynomial degree for p-refinement.
     if np.isinf(max_error):
         return max(1, N_max - current_Nk)
     return max(1, int(np.ceil(np.log10(max_error / error_tol))))
@@ -81,7 +80,6 @@ def _compute_p_refine_target(
 def _p_refine_interval(
     max_error: float, current_Nk: int, error_tol: float, N_max: int
 ) -> PRefineResult:
-    # Determine new polynomial degree using p-refinement.
     if max_error <= error_tol:
         return PRefineResult(current_Nk, False, current_Nk)
 
@@ -95,20 +93,16 @@ def _p_refine_interval(
 
 
 def _h_refine_params(target_Nk: int, N_min: int) -> HRefineResult:
-    # Determine parameters for h-refinement.
     num_subintervals = max(2, int(np.ceil(target_Nk / N_min)))
     return HRefineResult([N_min] * num_subintervals, num_subintervals)
 
 
 def _compute_p_reduce_delta(current_Nk: int, N_min: int, N_max: int) -> float:
-    # Compute delta parameter for p-reduction calculation.
     delta = float(N_min + N_max - current_Nk)
     return delta if abs(delta) >= 1e-9 else 1.0
 
 
 def _calculate_nodes_to_remove(error_tol: float, max_error: float, delta: float) -> int:
-    # Implements polynomial degree reduction formula per Eq. 36 in referenced literature
-
     try:
         ratio = error_tol / max_error
         if ratio >= 1.0:
@@ -122,7 +116,6 @@ def _calculate_nodes_to_remove(error_tol: float, max_error: float, delta: float)
 def _p_reduce_interval(
     current_Nk: int, max_error: float, error_tol: float, N_min: int, N_max: int
 ) -> PReduceResult:
-    # Determine new polynomial degree using p-reduction per Eq. 36
     if max_error > error_tol or current_Nk <= N_min:
         return PReduceResult(current_Nk, False)
 
@@ -242,7 +235,6 @@ def _extract_boundary_states_for_merge(
         ][:, -1].flatten()
         return initial_state_fwd, terminal_state_bwd
 
-    # Fallback to raw solution extraction
     opti, raw_sol = solution.opti_object, solution.raw_solution
     if opti is None or raw_sol is None:
         raise ValueError("Cannot extract boundary states")
@@ -318,10 +310,8 @@ def _run_merge_simulations(
     adaptive_params: AdaptiveParameters,
     num_states: int,
 ) -> tuple[bool, bool, FloatArray, FloatArray]:
-    """Run both forward and backward merge simulations."""
     configured_ode_solver = adaptive_params._get_ode_solver()
 
-    # Forward simulation
     fwd_success, fwd_trajectory = _run_merge_single_simulation(
         configured_ode_solver,
         merged_fwd_rhs,
@@ -331,7 +321,6 @@ def _run_merge_simulations(
         num_states,
     )
 
-    # Backward simulation
     bwd_success, bwd_trajectory_raw = _run_merge_single_simulation(
         configured_ode_solver,
         merged_bwd_rhs,
@@ -410,15 +399,16 @@ def _h_reduce_intervals(
     control_evaluator_first: Callable[[float | FloatArray], FloatArray] | None,
     state_evaluator_second: Callable[[float | FloatArray], FloatArray],
     control_evaluator_second: Callable[[float | FloatArray], FloatArray] | None,
+    phase_dynamics_function: Callable[..., ca.MX] | None = None,
 ) -> bool:
-    # Validate preconditions
     if not _validate_merge_preconditions(solution, phase_id, first_idx):
         return False
 
     num_states, _ = problem._get_phase_variable_counts(phase_id)
-    phase_dynamics_function = problem._get_phase_dynamics_function(phase_id)
 
-    # Extract parameters
+    if phase_dynamics_function is None:
+        phase_dynamics_function = problem._get_phase_dynamics_function(phase_id)
+
     t0, tf, alpha, alpha_0 = _extract_merge_time_parameters(solution, phase_id)
 
     try:
@@ -428,7 +418,6 @@ def _h_reduce_intervals(
     except ValueError:
         return False
 
-    # Create dynamics functions
     merged_fwd_rhs, merged_bwd_rhs = _create_merged_dynamics_functions(
         phase_dynamics_function,
         control_evaluator_first,
@@ -443,7 +432,6 @@ def _h_reduce_intervals(
         num_states,
     )
 
-    # Extract boundary states
     try:
         initial_state_fwd, terminal_state_bwd = _extract_boundary_states_for_merge(
             solution, phase_id, first_idx, problem, num_states
@@ -451,12 +439,10 @@ def _h_reduce_intervals(
     except (Exception, ValueError):
         return False
 
-    # Bidirectional simulation validates that merged interval maintains solution accuracy
     fwd_tau_points, bwd_tau_points = _setup_merge_simulation_points(
         adaptive_params, tau_start_k, tau_shared, tau_end_kp1
     )
 
-    # Run simulations
     fwd_success, bwd_success, fwd_trajectory, bwd_trajectory = _run_merge_simulations(
         merged_fwd_rhs,
         merged_bwd_rhs,
@@ -471,7 +457,6 @@ def _h_reduce_intervals(
     if num_states == 0:
         return fwd_success and bwd_success
 
-    # Calculate errors
     all_fwd_errors, all_bwd_errors = _calculate_merge_errors(
         fwd_trajectory,
         bwd_trajectory,
@@ -485,7 +470,6 @@ def _h_reduce_intervals(
         tau_end_kp1,
     )
 
-    # Determine feasibility
     can_merge, _ = _calculate_merge_feasibility_from_errors(
         all_fwd_errors, all_bwd_errors, adaptive_params.error_tolerance
     )
