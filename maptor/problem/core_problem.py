@@ -144,12 +144,9 @@ def _build_all_phase_functions(multiphase_state: MultiPhaseVariableState) -> Non
 
         logger.debug(f"Building functions for phase {phase_id}")
 
-        phase_def._dynamics_function = solver_interface._build_phase_dynamics_function(
-            phase_def, static_parameter_symbols
-        )
-
-        phase_def._numerical_dynamics_function = (
-            solver_interface._build_phase_numerical_dynamics_function(
+        # Build both dynamics functions with single compilation
+        phase_def._dynamics_function, phase_def._numerical_dynamics_function = (
+            solver_interface._build_unified_phase_dynamics_functions(
                 phase_def, static_parameter_symbols
             )
         )

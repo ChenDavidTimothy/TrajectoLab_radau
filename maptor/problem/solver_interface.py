@@ -150,20 +150,38 @@ def _create_numerical_dynamics(
     return _numerical_dynamics
 
 
+def _build_unified_phase_dynamics_functions(
+    phase_def: PhaseDefinition, static_parameter_symbols: list[ca.MX] | None = None
+) -> tuple[
+    Callable[..., ca.MX], Callable[[FloatArray, FloatArray, float, FloatArray | None], FloatArray]
+]:
+    # Compile CasADi function ONCE
+    dynamics_func = _build_dynamics_casadi_function(phase_def, static_parameter_symbols)
+    num_static_params = _get_static_param_count(static_parameter_symbols)
+
+    # Create both wrappers using the SAME compiled function
+    symbolic_dynamics = _create_dynamics(dynamics_func, phase_def, num_static_params)
+    numerical_dynamics = _create_numerical_dynamics(dynamics_func, num_static_params)
+
+    return symbolic_dynamics, numerical_dynamics
+
+
 def _build_phase_dynamics_function(
     phase_def: PhaseDefinition, static_parameter_symbols: list[ca.MX] | None = None
 ) -> Callable[..., ca.MX]:
-    dynamics_func = _build_dynamics_casadi_function(phase_def, static_parameter_symbols)
-    num_static_params = _get_static_param_count(static_parameter_symbols)
-    return _create_dynamics(dynamics_func, phase_def, num_static_params)
+    symbolic_dynamics, _ = _build_unified_phase_dynamics_functions(
+        phase_def, static_parameter_symbols
+    )
+    return symbolic_dynamics
 
 
 def _build_phase_numerical_dynamics_function(
     phase_def: PhaseDefinition, static_parameter_symbols: list[ca.MX] | None = None
 ) -> Callable[[FloatArray, FloatArray, float, FloatArray | None], FloatArray]:
-    dynamics_func = _build_dynamics_casadi_function(phase_def, static_parameter_symbols)
-    num_static_params = _get_static_param_count(static_parameter_symbols)
-    return _create_numerical_dynamics(dynamics_func, num_static_params)
+    _, numerical_dynamics = _build_unified_phase_dynamics_functions(
+        phase_def, static_parameter_symbols
+    )
+    return numerical_dynamics
 
 
 def _build_objective_casadi_function(multiphase_state: MultiPhaseVariableState) -> ca.Function:
