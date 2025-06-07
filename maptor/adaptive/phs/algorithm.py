@@ -17,9 +17,6 @@ from maptor.adaptive.phs.error_estimation import (
 from maptor.adaptive.phs.initial_guess import (
     _propagate_multiphase_solution_to_new_meshes,
 )
-from maptor.adaptive.phs.numerical import (
-    PolynomialInterpolant,
-)
 from maptor.adaptive.phs.refinement import (
     _h_reduce_intervals,
     _h_refine_params,
@@ -27,9 +24,9 @@ from maptor.adaptive.phs.refinement import (
     _p_refine_interval,
 )
 from maptor.radau import (
-    RadauBasisComponents,
     _compute_barycentric_weights,
     _compute_radau_collocation_components,
+    _evaluate_lagrange_interpolation_at_points,
 )
 from maptor.tl_types import (
     AdaptiveAlgorithmData,
@@ -118,40 +115,23 @@ def _extract_multiphase_solution_trajectories(
         solution.phase_solved_control_trajectories_per_interval[phase_id] = control_trajectories
 
 
-def _validate_interpolant_creation_inputs(
+def _validate_evaluation_creation_inputs(
     solution: OptimalControlSolution, phase_id: PhaseID
 ) -> None:
     if phase_id not in solution.phase_solved_state_trajectories_per_interval:
         raise ValueError(f"Missing state trajectories for phase {phase_id}")
 
 
-def _create_state_interpolant(
-    basis: RadauBasisComponents, state_data: FloatArray
-) -> PolynomialInterpolant:
-    return PolynomialInterpolant(
-        basis.state_approximation_nodes,
-        state_data,
-        basis.barycentric_weights_for_state_nodes,
-    )
+def _create_direct_evaluator(
+    nodes: FloatArray, weights: FloatArray, data: FloatArray
+) -> Callable[[float | FloatArray], FloatArray]:
+    def evaluator(evaluation_points: float | FloatArray) -> FloatArray:
+        return _evaluate_lagrange_interpolation_at_points(nodes, weights, data, evaluation_points)
+
+    return evaluator
 
 
-def _create_control_interpolant(
-    basis: RadauBasisComponents,
-    control_data: FloatArray,
-    control_weights: FloatArray,
-    num_controls: int,
-) -> PolynomialInterpolant:
-    if num_controls > 0 and control_data.size > 0:
-        return PolynomialInterpolant(basis.collocation_nodes, control_data, control_weights)
-
-    return PolynomialInterpolant(
-        np.array([-1.0, 1.0], dtype=np.float64),
-        np.empty((0, 2), dtype=np.float64),
-        np.array([1.0, 1.0], dtype=np.float64),
-    )
-
-
-def _create_phase_interpolants(
+def _create_phase_evaluators(
     solution: OptimalControlSolution,
     problem: ProblemProtocol,
     phase_id: PhaseID,
@@ -159,7 +139,7 @@ def _create_phase_interpolants(
     list[Callable[[float | FloatArray], FloatArray]],
     list[Callable[[float | FloatArray], FloatArray]],
 ]:
-    _validate_interpolant_creation_inputs(solution, phase_id)
+    _validate_evaluation_creation_inputs(solution, phase_id)
 
     phase_def = problem._phases[phase_id]
     polynomial_degrees = phase_def.collocation_points_per_interval
@@ -174,24 +154,30 @@ def _create_phase_interpolants(
 
     for k in range(num_intervals):
         N_k = polynomial_degrees[k]
-        # Direct call to cached function - no local caching needed
         basis = _compute_radau_collocation_components(N_k)
 
         state_data = states_list[k]
-        state_evaluators.append(_create_state_interpolant(basis, state_data))
+        state_evaluators.append(
+            _create_direct_evaluator(
+                basis.state_approximation_nodes,
+                basis.barycentric_weights_for_state_nodes,
+                state_data,
+            )
+        )
 
         if controls_list is not None:
             control_data = controls_list[k]
-            # Direct call to _compute_barycentric_weights - no local caching needed
             control_weights = _compute_barycentric_weights(basis.collocation_nodes)
             control_evaluators.append(
-                _create_control_interpolant(basis, control_data, control_weights, num_controls)
+                _create_direct_evaluator(basis.collocation_nodes, control_weights, control_data)
             )
         else:
-            empty_control_data = np.empty((0, N_k), dtype=np.float64)
-            empty_weights = np.array([], dtype=np.float64)
             control_evaluators.append(
-                _create_control_interpolant(basis, empty_control_data, empty_weights, 0)
+                _create_direct_evaluator(
+                    np.array([-1.0, 1.0], dtype=np.float64),
+                    np.array([1.0, 1.0], dtype=np.float64),
+                    np.empty((0, 2), dtype=np.float64),
+                )
             )
 
     return state_evaluators, control_evaluators
@@ -702,7 +688,7 @@ def _process_single_phase_convergence(
 
     final_gamma_factors[phase_id] = gamma_factors
 
-    state_evaluators, control_evaluators = _create_phase_interpolants(solution, problem, phase_id)
+    state_evaluators, control_evaluators = _create_phase_evaluators(solution, problem, phase_id)
 
     phase_errors = _estimate_phase_errors(
         solution,

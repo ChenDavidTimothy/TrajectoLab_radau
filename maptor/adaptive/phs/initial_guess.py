@@ -3,11 +3,14 @@ import logging
 import numpy as np
 
 from maptor.adaptive.phs.numerical import (
-    PolynomialInterpolant,
     _map_global_normalized_tau_to_local_interval_tau,
 )
 from maptor.exceptions import ConfigurationError, DataIntegrityError, InterpolationError
-from maptor.radau import _compute_radau_collocation_components
+from maptor.radau import (
+    _compute_barycentric_weights,
+    _compute_radau_collocation_components,
+    _evaluate_lagrange_interpolation_at_points,
+)
 from maptor.tl_types import (
     FloatArray,
     MultiPhaseInitialGuess,
@@ -85,30 +88,6 @@ def _validate_interpolation_inputs(
         )
 
 
-def _create_phase_interpolants(
-    prev_trajectory_per_interval: list[FloatArray],
-    prev_polynomial_degrees: list[int],
-    is_state_trajectory: bool,
-) -> list[PolynomialInterpolant]:
-    prev_interpolants = []
-
-    for N_k, traj_k in zip(prev_polynomial_degrees, prev_trajectory_per_interval, strict=False):
-        basis_components = _compute_radau_collocation_components(N_k)
-
-        if is_state_trajectory:
-            local_nodes = basis_components.state_approximation_nodes
-            barycentric_weights = basis_components.barycentric_weights_for_state_nodes
-        else:
-            from maptor.radau import _compute_barycentric_weights
-
-            local_nodes = basis_components.collocation_nodes
-            barycentric_weights = _compute_barycentric_weights(basis_components.collocation_nodes)
-
-        prev_interpolants.append(PolynomialInterpolant(local_nodes, traj_k, barycentric_weights))
-
-    return prev_interpolants
-
-
 def _compute_target_interval_nodes(
     target_mesh_points: FloatArray, k: int, target_local_nodes: FloatArray
 ) -> FloatArray:
@@ -134,9 +113,11 @@ def _get_target_basis_nodes(N_k_target: int, is_state_trajectory: bool) -> tuple
 def _interpolate_at_points(
     global_tau_points: FloatArray,
     prev_mesh_points: FloatArray,
-    prev_interpolants: list[PolynomialInterpolant],
+    prev_trajectory_per_interval: list[FloatArray],
+    prev_polynomial_degrees: list[int],
     num_variables: int,
     phase_id: PhaseID,
+    is_state_trajectory: bool,
 ) -> FloatArray:
     num_points = len(global_tau_points)
     target_values = np.zeros((num_variables, num_points), dtype=np.float64)
@@ -145,12 +126,26 @@ def _interpolate_at_points(
         prev_interval_idx, prev_local_tau = _determine_interpolation_parameters(
             global_tau, prev_mesh_points
         )
-        interpolated_values = prev_interpolants[prev_interval_idx](prev_local_tau)
+
+        N_k_prev = prev_polynomial_degrees[prev_interval_idx]
+        prev_basis = _compute_radau_collocation_components(N_k_prev)
+
+        if is_state_trajectory:
+            prev_nodes = prev_basis.state_approximation_nodes
+            prev_weights = prev_basis.barycentric_weights_for_state_nodes
+        else:
+            prev_nodes = prev_basis.collocation_nodes
+            prev_weights = _compute_barycentric_weights(prev_nodes)
+
+        prev_values = prev_trajectory_per_interval[prev_interval_idx]
+
+        interpolated_values = _evaluate_lagrange_interpolation_at_points(
+            prev_nodes, prev_weights, prev_values, prev_local_tau
+        )
 
         if interpolated_values.ndim > 1:
             interpolated_values = interpolated_values.flatten()
 
-        # Validate only at first point to catch early issues
         if j == 0 and (
             np.any(np.isnan(interpolated_values)) or np.any(np.isinf(interpolated_values))
         ):
@@ -175,7 +170,8 @@ def _process_single_target_interval(
     N_k_target: int,
     target_mesh_points: FloatArray,
     prev_mesh_points: FloatArray,
-    prev_interpolants: list[PolynomialInterpolant],
+    prev_trajectory_per_interval: list[FloatArray],
+    prev_polynomial_degrees: list[int],
     num_variables: int,
     phase_id: PhaseID,
     is_state_trajectory: bool,
@@ -184,7 +180,13 @@ def _process_single_target_interval(
     global_tau_points = _compute_target_interval_nodes(target_mesh_points, k, target_local_nodes)
 
     return _interpolate_at_points(
-        global_tau_points, prev_mesh_points, prev_interpolants, num_variables, phase_id
+        global_tau_points,
+        prev_mesh_points,
+        prev_trajectory_per_interval,
+        prev_polynomial_degrees,
+        num_variables,
+        phase_id,
+        is_state_trajectory,
     )
 
 
@@ -202,10 +204,6 @@ def _interpolate_phase_trajectory_to_new_mesh_streamlined(
         prev_trajectory_per_interval, prev_polynomial_degrees, target_polynomial_degrees, phase_id
     )
 
-    prev_interpolants = _create_phase_interpolants(
-        prev_trajectory_per_interval, prev_polynomial_degrees, is_state_trajectory
-    )
-
     target_trajectories = []
     for k, N_k_target in enumerate(target_polynomial_degrees):
         target_traj_k = _process_single_target_interval(
@@ -213,7 +211,8 @@ def _interpolate_phase_trajectory_to_new_mesh_streamlined(
             N_k_target,
             target_mesh_points,
             prev_mesh_points,
-            prev_interpolants,
+            prev_trajectory_per_interval,
+            prev_polynomial_degrees,
             num_variables,
             phase_id,
             is_state_trajectory,
@@ -322,7 +321,6 @@ def _interpolate_phase_data(
 def _extract_preserved_variables(
     prev_solution: OptimalControlSolution,
 ) -> tuple[dict, dict, dict, FloatArray | None]:
-    """Extract variables that are preserved during propagation."""
     return (
         prev_solution.phase_initial_times.copy(),
         prev_solution.phase_terminal_times.copy(),
@@ -348,7 +346,6 @@ def _propagate_multiphase_solution_to_new_meshes(
 ) -> MultiPhaseInitialGuess:
     _validate_propagation_preconditions(prev_solution)
 
-    # Extract preserved variables
     (
         phase_initial_times,
         phase_terminal_times,
@@ -359,19 +356,16 @@ def _propagate_multiphase_solution_to_new_meshes(
     phase_states, phase_controls = {}, {}
 
     for phase_id in problem._get_phase_ids():
-        # Validate target configuration
         target_degrees, target_mesh = _validate_target_configuration(
             phase_id, target_phase_polynomial_degrees, target_phase_mesh_points
         )
 
-        # Validate previous data
         prev_states, prev_controls, prev_mesh, prev_degrees = _validate_previous_solution_data(
             prev_solution, phase_id
         )
 
         num_states, num_controls = problem._get_phase_variable_counts(phase_id)
 
-        # Interpolate phase data
         phase_states[phase_id], phase_controls[phase_id] = _interpolate_phase_data(
             prev_states,
             prev_controls,

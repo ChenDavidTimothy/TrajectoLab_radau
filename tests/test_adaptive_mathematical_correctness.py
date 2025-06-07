@@ -1,7 +1,4 @@
-import math
-
 import numpy as np
-import pytest
 from numpy.testing import assert_allclose
 
 from maptor.adaptive.phs.error_estimation import (
@@ -14,7 +11,6 @@ from maptor.adaptive.phs.initial_guess import (
     _find_containing_interval_index,
 )
 from maptor.adaptive.phs.numerical import (
-    PolynomialInterpolant,
     _map_global_normalized_tau_to_local_interval_tau,
     _map_local_interval_tau_to_global_normalized_tau,
     _map_local_tau_from_interval_k_plus_1_to_equivalent_in_interval_k,
@@ -28,7 +24,7 @@ from maptor.adaptive.phs.refinement import (
     _p_refine_interval,
 )
 from maptor.exceptions import InterpolationError
-from maptor.radau import _compute_barycentric_weights, _compute_radau_collocation_components
+from maptor.radau import _compute_barycentric_weights
 
 
 class TestAdaptiveMathematicalCorrectness:
@@ -143,34 +139,6 @@ class TestAdaptiveMathematicalCorrectness:
     # POLYNOMIAL INTERPOLATION MATHEMATICAL CORRECTNESS
     # ========================================================================
 
-    def test_polynomial_interpolant_exact_reproduction(self):
-        """Test that polynomial interpolants exactly reproduce values at nodes."""
-        # Test with various node configurations
-        node_configs = [
-            np.array([-1.0, 1.0]),  # 2 nodes
-            np.array([-1.0, 0.0, 1.0]),  # 3 nodes
-            np.array([-1.0, -0.5, 0.5, 1.0]),  # 4 nodes
-            np.linspace(-1, 1, 6),  # 6 nodes
-        ]
-
-        for nodes in node_configs:
-            # Create test function values (multiple variables)
-            num_vars = 3
-            values = np.random.random((num_vars, len(nodes)))
-
-            # Create interpolant
-            interpolant = PolynomialInterpolant(np.asarray(nodes, dtype=np.float64), values)
-
-            # Test exact reproduction at nodes
-            for i, node in enumerate(nodes):
-                interpolated = interpolant(node)
-                expected = values[:, i]
-
-                max_error = np.max(np.abs(interpolated - expected))
-                assert max_error < 1e-14, (
-                    f"Interpolant failed to reproduce value at node {i}: error={max_error}"
-                )
-
     def test_polynomial_interpolant_partition_of_unity(self):
         nodes = np.array([-1.0, -0.3, 0.2, 0.8, 1.0])
         weights = _compute_barycentric_weights(nodes)
@@ -196,61 +164,6 @@ class TestAdaptiveMathematicalCorrectness:
             assert abs(lagrange_sum - 1.0) < 1e-12, (
                 f"Partition of unity violated at tau={tau}: sum={lagrange_sum}"
             )
-
-    def test_polynomial_interpolant_polynomial_exactness(self):
-        nodes = np.array([-1.0, -0.5, 0.0, 0.5, 1.0])  # 5 nodes
-
-        # Test polynomials of degree 0 to 4 (should be exact)
-        for degree in range(5):
-            # Create polynomial: x^degree
-            poly_values = nodes**degree
-            poly_values = poly_values.reshape(1, -1)  # Single variable
-
-            interpolant = PolynomialInterpolant(nodes, poly_values)
-
-            # Test at many evaluation points
-            test_points = np.linspace(-0.9, 0.9, 50)
-            for tau in test_points:
-                interpolated = interpolant(tau)
-                exact = tau**degree
-
-                error = abs(interpolated[0] - exact)
-                assert error < 1e-12, (
-                    f"Polynomial interpolation failed for degree {degree} at tau={tau}: error={error}"
-                )
-
-    @pytest.mark.parametrize("N", [3, 5, 7, 9])
-    def test_polynomial_interpolant_with_radau_nodes(self, N):
-        components = _compute_radau_collocation_components(N)
-        nodes = components.state_approximation_nodes
-        weights = components.barycentric_weights_for_state_nodes
-
-        # Test function: combination of polynomials up to degree N
-        def test_func(x):
-            result = 0.0
-            for k in range(N + 1):
-                result += (k + 1) * x**k / math.factorial(k)
-            return result
-
-        # Function values at nodes
-        func_values = np.array([test_func(node) for node in nodes]).reshape(1, -1)
-
-        # Create interpolant
-        interpolant = PolynomialInterpolant(nodes, func_values, weights)
-
-        # Test at evaluation points
-        test_points = np.linspace(-0.95, 0.95, 30)
-
-        for tau in test_points:
-            interpolated = interpolant(tau)[0]
-            exact = test_func(tau)
-
-            # For polynomials up to degree N, should be exact
-            if N >= 5:  # High enough degree to represent the test function well
-                error = abs(interpolated - exact)
-                assert error < 1e-10, (
-                    f"Radau interpolation failed for N={N} at tau={tau}: error={error}"
-                )
 
     # ========================================================================
     # ERROR ESTIMATION MATHEMATICAL CORRECTNESS
@@ -631,36 +544,6 @@ class TestAdaptiveMathematicalCorrectness:
                     f"Round-trip transformation failed: {local_tau} -> {recovered_local}"
                 )
 
-    def test_polynomial_interpolation_cross_validation(self):
-        # Create test function: f(x) = x^3 - 2*x^2 + x + 1
-        def test_function(x):
-            return x**3 - 2 * x**2 + x + 1
-
-        # Test with different node configurations
-        node_counts = [4, 5, 6, 8]
-
-        for n_nodes in node_counts:
-            # Create nodes and function values
-            nodes = np.linspace(-1, 1, n_nodes)
-            values = np.array([test_function(node) for node in nodes]).reshape(1, -1)
-
-            # Create interpolant
-            interpolant = PolynomialInterpolant(np.asarray(nodes, dtype=np.float64), values)
-
-            # Test at evaluation points
-            eval_points = np.linspace(-0.9, 0.9, 20)
-
-            for tau in eval_points:
-                interpolated = interpolant(tau)[0]
-                exact = test_function(tau)
-
-                # For cubic polynomial with 4+ nodes, should be exact
-                if n_nodes >= 4:
-                    error = abs(interpolated - exact)
-                    assert error < 1e-12, (
-                        f"Cubic interpolation failed with {n_nodes} nodes at tau={tau}: error={error}"
-                    )
-
     def test_adaptive_refinement_mathematical_invariants(self):
         # Test that p-refinement followed by p-reduction can be consistent
         current_Nk = 6
@@ -727,46 +610,3 @@ class TestAdaptiveMathematicalCorrectness:
         except InterpolationError:
             # Acceptable to raise specific error for degenerate case
             pass
-
-    def test_barycentric_interpolation_mathematical_correctness(self):
-        # Test with known analytical case
-        nodes = np.array([-1.0, 0.0, 1.0])
-
-        # Test function: f(x) = x^2 (quadratic, should be exact with 3 nodes)
-        values = np.array([1.0, 0.0, 1.0]).reshape(1, -1)  # f(-1)=1, f(0)=0, f(1)=1
-
-        # Direct barycentric interpolation calculation
-        weights = _compute_barycentric_weights(nodes)
-
-        # Test at evaluation point x = 0.5
-        eval_point = 0.5
-
-        # Manual barycentric formula calculation
-        numerator = 0.0
-        denominator = 0.0
-
-        for j in range(len(nodes)):
-            if abs(eval_point - nodes[j]) < 1e-14:
-                # Exactly at a node
-                expected_value = values[0, j]
-                break
-            else:
-                weight_factor = weights[j] / (eval_point - nodes[j])
-                numerator += weight_factor * values[0, j]
-                denominator += weight_factor
-        else:
-            expected_value = numerator / denominator
-
-        # Compare with PolynomialInterpolant result
-        interpolant = PolynomialInterpolant(nodes, values)
-        computed_value = interpolant(eval_point)[0]
-
-        assert abs(computed_value - expected_value) < 1e-15, (
-            f"Barycentric interpolation mismatch: computed={computed_value}, expected={expected_value}"
-        )
-
-        # For quadratic function at x=0.5, exact value should be 0.25
-        exact_analytical = 0.5**2
-        assert abs(computed_value - exact_analytical) < 1e-15, (
-            f"Quadratic interpolation not exact: computed={computed_value}, exact={exact_analytical}"
-        )

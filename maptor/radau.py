@@ -254,3 +254,24 @@ def _compute_radau_collocation_components(
         barycentric_weights_for_state_nodes=bary_weights_state_nodes,
         lagrange_at_tau_plus_one=lagrange_at_tau_plus_one,
     )
+
+
+def _evaluate_lagrange_interpolation_at_points(
+    nodes: FloatArray,
+    barycentric_weights: FloatArray,
+    values: FloatArray,
+    eval_points: float | FloatArray,
+) -> FloatArray:
+    """Evaluate Lagrange interpolation at given points using barycentric formula."""
+    is_scalar = np.isscalar(eval_points)
+    eval_array = np.atleast_1d(eval_points)
+    values_2d = np.atleast_2d(values)
+    num_vars = values_2d.shape[0]
+
+    result = np.zeros((num_vars, len(eval_array)), dtype=np.float64)
+
+    for i, zeta in enumerate(eval_array):
+        L_j = _evaluate_lagrange_polynomial_at_point(nodes, barycentric_weights, zeta)
+        result[:, i] = np.dot(values_2d, L_j)
+
+    return result[:, 0] if is_scalar else result

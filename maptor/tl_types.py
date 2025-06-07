@@ -108,6 +108,8 @@ class ProblemProtocol(Protocol):
         """Validate the multiphase problem configuration"""
         ...
 
+    def _get_phase_numerical_dynamics_function(self, phase_id: PhaseID) -> Any: ...
+
 
 # UNIFIED CONSTRAINT SYSTEM
 class Constraint:
