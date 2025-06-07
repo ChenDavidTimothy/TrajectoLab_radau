@@ -38,7 +38,6 @@ def _extract_dynamics_output(result, phase_id: PhaseID) -> ca.MX:
 def _build_dynamics_casadi_function(
     phase_def: PhaseDefinition, static_parameter_symbols: list[ca.MX] | None
 ) -> ca.Function:
-    """Build CasADi dynamics function - no manual caching needed."""
     states_vec, controls_vec, time, static_params_vec, function_inputs = (
         _build_unified_casadi_function_inputs(phase_def, static_parameter_symbols)
     )
@@ -114,7 +113,6 @@ def _build_unified_phase_dynamics_functions(
 ) -> tuple[
     Callable[..., ca.MX], Callable[[FloatArray, FloatArray, float, FloatArray | None], FloatArray]
 ]:
-    """Build both dynamics functions - CasADi handles internal caching."""
     dynamics_func = _build_dynamics_casadi_function(phase_def, static_parameter_symbols)
     num_static_params = _get_static_param_count(static_parameter_symbols)
 
@@ -124,28 +122,9 @@ def _build_unified_phase_dynamics_functions(
     return symbolic_dynamics, numerical_dynamics
 
 
-def _build_phase_dynamics_function(
-    phase_def: PhaseDefinition, static_parameter_symbols: list[ca.MX] | None = None
-) -> Callable[..., ca.MX]:
-    symbolic_dynamics, _ = _build_unified_phase_dynamics_functions(
-        phase_def, static_parameter_symbols
-    )
-    return symbolic_dynamics
-
-
-def _build_phase_numerical_dynamics_function(
-    phase_def: PhaseDefinition, static_parameter_symbols: list[ca.MX] | None = None
-) -> Callable[[FloatArray, FloatArray, float, FloatArray | None], FloatArray]:
-    _, numerical_dynamics = _build_unified_phase_dynamics_functions(
-        phase_def, static_parameter_symbols
-    )
-    return numerical_dynamics
-
-
 def _build_integrand_casadi_functions(
     phase_def: PhaseDefinition, static_parameter_symbols: list[ca.MX] | None
 ) -> list[ca.Function]:
-    """Build integrand functions - CasADi handles internal caching."""
     states_vec, controls_vec, time, static_params_vec, function_inputs = (
         _build_unified_casadi_function_inputs(phase_def, static_parameter_symbols)
     )
@@ -201,7 +180,6 @@ def _build_phase_integrand_function(
 
 
 def _build_objective_casadi_function(multiphase_state: MultiPhaseVariableState) -> ca.Function:
-    """Build objective function - CasADi handles internal caching."""
     phase_inputs, s_vec = _build_unified_multiphase_symbol_inputs(multiphase_state)
 
     phase_symbols_map = _build_unified_symbol_substitution_map(
