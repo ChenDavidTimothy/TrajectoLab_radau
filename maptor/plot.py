@@ -259,7 +259,7 @@ def _create_multiphase_variable_plot(
                         label="Phase Boundary" if phase_id == phase_ids[0] else "",
                     )
 
-                handles, labels = ax.get_legend_handles_labels()
+                _, labels = ax.get_legend_handles_labels()
                 if "Phase Boundary" in labels:
                     ax.legend()
 

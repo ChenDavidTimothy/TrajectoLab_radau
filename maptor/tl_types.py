@@ -52,8 +52,6 @@ class ProblemProtocol(Protocol):
     # Essential multiphase properties
     _phases: dict[PhaseID, Any]
     _static_parameters: Any
-    _cross_phase_constraints: list[ca.MX]
-    _num_phases: int
     _multiphase_state: Any
 
     # Required attributes for solver interface

@@ -175,7 +175,3 @@ def _set_multiphase_initial_guess(
         validated_integrals,
         validated_static_parameters,
     )
-
-
-def _can__validate_multiphase_initial_guess(multiphase_state: MultiPhaseVariableState) -> bool:
-    return all(phase_def.mesh_configured for phase_def in multiphase_state.phases.values())

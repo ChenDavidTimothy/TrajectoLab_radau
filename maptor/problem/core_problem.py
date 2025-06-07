@@ -1242,14 +1242,6 @@ class Problem:
         return self._multiphase_state.static_parameters
 
     @property
-    def _cross_phase_constraints(self) -> list[ca.MX]:
-        return self._multiphase_state.cross_phase_constraints
-
-    @property
-    def _num_phases(self) -> int:
-        return len(self._multiphase_state.phases)
-
-    @property
     def initial_guess(self):
         return self._initial_guess_container[0]
 
