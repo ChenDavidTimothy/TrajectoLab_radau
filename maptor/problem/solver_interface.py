@@ -113,6 +113,14 @@ def _build_unified_phase_dynamics_functions(
 ) -> tuple[
     Callable[..., ca.MX], Callable[[FloatArray, FloatArray, float, FloatArray | None], FloatArray]
 ]:
+    if (
+        hasattr(phase_def, "_dynamics_function")
+        and hasattr(phase_def, "_numerical_dynamics_function")
+        and phase_def._dynamics_function is not None
+        and phase_def._numerical_dynamics_function is not None
+    ):
+        return phase_def._dynamics_function, phase_def._numerical_dynamics_function
+
     dynamics_func = _build_dynamics_casadi_function(phase_def, static_parameter_symbols)
     num_static_params = _get_static_param_count(static_parameter_symbols)
 
@@ -171,6 +179,9 @@ def _create_integrand(
 def _build_phase_integrand_function(
     phase_def: PhaseDefinition, static_parameter_symbols: list[ca.MX] | None = None
 ) -> Callable[..., ca.MX] | None:
+    if hasattr(phase_def, "_integrand_function") and phase_def._integrand_function is not None:
+        return phase_def._integrand_function
+
     if not phase_def.integral_expressions:
         return None
 
@@ -250,6 +261,12 @@ def _create_unified_multiphase_objective(
 def _build_multiphase_objective_function(
     multiphase_state: MultiPhaseVariableState,
 ) -> Callable[..., ca.MX]:
+    if (
+        hasattr(multiphase_state, "_objective_function")
+        and multiphase_state._objective_function is not None
+    ):
+        return multiphase_state._objective_function
+
     if multiphase_state.objective_expression is None:
         raise ValueError("Multiphase objective expression not defined")
 

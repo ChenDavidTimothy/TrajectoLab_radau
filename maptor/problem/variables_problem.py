@@ -290,6 +290,10 @@ def _set_phase_dynamics(
     converted_dict = _convert_dynamics_dict_to_casadi(dynamics_dict, phase_def.phase_id)
     phase_def.dynamics_expressions = converted_dict
 
+    phase_def._dynamics_function = None
+    phase_def._numerical_dynamics_function = None
+    phase_def._functions_built = False
+
 
 def _create_integral_symbol(phase_def: PhaseDefinition) -> ca.MX:
     integral_name = f"integral_{len(phase_def.integral_expressions)}_p{phase_def.phase_id}"
@@ -304,6 +308,9 @@ def _set_phase_integral(phase_def: PhaseDefinition, integrand_expr: ca.MX | floa
     phase_def.integral_symbols.append(integral_sym)
     phase_def.num_integrals = len(phase_def.integral_expressions)
 
+    phase_def._integrand_function = None
+    phase_def._functions_built = False
+
     return integral_sym
 
 
@@ -312,3 +319,6 @@ def _set_multiphase_objective(
 ) -> None:
     pure_expr = _convert_expression_to_casadi(objective_expr, "Objective")
     multiphase_state.objective_expression = pure_expr
+
+    multiphase_state._objective_function = None
+    multiphase_state._functions_built = False
