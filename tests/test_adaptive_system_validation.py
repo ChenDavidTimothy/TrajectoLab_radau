@@ -80,12 +80,12 @@ class TestAdaptiveSystemValidation:
             nlp_options={"ipopt.print_level": 0, "ipopt.max_iter": 1000, "ipopt.tol": 1e-8},
         )
 
-        # VALIDATION: Must converge successfully
+        # Must converge successfully
         assert solution.status["success"], (
             f"Brachistochrone adaptive solution failed: {solution.status['message']}"
         )
 
-        # VALIDATION: Final time should be close to analytical solution
+        # Final time should be close to analytical solution
         # For (0,0) to (1,-1), analytical minimum time ≈ 1.8138 (depends on exact cycloid parameters)
         # We allow some tolerance due to discretization, but should be in the right ballpark
         analytical_time_approx = 1.8138
@@ -98,7 +98,7 @@ class TestAdaptiveSystemValidation:
             f"expected≈{analytical_time_approx:.4f}, relative_error={relative_error:.3f}"
         )
 
-        # VALIDATION: Solution should satisfy basic physics
+        # Solution should satisfy basic physics
         x_traj = solution[(1, "x")]
         y_traj = solution[(1, "y")]
 
@@ -151,12 +151,12 @@ class TestAdaptiveSystemValidation:
             nlp_options={"ipopt.print_level": 0, "ipopt.max_iter": 300, "ipopt.tol": 1e-10},
         )
 
-        # VALIDATION: Must converge successfully
+        # Must converge successfully
         assert solution.status["success"], (
             f"Two-point BVP adaptive solution failed: {solution.status['message']}"
         )
 
-        # VALIDATION: Compare against analytical solution
+        # Compare against analytical solution
         # Analytical solution: u*(t) = 1, cost = ∫u²dt = 1
         analytical_control = 1.0
         analytical_cost = 1.0
@@ -167,7 +167,7 @@ class TestAdaptiveSystemValidation:
             f"analytical={analytical_cost:.8f}, relative_error={cost_error:.2e}"
         )
 
-        # VALIDATION: Control should be approximately constant
+        # Control should be approximately constant
         u_traj = solution[(1, "u")]
         control_mean = np.mean(u_traj)
         control_std = np.std(u_traj)
@@ -186,7 +186,7 @@ class TestAdaptiveSystemValidation:
             f"variation={control_variation:.4f}"
         )
 
-        # VALIDATION: State trajectory should be linear
+        # State trajectory should be linear
         x_traj = solution[(1, "x")]
         time_states = solution[(1, "time_states")]
 
@@ -239,12 +239,12 @@ class TestAdaptiveSystemValidation:
             nlp_options={"ipopt.print_level": 0, "ipopt.max_iter": 500, "ipopt.tol": 1e-8},
         )
 
-        # VALIDATION: Must converge successfully
+        # Must converge successfully
         assert solution.status["success"], (
             f"Simple LQR adaptive solution failed: {solution.status['message']}"
         )
 
-        # VALIDATION: Solution should be reasonable
+        # Solution should be reasonable
         x_traj = solution[(1, "x")]
         u_traj = solution[(1, "u")]
 
@@ -313,12 +313,12 @@ class TestAdaptiveSystemValidation:
                 },
             )
 
-            # VALIDATION: Solution must converge
+            # Solution must converge
             assert solution.status["success"], (
                 f"Solution failed for tolerance {tolerance:.1e}: {solution.status['message']}"
             )
 
-            # VALIDATION: Verify actual error is within reasonable bounds
+            # Verify actual error is within reasonable bounds
             # For this problem, analytical solution is u* = 1, cost* = 1
             analytical_cost = 1.0
             actual_error = abs(solution.status["objective"] - analytical_cost) / analytical_cost
@@ -330,7 +330,7 @@ class TestAdaptiveSystemValidation:
                 f"actual_error={actual_error:.2e}, allowed_error={tolerance * safety_factor:.2e}"
             )
 
-            # VALIDATION: Tighter tolerance should generally give better accuracy
+            # Tighter tolerance should generally give better accuracy
             if actual_error <= previous_error * 2.0:  # Allow some variation
                 previous_error = actual_error
             else:
@@ -405,7 +405,7 @@ class TestAdaptiveSystemValidation:
             nlp_options={"ipopt.print_level": 0, "ipopt.max_iter": 500, "ipopt.tol": 1e-8},
         )
 
-        # VALIDATION: All solutions must converge
+        # All solutions must converge
         assert coarse_solution.status["success"], (
             f"Coarse solution failed: {coarse_solution.status['message']}"
         )
@@ -416,7 +416,7 @@ class TestAdaptiveSystemValidation:
             f"Adaptive solution failed: {adaptive_solution.status['message']}"
         )
 
-        # VALIDATION: Refined solutions should have lower objective
+        # Refined solutions should have lower objective
         # (For minimization problems, lower is better)
         coarse_obj = coarse_solution.status["objective"]
         medium_obj = medium_solution.status["objective"]
@@ -538,11 +538,11 @@ class TestAdaptiveSystemValidation:
 
             errors.append(solution.status["objective"])
 
-        # VALIDATION: Need at least 2 points for convergence analysis
+        # Need at least 2 points for convergence analysis
         if len(errors) < 2:
             pytest.skip("Insufficient successful solutions for convergence analysis")
 
-        # VALIDATION: Each mesh refinement should improve the solution
+        # Each mesh refinement should improve the solution
         for i in range(1, len(errors)):
             if reference_solution is not None:
                 error_prev = abs(errors[i - 1] - reference_solution.status["objective"])
@@ -594,12 +594,12 @@ class TestAdaptiveSystemValidation:
             nlp_options={"ipopt.print_level": 0, "ipopt.max_iter": 1000, "ipopt.tol": 1e-8},
         )
 
-        # VALIDATION: Must converge successfully
+        # Must converge successfully
         assert solution.status["success"], (
             f"Boundary layer solution failed: {solution.status['message']}"
         )
 
-        # VALIDATION: Solution should have boundary layer characteristics
+        # Solution should have boundary layer characteristics
         x_traj = solution[(1, "x")]
         v_traj = solution[(1, "v")]
         time_states = solution[(1, "time_states")]
@@ -608,7 +608,7 @@ class TestAdaptiveSystemValidation:
         assert abs(x_traj[0] - 0.0) < 1e-5, f"Initial x condition violated: {x_traj[0]}"
         assert abs(x_traj[-1] - 1.0) < 1e-5, f"Final x condition violated: {x_traj[-1]}"
 
-        # VALIDATION: Velocity should show boundary layer behavior
+        # Velocity should show boundary layer behavior
         # Near the end (right boundary), velocity should change rapidly
 
         # Find indices in the last 20% of the time interval
@@ -672,12 +672,12 @@ class TestAdaptiveSystemValidation:
             nlp_options={"ipopt.print_level": 0, "ipopt.max_iter": 1000, "ipopt.tol": 1e-8},
         )
 
-        # VALIDATION: Must converge successfully
+        # Must converge successfully
         assert solution.status["success"], (
             f"Multi-scale solution failed: {solution.status['message']}"
         )
 
-        # VALIDATION: Check solution quality
+        # Check solution quality
         x1_traj = solution[(1, "x1")]
         x2_traj = solution[(1, "x2")]
 
@@ -687,7 +687,7 @@ class TestAdaptiveSystemValidation:
         assert abs(x2_traj[0] - 0.0) < 1e-4, f"Initial x2 condition violated: {x2_traj[0]}"
         assert abs(x2_traj[-1] - 1.0) < 1e-4, f"Final x2 condition violated: {x2_traj[-1]}"
 
-        # VALIDATION: Solution should be smooth (no wild oscillations)
+        # Solution should be smooth (no wild oscillations)
         def check_smoothness(trajectory, name):
             """Check that trajectory doesn't have wild oscillations."""
             if len(trajectory) < 3:
