@@ -106,7 +106,6 @@ def _compute_legendre_gauss_radau_nodes_and_weights(
 
 
 def _compute_barycentric_weights(nodes: FloatArray) -> FloatArray:
-    """Direct barycentric weight computation without caching overhead."""
     num_nodes = len(nodes)
     if num_nodes == 1:
         return np.array([1.0], dtype=np.float64)
@@ -214,7 +213,6 @@ def _compute_lagrange_derivative_coefficients_at_point(
 def _compute_radau_collocation_components(
     num_collocation_nodes: int,
 ) -> RadauBasisComponents:
-    """Single cached function providing all Radau components with zero redundancy."""
     _validate_positive_integer(num_collocation_nodes, "collocation nodes")
 
     lgr_data = _compute_legendre_gauss_radau_nodes_and_weights(num_collocation_nodes)
@@ -257,7 +255,6 @@ def _evaluate_lagrange_interpolation_at_points(
     values: FloatArray,
     eval_points: float | FloatArray,
 ) -> FloatArray:
-    """Evaluate Lagrange interpolation at given points using barycentric formula."""
     is_scalar = np.isscalar(eval_points)
     eval_array = np.atleast_1d(eval_points)
     values_2d = np.atleast_2d(values)
