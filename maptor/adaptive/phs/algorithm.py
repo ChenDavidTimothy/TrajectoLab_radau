@@ -125,22 +125,6 @@ def _validate_interpolant_creation_inputs(
         raise ValueError(f"Missing state trajectories for phase {phase_id}")
 
 
-def _get_or_create_basis_components(
-    basis_cache: dict[int, RadauBasisComponents], N_k: int
-) -> RadauBasisComponents:
-    if N_k not in basis_cache:
-        basis_cache[N_k] = _compute_radau_collocation_components(N_k)
-    return basis_cache[N_k]
-
-
-def _get_or_create_control_weights(
-    control_weights_cache: dict[int, FloatArray], basis: RadauBasisComponents, N_k: int
-) -> FloatArray:
-    if N_k not in control_weights_cache:
-        control_weights_cache[N_k] = _compute_barycentric_weights(basis.collocation_nodes)
-    return control_weights_cache[N_k]
-
-
 def _create_state_interpolant(
     basis: RadauBasisComponents, state_data: FloatArray
 ) -> PolynomialInterpolant:
@@ -182,9 +166,6 @@ def _create_phase_interpolants(
     num_intervals = len(polynomial_degrees)
     num_states, num_controls = problem._get_phase_variable_counts(phase_id)
 
-    basis_cache: dict[int, RadauBasisComponents] = {}
-    control_weights_cache: dict[int, FloatArray] = {}
-
     state_evaluators: list[Callable[[float | FloatArray], FloatArray]] = []
     control_evaluators: list[Callable[[float | FloatArray], FloatArray]] = []
 
@@ -193,14 +174,16 @@ def _create_phase_interpolants(
 
     for k in range(num_intervals):
         N_k = polynomial_degrees[k]
-        basis = _get_or_create_basis_components(basis_cache, N_k)
+        # Direct call to cached function - no local caching needed
+        basis = _compute_radau_collocation_components(N_k)
 
         state_data = states_list[k]
         state_evaluators.append(_create_state_interpolant(basis, state_data))
 
         if controls_list is not None:
             control_data = controls_list[k]
-            control_weights = _get_or_create_control_weights(control_weights_cache, basis, N_k)
+            # Direct call to _compute_barycentric_weights - no local caching needed
+            control_weights = _compute_barycentric_weights(basis.collocation_nodes)
             control_evaluators.append(
                 _create_control_interpolant(basis, control_data, control_weights, num_controls)
             )

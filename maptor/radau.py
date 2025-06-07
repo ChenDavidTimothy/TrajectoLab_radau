@@ -1,6 +1,6 @@
-import threading
+import functools
 from dataclasses import dataclass, field
-from typing import ClassVar, Literal, cast, overload
+from typing import Literal, cast, overload
 
 import numpy as np
 from scipy.special import roots_jacobi as _scipy_roots_jacobi
@@ -37,67 +37,6 @@ class RadauNodesAndWeights:
     quadrature_weights: FloatArray
 
 
-class RadauBasisCache:
-    """Thread-safe global cache for Radau basis components."""
-
-    _instance: ClassVar["RadauBasisCache | None"] = None
-    _cache: ClassVar[dict[int, RadauBasisComponents]] = {}
-    _lock: ClassVar[threading.Lock] = threading.Lock()
-
-    def __new__(cls) -> "RadauBasisCache":
-        if cls._instance is None:
-            with cls._lock:
-                if cls._instance is None:
-                    cls._instance = super().__new__(cls)
-        return cls._instance
-
-    def _get_components(self, num_collocation_nodes: int) -> RadauBasisComponents:
-        # Cache prevents expensive recomputation of basis functions and differentiation matrices
-        with self._lock:
-            if num_collocation_nodes not in self._cache:
-                self._cache[num_collocation_nodes] = self._compute_components(num_collocation_nodes)
-            return self._cache[num_collocation_nodes]
-
-    def _compute_components(self, num_collocation_nodes: int) -> RadauBasisComponents:
-        # Expensive computation - parameter validation assumed done by caller
-        lgr_data = _compute_legendre_gauss_radau_nodes_and_weights(num_collocation_nodes)
-
-        state_nodes = lgr_data.state_approximation_nodes
-        collocation_nodes = lgr_data.collocation_nodes
-        quadrature_weights = lgr_data.quadrature_weights
-
-        num_state_nodes = len(state_nodes)
-        num_actual_collocation_nodes = len(collocation_nodes)
-
-        bary_weights_state_nodes = _compute_barycentric_weights(state_nodes)
-
-        # Differentiation matrix enables pseudospectral derivative approximation
-        diff_matrix = np.zeros((num_actual_collocation_nodes, num_state_nodes), dtype=np.float64)
-        for i in range(num_actual_collocation_nodes):
-            tau_c_i = collocation_nodes[i]
-            diff_matrix[i, :] = _compute_lagrange_derivative_coefficients_at_point(
-                state_nodes, bary_weights_state_nodes, tau_c_i
-            )
-
-        # Lagrange evaluation at terminal boundary for boundary condition application
-        lagrange_at_tau_plus_one = _evaluate_lagrange_polynomial_at_point(
-            state_nodes, bary_weights_state_nodes, 1.0
-        )
-
-        return RadauBasisComponents(
-            state_approximation_nodes=state_nodes,
-            collocation_nodes=collocation_nodes,
-            quadrature_weights=quadrature_weights,
-            differentiation_matrix=diff_matrix,
-            barycentric_weights_for_state_nodes=bary_weights_state_nodes,
-            lagrange_at_tau_plus_one=lagrange_at_tau_plus_one,
-        )
-
-
-# Global cache instance
-_radau_cache = RadauBasisCache()
-
-
 @overload
 def _roots_jacobi(
     n: int, alpha: float, beta: float, mu: Literal[False]
@@ -113,7 +52,6 @@ def _roots_jacobi(
 def _roots_jacobi(
     n: int, alpha: float, beta: float, mu: bool = False
 ) -> tuple[FloatArray, FloatArray] | tuple[FloatArray, FloatArray, float]:
-    # Wrapper for scipy roots_jacobi with proper typing - parameter validation assumed
     if mu:
         result = _scipy_roots_jacobi(n, alpha, beta, mu=True)
         x_val = result[0]
@@ -137,13 +75,11 @@ def _roots_jacobi(
 def _compute_legendre_gauss_radau_nodes_and_weights(
     num_collocation_nodes: int,
 ) -> RadauNodesAndWeights:
-    # Left-sided Radau quadrature includes left endpoint for boundary condition enforcement
     collocation_nodes_list: list[float] = [-1.0]
 
     if num_collocation_nodes == 1:
         quadrature_weights_list: list[float] = [2.0]
     else:
-        # Interior roots from Jacobi polynomial for optimal quadrature accuracy
         num_interior_roots = num_collocation_nodes - 1
         interior_roots, jacobi_weights, _ = _roots_jacobi(num_interior_roots, 0.0, 1.0, mu=True)
         interior_weights = jacobi_weights / (np.add(1.0, interior_roots))
@@ -154,7 +90,6 @@ def _compute_legendre_gauss_radau_nodes_and_weights(
     final_collocation_nodes = np.array(collocation_nodes_list, dtype=np.float64)
     final_quadrature_weights = np.array(quadrature_weights_list, dtype=np.float64)
 
-    # State nodes include terminal boundary for complete state approximation
     state_approximation_nodes_temp = np.concatenate(
         [final_collocation_nodes, np.array([1.0], dtype=np.float64)]
     )
@@ -167,19 +102,19 @@ def _compute_legendre_gauss_radau_nodes_and_weights(
     )
 
 
-def _compute_barycentric_weights(nodes: FloatArray) -> FloatArray:
+@functools.lru_cache(maxsize=128)
+def _compute_barycentric_weights_cached(nodes_tuple: tuple[float, ...]) -> tuple[float, ...]:
+    nodes = np.array(nodes_tuple, dtype=np.float64)
     num_nodes = len(nodes)
     if num_nodes == 1:
-        return np.array([1.0], dtype=np.float64)
+        return (1.0,)
 
-    # difference matrix construction for efficiency
     nodes_col = nodes[:, np.newaxis]
     nodes_row = nodes[np.newaxis, :]
     differences_matrix = nodes_col - nodes_row
 
     diagonal_mask = np.eye(num_nodes, dtype=bool)
 
-    # Perturbation prevents division by zero for near-coincident nodes
     near_zero_mask = np.abs(differences_matrix) < ZERO_TOLERANCE
     perturbation = np.sign(differences_matrix) * ZERO_TOLERANCE
     perturbation[perturbation == 0] = ZERO_TOLERANCE
@@ -187,12 +122,10 @@ def _compute_barycentric_weights(nodes: FloatArray) -> FloatArray:
     off_diagonal_near_zero = near_zero_mask & ~diagonal_mask
     differences_matrix = np.where(off_diagonal_near_zero, perturbation, differences_matrix)
 
-    # Diagonal set to 1 for product computation
     differences_matrix[diagonal_mask] = 1.0
 
     products = np.prod(differences_matrix, axis=1, dtype=np.float64)
 
-    # Regularization for small products prevents numerical instability
     small_product_mask = np.abs(products) < ZERO_TOLERANCE**2
     safe_products = np.where(
         small_product_mask,
@@ -200,7 +133,13 @@ def _compute_barycentric_weights(nodes: FloatArray) -> FloatArray:
         1.0 / products,
     )
 
-    return safe_products.astype(np.float64)
+    return tuple(safe_products.astype(np.float64))
+
+
+def _compute_barycentric_weights(nodes: FloatArray) -> FloatArray:
+    nodes_tuple = tuple(float(x) for x in nodes)
+    weights_tuple = _compute_barycentric_weights_cached(nodes_tuple)
+    return np.array(weights_tuple, dtype=np.float64)
 
 
 def _evaluate_lagrange_polynomial_at_point(
@@ -208,10 +147,8 @@ def _evaluate_lagrange_polynomial_at_point(
     barycentric_weights: FloatArray,
     evaluation_point_tau: float,
 ) -> FloatArray:
-    # Barycentric formula provides numerically stable polynomial evaluation
     num_nodes = len(polynomial_definition_nodes)
 
-    # Direct evaluation when point coincides with node
     differences = np.abs(evaluation_point_tau - polynomial_definition_nodes)
     coincident_mask = differences < ZERO_TOLERANCE
 
@@ -222,7 +159,6 @@ def _evaluate_lagrange_polynomial_at_point(
 
     diffs = evaluation_point_tau - polynomial_definition_nodes
 
-    # Regularization prevents division by zero for near-coincident cases
     near_zero_mask = np.abs(diffs) < ZERO_TOLERANCE
     safe_diffs = np.where(
         near_zero_mask, np.where(diffs == 0, ZERO_TOLERANCE, np.sign(diffs) * ZERO_TOLERANCE), diffs
@@ -243,7 +179,6 @@ def _compute_lagrange_derivative_coefficients_at_point(
     barycentric_weights: FloatArray,
     evaluation_point_tau: float,
 ) -> FloatArray:
-    # Derivative coefficients enable differentiation matrix construction for pseudospectral methods
     num_nodes = len(polynomial_definition_nodes)
 
     differences = np.abs(evaluation_point_tau - polynomial_definition_nodes)
@@ -257,7 +192,6 @@ def _compute_lagrange_derivative_coefficients_at_point(
 
     node_diffs = polynomial_definition_nodes[matched_node_idx_k] - polynomial_definition_nodes
 
-    # Regularization for near-zero differences
     near_zero_mask = np.abs(node_diffs) < ZERO_TOLERANCE
     safe_diffs = np.where(
         near_zero_mask,
@@ -275,19 +209,48 @@ def _compute_lagrange_derivative_coefficients_at_point(
             weight_ratios[non_diagonal_mask] / safe_diffs[non_diagonal_mask]
         )
 
-    # Diagonal derivative from sum of reciprocals (differentiation matrix property)
     derivatives[matched_node_idx_k] = np.sum(1.0 / safe_diffs[non_diagonal_mask])
 
     return derivatives
 
 
+@functools.lru_cache(maxsize=128)
 def _compute_radau_collocation_components(
     num_collocation_nodes: int,
 ) -> RadauBasisComponents:
-    """Get Radau components from global cache for massive speedup.
+    """Get Radau components with professional LRU caching for massive speedup.
 
     Centralized validation and caching for Radau pseudospectral basis components.
     """
     _validate_positive_integer(num_collocation_nodes, "collocation nodes")
 
-    return _radau_cache._get_components(num_collocation_nodes)
+    lgr_data = _compute_legendre_gauss_radau_nodes_and_weights(num_collocation_nodes)
+
+    state_nodes = lgr_data.state_approximation_nodes
+    collocation_nodes = lgr_data.collocation_nodes
+    quadrature_weights = lgr_data.quadrature_weights
+
+    num_state_nodes = len(state_nodes)
+    num_actual_collocation_nodes = len(collocation_nodes)
+
+    bary_weights_state_nodes = _compute_barycentric_weights(state_nodes)
+
+    diff_matrix = np.zeros((num_actual_collocation_nodes, num_state_nodes), dtype=np.float64)
+    for i in range(num_actual_collocation_nodes):
+        tau_c_i = collocation_nodes[i]
+        diff_matrix[i, :] = _compute_lagrange_derivative_coefficients_at_point(
+            state_nodes, bary_weights_state_nodes, tau_c_i
+        )
+
+    lagrange_at_tau_plus_one = _evaluate_lagrange_polynomial_at_point(
+        state_nodes, bary_weights_state_nodes, 1.0
+    )
+
+    return RadauBasisComponents(
+        state_approximation_nodes=state_nodes,
+        collocation_nodes=collocation_nodes,
+        quadrature_weights=quadrature_weights,
+        differentiation_matrix=diff_matrix,
+        barycentric_weights_for_state_nodes=bary_weights_state_nodes,
+        lagrange_at_tau_plus_one=lagrange_at_tau_plus_one,
+    )
