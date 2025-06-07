@@ -5,13 +5,12 @@ from typing import Any
 
 import numpy as np
 
-from ..input_validation import (
+from maptor.input_validation import (
     _validate_array_numerical_integrity,
     _validate_integral_values,
-    _validate_multiphase_initial_guess_structure,
 )
-from ..tl_types import FloatArray, MultiPhaseInitialGuess, PhaseID
-from .state import MultiPhaseVariableState
+from maptor.problem.state import MultiPhaseVariableState
+from maptor.tl_types import FloatArray, MultiPhaseInitialGuess, PhaseID
 
 
 def _validate_phase_exists(phases: dict[PhaseID, Any], phase_id: PhaseID) -> None:
@@ -146,38 +145,6 @@ class MultiPhaseInitialGuessRequirements:
         return "\n".join(req)
 
 
-class MultiPhaseSolverInputSummary:
-    def __init__(
-        self,
-        num_phases: int,
-        phase_summaries: dict[PhaseID, dict[str, Any]],
-        static_parameters_length: int,
-        initial_guess_source: str,
-    ) -> None:
-        self.num_phases = num_phases
-        self.phase_summaries = phase_summaries
-        self.static_parameters_length = static_parameters_length
-        self.initial_guess_source = initial_guess_source
-
-    def __str__(self) -> str:
-        summary = ["Multiphase Solver Input Summary:"]
-        summary.append(f"  Number of phases: {self.num_phases}")
-        summary.append(f"  Initial guess source: {self.initial_guess_source}")
-
-        for phase_id, phase_summary in self.phase_summaries.items():
-            summary.append(f"  Phase {phase_id}:")
-            summary.append(f"    Mesh intervals: {phase_summary.get('mesh_intervals', 0)}")
-            summary.append(f"    Polynomial degrees: {phase_summary.get('polynomial_degrees', [])}")
-            summary.append(
-                f"    Mesh points: {phase_summary.get('mesh_points_str', 'Not configured')}"
-            )
-
-        if self.static_parameters_length > 0:
-            summary.append(f"  Static parameters: {self.static_parameters_length}")
-
-        return "\n".join(summary)
-
-
 def _set_multiphase_initial_guess(
     current_guess_container: list,
     multiphase_state: MultiPhaseVariableState,
@@ -212,26 +179,3 @@ def _set_multiphase_initial_guess(
 
 def _can__validate_multiphase_initial_guess(multiphase_state: MultiPhaseVariableState) -> bool:
     return all(phase_def.mesh_configured for phase_def in multiphase_state.phases.values())
-
-
-def _validate_multiphase_initial_guess(
-    current_guess, multiphase_state: MultiPhaseVariableState
-) -> None:
-    if current_guess is None:
-        return
-
-    if not _can__validate_multiphase_initial_guess(multiphase_state):
-        raise ValueError(
-            "Cannot validate multiphase initial guess: all phases must have mesh configured first."
-        )
-
-    from typing import cast
-
-    from ..problem import Problem
-    from ..tl_types import ProblemProtocol
-
-    dummy_problem = Problem()
-    dummy_problem._multiphase_state = multiphase_state
-    _validate_multiphase_initial_guess_structure(
-        current_guess, cast(ProblemProtocol, dummy_problem)
-    )

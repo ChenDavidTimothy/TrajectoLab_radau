@@ -133,7 +133,6 @@ class HRefineResult:
     """Result of h-refinement."""
 
     collocation_nodes_for_new_subintervals: list[int]
-    num_new_subintervals: int
 
 
 @dataclass
@@ -141,7 +140,6 @@ class PReduceResult:
     """Result of p-reduction."""
 
     new_num_collocation_nodes: int
-    was_reduction_applied: bool
 
 
 def _ensure_2d_array(casadi_value: Any, expected_rows: int, expected_cols: int) -> FloatArray:

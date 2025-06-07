@@ -209,7 +209,7 @@ def _simulate_dynamics_for_phase_interval_error_estimation(
     ]
     | None = None,
 ) -> tuple[bool, FloatArray, FloatArray, FloatArray, FloatArray, FloatArray, FloatArray]:
-    valid, error_msg = _validate_simulation_preconditions(solution, phase_id, interval_idx)
+    valid, _ = _validate_simulation_preconditions(solution, phase_id, interval_idx)
     if not valid:
         empty = np.array([], dtype=np.float64)
         return False, empty, empty, empty, empty, empty, empty

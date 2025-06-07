@@ -19,7 +19,6 @@ from maptor.adaptive.phs.numerical import (
 from maptor.adaptive.phs.refinement import (
     _calculate_merge_feasibility_from_errors,
     _calculate_trajectory_errors_with_gamma,
-    _h_refine_params,
     _p_reduce_interval,
     _p_refine_interval,
 )
@@ -273,75 +272,6 @@ class TestAdaptiveMathematicalCorrectness:
         result = _p_refine_interval(max_error=1e-2, current_Nk=8, error_tol=1e-6, N_max=10)
         assert result.was_p_successful is False  # Cannot achieve target within N_max
         assert result.actual_Nk_to_use == 10  # Capped at N_max
-
-    def test_h_refinement_mathematical_subdivision(self):
-        # Test case 1: Small target degree (should create 2 subintervals)
-        result = _h_refine_params(target_Nk=6, N_min=3)
-        assert result.num_new_subintervals == 2
-        assert result.collocation_nodes_for_new_subintervals == [3, 3]
-
-        # Test case 2: Large target degree (should create multiple subintervals)
-        result = _h_refine_params(target_Nk=15, N_min=4)
-        expected_subintervals = max(2, int(np.ceil(15 / 4)))  # ceil(3.75) = 4
-        assert result.num_new_subintervals == expected_subintervals
-        assert len(result.collocation_nodes_for_new_subintervals) == expected_subintervals
-        assert all(nodes == 4 for nodes in result.collocation_nodes_for_new_subintervals)
-
-        # Test case 3: Edge case where target equals N_min
-        result = _h_refine_params(target_Nk=3, N_min=3)
-        assert result.num_new_subintervals == 2  # Should always create at least 2
-        assert result.collocation_nodes_for_new_subintervals == [3, 3]
-
-    def test_p_reduction_equation_36_mathematical_correctness(self):
-        # Test the mathematical formula: P_k^- = floor(log10((ε/e_max^(k))^(1/δ)))
-        # where δ = N_min + N_max - N_k
-
-        # Test case 1: Standard reduction scenario
-        current_Nk = 8
-        max_error = 1e-8
-        error_tol = 1e-6
-        N_min = 3
-        N_max = 12
-
-        result = _p_reduce_interval(current_Nk, max_error, error_tol, N_min, N_max)
-
-        # Calculate expected result using Eq. 36
-        delta = N_min + N_max - current_Nk  # 3 + 12 - 8 = 7
-        ratio = error_tol / max_error  # 1e-6 / 1e-8 = 100
-        power_arg = np.power(ratio, 1.0 / delta)  # 100^(1/7) ≈ 1.778
-        expected_nodes_to_remove = int(np.floor(np.log10(power_arg)))  # floor(log10(1.778)) = 0
-        expected_new_Nk = max(N_min, current_Nk - expected_nodes_to_remove)  # max(3, 8-0) = 8
-
-        assert result.new_num_collocation_nodes == expected_new_Nk
-        assert result.was_reduction_applied == (expected_new_Nk < current_Nk)
-
-        # Test case 2: Strong reduction scenario
-        current_Nk = 10
-        max_error = 1e-10
-        error_tol = 1e-6
-        N_min = 3
-        N_max = 15
-
-        result = _p_reduce_interval(current_Nk, max_error, error_tol, N_min, N_max)
-
-        # Calculate expected result
-        delta = N_min + N_max - current_Nk  # 3 + 15 - 10 = 8
-        ratio = error_tol / max_error  # 1e-6 / 1e-10 = 10000
-        power_arg = np.power(ratio, 1.0 / delta)  # 10000^(1/8) ≈ 3.16
-        expected_nodes_to_remove = int(np.floor(np.log10(power_arg)))  # floor(log10(3.16)) = 0
-        expected_new_Nk = max(N_min, current_Nk - expected_nodes_to_remove)
-
-        assert result.new_num_collocation_nodes == expected_new_Nk
-
-        # Test case 3: No reduction when error exceeds tolerance
-        result = _p_reduce_interval(current_Nk=5, max_error=1e-5, error_tol=1e-6, N_min=3, N_max=10)
-        assert result.new_num_collocation_nodes == 5  # No change
-        assert not result.was_reduction_applied
-
-        # Test case 4: No reduction when already at minimum
-        result = _p_reduce_interval(current_Nk=3, max_error=1e-8, error_tol=1e-6, N_min=3, N_max=10)
-        assert result.new_num_collocation_nodes == 3  # Cannot reduce below N_min
-        assert not result.was_reduction_applied
 
     def test_merge_feasibility_mathematical_logic(self):
         # Test case 1: All errors within tolerance

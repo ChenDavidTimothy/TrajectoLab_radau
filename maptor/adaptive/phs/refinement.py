@@ -92,7 +92,7 @@ def _p_refine_interval(
 
 def _h_refine_params(target_Nk: int, N_min: int) -> HRefineResult:
     num_subintervals = max(2, int(np.ceil(target_Nk / N_min)))
-    return HRefineResult([N_min] * num_subintervals, num_subintervals)
+    return HRefineResult([N_min] * num_subintervals)
 
 
 def _compute_p_reduce_delta(current_Nk: int, N_min: int, N_max: int) -> float:
@@ -115,13 +115,13 @@ def _p_reduce_interval(
     current_Nk: int, max_error: float, error_tol: float, N_min: int, N_max: int
 ) -> PReduceResult:
     if max_error > error_tol or current_Nk <= N_min:
-        return PReduceResult(current_Nk, False)
+        return PReduceResult(current_Nk)
 
     delta = _compute_p_reduce_delta(current_Nk, N_min, N_max)
     nodes_to_remove = _calculate_nodes_to_remove(error_tol, max_error, delta)
     new_Nk = max(N_min, current_Nk - max(0, nodes_to_remove))
 
-    return PReduceResult(new_Nk, new_Nk < current_Nk)
+    return PReduceResult(new_Nk)
 
 
 def _validate_merge_preconditions(
