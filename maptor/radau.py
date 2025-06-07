@@ -25,6 +25,9 @@ class RadauBasisComponents:
     barycentric_weights_for_state_nodes: FloatArray = field(
         default_factory=lambda: np.array([], dtype=np.float64)
     )
+    barycentric_weights_for_collocation_nodes: FloatArray = field(
+        default_factory=lambda: np.array([], dtype=np.float64)
+    )
     lagrange_at_tau_plus_one: FloatArray = field(
         default_factory=lambda: np.array([], dtype=np.float64)
     )
@@ -102,12 +105,11 @@ def _compute_legendre_gauss_radau_nodes_and_weights(
     )
 
 
-@functools.lru_cache(maxsize=128)
-def _compute_barycentric_weights_cached(nodes_tuple: tuple[float, ...]) -> tuple[float, ...]:
-    nodes = np.array(nodes_tuple, dtype=np.float64)
+def _compute_barycentric_weights(nodes: FloatArray) -> FloatArray:
+    """Direct barycentric weight computation without caching overhead."""
     num_nodes = len(nodes)
     if num_nodes == 1:
-        return (1.0,)
+        return np.array([1.0], dtype=np.float64)
 
     nodes_col = nodes[:, np.newaxis]
     nodes_row = nodes[np.newaxis, :]
@@ -133,13 +135,7 @@ def _compute_barycentric_weights_cached(nodes_tuple: tuple[float, ...]) -> tuple
         1.0 / products,
     )
 
-    return tuple(safe_products.astype(np.float64))
-
-
-def _compute_barycentric_weights(nodes: FloatArray) -> FloatArray:
-    nodes_tuple = tuple(float(x) for x in nodes)
-    weights_tuple = _compute_barycentric_weights_cached(nodes_tuple)
-    return np.array(weights_tuple, dtype=np.float64)
+    return safe_products.astype(np.float64)
 
 
 def _evaluate_lagrange_polynomial_at_point(
@@ -214,14 +210,11 @@ def _compute_lagrange_derivative_coefficients_at_point(
     return derivatives
 
 
-@functools.lru_cache(maxsize=128)
+@functools.lru_cache(maxsize=32)
 def _compute_radau_collocation_components(
     num_collocation_nodes: int,
 ) -> RadauBasisComponents:
-    """Get Radau components with professional LRU caching for massive speedup.
-
-    Centralized validation and caching for Radau pseudospectral basis components.
-    """
+    """Single cached function providing all Radau components with zero redundancy."""
     _validate_positive_integer(num_collocation_nodes, "collocation nodes")
 
     lgr_data = _compute_legendre_gauss_radau_nodes_and_weights(num_collocation_nodes)
@@ -234,6 +227,7 @@ def _compute_radau_collocation_components(
     num_actual_collocation_nodes = len(collocation_nodes)
 
     bary_weights_state_nodes = _compute_barycentric_weights(state_nodes)
+    bary_weights_collocation_nodes = _compute_barycentric_weights(collocation_nodes)
 
     diff_matrix = np.zeros((num_actual_collocation_nodes, num_state_nodes), dtype=np.float64)
     for i in range(num_actual_collocation_nodes):
@@ -252,6 +246,7 @@ def _compute_radau_collocation_components(
         quadrature_weights=quadrature_weights,
         differentiation_matrix=diff_matrix,
         barycentric_weights_for_state_nodes=bary_weights_state_nodes,
+        barycentric_weights_for_collocation_nodes=bary_weights_collocation_nodes,
         lagrange_at_tau_plus_one=lagrange_at_tau_plus_one,
     )
 

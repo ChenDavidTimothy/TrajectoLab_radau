@@ -24,7 +24,6 @@ from maptor.adaptive.phs.refinement import (
     _p_refine_interval,
 )
 from maptor.radau import (
-    _compute_barycentric_weights,
     _compute_radau_collocation_components,
     _evaluate_lagrange_interpolation_at_points,
 )
@@ -167,9 +166,12 @@ def _create_phase_evaluators(
 
         if controls_list is not None:
             control_data = controls_list[k]
-            control_weights = _compute_barycentric_weights(basis.collocation_nodes)
             control_evaluators.append(
-                _create_direct_evaluator(basis.collocation_nodes, control_weights, control_data)
+                _create_direct_evaluator(
+                    basis.collocation_nodes,
+                    basis.barycentric_weights_for_collocation_nodes,
+                    control_data,
+                )
             )
         else:
             control_evaluators.append(

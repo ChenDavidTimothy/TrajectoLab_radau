@@ -7,7 +7,6 @@ from maptor.adaptive.phs.numerical import (
 )
 from maptor.exceptions import ConfigurationError, DataIntegrityError, InterpolationError
 from maptor.radau import (
-    _compute_barycentric_weights,
     _compute_radau_collocation_components,
     _evaluate_lagrange_interpolation_at_points,
 )
@@ -135,7 +134,7 @@ def _interpolate_at_points(
             prev_weights = prev_basis.barycentric_weights_for_state_nodes
         else:
             prev_nodes = prev_basis.collocation_nodes
-            prev_weights = _compute_barycentric_weights(prev_nodes)
+            prev_weights = prev_basis.barycentric_weights_for_collocation_nodes
 
         prev_values = prev_trajectory_per_interval[prev_interval_idx]
 
