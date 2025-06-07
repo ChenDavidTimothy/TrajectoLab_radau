@@ -19,7 +19,7 @@ def _validate_phase_exists(phases: dict[PhaseID, Any], phase_id: PhaseID) -> Non
         raise ValueError(f"Phase {phase_id} does not exist in problem")
 
 
-def _validate_and_convert_arrays(arrays: Sequence[Any], array_type: str) -> list[np.ndarray]:
+def _validate_and_convert_arrays(arrays: Sequence[Any]) -> list[np.ndarray]:
     return [np.array(arr, dtype=np.float64) for arr in arrays]
 
 
@@ -63,7 +63,7 @@ def _validate_phase_states(
     if phase_states is not None:
         for phase_id, states_list in phase_states.items():
             _validate_phase_exists(phases, phase_id)
-            validated_states[phase_id] = _validate_and_convert_arrays(states_list, "states")
+            validated_states[phase_id] = _validate_and_convert_arrays(states_list)
     return validated_states
 
 
@@ -74,7 +74,7 @@ def _validate_phase_controls(
     if phase_controls is not None:
         for phase_id, controls_list in phase_controls.items():
             _validate_phase_exists(phases, phase_id)
-            validated_controls[phase_id] = _validate_and_convert_arrays(controls_list, "controls")
+            validated_controls[phase_id] = _validate_and_convert_arrays(controls_list)
     return validated_controls
 
 

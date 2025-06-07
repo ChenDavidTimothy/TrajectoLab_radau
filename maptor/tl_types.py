@@ -34,7 +34,6 @@ PhaseID: TypeAlias = int
 """Phase identifier for multiphase problems."""
 
 
-# EXTERNAL INTERFACE PROTOCOLS (Required)
 class ODESolverResult(Protocol):
     """Protocol for the result of ODE solvers like solve_ivp."""
 

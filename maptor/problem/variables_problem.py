@@ -88,7 +88,7 @@ class _SymbolicVariableBase:
     def __casadi_MX__(self) -> ca.MX:  # noqa: N802
         return self._symbolic_var
 
-    def __array_function__(self, func, types, args, kwargs):
+    def __array_function__(self, func, args, kwargs):
         converted_args = [self._symbolic_var if arg is self else arg for arg in args]
         return func(*converted_args, **kwargs)
 
