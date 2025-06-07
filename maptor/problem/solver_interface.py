@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import threading
 from collections.abc import Callable
-from typing import cast
+from typing import ClassVar, cast
 
 import casadi as ca
 import numpy as np
@@ -14,6 +15,136 @@ from .casadi_build import (
     _build_unified_symbol_substitution_map,
 )
 from .state import MultiPhaseVariableState, PhaseDefinition
+
+
+class _CasadiFunctionCache:
+    _instance: ClassVar[_CasadiFunctionCache | None] = None
+    _dynamics_cache: ClassVar[dict[str, ca.Function]] = {}
+    _integrand_cache: ClassVar[dict[str, list[ca.Function]]] = {}
+    _lock: ClassVar[threading.Lock] = threading.Lock()
+
+    def __new__(cls) -> _CasadiFunctionCache:
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def _get_dynamics_function(
+        self, phase_def: PhaseDefinition, static_parameter_symbols: list[ca.MX] | None
+    ) -> ca.Function:
+        cache_key = self._build_dynamics_cache_key(phase_def, static_parameter_symbols)
+
+        with self._lock:
+            if cache_key not in self._dynamics_cache:
+                func = self._compile_dynamics_function(phase_def, static_parameter_symbols)
+                self._dynamics_cache[cache_key] = func
+            return self._dynamics_cache[cache_key]
+
+    def _get_integrand_functions(
+        self, phase_def: PhaseDefinition, static_parameter_symbols: list[ca.MX] | None
+    ) -> list[ca.Function]:
+        cache_key = self._build_integrand_cache_key(phase_def, static_parameter_symbols)
+
+        with self._lock:
+            if cache_key not in self._integrand_cache:
+                funcs = self._compile_integrand_functions(phase_def, static_parameter_symbols)
+                self._integrand_cache[cache_key] = funcs
+            return self._integrand_cache[cache_key]
+
+    def _build_dynamics_cache_key(
+        self, phase_def: PhaseDefinition, static_parameter_symbols: list[ca.MX] | None
+    ) -> str:
+        # Content-based hash instead of memory address
+        dynamics_content = []
+        state_syms = phase_def._get_ordered_state_symbols()
+        for state_sym in state_syms:
+            if state_sym in phase_def.dynamics_expressions:
+                expr = phase_def.dynamics_expressions[state_sym]
+                dynamics_content.append(str(expr))
+            else:
+                dynamics_content.append("0")
+
+        static_params_str = (
+            "_".join(f"p{i}" for i in range(len(static_parameter_symbols)))
+            if static_parameter_symbols
+            else "no_params"
+        )
+
+        return f"dynamics_p{phase_def.phase_id}_states{len(state_syms)}_{hash(tuple(dynamics_content))}_{static_params_str}"
+
+    def _build_integrand_cache_key(
+        self, phase_def: PhaseDefinition, static_parameter_symbols: list[ca.MX] | None
+    ) -> str:
+        integral_content = [str(expr) for expr in phase_def.integral_expressions]
+
+        static_params_str = (
+            "_".join(f"p{i}" for i in range(len(static_parameter_symbols)))
+            if static_parameter_symbols
+            else "no_params"
+        )
+
+        return f"integrals_p{phase_def.phase_id}_count{len(integral_content)}_{hash(tuple(integral_content))}_{static_params_str}"
+
+    def _compile_dynamics_function(
+        self, phase_def: PhaseDefinition, static_parameter_symbols: list[ca.MX] | None
+    ) -> ca.Function:
+        states_vec, controls_vec, time, static_params_vec, function_inputs = (
+            _build_unified_casadi_function_inputs(phase_def, static_parameter_symbols)
+        )
+
+        subs_map = _build_static_parameter_substitution_map(
+            static_parameter_symbols, static_params_vec
+        )
+
+        state_syms = phase_def._get_ordered_state_symbols()
+        dynamics_expr = []
+        for state_sym in state_syms:
+            if state_sym in phase_def.dynamics_expressions:
+                expr = phase_def.dynamics_expressions[state_sym]
+                casadi_expr = ca.MX(expr) if not isinstance(expr, ca.MX) else expr
+
+                if subs_map:
+                    casadi_expr = ca.substitute(
+                        [casadi_expr], list(subs_map.keys()), list(subs_map.values())
+                    )[0]
+
+                dynamics_expr.append(casadi_expr)
+            else:
+                dynamics_expr.append(ca.MX(0))
+
+        dynamics_vec = ca.vertcat(*dynamics_expr) if dynamics_expr else ca.MX()
+        return ca.Function(f"dynamics_p{phase_def.phase_id}", function_inputs, [dynamics_vec])
+
+    def _compile_integrand_functions(
+        self, phase_def: PhaseDefinition, static_parameter_symbols: list[ca.MX] | None
+    ) -> list[ca.Function]:
+        states_vec, controls_vec, time, static_params_vec, function_inputs = (
+            _build_unified_casadi_function_inputs(phase_def, static_parameter_symbols)
+        )
+
+        subs_map = _build_static_parameter_substitution_map(
+            static_parameter_symbols, static_params_vec
+        )
+
+        integrand_funcs = []
+        for i, expr in enumerate(phase_def.integral_expressions):
+            processed_expr = expr
+            if subs_map:
+                processed_expr = ca.substitute(
+                    [expr], list(subs_map.keys()), list(subs_map.values())
+                )[0]
+
+            integrand_funcs.append(
+                ca.Function(
+                    f"integrand_{i}_p{phase_def.phase_id}", function_inputs, [processed_expr]
+                )
+            )
+
+        return integrand_funcs
+
+
+_casadi_cache = _CasadiFunctionCache()
 
 
 def _get_static_param_count(static_parameter_symbols: list[ca.MX] | None) -> int:
@@ -38,30 +169,7 @@ def _extract_dynamics_output(result, phase_id: PhaseID) -> ca.MX:
 def _build_dynamics_casadi_function(
     phase_def: PhaseDefinition, static_parameter_symbols: list[ca.MX] | None
 ) -> ca.Function:
-    states_vec, controls_vec, time, static_params_vec, function_inputs = (
-        _build_unified_casadi_function_inputs(phase_def, static_parameter_symbols)
-    )
-
-    subs_map = _build_static_parameter_substitution_map(static_parameter_symbols, static_params_vec)
-
-    state_syms = phase_def._get_ordered_state_symbols()
-    dynamics_expr = []
-    for state_sym in state_syms:
-        if state_sym in phase_def.dynamics_expressions:
-            expr = phase_def.dynamics_expressions[state_sym]
-            casadi_expr = ca.MX(expr) if not isinstance(expr, ca.MX) else expr
-
-            if subs_map:
-                casadi_expr = ca.substitute(
-                    [casadi_expr], list(subs_map.keys()), list(subs_map.values())
-                )[0]
-
-            dynamics_expr.append(casadi_expr)
-        else:
-            dynamics_expr.append(ca.MX(0))
-
-    dynamics_vec = ca.vertcat(*dynamics_expr) if dynamics_expr else ca.MX()
-    return ca.Function(f"dynamics_p{phase_def.phase_id}", function_inputs, [dynamics_vec])
+    return _casadi_cache._get_dynamics_function(phase_def, static_parameter_symbols)
 
 
 def _create_dynamics(
@@ -205,25 +313,7 @@ def _build_multiphase_objective_function(
 def _build_integrand_casadi_functions(
     phase_def: PhaseDefinition, static_parameter_symbols: list[ca.MX] | None
 ) -> list[ca.Function]:
-    states_vec, controls_vec, time, static_params_vec, function_inputs = (
-        _build_unified_casadi_function_inputs(phase_def, static_parameter_symbols)
-    )
-
-    subs_map = _build_static_parameter_substitution_map(static_parameter_symbols, static_params_vec)
-
-    integrand_funcs = []
-    for i, expr in enumerate(phase_def.integral_expressions):
-        processed_expr = expr
-        if subs_map:
-            processed_expr = ca.substitute([expr], list(subs_map.keys()), list(subs_map.values()))[
-                0
-            ]
-
-        integrand_funcs.append(
-            ca.Function(f"integrand_{i}_p{phase_def.phase_id}", function_inputs, [processed_expr])
-        )
-
-    return integrand_funcs
+    return _casadi_cache._get_integrand_functions(phase_def, static_parameter_symbols)
 
 
 def _create_integrand(
