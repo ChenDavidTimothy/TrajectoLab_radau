@@ -416,6 +416,10 @@ def _h_reduce_intervals(
     if numerical_dynamics_function is None:
         numerical_dynamics_function = problem._get_phase_numerical_dynamics_function(phase_id)
 
+    assert numerical_dynamics_function is not None, (
+        f"Failed to get numerical dynamics function for phase {phase_id}"
+    )
+
     t0, tf, alpha, alpha_0 = _extract_merge_time_parameters(solution, phase_id)
 
     try:

@@ -219,6 +219,9 @@ def _simulate_dynamics_for_phase_interval_error_estimation(
     if numerical_dynamics_function is None:
         numerical_dynamics_function = problem._get_phase_numerical_dynamics_function(phase_id)
 
+    assert numerical_dynamics_function is not None, (
+        f"Failed to get numerical dynamics function for phase {phase_id}"
+    )
     alpha, alpha_0, _ = _extract_time_parameters(solution, phase_id)
 
     try:
