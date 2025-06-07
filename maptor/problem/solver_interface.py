@@ -92,7 +92,7 @@ def _create_numerical_dynamics(
         if static_parameters is None:
             static_params_array = np.zeros(max(1, num_static_params), dtype=np.float64)
         else:
-            static_params_array = np.asarray(static_parameters, dtype=np.float64)
+            static_params_array = np.asarray(static_parameters, dtype=np.float64).flatten()
 
         states_array = np.asarray(states, dtype=np.float64)
         controls_array = np.asarray(controls, dtype=np.float64)
@@ -101,7 +101,7 @@ def _create_numerical_dynamics(
         result = dynamics_func(states_array, controls_array, time_scalar, static_params_array)
 
         if hasattr(result, "full"):
-            return np.asarray(result.full(), dtype=np.float64).flatten()
+            return np.asarray(result.full(), dtype=np.float64).flatten()  # type: ignore[attr-defined]
         else:
             return np.asarray(result, dtype=np.float64).flatten()
 
