@@ -222,7 +222,9 @@ def _estimate_phase_errors(
     control_evaluators: Sequence[Callable[[float | FloatArray], FloatArray] | None],
     adaptive_params: AdaptiveParameters,
     gamma_factors: FloatArray,
-    phase_dynamics_function: Callable[..., any],
+    numerical_dynamics_function: Callable[
+        [FloatArray, FloatArray, float, FloatArray | None], FloatArray
+    ],
 ) -> list[float]:
     phase_def = problem._phases[phase_id]
     polynomial_degrees = phase_def.collocation_points_per_interval
@@ -254,7 +256,7 @@ def _estimate_phase_errors(
             control_eval,
             adaptive_params._get_ode_solver(),
             n_eval_points=adaptive_params.num_error_sim_points,
-            phase_dynamics_function=phase_dynamics_function,
+            numerical_dynamics_function=numerical_dynamics_function,
         )
 
         error = _calculate_relative_error_estimate(
@@ -351,7 +353,9 @@ def _check_merge_feasibility(
     solution: OptimalControlSolution,
     adaptive_params: AdaptiveParameters,
     gamma_factors: FloatArray,
-    phase_dynamics_function: Callable[..., any],
+    numerical_dynamics_function: Callable[
+        [FloatArray, FloatArray, float, FloatArray | None], FloatArray
+    ],
 ) -> bool:
     if (k + 1) not in intervals_for_reduction or (k + 1) >= num_intervals:
         return False
@@ -377,7 +381,7 @@ def _check_merge_feasibility(
         control_eval_k,
         state_eval_k_plus_1,
         control_eval_k_plus_1,
-        phase_dynamics_function,
+        numerical_dynamics_function,
     )
 
 
@@ -392,7 +396,9 @@ def _identify_merge_candidates(
     state_evaluators: list[Callable],
     control_evaluators: list[Callable],
     gamma_factors: FloatArray,
-    phase_dynamics_function: Callable[..., any],
+    numerical_dynamics_function: Callable[
+        [FloatArray, FloatArray, float, FloatArray | None], FloatArray
+    ],
 ) -> list[MergeCandidate]:
     merge_candidates = []
 
@@ -408,7 +414,7 @@ def _identify_merge_candidates(
             solution,
             adaptive_params,
             gamma_factors,
-            phase_dynamics_function,
+            numerical_dynamics_function,
         ):
             continue
 
@@ -574,7 +580,9 @@ def _refine_phase_mesh(
     state_evaluators: list[Callable[[float | FloatArray], FloatArray]],
     control_evaluators: list[Callable[[float | FloatArray], FloatArray]],
     gamma_factors: FloatArray,
-    phase_dynamics_function: Callable[..., any],
+    numerical_dynamics_function: Callable[
+        [FloatArray, FloatArray, float, FloatArray | None], FloatArray
+    ],
 ) -> tuple[list[int], FloatArray]:
     intervals_needing_refinement, intervals_for_reduction = _classify_intervals_by_error(
         polynomial_degrees, errors, adaptive_params
@@ -595,7 +603,7 @@ def _refine_phase_mesh(
         state_evaluators,
         control_evaluators,
         gamma_factors,
-        phase_dynamics_function,
+        numerical_dynamics_function,
     )
 
     approved_merges, merged_intervals = _select_approved_merges(merge_candidates)
@@ -693,7 +701,9 @@ def _process_single_phase_convergence(
     adaptive_state: MultiphaseAdaptiveState,
     final_phase_errors: dict[PhaseID, list[float]],
     final_gamma_factors: dict[PhaseID, FloatArray | None],
-    phase_dynamics_function: Callable[..., any],
+    numerical_dynamics_function: Callable[
+        [FloatArray, FloatArray, float, FloatArray | None], FloatArray
+    ],
 ) -> bool:
     gamma_factors = _calculate_gamma_normalizers_for_phase(solution, problem, phase_id)
     num_states, _ = problem._get_phase_variable_counts(phase_id)
@@ -719,7 +729,7 @@ def _process_single_phase_convergence(
         control_evaluators,
         adaptive_params,
         safe_gamma,
-        phase_dynamics_function,
+        numerical_dynamics_function,
     )
 
     final_phase_errors[phase_id] = phase_errors.copy()
@@ -749,7 +759,7 @@ def _process_single_phase_convergence(
             state_evaluators,
             control_evaluators,
             safe_gamma,
-            phase_dynamics_function,
+            numerical_dynamics_function,
         )
         return True
 
@@ -763,12 +773,14 @@ def _check_convergence_across_phases(
     adaptive_state: MultiphaseAdaptiveState,
     final_phase_errors: dict[PhaseID, list[float]],
     final_gamma_factors: dict[PhaseID, FloatArray | None],
-    phase_dynamics_functions: dict[PhaseID, Callable[..., any]],
+    numerical_dynamics_functions: dict[
+        PhaseID, Callable[[FloatArray, FloatArray, float, FloatArray | None], FloatArray]
+    ],
 ) -> bool:
     any_phase_needs_refinement = False
 
     for phase_id in problem._get_phase_ids():
-        phase_dynamics_function = phase_dynamics_functions[phase_id]
+        numerical_dynamics_function = numerical_dynamics_functions[phase_id]
         phase_needs_refinement = _process_single_phase_convergence(
             phase_id,
             solution,
@@ -777,7 +789,7 @@ def _check_convergence_across_phases(
             adaptive_state,
             final_phase_errors,
             final_gamma_factors,
-            phase_dynamics_function,
+            numerical_dynamics_function,
         )
         if phase_needs_refinement:
             any_phase_needs_refinement = True
@@ -904,9 +916,11 @@ def solve_multiphase_phs_adaptive_internal(
         _extract_multiphase_solution_trajectories(solution, problem)
         adaptive_state.most_recent_unified_solution = solution
 
-        phase_dynamics_functions = {}
+        numerical_dynamics_functions = {}
         for phase_id in problem._get_phase_ids():
-            phase_dynamics_functions[phase_id] = problem._get_phase_dynamics_function(phase_id)
+            numerical_dynamics_functions[phase_id] = problem._get_phase_numerical_dynamics_function(
+                phase_id
+            )
 
         any_phase_needs_refinement = _check_convergence_across_phases(
             problem,
@@ -915,7 +929,7 @@ def solve_multiphase_phs_adaptive_internal(
             adaptive_state,
             final_phase_errors,
             final_gamma_factors,
-            phase_dynamics_functions,
+            numerical_dynamics_functions,
         )
 
         if not any_phase_needs_refinement:

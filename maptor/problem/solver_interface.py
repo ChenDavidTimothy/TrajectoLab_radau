@@ -4,8 +4,9 @@ from collections.abc import Callable
 from typing import cast
 
 import casadi as ca
+import numpy as np
 
-from ..tl_types import PhaseID
+from ..tl_types import FloatArray, PhaseID
 from .casadi_build import (
     _build_static_parameter_substitution_map,
     _build_unified_casadi_function_inputs,
@@ -79,12 +80,48 @@ def _create_dynamics(
     return _dynamics
 
 
+def _create_numerical_dynamics(
+    dynamics_func: ca.Function, num_static_params: int
+) -> Callable[[FloatArray, FloatArray, float, FloatArray | None], FloatArray]:
+    def _numerical_dynamics(
+        states: FloatArray,
+        controls: FloatArray,
+        time: float,
+        static_parameters: FloatArray | None = None,
+    ) -> FloatArray:
+        if static_parameters is None:
+            static_params_array = np.zeros(max(1, num_static_params), dtype=np.float64)
+        else:
+            static_params_array = np.asarray(static_parameters, dtype=np.float64)
+
+        states_array = np.asarray(states, dtype=np.float64)
+        controls_array = np.asarray(controls, dtype=np.float64)
+        time_scalar = float(time)
+
+        result = dynamics_func(states_array, controls_array, time_scalar, static_params_array)
+
+        if hasattr(result, "full"):
+            return np.asarray(result.full(), dtype=np.float64).flatten()
+        else:
+            return np.asarray(result, dtype=np.float64).flatten()
+
+    return _numerical_dynamics
+
+
 def _build_phase_dynamics_function(
     phase_def: PhaseDefinition, static_parameter_symbols: list[ca.MX] | None = None
 ) -> Callable[..., ca.MX]:
     dynamics_func = _build_dynamics_casadi_function(phase_def, static_parameter_symbols)
     num_static_params = _get_static_param_count(static_parameter_symbols)
     return _create_dynamics(dynamics_func, phase_def, num_static_params)
+
+
+def _build_phase_numerical_dynamics_function(
+    phase_def: PhaseDefinition, static_parameter_symbols: list[ca.MX] | None = None
+) -> Callable[[FloatArray, FloatArray, float, FloatArray | None], FloatArray]:
+    dynamics_func = _build_dynamics_casadi_function(phase_def, static_parameter_symbols)
+    num_static_params = _get_static_param_count(static_parameter_symbols)
+    return _create_numerical_dynamics(dynamics_func, num_static_params)
 
 
 def _build_objective_casadi_function(multiphase_state: MultiPhaseVariableState) -> ca.Function:

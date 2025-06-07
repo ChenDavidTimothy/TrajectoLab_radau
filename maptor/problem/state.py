@@ -178,10 +178,12 @@ class PhaseDefinition:
 
     symbolic_boundary_constraints: list[tuple[str, str, ca.MX]] = field(default_factory=list)
 
-    # Pre-built functions
     _dynamics_function: Callable[..., ca.MX] | None = None
     _integrand_function: Callable[..., ca.MX] | None = None
     _path_constraints_function: Callable[..., list] | None = None
+    _numerical_dynamics_function: (
+        Callable[[FloatArray, FloatArray, float, FloatArray | None], FloatArray] | None
+    ) = None
     _functions_built: bool = False
 
     def _create_state_variable_info(
@@ -393,7 +395,6 @@ class MultiPhaseVariableState:
     cross_phase_constraints: list[ca.MX] = field(default_factory=list)
     objective_expression: ca.MX | None = None
 
-    # Pre-built functions
     _objective_function: Callable[..., ca.MX] | None = None
     _cross_phase_constraints_function: Callable[..., list] | None = None
     _functions_built: bool = False

@@ -2,7 +2,6 @@ import logging
 from collections.abc import Callable
 from typing import cast
 
-import casadi as ca
 import numpy as np
 
 from maptor.adaptive.phs.data_structures import (
@@ -12,7 +11,6 @@ from maptor.adaptive.phs.data_structures import (
     PRefineResult,
     _ensure_2d_array,
 )
-from maptor.adaptive.phs.error_estimation import _convert_casadi_dynamics_result_to_numpy
 from maptor.adaptive.phs.numerical import (
     _map_local_interval_tau_to_global_normalized_tau,
     _map_local_tau_from_interval_k_plus_1_to_equivalent_in_interval_k,
@@ -175,8 +173,10 @@ def _create_control_evaluator(
     return _get_control_value
 
 
-def _create_merged_dynamics_functions(
-    phase_dynamics_function: Callable[..., ca.MX],
+def _create_merged_numerical_dynamics_functions(
+    numerical_dynamics_function: Callable[
+        [FloatArray, FloatArray, float, FloatArray | None], FloatArray
+    ],
     control_evaluator_first: Callable[[float | FloatArray], FloatArray] | None,
     control_evaluator_second: Callable[[float | FloatArray], FloatArray] | None,
     alpha: float,
@@ -186,7 +186,7 @@ def _create_merged_dynamics_functions(
     tau_end_kp1: float,
     beta_k: float,
     beta_kp1: float,
-    num_states: int,
+    static_parameters: FloatArray | None,
 ) -> tuple[Callable[[float, FloatArray], FloatArray], Callable[[float, FloatArray], FloatArray]]:
     get_control_first = _create_control_evaluator(control_evaluator_first)
     get_control_second = _create_control_evaluator(control_evaluator_second)
@@ -199,20 +199,24 @@ def _create_merged_dynamics_functions(
         global_tau = _map_local_interval_tau_to_global_normalized_tau(
             local_tau_k, tau_start_k, tau_shared
         )
-        dynamics_result = phase_dynamics_function(
-            ca.MX(np.clip(state, -1e6, 1e6)), ca.MX(u_val), ca.MX(alpha * global_tau + alpha_0)
+        physical_time = alpha * global_tau + alpha_0
+
+        state_deriv_np = numerical_dynamics_function(
+            np.clip(state, -1e6, 1e6), u_val, physical_time, static_parameters
         )
-        return scaling_k * _convert_casadi_dynamics_result_to_numpy(dynamics_result, num_states)
+        return scaling_k * state_deriv_np
 
     def merged_bwd_rhs(local_tau_kp1: float, state: FloatArray) -> FloatArray:
         u_val = get_control_second(local_tau_kp1)
         global_tau = _map_local_interval_tau_to_global_normalized_tau(
             local_tau_kp1, tau_shared, tau_end_kp1
         )
-        dynamics_result = phase_dynamics_function(
-            ca.MX(np.clip(state, -1e6, 1e6)), ca.MX(u_val), ca.MX(alpha * global_tau + alpha_0)
+        physical_time = alpha * global_tau + alpha_0
+
+        state_deriv_np = numerical_dynamics_function(
+            np.clip(state, -1e6, 1e6), u_val, physical_time, static_parameters
         )
-        return scaling_kp1 * _convert_casadi_dynamics_result_to_numpy(dynamics_result, num_states)
+        return scaling_kp1 * state_deriv_np
 
     return merged_fwd_rhs, merged_bwd_rhs
 
@@ -399,15 +403,18 @@ def _h_reduce_intervals(
     control_evaluator_first: Callable[[float | FloatArray], FloatArray] | None,
     state_evaluator_second: Callable[[float | FloatArray], FloatArray],
     control_evaluator_second: Callable[[float | FloatArray], FloatArray] | None,
-    phase_dynamics_function: Callable[..., ca.MX] | None = None,
+    numerical_dynamics_function: Callable[
+        [FloatArray, FloatArray, float, FloatArray | None], FloatArray
+    ]
+    | None = None,
 ) -> bool:
     if not _validate_merge_preconditions(solution, phase_id, first_idx):
         return False
 
     num_states, _ = problem._get_phase_variable_counts(phase_id)
 
-    if phase_dynamics_function is None:
-        phase_dynamics_function = problem._get_phase_dynamics_function(phase_id)
+    if numerical_dynamics_function is None:
+        numerical_dynamics_function = problem._get_phase_numerical_dynamics_function(phase_id)
 
     t0, tf, alpha, alpha_0 = _extract_merge_time_parameters(solution, phase_id)
 
@@ -418,8 +425,12 @@ def _h_reduce_intervals(
     except ValueError:
         return False
 
-    merged_fwd_rhs, merged_bwd_rhs = _create_merged_dynamics_functions(
-        phase_dynamics_function,
+    static_parameters = None
+    if hasattr(solution, "static_parameters") and solution.static_parameters is not None:
+        static_parameters = np.asarray(solution.static_parameters, dtype=np.float64)
+
+    merged_fwd_rhs, merged_bwd_rhs = _create_merged_numerical_dynamics_functions(
+        numerical_dynamics_function,
         control_evaluator_first,
         control_evaluator_second,
         alpha,
@@ -429,7 +440,7 @@ def _h_reduce_intervals(
         tau_end_kp1,
         beta_k,
         beta_kp1,
-        num_states,
+        static_parameters,
     )
 
     try:

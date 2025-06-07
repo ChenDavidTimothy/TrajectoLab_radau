@@ -148,6 +148,12 @@ def _build_all_phase_functions(multiphase_state: MultiPhaseVariableState) -> Non
             phase_def, static_parameter_symbols
         )
 
+        phase_def._numerical_dynamics_function = (
+            solver_interface._build_phase_numerical_dynamics_function(
+                phase_def, static_parameter_symbols
+            )
+        )
+
         phase_def._integrand_function = solver_interface._build_phase_integrand_function(
             phase_def, static_parameter_symbols
         )
@@ -1283,6 +1289,17 @@ class Problem:
             )
 
         return phase_def._dynamics_function
+
+    def _get_phase_numerical_dynamics_function(self, phase_id: PhaseID) -> Any:
+        _validate_phase_exists(self._multiphase_state.phases, phase_id)
+        phase_def = self._multiphase_state.phases[phase_id]
+
+        if phase_def._numerical_dynamics_function is None:
+            raise ValueError(
+                f"Phase {phase_id} numerical dynamics function not built - call validate_multiphase_configuration() first"
+            )
+
+        return phase_def._numerical_dynamics_function
 
     def _get_objective_function(self) -> Any:
         if self._multiphase_state._objective_function is None:

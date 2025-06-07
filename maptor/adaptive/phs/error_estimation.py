@@ -2,7 +2,6 @@ import logging
 from collections.abc import Callable
 from typing import cast
 
-import casadi as ca
 import numpy as np
 
 from maptor.tl_types import (
@@ -95,16 +94,6 @@ def _calculate_combined_error_estimate(
     return _apply_error_bounds(max_error)
 
 
-def _convert_casadi_dynamics_result_to_numpy(dynamics_result: ca.MX, num_states: int) -> FloatArray:
-    if isinstance(dynamics_result, ca.MX):
-        result_dm = ca.evalf(dynamics_result)
-        return np.array(result_dm.full(), dtype=np.float64).flatten()
-    elif isinstance(dynamics_result, list):
-        return np.array([float(ca.evalf(expr)) for expr in dynamics_result], dtype=np.float64)
-    else:
-        raise ValueError(f"Unsupported dynamics result type: {type(dynamics_result)}")
-
-
 def _validate_simulation_preconditions(
     solution: OptimalControlSolution, phase_id: PhaseID, interval_idx: int
 ) -> tuple[bool, str]:
@@ -147,15 +136,17 @@ def _extract_interval_parameters(
     return tau_start, tau_end, beta_k, beta_k0
 
 
-def _create_dynamics_rhs(
-    phase_dynamics_function: Callable,
+def _create_numerical_dynamics_rhs(
+    numerical_dynamics_function: Callable[
+        [FloatArray, FloatArray, float, FloatArray | None], FloatArray
+    ],
     control_evaluator: Callable,
     alpha: float,
     alpha_0: float,
     beta_k: float,
     beta_k0: float,
     overall_scaling: float,
-    num_states: int,
+    static_parameters: FloatArray | None,
 ) -> Callable[[float, FloatArray], FloatArray]:
     def dynamics_rhs(tau: float, state: FloatArray) -> FloatArray:
         control = (
@@ -165,10 +156,10 @@ def _create_dynamics_rhs(
         )
         global_tau = beta_k * tau + beta_k0
         physical_time = alpha * global_tau + alpha_0
-        dynamics_result = phase_dynamics_function(
-            ca.MX(state), ca.MX(control), ca.MX(physical_time)
+
+        state_deriv_np = numerical_dynamics_function(
+            state, control, physical_time, static_parameters
         )
-        state_deriv_np = _convert_casadi_dynamics_result_to_numpy(dynamics_result, num_states)
         return overall_scaling * state_deriv_np
 
     return dynamics_rhs
@@ -213,7 +204,10 @@ def _simulate_dynamics_for_phase_interval_error_estimation(
     control_evaluator: Callable[[float | FloatArray], FloatArray],
     ode_solver: ODESolverCallable,
     n_eval_points: int = 50,
-    phase_dynamics_function: Callable[..., any] | None = None,
+    numerical_dynamics_function: Callable[
+        [FloatArray, FloatArray, float, FloatArray | None], FloatArray
+    ]
+    | None = None,
 ) -> tuple[bool, FloatArray, FloatArray, FloatArray, FloatArray, FloatArray, FloatArray]:
     valid, error_msg = _validate_simulation_preconditions(solution, phase_id, interval_idx)
     if not valid:
@@ -222,8 +216,8 @@ def _simulate_dynamics_for_phase_interval_error_estimation(
 
     num_states, _ = problem._get_phase_variable_counts(phase_id)
 
-    if phase_dynamics_function is None:
-        phase_dynamics_function = problem._get_phase_dynamics_function(phase_id)
+    if numerical_dynamics_function is None:
+        numerical_dynamics_function = problem._get_phase_numerical_dynamics_function(phase_id)
 
     alpha, alpha_0, _ = _extract_time_parameters(solution, phase_id)
 
@@ -237,15 +231,19 @@ def _simulate_dynamics_for_phase_interval_error_estimation(
 
     overall_scaling = alpha * beta_k
 
-    dynamics_rhs = _create_dynamics_rhs(
-        phase_dynamics_function,
+    static_parameters = None
+    if hasattr(solution, "static_parameters") and solution.static_parameters is not None:
+        static_parameters = np.asarray(solution.static_parameters, dtype=np.float64)
+
+    dynamics_rhs = _create_numerical_dynamics_rhs(
+        numerical_dynamics_function,
         control_evaluator,
         alpha,
         alpha_0,
         beta_k,
         beta_k0,
         overall_scaling,
-        num_states,
+        static_parameters,
     )
 
     initial_state, terminal_state = _extract_boundary_states(state_evaluator)
