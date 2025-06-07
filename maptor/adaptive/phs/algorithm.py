@@ -891,10 +891,6 @@ def solve_multiphase_phs_adaptive_internal(
 
         adaptive_state._configure_problem_meshes(problem)
 
-        problem._multiphase_state._functions_built = False
-        for phase_def in problem._phases.values():
-            phase_def._functions_built = False
-
         problem.validate_multiphase_configuration()
 
         _configure_initial_guess(iteration, problem, initial_guess, adaptive_state)
