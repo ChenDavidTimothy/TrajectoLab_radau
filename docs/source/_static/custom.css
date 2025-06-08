@@ -663,3 +663,112 @@ dd {
   white-space: nowrap !important;
   border: 0 !important;
 }
+
+
+/* ============================================================================
+   BRAND BANNER INTEGRATION
+   ============================================================================ */
+
+/* Main brand banner styling */
+.maptor-banner {
+  display: block !important;
+  max-width: 800px !important;
+  width: 100% !important;
+  height: auto !important;
+  margin: 0 auto var(--maptor-space-xl) auto !important;
+  background-color: transparent !important;
+  border-radius: 8px !important;
+  box-shadow: var(--maptor-shadow-md) !important;
+}
+
+/* Banner in main content area */
+.rst-content .maptor-banner {
+  margin: var(--maptor-space-xl) auto !important;
+}
+
+/* Banner in sidebar header */
+.wy-side-nav-search .maptor-banner {
+  max-width: 200px !important;
+  margin: var(--maptor-space-sm) auto !important;
+  box-shadow: none !important;
+}
+
+/* Banner as page header */
+.page-header-banner {
+  display: block !important;
+  max-width: 600px !important;
+  width: 100% !important;
+  margin: 0 auto var(--maptor-space-lg) auto !important;
+  padding: var(--maptor-space-md) 0 !important;
+}
+
+/* Banner in navigation top */
+.wy-nav-top .maptor-banner {
+  max-width: 150px !important;
+  height: 40px !important;
+  margin: var(--maptor-space-xs) auto !important;
+  box-shadow: none !important;
+}
+
+/* Index page hero banner */
+.hero-banner {
+  text-align: center !important;
+  padding: var(--maptor-space-xl) 0 !important;
+  margin-bottom: var(--maptor-space-2xl) !important;
+  border-bottom: 1px solid var(--maptor-border-primary) !important;
+}
+
+.hero-banner .maptor-banner {
+  max-width: 700px !important;
+  margin-bottom: var(--maptor-space-lg) !important;
+}
+
+/* Responsive banner behavior */
+@media (max-width: 768px) {
+  .maptor-banner {
+    max-width: 90% !important;
+    margin: var(--maptor-space-md) auto !important;
+  }
+
+  .hero-banner .maptor-banner {
+    max-width: 100% !important;
+  }
+
+  .wy-side-nav-search .maptor-banner {
+    max-width: 180px !important;
+  }
+
+  .page-header-banner {
+    max-width: 100% !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .maptor-banner {
+    max-width: 95% !important;
+  }
+
+  .wy-side-nav-search .maptor-banner {
+    max-width: 160px !important;
+  }
+}
+
+/* Banner container for flexible positioning */
+.banner-container {
+  text-align: center !important;
+  width: 100% !important;
+  margin: var(--maptor-space-lg) 0 !important;
+}
+
+.banner-container .maptor-banner {
+  margin: 0 auto !important;
+}
+
+/* Hide banner on print */
+@media print {
+  .maptor-banner,
+  .hero-banner,
+  .banner-container {
+    display: none !important;
+  }
+}

@@ -1,7 +1,6 @@
 import sys
 from pathlib import Path
 
-
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
@@ -71,6 +70,24 @@ autodoc_member_order = "bysource"
 html_theme = "sphinx_rtd_theme"
 html_static_path = ["_static"]
 html_css_files = ["custom.css"]  # Load custom CSS
+
+# Brand integration - Professional logo placement
+html_logo = "_static/MAPTOR_banner.svg"
+html_title = "MAPTOR Documentation"
+
+# Theme options for better branding
+html_theme_options = {
+    "logo_only": False,
+    "display_version": True,
+    "prev_next_buttons_location": "bottom",
+    "style_external_links": False,
+    "style_nav_header_background": "#2d2d2d",
+    "collapse_navigation": False,
+    "sticky_navigation": True,
+    "navigation_depth": 4,
+    "includehidden": True,
+    "titles_only": False,
+}
 
 # Intersphinx mapping - Added proper mappings
 intersphinx_mapping = {
