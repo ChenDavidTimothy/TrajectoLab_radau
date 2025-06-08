@@ -78,6 +78,44 @@
 }
 
 /* ============================================================================
+   RTD DROPDOWN MENU FIX - Add after line 82 in existing custom.css
+   ============================================================================ */
+
+/* Fix all toctree levels in dropdowns */
+.wy-menu-vertical li.toctree-l2 a,
+.wy-menu-vertical li.toctree-l3 a,
+.wy-menu-vertical li.toctree-l4 a {
+  color: #d1d5db !important;
+  background: transparent !important;
+}
+
+.wy-menu-vertical li.toctree-l2.current a,
+.wy-menu-vertical li.toctree-l3.current a,
+.wy-menu-vertical li.toctree-l4.current a {
+  color: #e5e7eb !important;
+  background: rgba(153, 27, 27, 0.05) !important;
+}
+
+/* Hover states for dropdown items */
+.wy-menu-vertical li.toctree-l2 a:hover,
+.wy-menu-vertical li.toctree-l3 a:hover,
+.wy-menu-vertical li.toctree-l4 a:hover {
+  background: #374151 !important;
+  color: #e5e7eb !important;
+}
+
+/* Force dropdown container background */
+.wy-menu-vertical .wy-menu-vertical-nav {
+  background: #2d2d2d !important;
+}
+
+/* Target any remaining white text in menus */
+.wy-menu-vertical a[style*="color: white"],
+.wy-menu-vertical a[style*="color: #fff"] {
+  color: #d1d5db !important;
+}
+
+/* ============================================================================
    CONTENT TEXT - READABLE COLORS ONLY
    ============================================================================ */
 
