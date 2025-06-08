@@ -1,306 +1,164 @@
-/* MAPTOR Documentation - Minimal RTD Theme Color Override */
-/* Only change colors, preserve RTD structure */
-/* Banner colors: #2d2d2d (dark), #e5e7eb (light), #991b1b (red accent) */
+/* Import modern fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
 
-/* ============================================================================
-   GLOBAL BACKGROUND AND TEXT - RTD BASE OVERRIDE
-   ============================================================================ */
-
-/* Main body and containers */
-.wy-body-for-nav {
-  background: #2d2d2d !important;
+/* Modern typography */
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    line-height: 1.6;
+    font-size: 16px;
 }
 
-.wy-nav-content-wrap {
-  background: #2d2d2d !important;
+/* Code styling */
+code, .highlight {
+    font-family: 'JetBrains Mono', 'SF Mono', Monaco, 'Cascadia Code', monospace;
+    font-size: 14px;
 }
 
-.wy-nav-content {
-  background: #2d2d2d !important;
+code {
+    background-color: #f8f9fa;
+    padding: 0.2em 0.4em;
+    border-radius: 4px;
+    border: 1px solid #e9ecef;
 }
 
-.rst-content {
-  color: #e5e7eb !important;
+/* Headers */
+h1 {
+    color: #2c3e50;
+    border-bottom: 3px solid #3498db;
+    padding-bottom: 0.5rem;
+    font-weight: 600;
 }
 
-/* ============================================================================
-   SIDEBAR - FIX DROPDOWN READABILITY
-   ============================================================================ */
-
-/* Sidebar search area */
-.wy-side-nav-search {
-  background: #1f1f1f !important;
+h2 {
+    color: #34495e;
+    border-bottom: 2px solid #ecf0f1;
+    padding-bottom: 0.3rem;
+    font-weight: 500;
 }
 
-.wy-side-nav-search input[type=text] {
-  background: #374151 !important;
-  border: 1px solid #4b5563 !important;
-  color: #e5e7eb !important;
+h3 {
+    color: #2c3e50;
+    font-weight: 500;
 }
 
-.wy-side-nav-search input[type=text]:focus {
-  border-color: #991b1b !important;
+/* Admonitions */
+.admonition {
+    border-radius: 6px;
+    border-left: 4px solid #3498db;
+    background-color: #ebf3fd;
+    padding: 1rem;
+    margin: 1.5rem 0;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
-/* Sidebar menu */
-.wy-menu-vertical {
-  background: #2d2d2d !important;
+.admonition.note {
+    border-left-color: #3498db;
+    background-color: #ebf3fd;
 }
 
-.wy-menu-vertical a {
-  color: #d1d5db !important;
-  background: transparent !important;
+.admonition.warning {
+    border-left-color: #f39c12;
+    background-color: #fef9e7;
 }
 
-.wy-menu-vertical a:hover {
-  background: #374151 !important;
-  color: #e5e7eb !important;
-}
-
-.wy-menu-vertical li.current a {
-  background: rgba(153, 27, 27, 0.1) !important;
-  border-right: 3px solid #991b1b !important;
-  color: #e5e7eb !important;
-}
-
-.wy-menu-vertical li.toctree-l1.current > a {
-  background: rgba(153, 27, 27, 0.1) !important;
-}
-
-/* Fix dropdown menus - THIS WAS THE PROBLEM */
-.wy-menu-vertical .wy-menu-vertical-nav .current {
-  background: #374151 !important;
-}
-
-.wy-menu-vertical .wy-menu-vertical-nav .current a {
-  color: #e5e7eb !important;
-  background: transparent !important;
-}
-
-/* ============================================================================
-   RTD DROPDOWN MENU FIX - Add after line 82 in existing custom.css
-   ============================================================================ */
-
-/* Fix all toctree levels in dropdowns */
-.wy-menu-vertical li.toctree-l2 a,
-.wy-menu-vertical li.toctree-l3 a,
-.wy-menu-vertical li.toctree-l4 a {
-  color: #d1d5db !important;
-  background: transparent !important;
-}
-
-.wy-menu-vertical li.toctree-l2.current a,
-.wy-menu-vertical li.toctree-l3.current a,
-.wy-menu-vertical li.toctree-l4.current a {
-  color: #e5e7eb !important;
-  background: rgba(153, 27, 27, 0.05) !important;
-}
-
-/* Hover states for dropdown items */
-.wy-menu-vertical li.toctree-l2 a:hover,
-.wy-menu-vertical li.toctree-l3 a:hover,
-.wy-menu-vertical li.toctree-l4 a:hover {
-  background: #374151 !important;
-  color: #e5e7eb !important;
-}
-
-/* Force dropdown container background */
-.wy-menu-vertical .wy-menu-vertical-nav {
-  background: #2d2d2d !important;
-}
-
-/* Target any remaining white text in menus */
-.wy-menu-vertical a[style*="color: white"],
-.wy-menu-vertical a[style*="color: #fff"] {
-  color: #d1d5db !important;
-}
-
-/* ============================================================================
-   CONTENT TEXT - READABLE COLORS ONLY
-   ============================================================================ */
-
-/* All headings */
-.rst-content h1,
-.rst-content h2,
-.rst-content h3,
-.rst-content h4,
-.rst-content h5,
-.rst-content h6 {
-  color: #e5e7eb !important;
-}
-
-/* H1 with red accent border */
-.rst-content h1 {
-  border-bottom: 3px solid #991b1b !important;
-}
-
-/* Paragraphs and body text */
-.rst-content p,
-.rst-content li {
-  color: #e5e7eb !important;
-}
-
-/* ============================================================================
-   LINKS - NO BLUE, READABLE COLORS
-   ============================================================================ */
-
-/* All links - readable, not red */
-.rst-content a {
-  color: #9ca3af !important;
-}
-
-.rst-content a:hover {
-  color: #e5e7eb !important;
-  text-decoration: underline !important;
-}
-
-.rst-content a:visited {
-  color: #6b7280 !important;
-}
-
-/* External links */
-.rst-content a.external {
-  color: #9ca3af !important;
-}
-
-/* ============================================================================
-   CODE AND LITERALS
-   ============================================================================ */
-
-/* Inline code */
-.rst-content code.literal {
-  background: #374151 !important;
-  color: #e5e7eb !important;
-  border: 1px solid #4b5563 !important;
+.admonition.danger {
+    border-left-color: #e74c3c;
+    background-color: #fdedec;
 }
 
 /* Code blocks */
-.rst-content pre {
-  background: #1f1f1f !important;
-  border: 1px solid #4b5563 !important;
-  color: #e5e7eb !important;
+div.highlight {
+    border-radius: 6px;
+    border: 1px solid #e1e8ed;
+    overflow: hidden;
+    margin: 1rem 0;
 }
 
-.highlight {
-  background: #1f1f1f !important;
+/* Tables */
+table.docutils {
+    border-collapse: collapse;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    border-radius: 6px;
+    overflow: hidden;
+    width: 100%;
 }
 
-/* ============================================================================
-   TABLES
-   ============================================================================ */
-
-.rst-content table.docutils thead th {
-  background: #991b1b !important;
-  color: #e5e7eb !important;
+table.docutils th {
+    background-color: #3498db;
+    color: white;
+    font-weight: 600;
+    padding: 12px;
+    text-align: left;
 }
 
-.rst-content table.docutils td {
-  background: #374151 !important;
-  color: #e5e7eb !important;
-  border-bottom: 1px solid #4b5563 !important;
+table.docutils td {
+    padding: 12px;
+    border-bottom: 1px solid #ecf0f1;
 }
 
-/* ============================================================================
-   ADMONITIONS
-   ============================================================================ */
-
-.rst-content .admonition {
-  background: #374151 !important;
-  border-left: 4px solid #991b1b !important;
+table.docutils tr:hover {
+    background-color: #f8f9fa;
 }
 
-.rst-content .admonition-title {
-  color: #e5e7eb !important;
+/* Links */
+a {
+    color: #3498db;
+    text-decoration: none;
 }
 
-.rst-content .admonition p {
-  color: #e5e7eb !important;
+a:hover {
+    color: #2980b9;
+    text-decoration: underline;
 }
 
-/* ============================================================================
-   API DOCUMENTATION
-   ============================================================================ */
-
-.rst-content dl.class,
-.rst-content dl.function,
-.rst-content dl.method {
-  background: #374151 !important;
-  border: 1px solid #4b5563 !important;
+/* Sidebar customization */
+.wy-side-nav-search {
+    background-color: #2c3e50;
 }
 
-.rst-content dt {
-  background: #1f1f1f !important;
-  color: #e5e7eb !important;
+.wy-side-nav-search > a {
+    color: white;
+    font-weight: 600;
 }
 
-.rst-content dd {
-  color: #e5e7eb !important;
+/* Navigation */
+.wy-menu-vertical a {
+    color: #2c3e50;
 }
 
-/* Field lists (Args, Returns, etc.) */
-.rst-content .field-name {
-  color: #9ca3af !important;
+.wy-menu-vertical a:hover {
+    background-color: #ecf0f1;
+    color: #2c3e50;
 }
 
-.rst-content .field-body {
-  color: #e5e7eb !important;
+/* API documentation styling */
+dl.class, dl.function, dl.method {
+    border: 1px solid #e1e8ed;
+    border-radius: 6px;
+    padding: 1rem;
+    margin: 1rem 0;
+    background-color: #fafbfc;
 }
 
-/* ============================================================================
-   NAVIGATION TOP
-   ============================================================================ */
-
-.wy-nav-top {
-  background: #1f1f1f !important;
-  color: #e5e7eb !important;
+dt.sig {
+    background-color: transparent;
+    border: none;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    font-weight: 500;
 }
 
-/* ============================================================================
-   BREADCRUMBS
-   ============================================================================ */
+/* Responsive improvements */
+@media (max-width: 768px) {
+    body {
+        font-size: 14px;
+    }
 
-.wy-breadcrumbs li a {
-  color: #9ca3af !important;
-}
+    h1 {
+        font-size: 1.8em;
+    }
 
-.wy-breadcrumbs li {
-  color: #d1d5db !important;
-}
-
-/* ============================================================================
-   BUTTONS AND FOOTER
-   ============================================================================ */
-
-.btn-neutral {
-  background: #991b1b !important;
-  color: #e5e7eb !important;
-  border: none !important;
-}
-
-.btn-neutral:hover {
-  background: #b91c1c !important;
-  color: #e5e7eb !important;
-}
-
-/* ============================================================================
-   SEARCH RESULTS
-   ============================================================================ */
-
-.search li {
-  background: #374151 !important;
-  border: 1px solid #4b5563 !important;
-}
-
-.search li a {
-  color: #9ca3af !important;
-}
-
-/* ============================================================================
-   RESPONSIVE
-   ============================================================================ */
-
-@media screen and (max-width: 768px) {
-  .wy-nav-top {
-    background: #1f1f1f !important;
-  }
+    h2 {
+        font-size: 1.4em;
+    }
 }
