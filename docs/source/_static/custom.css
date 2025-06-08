@@ -54,18 +54,42 @@ a:hover {
     color: #e5e7eb;
 }
 
-/* Fix the main dropdown issue */
+/* CRITICAL FIX: All dropdown levels stay dark - comprehensive targeting */
 .wy-menu-vertical a {
     color: #e5e7eb;
     background-color: transparent;
 }
 
 .wy-menu-vertical a:hover {
-    background-color: #404040; /* Dark grey, not white */
+    background-color: #404040 !important; /* Dark grey, not white */
     color: #e5e7eb;
 }
 
-/* Ensure nested menu items stay dark */
+/* Fix ALL nested menu levels - force dark backgrounds */
+.wy-menu-vertical li.toctree-l1 > a,
+.wy-menu-vertical li.toctree-l2 > a,
+.wy-menu-vertical li.toctree-l3 > a,
+.wy-menu-vertical li.toctree-l4 > a {
+    background-color: transparent;
+    color: #e5e7eb;
+}
+
+.wy-menu-vertical li.toctree-l1 > a:hover,
+.wy-menu-vertical li.toctree-l2 > a:hover,
+.wy-menu-vertical li.toctree-l3 > a:hover,
+.wy-menu-vertical li.toctree-l4 > a:hover {
+    background-color: #404040 !important;
+    color: #e5e7eb;
+}
+
+/* Force dark background for ALL nested containers */
+.wy-menu-vertical .toctree-l2,
+.wy-menu-vertical .toctree-l3,
+.wy-menu-vertical .toctree-l4 {
+    background-color: #2d2d2d !important;
+}
+
+/* Current item highlighting with brand color */
 .wy-menu-vertical li.toctree-l1.current > a,
 .wy-menu-vertical li.toctree-l2.current > a,
 .wy-menu-vertical li.toctree-l3.current > a {
@@ -74,7 +98,7 @@ a:hover {
 }
 
 .wy-menu-vertical li.current {
-    background-color: #2d2d2d; /* Keep dark background */
+    background-color: #2d2d2d !important; /* Keep dark background */
 }
 
 .wy-menu-vertical li.current a {
@@ -84,15 +108,33 @@ a:hover {
 
 /* Fix dropdown expansion areas */
 .wy-menu-vertical li.toctree-l1.current .toctree-l2 {
-    background-color: #2d2d2d; /* Force dark background */
+    background-color: #2d2d2d !important; /* Force dark background */
 }
 
 .wy-menu-vertical li.toctree-l2.current .toctree-l3 {
-    background-color: #2d2d2d; /* Force dark background */
+    background-color: #2d2d2d !important; /* Force dark background */
 }
 
-/* Main content area */
+/* CRITICAL FIX: Main content area - all RTD content wrappers */
 .wy-nav-content {
+    background-color: #2d2d2d;
+}
+
+.wy-nav-content-wrap {
+    background-color: #2d2d2d;
+}
+
+.rst-content {
+    background-color: #2d2d2d;
+    color: #e5e7eb;
+}
+
+.document {
+    background-color: #2d2d2d;
+}
+
+/* Force main page background */
+.wy-grid-for-nav {
     background-color: #2d2d2d;
 }
 
