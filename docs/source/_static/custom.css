@@ -1,164 +1,665 @@
+/* MAPTOR Documentation Theme - Dark Mode Professional */
+/* Colors derived from banner: #2d2d2d, #e5e7eb, #991b1b */
+
 /* Import modern fonts */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap');
 
-/* Modern typography */
+/* ============================================================================
+   COLOR SYSTEM - Banner-Based Palette
+   ============================================================================ */
+:root {
+  /* Primary Colors from Banner */
+  --maptor-bg-primary: #2d2d2d;      /* Banner background */
+  --maptor-text-primary: #e5e7eb;    /* Banner text */
+  --maptor-accent-primary: #991b1b;  /* Banner red accent */
+
+  /* Derived Background Colors */
+  --maptor-bg-secondary: #3a3a3a;    /* Lighter panels */
+  --maptor-bg-tertiary: #454545;     /* Hover states */
+  --maptor-bg-quaternary: #525252;   /* Active states */
+  --maptor-bg-elevated: #1f1f1f;     /* Deeper backgrounds */
+
+  /* Derived Text Colors */
+  --maptor-text-secondary: #d1d5db;  /* Secondary text */
+  --maptor-text-tertiary: #9ca3af;   /* Muted text */
+  --maptor-text-quaternary: #6b7280; /* Disabled text */
+  --maptor-text-inverse: #2d2d2d;    /* Text on light backgrounds */
+
+  /* Derived Accent Colors */
+  --maptor-accent-secondary: #b91c1c; /* Hover red */
+  --maptor-accent-tertiary: #dc2626;  /* Active red */
+  --maptor-accent-quaternary: #7f1d1d; /* Muted red */
+  --maptor-accent-light: rgba(153, 27, 27, 0.1); /* Red tint */
+  --maptor-accent-border: rgba(153, 27, 27, 0.3); /* Red borders */
+
+  /* Border Colors */
+  --maptor-border-primary: #454545;   /* Main borders */
+  --maptor-border-secondary: #525252; /* Subtle borders */
+  --maptor-border-accent: var(--maptor-accent-border);
+
+  /* Shadow System */
+  --maptor-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --maptor-shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
+  --maptor-shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.5);
+
+  /* Typography Scale */
+  --maptor-font-family-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --maptor-font-family-mono: 'JetBrains Mono', 'SF Mono', Monaco, 'Cascadia Code', Menlo, monospace;
+
+  /* Spacing Scale */
+  --maptor-space-xs: 0.25rem;
+  --maptor-space-sm: 0.5rem;
+  --maptor-space-md: 1rem;
+  --maptor-space-lg: 1.5rem;
+  --maptor-space-xl: 2rem;
+  --maptor-space-2xl: 3rem;
+}
+
+/* ============================================================================
+   GLOBAL OVERRIDES - RTD Theme Reset
+   ============================================================================ */
+html {
+  scroll-behavior: smooth;
+}
+
 body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    line-height: 1.6;
-    font-size: 16px;
+  font-family: var(--maptor-font-family-sans) !important;
+  background-color: var(--maptor-bg-primary) !important;
+  color: var(--maptor-text-primary) !important;
+  line-height: 1.6 !important;
+  font-size: 16px !important;
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
-/* Code styling */
-code, .highlight {
-    font-family: 'JetBrains Mono', 'SF Mono', Monaco, 'Cascadia Code', monospace;
-    font-size: 14px;
+/* Remove RTD theme artifacts */
+.wy-body-for-nav {
+  background: var(--maptor-bg-primary) !important;
 }
 
-code {
-    background-color: #f8f9fa;
-    padding: 0.2em 0.4em;
-    border-radius: 4px;
-    border: 1px solid #e9ecef;
+.wy-nav-content-wrap {
+  background: var(--maptor-bg-primary) !important;
 }
 
-/* Headers */
+.wy-nav-content {
+  background: var(--maptor-bg-primary) !important;
+  max-width: none !important;
+}
+
+/* ============================================================================
+   TYPOGRAPHY SYSTEM
+   ============================================================================ */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--maptor-font-family-sans) !important;
+  color: var(--maptor-text-primary) !important;
+  font-weight: 600 !important;
+  line-height: 1.3 !important;
+  margin-top: var(--maptor-space-xl) !important;
+  margin-bottom: var(--maptor-space-md) !important;
+}
+
 h1 {
-    color: #2c3e50;
-    border-bottom: 3px solid #3498db;
-    padding-bottom: 0.5rem;
-    font-weight: 600;
+  font-size: 2.5rem !important;
+  font-weight: 700 !important;
+  border-bottom: 3px solid var(--maptor-accent-primary) !important;
+  padding-bottom: var(--maptor-space-sm) !important;
+  margin-top: 0 !important;
 }
 
 h2 {
-    color: #34495e;
-    border-bottom: 2px solid #ecf0f1;
-    padding-bottom: 0.3rem;
-    font-weight: 500;
+  font-size: 2rem !important;
+  border-bottom: 2px solid var(--maptor-border-primary) !important;
+  padding-bottom: var(--maptor-space-xs) !important;
 }
 
 h3 {
-    color: #2c3e50;
-    font-weight: 500;
+  font-size: 1.5rem !important;
+  color: var(--maptor-text-primary) !important;
 }
 
-/* Admonitions */
-.admonition {
-    border-radius: 6px;
-    border-left: 4px solid #3498db;
-    background-color: #ebf3fd;
-    padding: 1rem;
-    margin: 1.5rem 0;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+h4 {
+  font-size: 1.25rem !important;
+  color: var(--maptor-text-secondary) !important;
 }
 
-.admonition.note {
-    border-left-color: #3498db;
-    background-color: #ebf3fd;
+h5, h6 {
+  font-size: 1.125rem !important;
+  color: var(--maptor-text-secondary) !important;
 }
 
-.admonition.warning {
-    border-left-color: #f39c12;
-    background-color: #fef9e7;
+p {
+  color: var(--maptor-text-primary) !important;
+  margin-bottom: var(--maptor-space-md) !important;
 }
 
-.admonition.danger {
-    border-left-color: #e74c3c;
-    background-color: #fdedec;
-}
-
-/* Code blocks */
-div.highlight {
-    border-radius: 6px;
-    border: 1px solid #e1e8ed;
-    overflow: hidden;
-    margin: 1rem 0;
-}
-
-/* Tables */
-table.docutils {
-    border-collapse: collapse;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    border-radius: 6px;
-    overflow: hidden;
-    width: 100%;
-}
-
-table.docutils th {
-    background-color: #3498db;
-    color: white;
-    font-weight: 600;
-    padding: 12px;
-    text-align: left;
-}
-
-table.docutils td {
-    padding: 12px;
-    border-bottom: 1px solid #ecf0f1;
-}
-
-table.docutils tr:hover {
-    background-color: #f8f9fa;
-}
-
-/* Links */
-a {
-    color: #3498db;
-    text-decoration: none;
-}
-
-a:hover {
-    color: #2980b9;
-    text-decoration: underline;
-}
-
-/* Sidebar customization */
+/* ============================================================================
+   NAVIGATION AND SIDEBAR
+   ============================================================================ */
 .wy-side-nav-search {
-    background-color: #2c3e50;
+  background-color: var(--maptor-bg-elevated) !important;
+  border-bottom: 1px solid var(--maptor-border-primary) !important;
 }
 
-.wy-side-nav-search > a {
-    color: white;
-    font-weight: 600;
+.wy-side-nav-search > a,
+.wy-side-nav-search .wy-dropdown > a {
+  color: var(--maptor-text-primary) !important;
+  font-weight: 700 !important;
+  font-size: 1.125rem !important;
 }
 
-/* Navigation */
+.wy-side-nav-search input[type=text] {
+  background-color: var(--maptor-bg-secondary) !important;
+  border: 1px solid var(--maptor-border-primary) !important;
+  color: var(--maptor-text-primary) !important;
+  border-radius: 6px !important;
+}
+
+.wy-side-nav-search input[type=text]:focus {
+  border-color: var(--maptor-accent-primary) !important;
+  box-shadow: 0 0 0 2px var(--maptor-accent-light) !important;
+}
+
+/* Sidebar Navigation */
+.wy-menu-vertical {
+  background-color: var(--maptor-bg-primary) !important;
+}
+
 .wy-menu-vertical a {
-    color: #2c3e50;
+  color: var(--maptor-text-secondary) !important;
+  border: none !important;
+  padding: var(--maptor-space-sm) var(--maptor-space-md) !important;
+  transition: all 0.2s ease !important;
 }
 
 .wy-menu-vertical a:hover {
-    background-color: #ecf0f1;
-    color: #2c3e50;
+  background-color: var(--maptor-bg-secondary) !important;
+  color: var(--maptor-text-primary) !important;
 }
 
-/* API documentation styling */
-dl.class, dl.function, dl.method {
-    border: 1px solid #e1e8ed;
-    border-radius: 6px;
-    padding: 1rem;
-    margin: 1rem 0;
-    background-color: #fafbfc;
+.wy-menu-vertical a.current {
+  background-color: var(--maptor-accent-light) !important;
+  color: var(--maptor-accent-tertiary) !important;
+  border-left: 3px solid var(--maptor-accent-primary) !important;
+}
+
+.wy-menu-vertical li.current a {
+  color: var(--maptor-accent-tertiary) !important;
+  font-weight: 600 !important;
+}
+
+.wy-menu-vertical li.toctree-l1.current > a {
+  background-color: var(--maptor-accent-light) !important;
+}
+
+.wy-menu-vertical li.toctree-l2.current > a {
+  background-color: var(--maptor-bg-secondary) !important;
+}
+
+/* Navigation header */
+.wy-nav-top {
+  background-color: var(--maptor-bg-elevated) !important;
+  color: var(--maptor-text-primary) !important;
+}
+
+/* ============================================================================
+   CONTENT AREA
+   ============================================================================ */
+.wy-nav-content {
+  padding: var(--maptor-space-lg) !important;
+}
+
+.rst-content {
+  max-width: none !important;
+  font-size: 16px !important;
+}
+
+/* ============================================================================
+   LINKS AND INTERACTIVE ELEMENTS
+   ============================================================================ */
+a {
+  color: var(--maptor-accent-primary) !important;
+  text-decoration: none !important;
+  transition: color 0.2s ease !important;
+}
+
+a:hover {
+  color: var(--maptor-accent-secondary) !important;
+  text-decoration: underline !important;
+}
+
+a:visited {
+  color: var(--maptor-accent-quaternary) !important;
+}
+
+a:focus {
+  outline: 2px solid var(--maptor-accent-primary) !important;
+  outline-offset: 2px !important;
+}
+
+/* ============================================================================
+   CODE AND SYNTAX HIGHLIGHTING
+   ============================================================================ */
+code {
+  font-family: var(--maptor-font-family-mono) !important;
+  background-color: var(--maptor-bg-secondary) !important;
+  color: var(--maptor-text-primary) !important;
+  padding: 0.2em 0.4em !important;
+  border-radius: 4px !important;
+  border: 1px solid var(--maptor-border-primary) !important;
+  font-size: 0.9em !important;
+  font-weight: 500 !important;
+}
+
+pre {
+  background-color: var(--maptor-bg-elevated) !important;
+  border: 1px solid var(--maptor-border-primary) !important;
+  border-radius: 8px !important;
+  padding: var(--maptor-space-md) !important;
+  overflow-x: auto !important;
+  margin: var(--maptor-space-md) 0 !important;
+}
+
+pre code {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  color: var(--maptor-text-primary) !important;
+}
+
+/* Syntax highlighting */
+.highlight {
+  background-color: var(--maptor-bg-elevated) !important;
+  border: 1px solid var(--maptor-border-primary) !important;
+  border-radius: 8px !important;
+  overflow: hidden !important;
+  margin: var(--maptor-space-md) 0 !important;
+}
+
+.highlight pre {
+  background: transparent !important;
+  border: none !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+}
+
+/* Code block titles */
+.code-block-caption {
+  background-color: var(--maptor-bg-secondary) !important;
+  color: var(--maptor-text-secondary) !important;
+  padding: var(--maptor-space-sm) var(--maptor-space-md) !important;
+  font-family: var(--maptor-font-family-mono) !important;
+  font-size: 0.875rem !important;
+  border-bottom: 1px solid var(--maptor-border-primary) !important;
+}
+
+/* ============================================================================
+   TABLES
+   ============================================================================ */
+table.docutils {
+  border-collapse: collapse !important;
+  width: 100% !important;
+  margin: var(--maptor-space-md) 0 !important;
+  box-shadow: var(--maptor-shadow-md) !important;
+  border-radius: 8px !important;
+  overflow: hidden !important;
+  background-color: var(--maptor-bg-secondary) !important;
+}
+
+table.docutils th {
+  background-color: var(--maptor-accent-primary) !important;
+  color: var(--maptor-text-primary) !important;
+  font-weight: 600 !important;
+  padding: var(--maptor-space-md) !important;
+  text-align: left !important;
+  border: none !important;
+}
+
+table.docutils td {
+  padding: var(--maptor-space-md) !important;
+  border-bottom: 1px solid var(--maptor-border-primary) !important;
+  color: var(--maptor-text-primary) !important;
+  background-color: var(--maptor-bg-secondary) !important;
+}
+
+table.docutils tr:hover td {
+  background-color: var(--maptor-bg-tertiary) !important;
+}
+
+table.docutils tr:last-child td {
+  border-bottom: none !important;
+}
+
+/* ============================================================================
+   ADMONITIONS AND CALLOUTS
+   ============================================================================ */
+.admonition {
+  border-radius: 8px !important;
+  padding: var(--maptor-space-md) !important;
+  margin: var(--maptor-space-lg) 0 !important;
+  box-shadow: var(--maptor-shadow-md) !important;
+  border-left: 4px solid var(--maptor-accent-primary) !important;
+  background-color: var(--maptor-bg-secondary) !important;
+}
+
+.admonition-title {
+  color: var(--maptor-text-primary) !important;
+  font-weight: 600 !important;
+  margin-bottom: var(--maptor-space-sm) !important;
+}
+
+.admonition p {
+  color: var(--maptor-text-primary) !important;
+  margin-bottom: var(--maptor-space-sm) !important;
+}
+
+.admonition p:last-child {
+  margin-bottom: 0 !important;
+}
+
+/* Specific admonition types */
+.admonition.note {
+  border-left-color: var(--maptor-accent-primary) !important;
+  background-color: var(--maptor-accent-light) !important;
+}
+
+.admonition.warning {
+  border-left-color: #f59e0b !important;
+  background-color: rgba(245, 158, 11, 0.1) !important;
+}
+
+.admonition.danger,
+.admonition.error {
+  border-left-color: var(--maptor-accent-secondary) !important;
+  background-color: var(--maptor-accent-light) !important;
+}
+
+.admonition.tip,
+.admonition.hint {
+  border-left-color: #10b981 !important;
+  background-color: rgba(16, 185, 129, 0.1) !important;
+}
+
+.admonition.important {
+  border-left-color: var(--maptor-accent-tertiary) !important;
+  background-color: var(--maptor-accent-light) !important;
+}
+
+/* ============================================================================
+   LISTS
+   ============================================================================ */
+ul, ol {
+  color: var(--maptor-text-primary) !important;
+  padding-left: var(--maptor-space-lg) !important;
+}
+
+li {
+  margin-bottom: var(--maptor-space-sm) !important;
+  color: var(--maptor-text-primary) !important;
+}
+
+li::marker {
+  color: var(--maptor-accent-primary) !important;
+}
+
+/* Definition lists */
+dl dt {
+  color: var(--maptor-text-primary) !important;
+  font-weight: 600 !important;
+  margin-top: var(--maptor-space-md) !important;
+}
+
+dl dd {
+  color: var(--maptor-text-secondary) !important;
+  margin-left: var(--maptor-space-lg) !important;
+  margin-bottom: var(--maptor-space-sm) !important;
+}
+
+/* ============================================================================
+   API DOCUMENTATION
+   ============================================================================ */
+dl.class,
+dl.function,
+dl.method,
+dl.attribute {
+  border: 1px solid var(--maptor-border-primary) !important;
+  border-radius: 8px !important;
+  padding: var(--maptor-space-md) !important;
+  margin: var(--maptor-space-lg) 0 !important;
+  background-color: var(--maptor-bg-secondary) !important;
+  box-shadow: var(--maptor-shadow-sm) !important;
 }
 
 dt.sig {
-    background-color: transparent;
-    border: none;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 14px;
-    font-weight: 500;
+  background-color: var(--maptor-bg-elevated) !important;
+  border: 1px solid var(--maptor-border-primary) !important;
+  border-radius: 6px !important;
+  padding: var(--maptor-space-sm) var(--maptor-space-md) !important;
+  font-family: var(--maptor-font-family-mono) !important;
+  font-size: 0.9rem !important;
+  font-weight: 500 !important;
+  color: var(--maptor-text-primary) !important;
+  margin-bottom: var(--maptor-space-sm) !important;
 }
 
-/* Responsive improvements */
+dd {
+  margin-left: 0 !important;
+  color: var(--maptor-text-primary) !important;
+}
+
+/* Parameter lists */
+.field-list {
+  margin: var(--maptor-space-md) 0 !important;
+}
+
+.field-name {
+  color: var(--maptor-accent-primary) !important;
+  font-weight: 600 !important;
+}
+
+.field-body {
+  color: var(--maptor-text-primary) !important;
+}
+
+/* ============================================================================
+   SEARCH FUNCTIONALITY
+   ============================================================================ */
+.wy-side-nav-search .wy-dropdown {
+  background-color: var(--maptor-bg-secondary) !important;
+  border: 1px solid var(--maptor-border-primary) !important;
+}
+
+.wy-side-nav-search .wy-dropdown a:hover {
+  background-color: var(--maptor-bg-tertiary) !important;
+}
+
+/* Search results */
+.search li {
+  background-color: var(--maptor-bg-secondary) !important;
+  border: 1px solid var(--maptor-border-primary) !important;
+  border-radius: 6px !important;
+  margin-bottom: var(--maptor-space-sm) !important;
+  padding: var(--maptor-space-md) !important;
+}
+
+.search li a {
+  color: var(--maptor-accent-primary) !important;
+  font-weight: 600 !important;
+}
+
+/* ============================================================================
+   BREADCRUMBS
+   ============================================================================ */
+.wy-breadcrumbs {
+  background-color: var(--maptor-bg-secondary) !important;
+  padding: var(--maptor-space-sm) var(--maptor-space-md) !important;
+  border-radius: 6px !important;
+  margin-bottom: var(--maptor-space-md) !important;
+}
+
+.wy-breadcrumbs a {
+  color: var(--maptor-accent-primary) !important;
+}
+
+.wy-breadcrumbs li {
+  color: var(--maptor-text-secondary) !important;
+}
+
+/* ============================================================================
+   FOOTER
+   ============================================================================ */
+.rst-footer-buttons {
+  margin-top: var(--maptor-space-xl) !important;
+  padding-top: var(--maptor-space-lg) !important;
+  border-top: 1px solid var(--maptor-border-primary) !important;
+}
+
+.btn {
+  background-color: var(--maptor-accent-primary) !important;
+  color: var(--maptor-text-primary) !important;
+  border: none !important;
+  padding: var(--maptor-space-sm) var(--maptor-space-md) !important;
+  border-radius: 6px !important;
+  font-weight: 600 !important;
+  transition: all 0.2s ease !important;
+}
+
+.btn:hover {
+  background-color: var(--maptor-accent-secondary) !important;
+  color: var(--maptor-text-primary) !important;
+  text-decoration: none !important;
+}
+
+/* ============================================================================
+   RESPONSIVE DESIGN
+   ============================================================================ */
 @media (max-width: 768px) {
-    body {
-        font-size: 14px;
-    }
+  body {
+    font-size: 14px !important;
+  }
 
-    h1 {
-        font-size: 1.8em;
-    }
+  h1 {
+    font-size: 2rem !important;
+  }
 
-    h2 {
-        font-size: 1.4em;
-    }
+  h2 {
+    font-size: 1.5rem !important;
+  }
+
+  h3 {
+    font-size: 1.25rem !important;
+  }
+
+  .wy-nav-content {
+    padding: var(--maptor-space-md) !important;
+  }
+
+  table.docutils {
+    font-size: 0.875rem !important;
+  }
+
+  table.docutils th,
+  table.docutils td {
+    padding: var(--maptor-space-sm) !important;
+  }
+}
+
+/* ============================================================================
+   ACCESSIBILITY ENHANCEMENTS
+   ============================================================================ */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  :root {
+    --maptor-border-primary: #ffffff;
+    --maptor-text-primary: #ffffff;
+  }
+}
+
+/* Focus indicators for keyboard navigation */
+*:focus {
+  outline: 2px solid var(--maptor-accent-primary) !important;
+  outline-offset: 2px !important;
+}
+
+/* Skip to content link */
+.skip-to-content {
+  position: absolute !important;
+  top: -40px !important;
+  left: 6px !important;
+  background: var(--maptor-accent-primary) !important;
+  color: var(--maptor-text-primary) !important;
+  padding: 8px !important;
+  text-decoration: none !important;
+  border-radius: 4px !important;
+  z-index: 1000 !important;
+}
+
+.skip-to-content:focus {
+  top: 6px !important;
+}
+
+/* ============================================================================
+   PRINT STYLES
+   ============================================================================ */
+@media print {
+  .wy-nav-side,
+  .wy-nav-top,
+  .rst-footer-buttons {
+    display: none !important;
+  }
+
+  .wy-nav-content-wrap {
+    margin-left: 0 !important;
+  }
+
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    color: black !important;
+  }
+
+  a {
+    color: black !important;
+    text-decoration: underline !important;
+  }
+}
+
+/* ============================================================================
+   UTILITY CLASSES
+   ============================================================================ */
+.maptor-text-accent {
+  color: var(--maptor-accent-primary) !important;
+}
+
+.maptor-bg-accent {
+  background-color: var(--maptor-accent-primary) !important;
+}
+
+.maptor-border-accent {
+  border-color: var(--maptor-accent-primary) !important;
+}
+
+.maptor-hidden {
+  display: none !important;
+}
+
+.maptor-sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
 }
