@@ -18,7 +18,7 @@ from maptor.radau import _compute_radau_collocation_components
 
 
 class TestCoordinateTransformationInvertibility:
-    """Critical: Coordinate transformations must be mathematically exact."""
+    # Coordinate transformations must be mathematically exact."""
 
     @pytest.mark.parametrize(
         ("global_start", "global_end"),
@@ -30,7 +30,6 @@ class TestCoordinateTransformationInvertibility:
         ],
     )
     def test_global_local_transformation_invertibility(self, global_start, global_end):
-        """Global → Local → Global must be identity transformation."""
         test_points = np.linspace(global_start, global_end, 20)
 
         for global_tau in test_points:
@@ -52,7 +51,6 @@ class TestCoordinateTransformationInvertibility:
         ],
     )
     def test_interval_mapping_composition_invertibility(self, tau_start_k, tau_shared, tau_end_kp1):
-        """Interval k → k+1 → k must preserve local coordinates."""
         test_points = np.linspace(-1, 1, 15)
 
         for local_tau_k in test_points:
@@ -70,11 +68,9 @@ class TestCoordinateTransformationInvertibility:
 
 
 class TestInterpolationMathematicalExactness:
-    """Critical: Interpolation must be exact for polynomials within mesh degree."""
-
     @pytest.mark.parametrize(("N_source", "N_target"), [(3, 4), (4, 3), (3, 6), (5, 3)])
     def test_polynomial_interpolation_exactness(self, N_source, N_target):
-        """Interpolating polynomial of degree ≤ min(N_source, N_target) must be exact."""
+        # Interpolating polynomial of degree ≤ min(N_source, N_target) must be exact.
         max_exact_degree = min(N_source, N_target)
 
         # Create source mesh and target mesh
@@ -117,7 +113,6 @@ class TestInterpolationMathematicalExactness:
             assert max_error < 1e-12, f"Polynomial degree {degree} not exact: error = {max_error}"
 
     def test_interpolation_preserves_constant_function(self):
-        """Constant functions must be preserved exactly under interpolation."""
         constant_value = 3.14159
 
         # Various mesh configurations
@@ -153,10 +148,7 @@ class TestInterpolationMathematicalExactness:
 
 
 class TestErrorEstimationConsistency:
-    """Critical: Error estimation must have consistent mathematical properties."""
-
     def test_gamma_normalization_bounds(self):
-        """Gamma factors must be finite, positive, and well-bounded."""
         test_cases = [
             np.array([0.1, 1.0, 10.0]),  # Normal values
             np.array([1e-15, 1e-10, 1e15]),  # Extreme values
@@ -179,7 +171,6 @@ class TestErrorEstimationConsistency:
             assert_allclose(gamma_factors, expected, rtol=1e-15)
 
     def test_gamma_normalization_monotonicity(self):
-        """Larger state values should produce smaller gamma factors."""
         small_values = np.array([0.1, 0.5])
         large_values = np.array([10.0, 50.0])
 
@@ -191,11 +182,8 @@ class TestErrorEstimationConsistency:
 
 
 class TestMeshRefinementConsistency:
-    """Critical: Mesh refinement must preserve solution quality."""
-
     @pytest.mark.parametrize("original_degree", [3, 4, 5])
     def test_p_refinement_preserves_polynomials(self, original_degree):
-        """P-refinement should exactly preserve polynomials within original degree."""
         refined_degree = original_degree + 2
 
         # Create polynomial trajectory on original mesh
@@ -235,7 +223,6 @@ class TestMeshRefinementConsistency:
         assert max_error < 1e-11, f"P-refinement failed to preserve polynomial: error = {max_error}"
 
     def test_h_refinement_preserves_total_integral(self):
-        """H-refinement should preserve integral of interpolated function."""
         # Create a function on coarse mesh
         coarse_degree = 4
         coarse_basis = _compute_radau_collocation_components(coarse_degree)
