@@ -22,7 +22,7 @@ With boundary conditions:
 - Path constraints: $0 \leq x \leq 10$, $0 \leq y \leq 10$, $0 \leq v \leq 10$
 - Control bounds: $0 \leq u \leq \pi/2$
 
-Where $g_0 = \(32.174 \text{ ft/sec}^2\)$  is the gravitational acceleration.
+Where $g_0 = 32.174 \text{ ft/sec}^2$  is the gravitational acceleration.
 
 ## Expected Results
 
