@@ -1,619 +1,268 @@
-/* MAPTOR Documentation Theme - Readable Dark Mode */
-/* Follows banner pattern: #2d2d2d background, #e5e7eb text, #991b1b accents only */
-
-/* Import modern fonts */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap');
+/* MAPTOR Documentation - Minimal RTD Theme Color Override */
+/* Only change colors, preserve RTD structure */
+/* Banner colors: #2d2d2d (dark), #e5e7eb (light), #991b1b (red accent) */
 
 /* ============================================================================
-   COLOR SYSTEM - Banner-Based Readable Palette
+   GLOBAL BACKGROUND AND TEXT - RTD BASE OVERRIDE
    ============================================================================ */
-:root {
-  /* Primary Colors from Banner - EXACT MATCH */
-  --maptor-bg-primary: #2d2d2d;      /* Banner background */
-  --maptor-text-primary: #e5e7eb;    /* Banner text - ALWAYS READABLE */
-  --maptor-accent-primary: #991b1b;  /* Banner red - ACCENTS ONLY, NEVER TEXT */
 
-  /* Readable Text Hierarchy - All based on #e5e7eb */
-  --maptor-text-secondary: #d1d5db;  /* Slightly dimmed readable text */
-  --maptor-text-tertiary: #9ca3af;   /* Muted but still readable */
-  --maptor-text-quaternary: #6b7280; /* Minimal text, still readable */
-  --maptor-text-link: #60a5fa;       /* Blue links - highly readable */
-  --maptor-text-link-hover: #3b82f6; /* Blue hover - highly readable */
-
-  /* Background Hierarchy */
-  --maptor-bg-secondary: #374151;    /* Lighter panels - readable contrast */
-  --maptor-bg-tertiary: #4b5563;     /* Hover states */
-  --maptor-bg-elevated: #1f2937;     /* Deeper backgrounds */
-  --maptor-bg-code: #111827;         /* Code backgrounds */
-
-  /* Red Accent Usage - NON-TEXT ONLY */
-  --maptor-accent-border: #991b1b;   /* Borders and lines */
-  --maptor-accent-bg-subtle: rgba(153, 27, 27, 0.1); /* Very subtle backgrounds */
-  --maptor-accent-bg-medium: rgba(153, 27, 27, 0.2); /* Medium backgrounds */
-
-  /* Border System */
-  --maptor-border-primary: #4b5563;   /* Main borders */
-  --maptor-border-secondary: #374151; /* Subtle borders */
-
-  /* Typography */
-  --maptor-font-family-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-  --maptor-font-family-mono: 'JetBrains Mono', 'SF Mono', Monaco, 'Cascadia Code', Menlo, monospace;
-
-  /* Spacing Scale */
-  --maptor-space-xs: 0.25rem;
-  --maptor-space-sm: 0.5rem;
-  --maptor-space-md: 1rem;
-  --maptor-space-lg: 1.5rem;
-  --maptor-space-xl: 2rem;
-  --maptor-space-2xl: 3rem;
-
-  /* Shadows */
-  --maptor-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
-  --maptor-shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
-  --maptor-shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.5);
-}
-
-/* ============================================================================
-   GLOBAL OVERRIDES - RTD Theme Reset
-   ============================================================================ */
-html {
-  scroll-behavior: smooth;
-}
-
-body {
-  font-family: var(--maptor-font-family-sans) !important;
-  background-color: var(--maptor-bg-primary) !important;
-  color: var(--maptor-text-primary) !important;
-  line-height: 1.6 !important;
-  font-size: 16px !important;
-  margin: 0 !important;
-  padding: 0 !important;
-}
-
+/* Main body and containers */
 .wy-body-for-nav {
-  background: var(--maptor-bg-primary) !important;
+  background: #2d2d2d !important;
 }
 
 .wy-nav-content-wrap {
-  background: var(--maptor-bg-primary) !important;
+  background: #2d2d2d !important;
 }
 
 .wy-nav-content {
-  background: var(--maptor-bg-primary) !important;
-  max-width: none !important;
-}
-
-/* ============================================================================
-   TYPOGRAPHY - ALL TEXT MUST BE READABLE
-   ============================================================================ */
-h1, h2, h3, h4, h5, h6 {
-  font-family: var(--maptor-font-family-sans) !important;
-  color: var(--maptor-text-primary) !important;
-  font-weight: 600 !important;
-  line-height: 1.3 !important;
-  margin-top: var(--maptor-space-xl) !important;
-  margin-bottom: var(--maptor-space-md) !important;
-}
-
-h1 {
-  font-size: 2.5rem !important;
-  font-weight: 700 !important;
-  border-bottom: 3px solid var(--maptor-accent-border) !important; /* RED ACCENT - NON-TEXT */
-  padding-bottom: var(--maptor-space-sm) !important;
-  margin-top: 0 !important;
-}
-
-h2 {
-  font-size: 2rem !important;
-  border-bottom: 2px solid var(--maptor-border-primary) !important;
-  padding-bottom: var(--maptor-space-xs) !important;
-}
-
-h3 {
-  font-size: 1.5rem !important;
-  color: var(--maptor-text-primary) !important;
-}
-
-h4 {
-  font-size: 1.25rem !important;
-  color: var(--maptor-text-secondary) !important;
-}
-
-h5, h6 {
-  font-size: 1.125rem !important;
-  color: var(--maptor-text-secondary) !important;
-}
-
-p {
-  color: var(--maptor-text-primary) !important;
-  margin-bottom: var(--maptor-space-md) !important;
-}
-
-/* ============================================================================
-   LINKS - READABLE BLUE, NEVER RED TEXT
-   ============================================================================ */
-a {
-  color: var(--maptor-text-link) !important; /* BLUE - READABLE */
-  text-decoration: none !important;
-  transition: color 0.2s ease !important;
-}
-
-a:hover {
-  color: var(--maptor-text-link-hover) !important; /* BLUE HOVER - READABLE */
-  text-decoration: underline !important;
-}
-
-a:visited {
-  color: var(--maptor-text-tertiary) !important; /* GRAY - READABLE */
-}
-
-a:focus {
-  outline: 2px solid var(--maptor-accent-border) !important; /* RED ACCENT - NON-TEXT */
-  outline-offset: 2px !important;
-}
-
-/* ============================================================================
-   NAVIGATION AND SIDEBAR
-   ============================================================================ */
-.wy-side-nav-search {
-  background-color: var(--maptor-bg-elevated) !important;
-  border-bottom: 1px solid var(--maptor-border-primary) !important;
-}
-
-.wy-side-nav-search > a,
-.wy-side-nav-search .wy-dropdown > a {
-  color: var(--maptor-text-primary) !important;
-  font-weight: 700 !important;
-  font-size: 1.125rem !important;
-}
-
-.wy-side-nav-search input[type=text] {
-  background-color: var(--maptor-bg-secondary) !important;
-  border: 1px solid var(--maptor-border-primary) !important;
-  color: var(--maptor-text-primary) !important;
-  border-radius: 6px !important;
-}
-
-.wy-side-nav-search input[type=text]:focus {
-  border-color: var(--maptor-accent-border) !important; /* RED ACCENT - NON-TEXT */
-  box-shadow: 0 0 0 2px var(--maptor-accent-bg-subtle) !important;
-}
-
-.wy-menu-vertical {
-  background-color: var(--maptor-bg-primary) !important;
-}
-
-.wy-menu-vertical a {
-  color: var(--maptor-text-secondary) !important; /* READABLE GRAY */
-  border: none !important;
-  padding: var(--maptor-space-sm) var(--maptor-space-md) !important;
-  transition: all 0.2s ease !important;
-}
-
-.wy-menu-vertical a:hover {
-  background-color: var(--maptor-bg-secondary) !important;
-  color: var(--maptor-text-primary) !important; /* READABLE ON HOVER */
-}
-
-.wy-menu-vertical a.current {
-  background-color: var(--maptor-accent-bg-subtle) !important; /* RED BACKGROUND - NON-TEXT */
-  color: var(--maptor-text-primary) !important; /* READABLE TEXT */
-  border-left: 3px solid var(--maptor-accent-border) !important; /* RED ACCENT - NON-TEXT */
-}
-
-.wy-menu-vertical li.current a {
-  color: var(--maptor-text-primary) !important; /* READABLE */
-  font-weight: 600 !important;
-}
-
-.wy-menu-vertical li.toctree-l1.current > a {
-  background-color: var(--maptor-accent-bg-subtle) !important; /* RED BACKGROUND - NON-TEXT */
-}
-
-.wy-menu-vertical li.toctree-l2.current > a {
-  background-color: var(--maptor-bg-secondary) !important;
-}
-
-.wy-nav-top {
-  background-color: var(--maptor-bg-elevated) !important;
-  color: var(--maptor-text-primary) !important;
-}
-
-/* ============================================================================
-   CONTENT AREA
-   ============================================================================ */
-.wy-nav-content {
-  padding: var(--maptor-space-lg) !important;
+  background: #2d2d2d !important;
 }
 
 .rst-content {
-  max-width: none !important;
-  font-size: 16px !important;
+  color: #e5e7eb !important;
 }
 
 /* ============================================================================
-   CODE AND SYNTAX HIGHLIGHTING
+   SIDEBAR - FIX DROPDOWN READABILITY
    ============================================================================ */
-code {
-  font-family: var(--maptor-font-family-mono) !important;
-  background-color: var(--maptor-bg-secondary) !important;
-  color: var(--maptor-text-primary) !important; /* READABLE */
-  padding: 0.2em 0.4em !important;
-  border-radius: 4px !important;
-  border: 1px solid var(--maptor-border-primary) !important;
-  font-size: 0.9em !important;
-  font-weight: 500 !important;
+
+/* Sidebar search area */
+.wy-side-nav-search {
+  background: #1f1f1f !important;
 }
 
-pre {
-  background-color: var(--maptor-bg-code) !important;
-  border: 1px solid var(--maptor-border-primary) !important;
-  border-radius: 8px !important;
-  padding: var(--maptor-space-md) !important;
-  overflow-x: auto !important;
-  margin: var(--maptor-space-md) 0 !important;
+.wy-side-nav-search input[type=text] {
+  background: #374151 !important;
+  border: 1px solid #4b5563 !important;
+  color: #e5e7eb !important;
 }
 
-pre code {
+.wy-side-nav-search input[type=text]:focus {
+  border-color: #991b1b !important;
+}
+
+/* Sidebar menu */
+.wy-menu-vertical {
+  background: #2d2d2d !important;
+}
+
+.wy-menu-vertical a {
+  color: #d1d5db !important;
   background: transparent !important;
-  border: none !important;
-  padding: 0 !important;
-  color: var(--maptor-text-primary) !important; /* READABLE */
+}
+
+.wy-menu-vertical a:hover {
+  background: #374151 !important;
+  color: #e5e7eb !important;
+}
+
+.wy-menu-vertical li.current a {
+  background: rgba(153, 27, 27, 0.1) !important;
+  border-right: 3px solid #991b1b !important;
+  color: #e5e7eb !important;
+}
+
+.wy-menu-vertical li.toctree-l1.current > a {
+  background: rgba(153, 27, 27, 0.1) !important;
+}
+
+/* Fix dropdown menus - THIS WAS THE PROBLEM */
+.wy-menu-vertical .wy-menu-vertical-nav .current {
+  background: #374151 !important;
+}
+
+.wy-menu-vertical .wy-menu-vertical-nav .current a {
+  color: #e5e7eb !important;
+  background: transparent !important;
+}
+
+/* ============================================================================
+   CONTENT TEXT - READABLE COLORS ONLY
+   ============================================================================ */
+
+/* All headings */
+.rst-content h1,
+.rst-content h2,
+.rst-content h3,
+.rst-content h4,
+.rst-content h5,
+.rst-content h6 {
+  color: #e5e7eb !important;
+}
+
+/* H1 with red accent border */
+.rst-content h1 {
+  border-bottom: 3px solid #991b1b !important;
+}
+
+/* Paragraphs and body text */
+.rst-content p,
+.rst-content li {
+  color: #e5e7eb !important;
+}
+
+/* ============================================================================
+   LINKS - NO BLUE, READABLE COLORS
+   ============================================================================ */
+
+/* All links - readable, not red */
+.rst-content a {
+  color: #9ca3af !important;
+}
+
+.rst-content a:hover {
+  color: #e5e7eb !important;
+  text-decoration: underline !important;
+}
+
+.rst-content a:visited {
+  color: #6b7280 !important;
+}
+
+/* External links */
+.rst-content a.external {
+  color: #9ca3af !important;
+}
+
+/* ============================================================================
+   CODE AND LITERALS
+   ============================================================================ */
+
+/* Inline code */
+.rst-content code.literal {
+  background: #374151 !important;
+  color: #e5e7eb !important;
+  border: 1px solid #4b5563 !important;
+}
+
+/* Code blocks */
+.rst-content pre {
+  background: #1f1f1f !important;
+  border: 1px solid #4b5563 !important;
+  color: #e5e7eb !important;
 }
 
 .highlight {
-  background-color: var(--maptor-bg-code) !important;
-  border: 1px solid var(--maptor-border-primary) !important;
-  border-radius: 8px !important;
-  overflow: hidden !important;
-  margin: var(--maptor-space-md) 0 !important;
-}
-
-.highlight pre {
-  background: transparent !important;
-  border: none !important;
-  margin: 0 !important;
-  border-radius: 0 !important;
-}
-
-.code-block-caption {
-  background-color: var(--maptor-bg-secondary) !important;
-  color: var(--maptor-text-secondary) !important; /* READABLE */
-  padding: var(--maptor-space-sm) var(--maptor-space-md) !important;
-  font-family: var(--maptor-font-family-mono) !important;
-  font-size: 0.875rem !important;
-  border-bottom: 1px solid var(--maptor-border-primary) !important;
+  background: #1f1f1f !important;
 }
 
 /* ============================================================================
    TABLES
    ============================================================================ */
-table.docutils {
-  border-collapse: collapse !important;
-  width: 100% !important;
-  margin: var(--maptor-space-md) 0 !important;
-  box-shadow: var(--maptor-shadow-md) !important;
-  border-radius: 8px !important;
-  overflow: hidden !important;
-  background-color: var(--maptor-bg-secondary) !important;
+
+.rst-content table.docutils thead th {
+  background: #991b1b !important;
+  color: #e5e7eb !important;
 }
 
-table.docutils th {
-  background-color: var(--maptor-accent-border) !important; /* RED BACKGROUND - NON-TEXT */
-  color: var(--maptor-text-primary) !important; /* READABLE WHITE TEXT */
-  font-weight: 600 !important;
-  padding: var(--maptor-space-md) !important;
-  text-align: left !important;
-  border: none !important;
-}
-
-table.docutils td {
-  padding: var(--maptor-space-md) !important;
-  border-bottom: 1px solid var(--maptor-border-primary) !important;
-  color: var(--maptor-text-primary) !important; /* READABLE */
-  background-color: var(--maptor-bg-secondary) !important;
-}
-
-table.docutils tr:hover td {
-  background-color: var(--maptor-bg-tertiary) !important;
-}
-
-table.docutils tr:last-child td {
-  border-bottom: none !important;
+.rst-content table.docutils td {
+  background: #374151 !important;
+  color: #e5e7eb !important;
+  border-bottom: 1px solid #4b5563 !important;
 }
 
 /* ============================================================================
-   ADMONITIONS AND CALLOUTS
+   ADMONITIONS
    ============================================================================ */
-.admonition {
-  border-radius: 8px !important;
-  padding: var(--maptor-space-md) !important;
-  margin: var(--maptor-space-lg) 0 !important;
-  box-shadow: var(--maptor-shadow-md) !important;
-  border-left: 4px solid var(--maptor-accent-border) !important; /* RED ACCENT - NON-TEXT */
-  background-color: var(--maptor-bg-secondary) !important;
+
+.rst-content .admonition {
+  background: #374151 !important;
+  border-left: 4px solid #991b1b !important;
 }
 
-.admonition-title {
-  color: var(--maptor-text-primary) !important; /* READABLE */
-  font-weight: 600 !important;
-  margin-bottom: var(--maptor-space-sm) !important;
+.rst-content .admonition-title {
+  color: #e5e7eb !important;
 }
 
-.admonition p {
-  color: var(--maptor-text-primary) !important; /* READABLE */
-  margin-bottom: var(--maptor-space-sm) !important;
-}
-
-.admonition p:last-child {
-  margin-bottom: 0 !important;
-}
-
-.admonition.note {
-  border-left-color: var(--maptor-accent-border) !important; /* RED ACCENT */
-  background-color: var(--maptor-accent-bg-subtle) !important;
-}
-
-.admonition.warning {
-  border-left-color: #f59e0b !important;
-  background-color: rgba(245, 158, 11, 0.1) !important;
-}
-
-.admonition.danger,
-.admonition.error {
-  border-left-color: #dc2626 !important;
-  background-color: rgba(220, 38, 38, 0.1) !important;
-}
-
-.admonition.tip,
-.admonition.hint {
-  border-left-color: #10b981 !important;
-  background-color: rgba(16, 185, 129, 0.1) !important;
-}
-
-.admonition.important {
-  border-left-color: var(--maptor-accent-border) !important; /* RED ACCENT */
-  background-color: var(--maptor-accent-bg-subtle) !important;
-}
-
-/* ============================================================================
-   LISTS
-   ============================================================================ */
-ul, ol {
-  color: var(--maptor-text-primary) !important; /* READABLE */
-  padding-left: var(--maptor-space-lg) !important;
-}
-
-li {
-  margin-bottom: var(--maptor-space-sm) !important;
-  color: var(--maptor-text-primary) !important; /* READABLE */
-}
-
-li::marker {
-  color: var(--maptor-accent-border) !important; /* RED ACCENT - NON-TEXT */
-}
-
-dl dt {
-  color: var(--maptor-text-primary) !important; /* READABLE */
-  font-weight: 600 !important;
-  margin-top: var(--maptor-space-md) !important;
-}
-
-dl dd {
-  color: var(--maptor-text-secondary) !important; /* READABLE */
-  margin-left: var(--maptor-space-lg) !important;
-  margin-bottom: var(--maptor-space-sm) !important;
+.rst-content .admonition p {
+  color: #e5e7eb !important;
 }
 
 /* ============================================================================
    API DOCUMENTATION
    ============================================================================ */
-dl.class,
-dl.function,
-dl.method,
-dl.attribute {
-  border: 1px solid var(--maptor-border-primary) !important;
-  border-radius: 8px !important;
-  padding: var(--maptor-space-md) !important;
-  margin: var(--maptor-space-lg) 0 !important;
-  background-color: var(--maptor-bg-secondary) !important;
-  box-shadow: var(--maptor-shadow-sm) !important;
+
+.rst-content dl.class,
+.rst-content dl.function,
+.rst-content dl.method {
+  background: #374151 !important;
+  border: 1px solid #4b5563 !important;
 }
 
-dt.sig {
-  background-color: var(--maptor-bg-elevated) !important;
-  border: 1px solid var(--maptor-border-primary) !important;
-  border-radius: 6px !important;
-  padding: var(--maptor-space-sm) var(--maptor-space-md) !important;
-  font-family: var(--maptor-font-family-mono) !important;
-  font-size: 0.9rem !important;
-  font-weight: 500 !important;
-  color: var(--maptor-text-primary) !important; /* READABLE */
-  margin-bottom: var(--maptor-space-sm) !important;
+.rst-content dt {
+  background: #1f1f1f !important;
+  color: #e5e7eb !important;
 }
 
-dd {
-  margin-left: 0 !important;
-  color: var(--maptor-text-primary) !important; /* READABLE */
+.rst-content dd {
+  color: #e5e7eb !important;
 }
 
-.field-list {
-  margin: var(--maptor-space-md) 0 !important;
+/* Field lists (Args, Returns, etc.) */
+.rst-content .field-name {
+  color: #9ca3af !important;
 }
 
-.field-name {
-  color: var(--maptor-text-link) !important; /* READABLE BLUE - NOT RED */
-  font-weight: 600 !important;
-}
-
-.field-body {
-  color: var(--maptor-text-primary) !important; /* READABLE */
+.rst-content .field-body {
+  color: #e5e7eb !important;
 }
 
 /* ============================================================================
-   SEARCH FUNCTIONALITY
+   NAVIGATION TOP
    ============================================================================ */
-.wy-side-nav-search .wy-dropdown {
-  background-color: var(--maptor-bg-secondary) !important;
-  border: 1px solid var(--maptor-border-primary) !important;
-}
 
-.wy-side-nav-search .wy-dropdown a:hover {
-  background-color: var(--maptor-bg-tertiary) !important;
-}
-
-.search li {
-  background-color: var(--maptor-bg-secondary) !important;
-  border: 1px solid var(--maptor-border-primary) !important;
-  border-radius: 6px !important;
-  margin-bottom: var(--maptor-space-sm) !important;
-  padding: var(--maptor-space-md) !important;
-}
-
-.search li a {
-  color: var(--maptor-text-link) !important; /* READABLE BLUE */
-  font-weight: 600 !important;
+.wy-nav-top {
+  background: #1f1f1f !important;
+  color: #e5e7eb !important;
 }
 
 /* ============================================================================
    BREADCRUMBS
    ============================================================================ */
-.wy-breadcrumbs {
-  background-color: var(--maptor-bg-secondary) !important;
-  padding: var(--maptor-space-sm) var(--maptor-space-md) !important;
-  border-radius: 6px !important;
-  margin-bottom: var(--maptor-space-md) !important;
-}
 
-.wy-breadcrumbs a {
-  color: var(--maptor-text-link) !important; /* READABLE BLUE */
+.wy-breadcrumbs li a {
+  color: #9ca3af !important;
 }
 
 .wy-breadcrumbs li {
-  color: var(--maptor-text-secondary) !important; /* READABLE */
+  color: #d1d5db !important;
 }
 
 /* ============================================================================
-   FOOTER AND BUTTONS
+   BUTTONS AND FOOTER
    ============================================================================ */
-.rst-footer-buttons {
-  margin-top: var(--maptor-space-xl) !important;
-  padding-top: var(--maptor-space-lg) !important;
-  border-top: 1px solid var(--maptor-border-primary) !important;
-}
 
-.btn {
-  background-color: var(--maptor-accent-border) !important; /* RED BACKGROUND - NON-TEXT */
-  color: var(--maptor-text-primary) !important; /* READABLE WHITE TEXT */
+.btn-neutral {
+  background: #991b1b !important;
+  color: #e5e7eb !important;
   border: none !important;
-  padding: var(--maptor-space-sm) var(--maptor-space-md) !important;
-  border-radius: 6px !important;
-  font-weight: 600 !important;
-  transition: all 0.2s ease !important;
 }
 
-.btn:hover {
-  background-color: #b91c1c !important; /* DARKER RED BACKGROUND */
-  color: var(--maptor-text-primary) !important; /* READABLE WHITE TEXT */
-  text-decoration: none !important;
+.btn-neutral:hover {
+  background: #b91c1c !important;
+  color: #e5e7eb !important;
 }
 
 /* ============================================================================
-   BANNER INTEGRATION
+   SEARCH RESULTS
    ============================================================================ */
-.maptor-banner {
-  display: block !important;
-  max-width: 800px !important;
-  width: 100% !important;
-  height: auto !important;
-  margin: 0 auto var(--maptor-space-xl) auto !important;
-  background-color: transparent !important;
-  border-radius: 8px !important;
-  box-shadow: var(--maptor-shadow-md) !important;
+
+.search li {
+  background: #374151 !important;
+  border: 1px solid #4b5563 !important;
 }
 
-.wy-side-nav-search .maptor-banner {
-  max-width: 200px !important;
-  margin: var(--maptor-space-sm) auto !important;
-  box-shadow: none !important;
+.search li a {
+  color: #9ca3af !important;
 }
 
 /* ============================================================================
-   RESPONSIVE DESIGN
+   RESPONSIVE
    ============================================================================ */
-@media (max-width: 768px) {
-  body {
-    font-size: 14px !important;
-  }
 
-  h1 {
-    font-size: 2rem !important;
-  }
-
-  h2 {
-    font-size: 1.5rem !important;
-  }
-
-  h3 {
-    font-size: 1.25rem !important;
-  }
-
-  .wy-nav-content {
-    padding: var(--maptor-space-md) !important;
-  }
-
-  .maptor-banner {
-    max-width: 90% !important;
-  }
-}
-
-/* ============================================================================
-   ACCESSIBILITY
-   ============================================================================ */
-@media (prefers-reduced-motion: reduce) {
-  * {
-    transition: none !important;
-    animation: none !important;
-  }
-}
-
-@media (prefers-contrast: high) {
-  :root {
-    --maptor-text-primary: #ffffff;
-    --maptor-border-primary: #ffffff;
-  }
-}
-
-*:focus {
-  outline: 2px solid var(--maptor-accent-border) !important; /* RED ACCENT - NON-TEXT */
-  outline-offset: 2px !important;
-}
-
-/* ============================================================================
-   PRINT STYLES
-   ============================================================================ */
-@media print {
-  .wy-nav-side,
-  .wy-nav-top,
-  .rst-footer-buttons {
-    display: none !important;
-  }
-
-  .wy-nav-content-wrap {
-    margin-left: 0 !important;
-  }
-
-  body {
-    background: white !important;
-    color: black !important;
-  }
-
-  h1, h2, h3, h4, h5, h6 {
-    color: black !important;
-  }
-
-  a {
-    color: black !important;
-    text-decoration: underline !important;
+@media screen and (max-width: 768px) {
+  .wy-nav-top {
+    background: #1f1f1f !important;
   }
 }
