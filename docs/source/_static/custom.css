@@ -1,48 +1,41 @@
-/* MAPTOR Documentation Theme - Dark Mode Professional */
-/* Colors derived from banner: #2d2d2d, #e5e7eb, #991b1b */
+/* MAPTOR Documentation Theme - Readable Dark Mode */
+/* Follows banner pattern: #2d2d2d background, #e5e7eb text, #991b1b accents only */
 
 /* Import modern fonts */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap');
 
 /* ============================================================================
-   COLOR SYSTEM - Banner-Based Palette
+   COLOR SYSTEM - Banner-Based Readable Palette
    ============================================================================ */
 :root {
-  /* Primary Colors from Banner */
+  /* Primary Colors from Banner - EXACT MATCH */
   --maptor-bg-primary: #2d2d2d;      /* Banner background */
-  --maptor-text-primary: #e5e7eb;    /* Banner text */
-  --maptor-accent-primary: #991b1b;  /* Banner red accent */
+  --maptor-text-primary: #e5e7eb;    /* Banner text - ALWAYS READABLE */
+  --maptor-accent-primary: #991b1b;  /* Banner red - ACCENTS ONLY, NEVER TEXT */
 
-  /* Derived Background Colors */
-  --maptor-bg-secondary: #3a3a3a;    /* Lighter panels */
-  --maptor-bg-tertiary: #454545;     /* Hover states */
-  --maptor-bg-quaternary: #525252;   /* Active states */
-  --maptor-bg-elevated: #1f1f1f;     /* Deeper backgrounds */
+  /* Readable Text Hierarchy - All based on #e5e7eb */
+  --maptor-text-secondary: #d1d5db;  /* Slightly dimmed readable text */
+  --maptor-text-tertiary: #9ca3af;   /* Muted but still readable */
+  --maptor-text-quaternary: #6b7280; /* Minimal text, still readable */
+  --maptor-text-link: #60a5fa;       /* Blue links - highly readable */
+  --maptor-text-link-hover: #3b82f6; /* Blue hover - highly readable */
 
-  /* Derived Text Colors */
-  --maptor-text-secondary: #d1d5db;  /* Secondary text */
-  --maptor-text-tertiary: #9ca3af;   /* Muted text */
-  --maptor-text-quaternary: #6b7280; /* Disabled text */
-  --maptor-text-inverse: #2d2d2d;    /* Text on light backgrounds */
+  /* Background Hierarchy */
+  --maptor-bg-secondary: #374151;    /* Lighter panels - readable contrast */
+  --maptor-bg-tertiary: #4b5563;     /* Hover states */
+  --maptor-bg-elevated: #1f2937;     /* Deeper backgrounds */
+  --maptor-bg-code: #111827;         /* Code backgrounds */
 
-  /* Derived Accent Colors */
-  --maptor-accent-secondary: #b91c1c; /* Hover red */
-  --maptor-accent-tertiary: #dc2626;  /* Active red */
-  --maptor-accent-quaternary: #7f1d1d; /* Muted red */
-  --maptor-accent-light: rgba(153, 27, 27, 0.1); /* Red tint */
-  --maptor-accent-border: rgba(153, 27, 27, 0.3); /* Red borders */
+  /* Red Accent Usage - NON-TEXT ONLY */
+  --maptor-accent-border: #991b1b;   /* Borders and lines */
+  --maptor-accent-bg-subtle: rgba(153, 27, 27, 0.1); /* Very subtle backgrounds */
+  --maptor-accent-bg-medium: rgba(153, 27, 27, 0.2); /* Medium backgrounds */
 
-  /* Border Colors */
-  --maptor-border-primary: #454545;   /* Main borders */
-  --maptor-border-secondary: #525252; /* Subtle borders */
-  --maptor-border-accent: var(--maptor-accent-border);
+  /* Border System */
+  --maptor-border-primary: #4b5563;   /* Main borders */
+  --maptor-border-secondary: #374151; /* Subtle borders */
 
-  /* Shadow System */
-  --maptor-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
-  --maptor-shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
-  --maptor-shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.5);
-
-  /* Typography Scale */
+  /* Typography */
   --maptor-font-family-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   --maptor-font-family-mono: 'JetBrains Mono', 'SF Mono', Monaco, 'Cascadia Code', Menlo, monospace;
 
@@ -53,6 +46,11 @@
   --maptor-space-lg: 1.5rem;
   --maptor-space-xl: 2rem;
   --maptor-space-2xl: 3rem;
+
+  /* Shadows */
+  --maptor-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --maptor-shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
+  --maptor-shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.5);
 }
 
 /* ============================================================================
@@ -72,7 +70,6 @@ body {
   padding: 0 !important;
 }
 
-/* Remove RTD theme artifacts */
 .wy-body-for-nav {
   background: var(--maptor-bg-primary) !important;
 }
@@ -87,7 +84,7 @@ body {
 }
 
 /* ============================================================================
-   TYPOGRAPHY SYSTEM
+   TYPOGRAPHY - ALL TEXT MUST BE READABLE
    ============================================================================ */
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--maptor-font-family-sans) !important;
@@ -101,7 +98,7 @@ h1, h2, h3, h4, h5, h6 {
 h1 {
   font-size: 2.5rem !important;
   font-weight: 700 !important;
-  border-bottom: 3px solid var(--maptor-accent-primary) !important;
+  border-bottom: 3px solid var(--maptor-accent-border) !important; /* RED ACCENT - NON-TEXT */
   padding-bottom: var(--maptor-space-sm) !important;
   margin-top: 0 !important;
 }
@@ -133,6 +130,29 @@ p {
 }
 
 /* ============================================================================
+   LINKS - READABLE BLUE, NEVER RED TEXT
+   ============================================================================ */
+a {
+  color: var(--maptor-text-link) !important; /* BLUE - READABLE */
+  text-decoration: none !important;
+  transition: color 0.2s ease !important;
+}
+
+a:hover {
+  color: var(--maptor-text-link-hover) !important; /* BLUE HOVER - READABLE */
+  text-decoration: underline !important;
+}
+
+a:visited {
+  color: var(--maptor-text-tertiary) !important; /* GRAY - READABLE */
+}
+
+a:focus {
+  outline: 2px solid var(--maptor-accent-border) !important; /* RED ACCENT - NON-TEXT */
+  outline-offset: 2px !important;
+}
+
+/* ============================================================================
    NAVIGATION AND SIDEBAR
    ============================================================================ */
 .wy-side-nav-search {
@@ -155,17 +175,16 @@ p {
 }
 
 .wy-side-nav-search input[type=text]:focus {
-  border-color: var(--maptor-accent-primary) !important;
-  box-shadow: 0 0 0 2px var(--maptor-accent-light) !important;
+  border-color: var(--maptor-accent-border) !important; /* RED ACCENT - NON-TEXT */
+  box-shadow: 0 0 0 2px var(--maptor-accent-bg-subtle) !important;
 }
 
-/* Sidebar Navigation */
 .wy-menu-vertical {
   background-color: var(--maptor-bg-primary) !important;
 }
 
 .wy-menu-vertical a {
-  color: var(--maptor-text-secondary) !important;
+  color: var(--maptor-text-secondary) !important; /* READABLE GRAY */
   border: none !important;
   padding: var(--maptor-space-sm) var(--maptor-space-md) !important;
   transition: all 0.2s ease !important;
@@ -173,29 +192,28 @@ p {
 
 .wy-menu-vertical a:hover {
   background-color: var(--maptor-bg-secondary) !important;
-  color: var(--maptor-text-primary) !important;
+  color: var(--maptor-text-primary) !important; /* READABLE ON HOVER */
 }
 
 .wy-menu-vertical a.current {
-  background-color: var(--maptor-accent-light) !important;
-  color: var(--maptor-accent-tertiary) !important;
-  border-left: 3px solid var(--maptor-accent-primary) !important;
+  background-color: var(--maptor-accent-bg-subtle) !important; /* RED BACKGROUND - NON-TEXT */
+  color: var(--maptor-text-primary) !important; /* READABLE TEXT */
+  border-left: 3px solid var(--maptor-accent-border) !important; /* RED ACCENT - NON-TEXT */
 }
 
 .wy-menu-vertical li.current a {
-  color: var(--maptor-accent-tertiary) !important;
+  color: var(--maptor-text-primary) !important; /* READABLE */
   font-weight: 600 !important;
 }
 
 .wy-menu-vertical li.toctree-l1.current > a {
-  background-color: var(--maptor-accent-light) !important;
+  background-color: var(--maptor-accent-bg-subtle) !important; /* RED BACKGROUND - NON-TEXT */
 }
 
 .wy-menu-vertical li.toctree-l2.current > a {
   background-color: var(--maptor-bg-secondary) !important;
 }
 
-/* Navigation header */
 .wy-nav-top {
   background-color: var(--maptor-bg-elevated) !important;
   color: var(--maptor-text-primary) !important;
@@ -214,35 +232,12 @@ p {
 }
 
 /* ============================================================================
-   LINKS AND INTERACTIVE ELEMENTS
-   ============================================================================ */
-a {
-  color: var(--maptor-accent-primary) !important;
-  text-decoration: none !important;
-  transition: color 0.2s ease !important;
-}
-
-a:hover {
-  color: var(--maptor-accent-secondary) !important;
-  text-decoration: underline !important;
-}
-
-a:visited {
-  color: var(--maptor-accent-quaternary) !important;
-}
-
-a:focus {
-  outline: 2px solid var(--maptor-accent-primary) !important;
-  outline-offset: 2px !important;
-}
-
-/* ============================================================================
    CODE AND SYNTAX HIGHLIGHTING
    ============================================================================ */
 code {
   font-family: var(--maptor-font-family-mono) !important;
   background-color: var(--maptor-bg-secondary) !important;
-  color: var(--maptor-text-primary) !important;
+  color: var(--maptor-text-primary) !important; /* READABLE */
   padding: 0.2em 0.4em !important;
   border-radius: 4px !important;
   border: 1px solid var(--maptor-border-primary) !important;
@@ -251,7 +246,7 @@ code {
 }
 
 pre {
-  background-color: var(--maptor-bg-elevated) !important;
+  background-color: var(--maptor-bg-code) !important;
   border: 1px solid var(--maptor-border-primary) !important;
   border-radius: 8px !important;
   padding: var(--maptor-space-md) !important;
@@ -263,12 +258,11 @@ pre code {
   background: transparent !important;
   border: none !important;
   padding: 0 !important;
-  color: var(--maptor-text-primary) !important;
+  color: var(--maptor-text-primary) !important; /* READABLE */
 }
 
-/* Syntax highlighting */
 .highlight {
-  background-color: var(--maptor-bg-elevated) !important;
+  background-color: var(--maptor-bg-code) !important;
   border: 1px solid var(--maptor-border-primary) !important;
   border-radius: 8px !important;
   overflow: hidden !important;
@@ -282,10 +276,9 @@ pre code {
   border-radius: 0 !important;
 }
 
-/* Code block titles */
 .code-block-caption {
   background-color: var(--maptor-bg-secondary) !important;
-  color: var(--maptor-text-secondary) !important;
+  color: var(--maptor-text-secondary) !important; /* READABLE */
   padding: var(--maptor-space-sm) var(--maptor-space-md) !important;
   font-family: var(--maptor-font-family-mono) !important;
   font-size: 0.875rem !important;
@@ -306,8 +299,8 @@ table.docutils {
 }
 
 table.docutils th {
-  background-color: var(--maptor-accent-primary) !important;
-  color: var(--maptor-text-primary) !important;
+  background-color: var(--maptor-accent-border) !important; /* RED BACKGROUND - NON-TEXT */
+  color: var(--maptor-text-primary) !important; /* READABLE WHITE TEXT */
   font-weight: 600 !important;
   padding: var(--maptor-space-md) !important;
   text-align: left !important;
@@ -317,7 +310,7 @@ table.docutils th {
 table.docutils td {
   padding: var(--maptor-space-md) !important;
   border-bottom: 1px solid var(--maptor-border-primary) !important;
-  color: var(--maptor-text-primary) !important;
+  color: var(--maptor-text-primary) !important; /* READABLE */
   background-color: var(--maptor-bg-secondary) !important;
 }
 
@@ -337,18 +330,18 @@ table.docutils tr:last-child td {
   padding: var(--maptor-space-md) !important;
   margin: var(--maptor-space-lg) 0 !important;
   box-shadow: var(--maptor-shadow-md) !important;
-  border-left: 4px solid var(--maptor-accent-primary) !important;
+  border-left: 4px solid var(--maptor-accent-border) !important; /* RED ACCENT - NON-TEXT */
   background-color: var(--maptor-bg-secondary) !important;
 }
 
 .admonition-title {
-  color: var(--maptor-text-primary) !important;
+  color: var(--maptor-text-primary) !important; /* READABLE */
   font-weight: 600 !important;
   margin-bottom: var(--maptor-space-sm) !important;
 }
 
 .admonition p {
-  color: var(--maptor-text-primary) !important;
+  color: var(--maptor-text-primary) !important; /* READABLE */
   margin-bottom: var(--maptor-space-sm) !important;
 }
 
@@ -356,10 +349,9 @@ table.docutils tr:last-child td {
   margin-bottom: 0 !important;
 }
 
-/* Specific admonition types */
 .admonition.note {
-  border-left-color: var(--maptor-accent-primary) !important;
-  background-color: var(--maptor-accent-light) !important;
+  border-left-color: var(--maptor-accent-border) !important; /* RED ACCENT */
+  background-color: var(--maptor-accent-bg-subtle) !important;
 }
 
 .admonition.warning {
@@ -369,8 +361,8 @@ table.docutils tr:last-child td {
 
 .admonition.danger,
 .admonition.error {
-  border-left-color: var(--maptor-accent-secondary) !important;
-  background-color: var(--maptor-accent-light) !important;
+  border-left-color: #dc2626 !important;
+  background-color: rgba(220, 38, 38, 0.1) !important;
 }
 
 .admonition.tip,
@@ -380,36 +372,35 @@ table.docutils tr:last-child td {
 }
 
 .admonition.important {
-  border-left-color: var(--maptor-accent-tertiary) !important;
-  background-color: var(--maptor-accent-light) !important;
+  border-left-color: var(--maptor-accent-border) !important; /* RED ACCENT */
+  background-color: var(--maptor-accent-bg-subtle) !important;
 }
 
 /* ============================================================================
    LISTS
    ============================================================================ */
 ul, ol {
-  color: var(--maptor-text-primary) !important;
+  color: var(--maptor-text-primary) !important; /* READABLE */
   padding-left: var(--maptor-space-lg) !important;
 }
 
 li {
   margin-bottom: var(--maptor-space-sm) !important;
-  color: var(--maptor-text-primary) !important;
+  color: var(--maptor-text-primary) !important; /* READABLE */
 }
 
 li::marker {
-  color: var(--maptor-accent-primary) !important;
+  color: var(--maptor-accent-border) !important; /* RED ACCENT - NON-TEXT */
 }
 
-/* Definition lists */
 dl dt {
-  color: var(--maptor-text-primary) !important;
+  color: var(--maptor-text-primary) !important; /* READABLE */
   font-weight: 600 !important;
   margin-top: var(--maptor-space-md) !important;
 }
 
 dl dd {
-  color: var(--maptor-text-secondary) !important;
+  color: var(--maptor-text-secondary) !important; /* READABLE */
   margin-left: var(--maptor-space-lg) !important;
   margin-bottom: var(--maptor-space-sm) !important;
 }
@@ -437,27 +428,26 @@ dt.sig {
   font-family: var(--maptor-font-family-mono) !important;
   font-size: 0.9rem !important;
   font-weight: 500 !important;
-  color: var(--maptor-text-primary) !important;
+  color: var(--maptor-text-primary) !important; /* READABLE */
   margin-bottom: var(--maptor-space-sm) !important;
 }
 
 dd {
   margin-left: 0 !important;
-  color: var(--maptor-text-primary) !important;
+  color: var(--maptor-text-primary) !important; /* READABLE */
 }
 
-/* Parameter lists */
 .field-list {
   margin: var(--maptor-space-md) 0 !important;
 }
 
 .field-name {
-  color: var(--maptor-accent-primary) !important;
+  color: var(--maptor-text-link) !important; /* READABLE BLUE - NOT RED */
   font-weight: 600 !important;
 }
 
 .field-body {
-  color: var(--maptor-text-primary) !important;
+  color: var(--maptor-text-primary) !important; /* READABLE */
 }
 
 /* ============================================================================
@@ -472,7 +462,6 @@ dd {
   background-color: var(--maptor-bg-tertiary) !important;
 }
 
-/* Search results */
 .search li {
   background-color: var(--maptor-bg-secondary) !important;
   border: 1px solid var(--maptor-border-primary) !important;
@@ -482,7 +471,7 @@ dd {
 }
 
 .search li a {
-  color: var(--maptor-accent-primary) !important;
+  color: var(--maptor-text-link) !important; /* READABLE BLUE */
   font-weight: 600 !important;
 }
 
@@ -497,15 +486,15 @@ dd {
 }
 
 .wy-breadcrumbs a {
-  color: var(--maptor-accent-primary) !important;
+  color: var(--maptor-text-link) !important; /* READABLE BLUE */
 }
 
 .wy-breadcrumbs li {
-  color: var(--maptor-text-secondary) !important;
+  color: var(--maptor-text-secondary) !important; /* READABLE */
 }
 
 /* ============================================================================
-   FOOTER
+   FOOTER AND BUTTONS
    ============================================================================ */
 .rst-footer-buttons {
   margin-top: var(--maptor-space-xl) !important;
@@ -514,8 +503,8 @@ dd {
 }
 
 .btn {
-  background-color: var(--maptor-accent-primary) !important;
-  color: var(--maptor-text-primary) !important;
+  background-color: var(--maptor-accent-border) !important; /* RED BACKGROUND - NON-TEXT */
+  color: var(--maptor-text-primary) !important; /* READABLE WHITE TEXT */
   border: none !important;
   padding: var(--maptor-space-sm) var(--maptor-space-md) !important;
   border-radius: 6px !important;
@@ -524,9 +513,29 @@ dd {
 }
 
 .btn:hover {
-  background-color: var(--maptor-accent-secondary) !important;
-  color: var(--maptor-text-primary) !important;
+  background-color: #b91c1c !important; /* DARKER RED BACKGROUND */
+  color: var(--maptor-text-primary) !important; /* READABLE WHITE TEXT */
   text-decoration: none !important;
+}
+
+/* ============================================================================
+   BANNER INTEGRATION
+   ============================================================================ */
+.maptor-banner {
+  display: block !important;
+  max-width: 800px !important;
+  width: 100% !important;
+  height: auto !important;
+  margin: 0 auto var(--maptor-space-xl) auto !important;
+  background-color: transparent !important;
+  border-radius: 8px !important;
+  box-shadow: var(--maptor-shadow-md) !important;
+}
+
+.wy-side-nav-search .maptor-banner {
+  max-width: 200px !important;
+  margin: var(--maptor-space-sm) auto !important;
+  box-shadow: none !important;
 }
 
 /* ============================================================================
@@ -553,18 +562,13 @@ dd {
     padding: var(--maptor-space-md) !important;
   }
 
-  table.docutils {
-    font-size: 0.875rem !important;
-  }
-
-  table.docutils th,
-  table.docutils td {
-    padding: var(--maptor-space-sm) !important;
+  .maptor-banner {
+    max-width: 90% !important;
   }
 }
 
 /* ============================================================================
-   ACCESSIBILITY ENHANCEMENTS
+   ACCESSIBILITY
    ============================================================================ */
 @media (prefers-reduced-motion: reduce) {
   * {
@@ -573,35 +577,16 @@ dd {
   }
 }
 
-/* High contrast mode support */
 @media (prefers-contrast: high) {
   :root {
-    --maptor-border-primary: #ffffff;
     --maptor-text-primary: #ffffff;
+    --maptor-border-primary: #ffffff;
   }
 }
 
-/* Focus indicators for keyboard navigation */
 *:focus {
-  outline: 2px solid var(--maptor-accent-primary) !important;
+  outline: 2px solid var(--maptor-accent-border) !important; /* RED ACCENT - NON-TEXT */
   outline-offset: 2px !important;
-}
-
-/* Skip to content link */
-.skip-to-content {
-  position: absolute !important;
-  top: -40px !important;
-  left: 6px !important;
-  background: var(--maptor-accent-primary) !important;
-  color: var(--maptor-text-primary) !important;
-  padding: 8px !important;
-  text-decoration: none !important;
-  border-radius: 4px !important;
-  z-index: 1000 !important;
-}
-
-.skip-to-content:focus {
-  top: 6px !important;
 }
 
 /* ============================================================================
@@ -630,145 +615,5 @@ dd {
   a {
     color: black !important;
     text-decoration: underline !important;
-  }
-}
-
-/* ============================================================================
-   UTILITY CLASSES
-   ============================================================================ */
-.maptor-text-accent {
-  color: var(--maptor-accent-primary) !important;
-}
-
-.maptor-bg-accent {
-  background-color: var(--maptor-accent-primary) !important;
-}
-
-.maptor-border-accent {
-  border-color: var(--maptor-accent-primary) !important;
-}
-
-.maptor-hidden {
-  display: none !important;
-}
-
-.maptor-sr-only {
-  position: absolute !important;
-  width: 1px !important;
-  height: 1px !important;
-  padding: 0 !important;
-  margin: -1px !important;
-  overflow: hidden !important;
-  clip: rect(0, 0, 0, 0) !important;
-  white-space: nowrap !important;
-  border: 0 !important;
-}
-
-
-/* ============================================================================
-   BRAND BANNER INTEGRATION
-   ============================================================================ */
-
-/* Main brand banner styling */
-.maptor-banner {
-  display: block !important;
-  max-width: 800px !important;
-  width: 100% !important;
-  height: auto !important;
-  margin: 0 auto var(--maptor-space-xl) auto !important;
-  background-color: transparent !important;
-  border-radius: 8px !important;
-  box-shadow: var(--maptor-shadow-md) !important;
-}
-
-/* Banner in main content area */
-.rst-content .maptor-banner {
-  margin: var(--maptor-space-xl) auto !important;
-}
-
-/* Banner in sidebar header */
-.wy-side-nav-search .maptor-banner {
-  max-width: 200px !important;
-  margin: var(--maptor-space-sm) auto !important;
-  box-shadow: none !important;
-}
-
-/* Banner as page header */
-.page-header-banner {
-  display: block !important;
-  max-width: 600px !important;
-  width: 100% !important;
-  margin: 0 auto var(--maptor-space-lg) auto !important;
-  padding: var(--maptor-space-md) 0 !important;
-}
-
-/* Banner in navigation top */
-.wy-nav-top .maptor-banner {
-  max-width: 150px !important;
-  height: 40px !important;
-  margin: var(--maptor-space-xs) auto !important;
-  box-shadow: none !important;
-}
-
-/* Index page hero banner */
-.hero-banner {
-  text-align: center !important;
-  padding: var(--maptor-space-xl) 0 !important;
-  margin-bottom: var(--maptor-space-2xl) !important;
-  border-bottom: 1px solid var(--maptor-border-primary) !important;
-}
-
-.hero-banner .maptor-banner {
-  max-width: 700px !important;
-  margin-bottom: var(--maptor-space-lg) !important;
-}
-
-/* Responsive banner behavior */
-@media (max-width: 768px) {
-  .maptor-banner {
-    max-width: 90% !important;
-    margin: var(--maptor-space-md) auto !important;
-  }
-
-  .hero-banner .maptor-banner {
-    max-width: 100% !important;
-  }
-
-  .wy-side-nav-search .maptor-banner {
-    max-width: 180px !important;
-  }
-
-  .page-header-banner {
-    max-width: 100% !important;
-  }
-}
-
-@media (max-width: 480px) {
-  .maptor-banner {
-    max-width: 95% !important;
-  }
-
-  .wy-side-nav-search .maptor-banner {
-    max-width: 160px !important;
-  }
-}
-
-/* Banner container for flexible positioning */
-.banner-container {
-  text-align: center !important;
-  width: 100% !important;
-  margin: var(--maptor-space-lg) 0 !important;
-}
-
-.banner-container .maptor-banner {
-  margin: 0 auto !important;
-}
-
-/* Hide banner on print */
-@media print {
-  .maptor-banner,
-  .hero-banner,
-  .banner-container {
-    display: none !important;
   }
 }
