@@ -449,69 +449,89 @@ class Solution:
         Dictionary-style access to solution variables and time arrays.
 
         Provides convenient access to trajectory data using either variable names
-        (searches all phases) or explicit (phase_id, variable_name) tuples.
+        (automatically combines data from all phases containing the variable) or
+        explicit (phase_id, variable_name) tuples for phase-specific access.
         This is the primary method for extracting solution data for analysis.
 
         Args:
-            key: Either a variable name (searches all phases) or (phase_id, variable_name) tuple
+            key: Either a variable name (combines all phases) or (phase_id, variable_name) tuple
 
         Returns:
-            FloatArray containing the requested trajectory or time data
+            FloatArray containing the requested trajectory or time data.
+            For string keys, data from all phases containing the variable is
+            automatically concatenated in phase order.
 
         Raises:
             KeyError: If the variable name is not found in any phase
 
         Examples:
-            Access variables by name (auto-search all phases):
+            Access complete mission trajectories (auto-combines all phases):
 
-            >>> # Get trajectory data from any phase containing this variable
-            >>> altitude_data = solution["altitude"]
-            >>> velocity_data = solution["velocity"]
-            >>> thrust_data = solution["thrust"]
+            >>> # Get complete trajectory data across entire mission
+            >>> altitude_complete = solution["altitude"]      # All phases automatically
+            >>> velocity_complete = solution["velocity"]      # All phases automatically
+            >>> thrust_complete = solution["thrust"]          # All phases automatically
+            >>>
+            >>> # Get complete time arrays for entire mission
+            >>> all_state_times = solution["time_states"]     # All phases combined
+            >>> all_control_times = solution["time_controls"] # All phases combined
 
-            Access variables from specific phases:
+            Access variables from specific phases (granular control):
 
-            >>> # Get data from specific phases (useful for multiphase problems)
-            >>> launch_altitude = solution[(1, "altitude")]  # Phase 1 altitude
-            >>> orbit_velocity = solution[(2, "velocity")]   # Phase 2 velocity
-            >>> descent_thrust = solution[(3, "thrust")]     # Phase 3 thrust
-
-            Access time coordinate arrays:
-
-            >>> # Get time points for state and control trajectories
-            >>> state_times = solution[(1, "time_states")]    # Time points for states
-            >>> control_times = solution[(1, "time_controls")] # Time points for controls
+            >>> # Get data from specific phases when needed
+            >>> launch_altitude = solution[(1, "altitude")]   # Phase 1 only
+            >>> orbit_velocity = solution[(2, "velocity")]    # Phase 2 only
+            >>> descent_thrust = solution[(3, "thrust")]      # Phase 3 only
+            >>>
+            >>> # Get phase-specific time arrays
+            >>> phase1_state_times = solution[(1, "time_states")]
+            >>> phase2_control_times = solution[(2, "time_controls")]
 
             Use in plotting and analysis:
 
-            >>> # Extract data for custom plotting
+            >>> # Plot complete mission trajectory (most common use case)
             >>> import matplotlib.pyplot as plt
-            >>> t = solution[(1, "time_states")]
-            >>> x = solution[(1, "position")]
-            >>> v = solution[(1, "velocity")]
+            >>> t_complete = solution["time_states"]          # Complete mission time
+            >>> x_complete = solution["position"]             # Complete mission position
+            >>> v_complete = solution["velocity"]             # Complete mission velocity
             >>>
             >>> plt.figure(figsize=(12, 4))
             >>> plt.subplot(1, 2, 1)
-            >>> plt.plot(t, x)
+            >>> plt.plot(t_complete, x_complete)
             >>> plt.xlabel("Time (s)")
             >>> plt.ylabel("Position")
+            >>> plt.title("Complete Mission Trajectory")
             >>>
             >>> plt.subplot(1, 2, 2)
-            >>> plt.plot(t, v)
+            >>> plt.plot(t_complete, v_complete)
             >>> plt.xlabel("Time (s)")
             >>> plt.ylabel("Velocity")
             >>> plt.show()
 
+            Get final mission values:
+
+            >>> # Get actual mission final state (not just end of first phase)
+            >>> final_altitude = solution["altitude"][-1]     # True mission end
+            >>> final_velocity = solution["velocity"][-1]     # True mission end
+            >>> final_mass = solution["mass"][-1]             # True mission end
+
             Handle missing variables gracefully:
 
             >>> try:
-            ...     fuel_data = solution["fuel_mass"]
+            ...     fuel_data = solution["fuel_mass"]         # Complete trajectory
             >>> except KeyError:
             ...     print("Fuel mass not found in solution")
             ...     # List available variables
             ...     for phase_id, phase_info in solution.phases.items():
             ...         vars_list = phase_info["variables"]["state_names"] + phase_info["variables"]["control_names"]
             ...         print(f"Phase {phase_id} variables: {vars_list}")
+
+        Note:
+            - String keys automatically combine data from all phases containing the variable
+            - Tuple keys provide granular access to specific phase data
+            - Time arrays are properly concatenated to maintain temporal continuity
+            - All concatenation preserves np.float64 precision for numerical safety
+            - Phase data is combined in phase ID order for temporal consistency
         """
         if not self.status["success"]:
             logger.warning("Cannot access variable '%s': Solution not successful", key)
@@ -568,22 +588,32 @@ class Solution:
         raise KeyError(f"Variable '{var_name}' not found in phase {phase_id}")
 
     def _get_by_string_key(self, key: str) -> FloatArray:
+        """Get variable data from all phases containing it, concatenated in phase order."""
+        matching_arrays = []
+
         for phase_id in self._get_phase_ids():
             try:
-                return self[(phase_id, key)]
+                phase_data = self[(phase_id, key)]
+                matching_arrays.append(phase_data)
             except KeyError:
                 continue
 
-        all_vars = []
-        for phase_id in self._get_phase_ids():
-            phase_vars = (
-                self._phase_state_names.get(phase_id, [])
-                + self._phase_control_names.get(phase_id, [])
-                + ["time_states", "time_controls"]
-            )
-            all_vars.extend([f"({phase_id}, '{var}')" for var in phase_vars])
+        if not matching_arrays:
+            all_vars = []
+            for phase_id in self._get_phase_ids():
+                phase_vars = (
+                    self._phase_state_names.get(phase_id, [])
+                    + self._phase_control_names.get(phase_id, [])
+                    + ["time_states", "time_controls"]
+                )
+                all_vars.extend([f"({phase_id}, '{var}')" for var in phase_vars])
 
-        raise KeyError(f"Variable '{key}' not found in any phase. Available: {all_vars}")
+            raise KeyError(f"Variable '{key}' not found in any phase. Available: {all_vars}")
+
+        if len(matching_arrays) == 1:
+            return matching_arrays[0]
+
+        return np.concatenate(matching_arrays, dtype=np.float64)
 
     def __contains__(self, key: str | tuple[PhaseID, str]) -> bool:
         """
