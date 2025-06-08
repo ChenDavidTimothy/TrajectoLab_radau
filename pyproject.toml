@@ -9,10 +9,10 @@ description = "Multiphase Adaptive Trajectory Optimizer"
 authors = [{name = "David Timothy"}]
 readme = "README.md"
 requires-python = ">=3.10"
-license = {text = "LGPL-3.0-or-later"}
 classifiers = [
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: Mathematics",
+    "License :: OSI Approved :: LGPL v3",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -41,24 +41,17 @@ dev = [
 "Issues" = "https://github.com/ChenDavidTimothy/maptor/issues"
 
 # ============================================================================
-# SETUPTOOLS CONFIGURATION - EXPLICIT PACKAGE DISCOVERY
-# ============================================================================
-
-[tool.setuptools]
-packages = ["maptor"]
-
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["maptor*"]
-exclude = ["assets*", "docs*", "tests*", "examples*", "*.egg-info"]
-
-# ============================================================================
 # RUFF CONFIGURATION
 # ============================================================================
 
 [tool.ruff]
+# Line length to match your existing setup
 line-length = 100
+
+# Python version targets
 target-version = "py310"
+
+# Include/exclude patterns
 include = ["*.py", "*.pyi"]
 exclude = [
     ".git",
@@ -68,10 +61,14 @@ exclude = [
     "build",
     "dist",
     "*.egg-info",
-    "assets",
 ]
 
+# ============================================================================
+# RUFF LINTING CONFIGURATION
+# ============================================================================
+
 [tool.ruff.lint]
+# Enable rule categories (matches your existing setup)
 select = [
     "E",   # pycodestyle errors
     "F",   # pyflakes errors
@@ -86,6 +83,7 @@ select = [
     "RUF", # Ruff-specific rules
 ]
 
+# Ignore rules (matches your existing exceptions)
 ignore = [
     "E501",  # Line too long (handled by formatter)
     "C901",  # Complex structure (your existing ignore)
@@ -98,13 +96,21 @@ ignore = [
     "S603"
 ]
 
+# Per-file ignores
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]        # Unused imports in __init__.py
 "tests/*" = ["S101", "S311"]    # Allow assert statements and random in tests
 "*/test_*.py" = ["S101", "S311"] # Same for test files
 
+# ============================================================================
+# IMPORT SORTING
+# ============================================================================
+
 [tool.ruff.lint.isort]
+# Known first-party packages
 known-first-party = ["maptor"]
+
+# Import sections
 section-order = [
     "future",
     "standard-library",
@@ -112,14 +118,31 @@ section-order = [
     "first-party",
     "local-folder"
 ]
+
+# Split on trailing comma
 split-on-trailing-comma = true
+
+# Force single line imports
 force-single-line = false
+
+# Lines after imports
 lines-after-imports = 2
 
+# ============================================================================
+# CODE FORMATTING
+# ============================================================================
+
 [tool.ruff.format]
+# Quote style
 quote-style = "double"
+
+# Indent style
 indent-style = "space"
+
+# Skip magic trailing comma
 skip-magic-trailing-comma = false
+
+# Line ending style
 line-ending = "auto"
 
 # ============================================================================
@@ -128,21 +151,32 @@ line-ending = "auto"
 
 [tool.mypy]
 python_version = "3.13"
+
+# Core type checking
 warn_return_any = true
 warn_redundant_casts = true
 warn_unused_ignores = false
 warn_no_return = true
 warn_unreachable = true
+
+# Scientific computing accommodations
 disallow_untyped_defs = false  # Allow untyped functions for gradual adoption
 check_untyped_defs = true      # Still type check the bodies of untyped functions
 disallow_any_generics = false  # Needed for numpy compatibility
 disallow_subclassing_any = false # Needed for scientific libraries
+
+# Numerical safety features
 strict_optional = true         # Catch None-related errors (for scientific code)
 no_implicit_optional = true    # No implicit Optional in unions
+
+# Library handling
 ignore_missing_imports = true  # Ignore missing stubs for scientific libraries
 follow_imports = "silent"      # Don't complain about followed imports
-exclude = [".venv", "venv", "build", "dist", "__pycache__", "assets"]
 
+# Project organization
+exclude = [".venv", "venv", "build", "dist", "__pycache__"]
+
+# Per-module configuration for incremental typing
 [[tool.mypy.overrides]]
 module = ["maptor.utils", "maptor.radau"]  # Core numerical modules
 disallow_untyped_defs = true     # Enforce full typing in core modules
@@ -189,7 +223,6 @@ omit = [
     "*/__pycache__/*",
     "*/venv/*",
     "*/.venv/*",
-    "assets/*",
 ]
 
 [tool.coverage.report]
