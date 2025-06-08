@@ -65,7 +65,7 @@ a:hover {
     color: #e5e7eb;
 }
 
-/* Fix ALL nested menu levels - force dark backgrounds */
+/* COMPREHENSIVE FIX: Target ALL possible RTD nested menu structures */
 .wy-menu-vertical li.toctree-l1 > a,
 .wy-menu-vertical li.toctree-l2 > a,
 .wy-menu-vertical li.toctree-l3 > a,
@@ -80,6 +80,22 @@ a:hover {
 .wy-menu-vertical li.toctree-l4 > a:hover {
     background-color: #404040 !important;
     color: #e5e7eb;
+}
+
+/* NUCLEAR OPTION: Force ALL li elements in sidebar to be dark */
+.wy-menu-vertical li {
+    background-color: #2d2d2d !important;
+}
+
+.wy-menu-vertical li a {
+    background-color: transparent !important;
+    color: #e5e7eb !important;
+}
+
+.wy-menu-vertical li:hover,
+.wy-menu-vertical li a:hover {
+    background-color: #404040 !important;
+    color: #e5e7eb !important;
 }
 
 /* Force dark background for ALL nested containers */
