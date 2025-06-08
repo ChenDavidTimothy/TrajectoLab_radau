@@ -26,7 +26,6 @@ Requirements
 * SciPy ≥ 1.4.0
 * CasADi ≥ 3.5.0
 * Matplotlib ≥ 3.1.0
-* Pandas ≥ 1.0.0
 
 Optional Dependencies
 ---------------------
