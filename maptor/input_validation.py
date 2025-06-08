@@ -162,6 +162,28 @@ def _validate_problem_dimensions(
             )
 
 
+def _find_state_name_by_symbol(phase_def, target_symbol):
+    """Find state name corresponding to a CasADi symbol."""
+    state_symbols = phase_def._get_ordered_state_symbols()
+    for i, state_sym in enumerate(state_symbols):
+        if state_sym is target_symbol:
+            return phase_def.state_names[i]
+    return f"unknown_state_{target_symbol.name()}"
+
+
+def _validate_complete_dynamics(phase_def, phase_id):
+    """Ensure every state has dynamics defined."""
+    state_symbols = phase_def._get_ordered_state_symbols()
+
+    for state_sym in state_symbols:
+        if state_sym not in phase_def.dynamics_expressions:
+            state_name = _find_state_name_by_symbol(phase_def, state_sym)
+            raise ConfigurationError(
+                f"Phase {phase_id} state '{state_name}' missing dynamics equation. "
+                f"Either provide dynamics or use a parameter instead."
+            )
+
+
 def _validate_phase_configuration(problem: ProblemProtocol, phase_id: PhaseID) -> None:
     # Phase validation ensures solver requirements are met
     if phase_id not in problem._phases:

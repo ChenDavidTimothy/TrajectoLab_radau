@@ -4,7 +4,10 @@ from typing import Any
 
 import casadi as ca
 
+from maptor.exceptions import ConfigurationError
+
 from ..input_validation import (
+    _validate_complete_dynamics,
     _validate_constraint_input_format,
     _validate_string_not_empty,
 )
@@ -115,13 +118,17 @@ def _process_symbolic_state_constraints(
 
 def _validate_phase_requirements(phases: dict[PhaseID, Any]) -> None:
     if not phases:
-        raise ValueError("Problem must have at least one phase defined")
+        raise ConfigurationError("Problem must have at least one phase defined")
 
     for phase_id, phase_def in phases.items():
         if not phase_def.dynamics_expressions:
-            raise ValueError(f"Phase {phase_id} must have dynamics defined")
+            raise ConfigurationError(f"Phase {phase_id} must have dynamics defined")
+        _validate_complete_dynamics(phase_def, phase_id)
         if not phase_def.mesh_configured:
-            raise ValueError(f"Phase {phase_id} must have mesh configured")
+            raise ConfigurationError(
+                f"Phase {phase_id} must have mesh configured before validation. "
+                f"Call phase.mesh(polynomial_degrees, mesh_points) first."
+            )
 
 
 def _process_symbolic_constraints_for_all_phases(
