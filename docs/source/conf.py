@@ -95,7 +95,6 @@ html_theme = "pydata_sphinx_theme"
 
 # Logo and branding - SINGLE SOURCE OF TRUTH (SciPy pattern)
 html_logo = "_static/MAPTOR_banner.svg"
-html_favicon = "_static/favicon.ico"  # Add this file to _static/
 
 # Static files and CSS
 html_static_path = ["_static"]
