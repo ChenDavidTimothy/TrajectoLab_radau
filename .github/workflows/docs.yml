@@ -46,8 +46,10 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -e .
+        # First, install all dependencies from the single source of truth
         pip install -r docs/requirements.txt
+        # Then, install the project itself without its dependencies
+        pip install --no-deps -e .
 
     - name: Clean old documentation
       run: |
