@@ -10,8 +10,6 @@ html[data-theme="dark"] {
     --pst-color-link-hover: #fca5a5;
 }
 
-
-
 .btn-primary {
     background-color: var(--pst-color-primary) !important;
     border-color: var(--pst-color-primary) !important;
@@ -39,7 +37,6 @@ html[data-theme="dark"] {
     border-color: var(--pst-color-primary) !important;
     box-shadow: 0 0 0 0.2rem rgba(153, 27, 27, 0.25) !important;
 }
-
 
 .navbar-brand img {
     height: 40px;

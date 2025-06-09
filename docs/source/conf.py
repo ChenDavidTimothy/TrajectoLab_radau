@@ -109,7 +109,7 @@ html_theme_options = {
             "icon": "fa-solid fa-box",
         },
     ],
-    "navbar_start": ["navbar-logo"],
+    "navbar_start": ["sidebar-toggle", "navbar-logo"],
     "navbar_end": ["theme-switcher", "navbar-icon-links"],
     "navbar_persistent": [],
     "secondary_sidebar_items": ["page-toc"],
@@ -148,7 +148,6 @@ html_last_updated_fmt = "%b %d, %Y"
 
 
 def setup(app):
-    """Auto-generate API and examples docs on build - SciPy pattern."""
     import subprocess
 
     api_script_path = Path(__file__).parent / "generate_api_docs.py"
