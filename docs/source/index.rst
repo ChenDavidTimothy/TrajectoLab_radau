@@ -1,5 +1,5 @@
 MAPTOR: Multiphase Adaptive Trajectory Optimizer
-===============================================
+================================================
 
 **Date**: |today| **Version**: |version|
 

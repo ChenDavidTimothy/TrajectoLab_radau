@@ -53,8 +53,11 @@ myst_enable_extensions = [
 myst_dmath_double_inline = True
 myst_dmath_allow_labels = True
 
-# Set supported file extensions
-source_suffix = [".rst", ".md"]
+# Set supported file extensions - use dictionary format for Sphinx 7+
+source_suffix = {
+    ".rst": "restructuredtext",
+    ".md": "myst-parser",
+}
 
 # Auto-generate everything
 autosummary_generate = True
@@ -77,7 +80,7 @@ html_css_files = ["maptor_brand.css"]
 # MAPTOR branding
 html_logo = "_static/MAPTOR_banner.svg"
 html_title = "MAPTOR Documentation"
-html_favicon = "_static/favicon.ico"  # Add this file to _static/
+# html_favicon = "_static/favicon.ico"  # Optional: Add this file to _static/
 
 # Modern sidebar configuration
 html_sidebars = {"index": ["search-button-field"], "**": ["search-button-field", "sidebar-nav-bs"]}
@@ -108,8 +111,6 @@ html_theme_options = {
     "secondary_sidebar_items": ["page-toc"],
     "footer_start": ["copyright"],
     "footer_end": ["theme-version"],
-    # MAPTOR brand colors
-    "navbar_style": "dark",
     "primary_sidebar_end": [],
     "show_toc_level": 2,
     "navigation_with_keys": True,
@@ -121,11 +122,11 @@ intersphinx_mapping = {
     "numpy": ("https://numpy.org/doc/stable/", None),
     "scipy": ("https://docs.scipy.org/doc/scipy/", None),
     "matplotlib": ("https://matplotlib.org/stable/", None),
-    "casadi": ("https://web.casadi.org/", None),
 }
 
 # Warning handling
-suppress_warnings = ["autodoc.import_object"]
+suppress_warnings = ["autodoc.import_object", "myst.header"]
+nitpicky = False
 
 # Napoleon settings for better docstring parsing
 napoleon_google_docstring = True
