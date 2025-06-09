@@ -1,4 +1,3 @@
-
 MAPTOR: Multiphase Adaptive Trajectory Optimizer
 ====================================================
 
@@ -41,6 +40,7 @@ Documentation
 
    installation
    quickstart
+   tutorials/index
    examples/index
    api/index
 
