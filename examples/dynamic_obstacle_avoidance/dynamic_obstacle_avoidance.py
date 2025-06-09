@@ -5,12 +5,14 @@ import maptor as mtor
 
 
 # Obstacle trajectory waypoints - single source of truth for animation
+
+
 OBSTACLE_WAYPOINTS = np.array(
     [
-        [20.0, 20.0, 0.0],
-        [18.0, 18.0, 3.0],
-        [15.0, 15.0, 5.0],
-        [0.0, 0.0, 10.0],
+        [8.0, 8.0, 0.0],
+        [12.0, 12.0, 3.0],
+        [15.0, 15.0, 8.0],
+        [20.0, 20.0, 15.0],
     ]
 )
 
@@ -36,8 +38,8 @@ phase = problem.set_phase(1)
 t = phase.time(initial=0.0)
 x = phase.state("x_position", initial=0.0, final=20.0)
 y = phase.state("y_position", initial=0.0, final=20.0)
-theta = phase.state("heading", initial=np.pi / 4.0, final=np.pi / 4.0)
-v = phase.state("velocity", initial=1.0, boundary=(0.5, 8.0))
+theta = phase.state("heading", initial=np.pi / 4.0)
+v = phase.state("velocity", initial=1.0, boundary=(0.5, 30.0))
 delta = phase.control("steering_angle", boundary=(-0.5, 0.5))
 a = phase.control("acceleration", boundary=(-3.0, 3.0))
 
