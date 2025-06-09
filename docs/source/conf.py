@@ -98,7 +98,7 @@ html_theme_options = {
     "icon_links": [
         {
             "name": "GitHub",
-            "url": "https://github.com/ChenDavidTimothy/maptor",
+            "url": "https://github.com/maptor/maptor",
             "icon": "fa-brands fa-github",
         },
         {
