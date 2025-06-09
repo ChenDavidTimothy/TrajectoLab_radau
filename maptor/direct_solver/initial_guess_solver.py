@@ -54,32 +54,55 @@ def _apply_state_guesses(context: _PhaseGuessContext, phase_states: list[FloatAr
     # Apply global mesh node states
     for k in range(context.num_mesh_intervals):
         state_guess_k = phase_states[k]
+        num_provided_states = state_guess_k.shape[0]
 
         # Set initial node guess (only once)
         if k == 0:
-            context.opti.set_initial(context.phase_vars.state_at_mesh_nodes[0], state_guess_k[:, 0])
+            initial_var = context.phase_vars.state_at_mesh_nodes[0]
+            if num_provided_states == context.num_states:
+                # Complete guess - use original logic
+                context.opti.set_initial(initial_var, state_guess_k[:, 0])
+            else:
+                # Partial guess - skip, let CasADi handle defaults
+                pass
 
         # Set terminal node guess
-        context.opti.set_initial(
-            context.phase_vars.state_at_mesh_nodes[k + 1], state_guess_k[:, -1]
-        )
+        terminal_var = context.phase_vars.state_at_mesh_nodes[k + 1]
+        if num_provided_states == context.num_states:
+            # Complete guess - use original logic
+            context.opti.set_initial(terminal_var, state_guess_k[:, -1])
+        else:
+            # Partial guess - skip, let CasADi handle defaults
+            pass
 
     # Apply interior state node guesses
     for k in range(context.num_mesh_intervals):
         interior_var = context.phase_vars.interior_variables[k]
         if interior_var is not None:
             state_guess_k = phase_states[k]
-            num_interior_nodes = interior_var.shape[1]
+            num_provided_states = state_guess_k.shape[0]
 
-            # Extract interior guess
-            interior_guess = state_guess_k[:, 1 : 1 + num_interior_nodes]
-            context.opti.set_initial(interior_var, interior_guess)
+            if num_provided_states == context.num_states:
+                # Complete guess - use original logic
+                num_interior_nodes = interior_var.shape[1]
+                interior_guess = state_guess_k[:, 1 : 1 + num_interior_nodes]
+                context.opti.set_initial(interior_var, interior_guess)
+            else:
+                # Partial guess - skip, let CasADi handle defaults
+                pass
 
 
 def _apply_control_guesses(context: _PhaseGuessContext, phase_controls: list[FloatArray]) -> None:
     for k in range(context.num_mesh_intervals):
         control_guess_k = phase_controls[k]
-        context.opti.set_initial(context.phase_vars.control_variables[k], control_guess_k)
+        num_provided_controls = control_guess_k.shape[0]
+
+        if num_provided_controls == context.num_controls:
+            # Complete guess - use original logic
+            context.opti.set_initial(context.phase_vars.control_variables[k], control_guess_k)
+        else:
+            # Partial guess - skip, let CasADi handle defaults
+            pass
 
 
 def _apply_integral_guesses(

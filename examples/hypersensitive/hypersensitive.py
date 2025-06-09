@@ -1,5 +1,3 @@
-import numpy as np
-
 import maptor as mtor
 
 
@@ -40,22 +38,6 @@ if solution.status["success"]:
 
     # Compare with fixed mesh
     phase.mesh([20, 12, 20], [-1.0, -1 / 3, 1 / 3, 1.0])
-
-    states_guess = []
-    controls_guess = []
-    for N in [20, 12, 20]:
-        tau = np.linspace(-1, 1, N + 1)
-        x_vals = 1.5 + (1.0 - 1.5) * (tau + 1) / 2
-        states_guess.append(x_vals.reshape(1, -1))
-        controls_guess.append(np.zeros((1, N)))
-
-    problem.guess(
-        phase_states={1: states_guess},
-        phase_controls={1: controls_guess},
-        phase_initial_times={1: 0.0},
-        phase_terminal_times={1: 40.0},
-        phase_integrals={1: 0.1},
-    )
 
     fixed_solution = mtor.solve_fixed_mesh(
         problem, nlp_options={"ipopt.print_level": 0, "ipopt.max_iter": 200}

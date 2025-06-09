@@ -254,7 +254,20 @@ def _validate_trajectory_consistency(
         )
 
     for k, (traj, expected_shape) in enumerate(zip(trajectories, expected_shapes, strict=False)):
-        _validate_array_shape(traj, expected_shape, f"{trajectory_type} interval {k}")
+        expected_vars, expected_points = expected_shape
+        actual_vars, actual_points = traj.shape
+
+        # Allow partial variable arrays (fewer states/controls than expected)
+        if actual_vars > expected_vars:
+            raise DataIntegrityError(
+                f"{trajectory_type} interval {k} has {actual_vars} variables, expected ≤ {expected_vars}"
+            )
+
+        # Enforce exact match on time dimension
+        if actual_points != expected_points:
+            raise DataIntegrityError(
+                f"{trajectory_type} interval {k} has {actual_points} time points, expected {expected_points}"
+            )
 
 
 def _validate_integral_values(integrals: float | FloatArray | None, num_integrals: int) -> None:
