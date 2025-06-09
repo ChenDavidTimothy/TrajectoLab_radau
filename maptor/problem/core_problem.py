@@ -1106,11 +1106,11 @@ class Problem:
 
     def guess(
         self,
-        phase_states: dict[PhaseID, Sequence[FloatArray]] | None = None,
-        phase_controls: dict[PhaseID, Sequence[FloatArray]] | None = None,
+        phase_states: dict[PhaseID, Sequence[NumericArrayLike]] | None = None,
+        phase_controls: dict[PhaseID, Sequence[NumericArrayLike]] | None = None,
         phase_initial_times: dict[PhaseID, float] | None = None,
         phase_terminal_times: dict[PhaseID, float] | None = None,
-        phase_integrals: dict[PhaseID, float | FloatArray] | None = None,
+        phase_integrals: dict[PhaseID, float | NumericArrayLike] | None = None,
         static_parameters: FloatArray | None = None,
     ) -> None:
         """

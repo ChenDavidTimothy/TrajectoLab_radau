@@ -7,7 +7,7 @@ import casadi as ca
 import numpy as np
 
 from .exceptions import ConfigurationError, DataIntegrityError
-from .tl_types import FloatArray, MultiPhaseInitialGuess, PhaseID, ProblemProtocol
+from .tl_types import FloatArray, MultiPhaseInitialGuess, NumericArrayLike, PhaseID, ProblemProtocol
 from .utils.constants import MESH_TOLERANCE, ZERO_TOLERANCE
 
 
@@ -270,7 +270,9 @@ def _validate_trajectory_consistency(
             )
 
 
-def _validate_integral_values(integrals: float | FloatArray | None, num_integrals: int) -> None:
+def _validate_integral_values(
+    integrals: float | NumericArrayLike | None, num_integrals: int
+) -> None:
     # Integral validation handles both scalar and vector cases
     if integrals is None:
         return
