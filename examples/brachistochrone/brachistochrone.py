@@ -16,7 +16,7 @@ v = phase.state("v", initial=0.0)
 u = phase.control("u")
 
 # Dynamics
-g0 = -9.81
+g0 = 9.81
 phase.dynamics({x: v * ca.sin(u), y: -v * ca.cos(u), v: g0 * ca.cos(u)})
 
 # Objective
