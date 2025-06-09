@@ -1,4 +1,5 @@
 import casadi as ca
+import numpy as np
 
 import maptor as mtor
 
@@ -15,7 +16,7 @@ v = phase.state("v", initial=0.0)
 u = phase.control("u")
 
 # Dynamics
-g0 = 9.81
+g0 = -9.81
 phase.dynamics({x: v * ca.sin(u), y: -v * ca.cos(u), v: g0 * ca.cos(u)})
 
 # Objective
@@ -24,7 +25,37 @@ problem.minimize(t.final)
 # Mesh and guess
 phase.mesh([6, 6], [-1.0, 0.0, 1.0])
 
+states_guess = [
+    # Interval 1: 7 state points
+    np.array(
+        [
+            [0.0, 1.0, 2.0, 3.0, 4.0, 4.5, 5.0],  # x
+            [10.0, 9.5, 9.0, 8.5, 8.0, 7.5, 7.0],  # y
+            [0.0, 1.0, 2.0, 2.5, 3.0, 3.5, 4.0],  # v
+        ]
+    ),
+    # Interval 2: 7 state points
+    np.array(
+        [
+            [5.0, 6.0, 7.0, 8.0, 9.0, 9.5, 10.0],  # x
+            [7.0, 6.5, 6.0, 5.8, 5.5, 5.2, 5.0],  # y
+            [4.0, 4.2, 4.5, 4.8, 5.0, 5.2, 5.5],  # v
+        ]
+    ),
+]
 
+controls_guess = [
+    # Interval 1: 6 control points
+    np.array([[0.8, 0.7, 0.6, 0.5, 0.4, 0.3]]),  # u (angles in radians)
+    # Interval 2: 6 control points
+    np.array([[0.3, 0.2, 0.1, 0.0, -0.1, -0.2]]),  # u
+]
+
+problem.guess(
+    phase_states={1: states_guess},
+    phase_controls={1: controls_guess},
+    phase_terminal_times={1: 1.0},
+)
 # Solve with adaptive mesh
 solution = mtor.solve_adaptive(
     problem,
