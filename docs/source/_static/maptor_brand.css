@@ -1,21 +1,76 @@
-/* MAPTOR Brand Theme - Professional PyData Integration */
+/* MAPTOR Brand Theme - Professional PyData Integration with Dark Background */
 
 /* Import modern fonts */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
 
-/* MAPTOR Brand Colors */
+/* MAPTOR Dark Theme - Override PyData CSS Variables */
 :root {
     /* MAPTOR Primary Brand Color */
     --pst-color-primary: #991b1b;
     --pst-color-primary-bg: #991b1b;
 
+    /* MAPTOR Dark Background Theme */
+    --pst-color-background: #2d2d2d;        /* Main dark background */
+    --pst-color-on-background: #e5e7eb;     /* Text on dark background */
+    --pst-color-surface: #1f1f1f;           /* Cards, code blocks */
+    --pst-color-on-surface: #e5e7eb;        /* Text on surface */
+
     /* MAPTOR Secondary Colors */
     --pst-color-secondary: #f87171;
-    --pst-color-accent: #2d2d2d;
+    --pst-color-accent: #404040;            /* Borders, dividers */
+
+    /* Navigation and sidebar */
+    --pst-color-sidebar-bg: #2d2d2d;
+    --pst-color-sidebar-bg-hover: #404040;
+
+    /* Links and interactive elements */
+    --pst-color-link: #f87171;
+    --pst-color-link-hover: #991b1b;
+
+    /* Code and content */
+    --pst-color-inline-code: #1f1f1f;
+    --pst-color-target: rgba(153, 27, 27, 0.3);
+
+    /* Borders and separators */
+    --pst-color-border: #404040;
+    --pst-color-shadow: rgba(0, 0, 0, 0.3);
 
     /* Enhanced Typography */
     --pst-font-family-base: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
     --pst-font-family-monospace: 'JetBrains Mono', 'SF Mono', Monaco, 'Cascadia Code', monospace;
+}
+
+/* Force dark theme for main content areas */
+body {
+    background-color: var(--pst-color-background) !important;
+    color: var(--pst-color-on-background) !important;
+}
+
+/* Main content wrapper */
+.bd-main .bd-content {
+    background-color: var(--pst-color-background);
+    color: var(--pst-color-on-background);
+}
+
+/* Article content area */
+article.bd-article {
+    background-color: var(--pst-color-background);
+    color: var(--pst-color-on-background);
+}
+
+/* Sidebar styling */
+.bd-sidebar {
+    background-color: var(--pst-color-sidebar-bg);
+    border-right: 1px solid var(--pst-color-border);
+}
+
+.bd-sidebar .nav-link {
+    color: var(--pst-color-on-background);
+}
+
+.bd-sidebar .nav-link:hover {
+    background-color: var(--pst-color-sidebar-bg-hover);
+    color: var(--pst-color-secondary);
 }
 
 /* MAPTOR Logo Styling */
@@ -24,74 +79,146 @@
     max-width: 200px;
 }
 
-/* Brand Color Integration */
+/* Header with MAPTOR branding */
 .bd-header {
-    background-color: var(--pst-color-accent);
+    background-color: var(--pst-color-background);
     border-bottom: 2px solid var(--pst-color-primary);
+    color: var(--pst-color-on-background);
 }
 
-/* Primary buttons and links */
+/* Navigation buttons */
 .btn-primary {
     background-color: var(--pst-color-primary);
     border-color: var(--pst-color-primary);
+    color: white;
 }
 
 .btn-primary:hover {
     background-color: #7f1d1d;
     border-color: #7f1d1d;
+    color: white;
 }
 
-/* Navigation active states */
-.bd-sidebar .navbar-nav .nav-link.active {
-    color: var(--pst-color-primary);
-    font-weight: 600;
-}
-
-/* Code blocks - Enhanced readability */
-.highlight {
-    border-radius: 8px;
+/* Cards and grid items */
+.sd-card {
+    background-color: var(--pst-color-surface);
     border: 1px solid var(--pst-color-border);
+    color: var(--pst-color-on-surface);
 }
 
-/* Table styling */
+.sd-card .sd-card-title {
+    color: var(--pst-color-secondary);
+}
+
+/* Code blocks - Enhanced dark theme */
+.highlight,
+.highlight pre {
+    background-color: var(--pst-color-surface) !important;
+    border: 1px solid var(--pst-color-border);
+    border-radius: 8px;
+}
+
+.highlight .go { /* Generic output */
+    color: var(--pst-color-on-surface);
+}
+
+/* Inline code */
+code {
+    background-color: var(--pst-color-inline-code);
+    color: var(--pst-color-on-surface);
+    border: 1px solid var(--pst-color-border);
+    padding: 0.1em 0.3em;
+    border-radius: 3px;
+}
+
+/* Tables with dark theme */
+.table {
+    color: var(--pst-color-on-background);
+    background-color: var(--pst-color-surface);
+}
+
 .table th {
     background-color: var(--pst-color-primary);
     color: white;
     border: none;
 }
 
-/* Admonition styling with MAPTOR colors */
+.table td {
+    border-color: var(--pst-color-border);
+    background-color: var(--pst-color-surface);
+}
+
+/* Admonitions with MAPTOR styling */
+.admonition {
+    background-color: var(--pst-color-surface);
+    border: 1px solid var(--pst-color-border);
+    color: var(--pst-color-on-surface);
+}
+
 .admonition.important .admonition-title {
     background-color: var(--pst-color-primary);
     color: white;
 }
 
-/* Version and API badges */
-.badge {
-    background-color: var(--pst-color-primary);
-}
-
-/* Search highlighting */
-.highlighted {
-    background-color: var(--pst-color-secondary);
+.admonition.note .admonition-title {
+    background-color: #3b82f6;
     color: white;
-    padding: 2px 4px;
-    border-radius: 4px;
 }
 
-/* Footer branding */
+/* Search and forms */
+.form-control {
+    background-color: var(--pst-color-surface);
+    border-color: var(--pst-color-border);
+    color: var(--pst-color-on-surface);
+}
+
+.form-control:focus {
+    background-color: var(--pst-color-surface);
+    border-color: var(--pst-color-primary);
+    color: var(--pst-color-on-surface);
+    box-shadow: 0 0 0 0.2rem rgba(153, 27, 27, 0.25);
+}
+
+/* Footer with MAPTOR branding */
 .bd-footer {
+    background-color: var(--pst-color-background);
     border-top: 2px solid var(--pst-color-primary);
+    color: var(--pst-color-on-background);
 }
 
-/* Mathematical content styling */
-.math {
-    font-family: var(--pst-font-family-monospace);
+/* Dropdown menus */
+.dropdown-menu {
+    background-color: var(--pst-color-surface);
+    border: 1px solid var(--pst-color-border);
+}
+
+.dropdown-item {
+    color: var(--pst-color-on-surface);
+}
+
+.dropdown-item:hover {
+    background-color: var(--pst-color-sidebar-bg-hover);
+    color: var(--pst-color-secondary);
+}
+
+/* Navigation breadcrumbs */
+.breadcrumb {
+    background-color: transparent;
+}
+
+.breadcrumb-item a {
+    color: var(--pst-color-link);
+}
+
+/* Version switcher and theme switcher */
+.version-switcher__button {
+    background-color: var(--pst-color-surface);
+    border-color: var(--pst-color-border);
+    color: var(--pst-color-on-surface);
 }
 
 /* Enhanced focus states for accessibility */
 .btn:focus,
-.form-control:focus,
 .nav-link:focus {
     box-shadow: 0 0 0 0.2rem rgba(153, 27, 27, 0.25);
 }
