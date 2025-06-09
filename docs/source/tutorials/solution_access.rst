@@ -116,9 +116,9 @@ Use string keys to automatically combine trajectory data from all phases:
     time_controls = solution["time_controls"] # Control time points
 
     print(f"Complete mission:")
-    print(f"x0: {len(x0_trajectory)} points, values {x0_trajectory[:3]}...")
-    print(f"x1: {len(x1_trajectory)} points, values {x1_trajectory[:3]}...")
-    print(f"u: {len(u_trajectory)} points, values {u_trajectory[:3]}...")
+    print(f"x0: {len(x0_trajectory)} points, values {x0_trajectory}")
+    print(f"x1: {len(x1_trajectory)} points, values {x1_trajectory}")
+    print(f"u: {len(u_trajectory)} points, values {u_trajectory}")
 
 String key access automatically:
 
