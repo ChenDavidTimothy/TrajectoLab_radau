@@ -1,122 +1,29 @@
-/* MAPTOR Brand Theme - Complete PyData Override */
-
-/* Import modern fonts */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+/* MAPTOR Red Accent Only - Keep Default Black/White Theme */
 
 /* ============================================================================
- * COMPREHENSIVE MAPTOR COLOR SYSTEM
+ * MINIMAL MAPTOR BRANDING - ONLY LINKS AND BUTTONS
  * ============================================================================ */
 
-/* Light Theme - Complete Override */
+/* Only override essential interactive elements with MAPTOR red */
 html[data-theme="light"] {
-    /* MAPTOR Primary Brand Colors */
-    --pst-color-primary: #991b1b;              /* MAPTOR Red */
-    --pst-color-secondary: #f87171;            /* MAPTOR Light Red */
-    --pst-color-accent: #2d2d2d;               /* MAPTOR Dark Gray */
-
-    /* System Colors */
-    --pst-color-success: #059669;              /* Green */
-    --pst-color-info: #0891b2;                 /* Cyan */
-    --pst-color-warning: #d97706;              /* Orange */
-    --pst-color-danger: #dc2626;               /* Red */
-
-    /* Background System */
-    --pst-color-background: #ffffff;           /* Pure white */
-    --pst-color-on-background: #ffffff;        /* White surfaces */
-    --pst-color-surface: #f8fafc;              /* Very light gray */
-    --pst-color-on-surface: #f1f5f9;           /* Light gray */
-
-    /* Text Colors */
-    --pst-color-text-base: #1f2937;            /* Dark gray text */
-    --pst-color-text-muted: #6b7280;           /* Muted text */
-    --pst-color-heading: #1f2937;              /* Heading text */
-
-    /* Interactive Elements */
-    --pst-color-link: #991b1b;                 /* MAPTOR red links */
-    --pst-color-link-hover: #7f1d1d;           /* Darker red on hover */
-
-    /* Borders and Dividers */
-    --pst-color-border: #e5e7eb;               /* Light border */
-    --pst-color-shadow: #d1d5db;               /* Light shadow */
-
-    /* Navigation and UI */
-    --pst-color-inline-code: #991b1b;          /* Code color */
-    --pst-color-target: #fef2f2;               /* Target highlight */
+    /* MAPTOR red for links and primary interactive elements */
+    --pst-color-primary: #991b1b;
+    --pst-color-link: #991b1b;
+    --pst-color-link-hover: #7f1d1d;
 }
 
-/* Dark Theme - Complete Override */
 html[data-theme="dark"] {
-    /* MAPTOR Primary Brand Colors */
-    --pst-color-primary: #f87171;              /* Light red for dark */
-    --pst-color-secondary: #991b1b;            /* MAPTOR red */
-    --pst-color-accent: #e5e7eb;               /* Light gray for dark */
-
-    /* System Colors */
-    --pst-color-success: #10b981;              /* Green */
-    --pst-color-info: #06b6d4;                 /* Cyan */
-    --pst-color-warning: #f59e0b;              /* Orange */
-    --pst-color-danger: #ef4444;               /* Red */
-
-    /* Background System */
-    --pst-color-background: #111827;           /* Dark background */
-    --pst-color-on-background: #1f2937;        /* Dark surface */
-    --pst-color-surface: #374151;              /* Medium gray */
-    --pst-color-on-surface: #4b5563;           /* Light gray */
-
-    /* Text Colors */
-    --pst-color-text-base: #f9fafb;            /* Light text */
-    --pst-color-text-muted: #d1d5db;           /* Muted light text */
-    --pst-color-heading: #f9fafb;              /* Light headings */
-
-    /* Interactive Elements */
-    --pst-color-link: #f87171;                 /* Light red links */
-    --pst-color-link-hover: #fca5a5;           /* Lighter red on hover */
-
-    /* Borders and Dividers */
-    --pst-color-border: #4b5563;               /* Dark border */
-    --pst-color-shadow: #374151;               /* Dark shadow */
-
-    /* Navigation and UI */
-    --pst-color-inline-code: #f87171;          /* Light red code */
-    --pst-color-target: #7f1d1d;               /* Dark red target */
+    /* MAPTOR red for dark theme */
+    --pst-color-primary: #f87171;
+    --pst-color-link: #f87171;
+    --pst-color-link-hover: #fca5a5;
 }
 
 /* ============================================================================
- * ENHANCED TYPOGRAPHY WITH MAPTOR FONTS
+ * SPECIFIC BUTTON AND INTERACTIVE ELEMENT STYLING
  * ============================================================================ */
 
-:root {
-    /* MAPTOR Typography System */
-    --pst-font-family-base: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-    --pst-font-family-heading: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-    --pst-font-family-monospace: 'JetBrains Mono', 'SF Mono', Monaco, 'Cascadia Code', monospace;
-}
-
-/* ============================================================================
- * SPECIFIC UI COMPONENT OVERRIDES
- * ============================================================================ */
-
-/* Header and Navigation */
-.bd-header {
-    background-color: var(--pst-color-accent) !important;
-    border-bottom: 2px solid var(--pst-color-primary) !important;
-}
-
-.navbar-brand,
-.navbar-nav .nav-link {
-    color: var(--pst-color-text-base) !important;
-}
-
-/* Active navigation states */
-.bd-sidebar .navbar-nav .nav-link.active,
-.bd-sidebar .navbar-nav .nav-link.current {
-    color: var(--pst-color-primary) !important;
-    font-weight: 600;
-    border-left: 3px solid var(--pst-color-primary);
-    padding-left: calc(1rem - 3px);
-}
-
-/* Buttons and Interactive Elements */
+/* Primary buttons */
 .btn-primary {
     background-color: var(--pst-color-primary) !important;
     border-color: var(--pst-color-primary) !important;
@@ -129,94 +36,23 @@ html[data-theme="dark"] {
     border-color: var(--pst-color-link-hover) !important;
 }
 
-/* Tables */
+/* Active navigation states - subtle MAPTOR accent */
+.bd-sidebar .navbar-nav .nav-link.active {
+    color: var(--pst-color-primary) !important;
+    border-left: 2px solid var(--pst-color-primary);
+    padding-left: calc(1rem - 2px);
+}
+
+/* Table headers - optional MAPTOR accent */
 .table th {
     background-color: var(--pst-color-primary) !important;
     color: white !important;
-    border: none !important;
 }
 
-.table-striped > tbody > tr:nth-child(odd) {
-    background-color: var(--pst-color-surface) !important;
-}
-
-/* Code Blocks */
-.highlight {
-    border-radius: 8px;
-    border: 1px solid var(--pst-color-border);
-}
-
-/* Admonitions */
-.admonition.important .admonition-title,
-.admonition.note .admonition-title {
-    background-color: var(--pst-color-primary) !important;
-    color: white !important;
-}
-
-/* Search and Forms */
+/* Search focus states */
 .form-control:focus {
     border-color: var(--pst-color-primary) !important;
     box-shadow: 0 0 0 0.2rem rgba(153, 27, 27, 0.25) !important;
-}
-
-/* Footer */
-.bd-footer {
-    border-top: 2px solid var(--pst-color-primary);
-    background-color: var(--pst-color-surface);
-}
-
-/* Version and badges */
-.badge {
-    background-color: var(--pst-color-primary) !important;
-    color: white !important;
-}
-
-/* TOC and Sidebar */
-.bd-toc .nav > li > a {
-    color: var(--pst-color-text-muted);
-}
-
-.bd-toc .nav > li > a:hover,
-.bd-toc .nav > li > a.active {
-    color: var(--pst-color-primary) !important;
-}
-
-/* ============================================================================
- * ACCESSIBILITY AND POLISH
- * ============================================================================ */
-
-/* Enhanced focus states for accessibility */
-.btn:focus,
-.form-control:focus,
-.nav-link:focus {
-    box-shadow: 0 0 0 0.2rem rgba(153, 27, 27, 0.25) !important;
-    outline: 2px solid var(--pst-color-primary);
-    outline-offset: 2px;
-}
-
-/* Smooth transitions */
-.nav-link,
-.btn,
-a {
-    transition: all 0.2s ease-in-out;
-}
-
-/* Custom scrollbar for webkit browsers */
-::-webkit-scrollbar {
-    width: 8px;
-}
-
-::-webkit-scrollbar-track {
-    background: var(--pst-color-surface);
-}
-
-::-webkit-scrollbar-thumb {
-    background: var(--pst-color-primary);
-    border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-    background: var(--pst-color-link-hover);
 }
 
 /* ============================================================================
@@ -230,29 +66,9 @@ a {
     object-fit: contain;
 }
 
-/* Content improvements */
-.bd-content {
-    font-family: var(--pst-font-family-base);
-}
+/* ============================================================================
+ * END - EVERYTHING ELSE STAYS DEFAULT BLACK/WHITE
+ * ============================================================================ */
 
-/* Mathematical content */
-.math {
-    font-family: var(--pst-font-family-monospace);
-    color: var(--pst-color-primary);
-}
-
-/* Search highlighting */
-.highlighted {
-    background-color: var(--pst-color-secondary) !important;
-    color: white !important;
-    padding: 2px 4px;
-    border-radius: 4px;
-}
-
-/* Print styles */
-@media print {
-    .bd-header,
-    .bd-sidebar {
-        display: none !important;
-    }
-}
+/* That's it! Only ~30 lines vs 200+ for full customization */
+/* Keep all the excellent default PyData black/white styling */
