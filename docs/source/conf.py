@@ -21,20 +21,21 @@ except ImportError:
     version = "0.1.0"
     release = version
 
-# Extensions - Professional scientific Python setup
+# Extensions - Professional scientific Python setup matching SciPy
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
-    "sphinx.ext.napoleon",
-    "sphinx.ext.viewcode",
+    "sphinx.ext.coverage",
+    "sphinx.ext.mathjax",
     "sphinx.ext.intersphinx",
+    "sphinx.ext.viewcode",
     "sphinx_autodoc_typehints",
     "myst_parser",
     "sphinx_copybutton",
     "sphinx_design",
 ]
 
-# MyST parser configuration for markdown and LaTeX support
+# MyST parser configuration
 myst_enable_extensions = [
     "dollarmath",
     "amsmath",
@@ -49,17 +50,21 @@ myst_enable_extensions = [
     "tasklist",
 ]
 
-# Configure math rendering
+# Math rendering
 myst_dmath_double_inline = True
 myst_dmath_allow_labels = True
 
-# Set supported file extensions - use dictionary format for Sphinx 7+
+# Source file extensions - SciPy pattern
 source_suffix = {
     ".rst": "restructuredtext",
     ".md": "myst",
 }
 
-# Auto-generate everything
+# The main toctree document - SciPy standard
+master_doc = "index"
+default_role = "autolink"
+
+# Auto-generation settings - following SciPy
 autosummary_generate = True
 autodoc_default_options = {
     "members": True,
@@ -68,24 +73,41 @@ autodoc_default_options = {
     "special-members": "__init__",
 }
 
-# Autodoc configuration
+# Autodoc configuration - SciPy standard
 autodoc_typehints = "description"
 autodoc_member_order = "bysource"
 
+# Exclude patterns - professional approach
+exclude_patterns = [
+    "**.ipynb",
+]
+
+# Professional error handling - SciPy approach
+suppress_warnings = [
+    "autodoc.import_object",
+    "myst.header",
+    "autosummary.import_cycle",
+]
+nitpicky = False
+
 # HTML theme configuration - Professional PyData theme like SciPy
 html_theme = "pydata_sphinx_theme"
+
+# Logo and branding - SINGLE SOURCE OF TRUTH (SciPy pattern)
+html_logo = "_static/MAPTOR_banner.svg"
+html_favicon = "_static/favicon.ico"  # Add this file to _static/
+
+# Static files and CSS
 html_static_path = ["_static"]
 html_css_files = ["maptor_brand.css"]
 
-# MAPTOR branding
-html_logo = "_static/MAPTOR_banner.svg"
-html_title = "MAPTOR Documentation"
-# html_favicon = "_static/favicon.ico"  # Optional: Add this file to _static/
+# Title configuration - SciPy pattern
+html_title = f"{project} v{version} Documentation"
 
-# Modern sidebar configuration
+# Professional sidebar configuration - SciPy standard
 html_sidebars = {"index": ["search-button-field"], "**": ["search-button-field", "sidebar-nav-bs"]}
 
-# Professional theme options - adapted from SciPy
+# Professional theme options - adapted from SciPy's proven approach
 html_theme_options = {
     "header_links_before_dropdown": 6,
     "icon_links": [
@@ -101,9 +123,7 @@ html_theme_options = {
         },
     ],
     "logo": {
-        "text": "MAPTOR",
-        "image_light": "_static/MAPTOR_banner.svg",
-        "image_dark": "_static/MAPTOR_banner.svg",
+        "text": "MAPTOR",  # Only text, image handled by html_logo
     },
     "navbar_start": ["navbar-logo"],
     "navbar_end": ["theme-switcher", "navbar-icon-links"],
@@ -114,34 +134,44 @@ html_theme_options = {
     "primary_sidebar_end": [],
     "show_toc_level": 2,
     "navigation_with_keys": True,
+    "show_version_warning_banner": True,
 }
 
-# Intersphinx mapping
+# Intersphinx mapping - SciPy standard
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
     "numpy": ("https://numpy.org/doc/stable/", None),
     "scipy": ("https://docs.scipy.org/doc/scipy/", None),
     "matplotlib": ("https://matplotlib.org/stable/", None),
+    "casadi": ("https://casadi.sourceforge.net/", None),
 }
 
-# Warning handling
-suppress_warnings = ["autodoc.import_object", "myst.header"]
-nitpicky = False
+# Professional copying settings - SciPy pattern
+html_use_modindex = True
+html_domain_indices = False
+html_copy_source = False
+html_file_suffix = ".html"
 
-# Napoleon settings for better docstring parsing
+# MathJax configuration - SciPy standard
+mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
+
+# sphinx-copybutton configurations - SciPy pattern
+copybutton_prompt_text = r">>> |\.\.\. |\$ |In \[\d*\]: | {2,5}\.{3,}: | {5,8}: "
+copybutton_prompt_is_regexp = True
+
+# Napoleon settings - SciPy standard
 napoleon_google_docstring = True
 napoleon_numpy_docstring = True
 napoleon_include_init_with_doc = False
 napoleon_include_private_with_doc = False
 
-# sphinx-copybutton configurations
-copybutton_prompt_text = r">>> |\.\.\. |\$ |In \[\d*\]: | {2,5}\.{3,}: | {5,8}: "
-copybutton_prompt_is_regexp = True
+# Professional build settings
+add_function_parentheses = False
+html_last_updated_fmt = "%b %d, %Y"
 
 
-# Auto-run API and examples generation
 def setup(app):
-    """Auto-generate API and examples docs on build."""
+    """Auto-generate API and examples docs on build - SciPy pattern."""
     import subprocess
 
     # Generate API documentation
