@@ -162,6 +162,6 @@ def setup(app):
     if examples_script_path.exists():
         try:
             subprocess.run([sys.executable, str(examples_script_path)], check=True)
-            print("✓ Examples documentation generated")
+            print("Examples documentation generated")
         except subprocess.CalledProcessError:
-            print("⚠ Examples generation had issues")
+            print("Examples generation had issues")
