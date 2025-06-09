@@ -1,29 +1,17 @@
-/* MAPTOR Red Accent Only - Keep Default Black/White Theme */
-
-/* ============================================================================
- * MINIMAL MAPTOR BRANDING - ONLY LINKS AND BUTTONS
- * ============================================================================ */
-
-/* Only override essential interactive elements with MAPTOR red */
 html[data-theme="light"] {
-    /* MAPTOR red for links and primary interactive elements */
     --pst-color-primary: #991b1b;
     --pst-color-link: #991b1b;
     --pst-color-link-hover: #7f1d1d;
 }
 
 html[data-theme="dark"] {
-    /* MAPTOR red for dark theme */
     --pst-color-primary: #f87171;
     --pst-color-link: #f87171;
     --pst-color-link-hover: #fca5a5;
 }
 
-/* ============================================================================
- * SPECIFIC BUTTON AND INTERACTIVE ELEMENT STYLING
- * ============================================================================ */
 
-/* Primary buttons */
+
 .btn-primary {
     background-color: var(--pst-color-primary) !important;
     border-color: var(--pst-color-primary) !important;
@@ -36,39 +24,52 @@ html[data-theme="dark"] {
     border-color: var(--pst-color-link-hover) !important;
 }
 
-/* Active navigation states - subtle MAPTOR accent */
 .bd-sidebar .navbar-nav .nav-link.active {
     color: var(--pst-color-primary) !important;
     border-left: 2px solid var(--pst-color-primary);
     padding-left: calc(1rem - 2px);
 }
 
-/* Table headers - optional MAPTOR accent */
 .table th {
     background-color: var(--pst-color-primary) !important;
     color: white !important;
 }
 
-/* Search focus states */
 .form-control:focus {
     border-color: var(--pst-color-primary) !important;
     box-shadow: 0 0 0 0.2rem rgba(153, 27, 27, 0.25) !important;
 }
 
-/* ============================================================================
- * MAPTOR LOGO STYLING
- * ============================================================================ */
 
-/* Ensure MAPTOR logo displays properly */
 .navbar-brand img {
     height: 40px;
     max-width: 200px;
     object-fit: contain;
 }
 
-/* ============================================================================
- * END - EVERYTHING ELSE STAYS DEFAULT BLACK/WHITE
- * ============================================================================ */
+@media (max-width: 768px) {
+    .bd-sidebar {
+        max-height: calc(100vh - 60px) !important;
+        overflow-y: auto !important;
+        padding-top: 1rem !important;
+    }
 
-/* That's it! Only ~30 lines vs 200+ for full customization */
-/* Keep all the excellent default PyData black/white styling */
+    /* Fix sidebar title visibility */
+    .bd-links__title {
+        margin-top: 0 !important;
+        padding-top: 0.5rem !important;
+    }
+
+    /* Ensure navigation items are touchable */
+    .bd-toc-item .nav-link {
+        padding: 0.75rem 1rem !important;
+        min-height: 44px !important; /* iOS touch target minimum */
+    }
+}
+
+/* Tablet breakpoint */
+@media (max-width: 992px) {
+    .bd-sidebar {
+        font-size: 0.9rem;
+    }
+}

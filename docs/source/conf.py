@@ -2,16 +2,15 @@ import sys
 from pathlib import Path
 
 
-# Add project root to path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-# Project information
+
 project = "MAPTOR"
 copyright = "2025, MAPTOR"
 author = "David Timothy"
 
-# Get version
+
 try:
     import maptor
 
@@ -21,7 +20,6 @@ except ImportError:
     version = "0.1.0"
     release = version
 
-# Extensions - Professional scientific Python setup matching SciPy
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
@@ -35,7 +33,6 @@ extensions = [
     "sphinx_design",
 ]
 
-# MyST parser configuration
 myst_enable_extensions = [
     "dollarmath",
     "amsmath",
@@ -50,21 +47,17 @@ myst_enable_extensions = [
     "tasklist",
 ]
 
-# Math rendering
 myst_dmath_double_inline = True
 myst_dmath_allow_labels = True
 
-# Source file extensions - SciPy pattern
 source_suffix = {
     ".rst": "restructuredtext",
     ".md": "myst",
 }
 
-# The main toctree document - SciPy standard
 master_doc = "index"
 default_role = "autolink"
 
-# Auto-generation settings - following SciPy
 autosummary_generate = True
 autodoc_default_options = {
     "members": True,
@@ -73,45 +66,35 @@ autodoc_default_options = {
     "special-members": "__init__",
 }
 
-# Autodoc configuration - SciPy standard
 autodoc_typehints = "description"
 autodoc_member_order = "bysource"
 
-# Exclude patterns - professional approach
 exclude_patterns = [
     "**.ipynb",
 ]
 
-# Professional error handling - SciPy approach
 suppress_warnings = [
     "autodoc.import_object",
     "myst.header",
     "autosummary.import_cycle",
     "autodoc.import_cycle",
-    "sphinx.docstring.indent",  # Temporarily suppress docstring formatting warnings
+    "sphinx.docstring.indent",
 ]
 nitpicky = False
 
-# Temporarily allow docstring formatting errors during transition
 autodoc_warningiserror = False
 
-# HTML theme configuration - Professional PyData theme like SciPy
 html_theme = "pydata_sphinx_theme"
 
-# Logo and branding - SINGLE SOURCE OF TRUTH (SciPy pattern)
 html_logo = "_static/MAPTOR_banner.svg"
 
-# Static files and CSS
 html_static_path = ["_static"]
 html_css_files = ["maptor_brand.css"]
 
-# Title configuration - SciPy pattern
 html_title = f"{project} v{version} Documentation"
 
-# Professional sidebar configuration - SciPy standard
 html_sidebars = {"index": ["search-button-field"], "**": ["search-button-field", "sidebar-nav-bs"]}
 
-# Professional theme options - adapted from SciPy's proven approach
 html_theme_options = {
     "header_links_before_dropdown": 6,
     "icon_links": [
@@ -138,7 +121,6 @@ html_theme_options = {
     "show_version_warning_banner": True,
 }
 
-# Intersphinx mapping - SciPy standard
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
     "numpy": ("https://numpy.org/doc/stable/", None),
@@ -146,26 +128,21 @@ intersphinx_mapping = {
     "matplotlib": ("https://matplotlib.org/stable/", None),
 }
 
-# Professional copying settings - SciPy pattern
 html_use_modindex = True
 html_domain_indices = False
 html_copy_source = False
 html_file_suffix = ".html"
 
-# MathJax configuration - SciPy standard
 mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
 
-# sphinx-copybutton configurations - SciPy pattern
 copybutton_prompt_text = r">>> |\.\.\. |\$ |In \[\d*\]: | {2,5}\.{3,}: | {5,8}: "
 copybutton_prompt_is_regexp = True
 
-# Napoleon settings - SciPy standard
 napoleon_google_docstring = True
 napoleon_numpy_docstring = True
 napoleon_include_init_with_doc = False
 napoleon_include_private_with_doc = False
 
-# Professional build settings
 add_function_parentheses = False
 html_last_updated_fmt = "%b %d, %Y"
 
@@ -174,7 +151,6 @@ def setup(app):
     """Auto-generate API and examples docs on build - SciPy pattern."""
     import subprocess
 
-    # Generate API documentation
     api_script_path = Path(__file__).parent / "generate_api_docs.py"
     if api_script_path.exists():
         try:
@@ -183,7 +159,6 @@ def setup(app):
         except subprocess.CalledProcessError:
             print("⚠ API generation had issues")
 
-    # Generate examples documentation
     examples_script_path = Path(__file__).parent / "generate_examples_docs.py"
     if examples_script_path.exists():
         try:
