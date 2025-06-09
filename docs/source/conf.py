@@ -21,7 +21,7 @@ except ImportError:
     version = "0.1.0"
     release = version
 
-# Extensions - Added MyST parser for markdown support
+# Extensions - Professional scientific Python setup
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
@@ -29,29 +29,31 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx.ext.intersphinx",
     "sphinx_autodoc_typehints",
-    "myst_parser",  # Added for markdown support
+    "myst_parser",
+    "sphinx_copybutton",
+    "sphinx_design",
 ]
 
 # MyST parser configuration for markdown and LaTeX support
 myst_enable_extensions = [
-    "dollarmath",  # For $...$ and $$...$$ LaTeX math
-    "amsmath",  # For advanced math environments
-    "deflist",  # For definition lists
-    "fieldlist",  # For field lists
-    "html_admonition",  # For admonitions
-    "html_image",  # For HTML image handling
-    "colon_fence",  # For ::: fenced directives
-    "smartquotes",  # For smart quotes
-    "strikethrough",  # For ~~strikethrough~~
-    "substitution",  # For variable substitution
-    "tasklist",  # For - [ ] task lists
+    "dollarmath",
+    "amsmath",
+    "deflist",
+    "fieldlist",
+    "html_admonition",
+    "html_image",
+    "colon_fence",
+    "smartquotes",
+    "strikethrough",
+    "substitution",
+    "tasklist",
 ]
 
 # Configure math rendering
-myst_dmath_double_inline = True  # Allows $$ for display math
-myst_dmath_allow_labels = True  # Allows equation labels
+myst_dmath_double_inline = True
+myst_dmath_allow_labels = True
 
-# Set supported file extensions - use list format
+# Set supported file extensions
 source_suffix = [".rst", ".md"]
 
 # Auto-generate everything
@@ -67,34 +69,59 @@ autodoc_default_options = {
 autodoc_typehints = "description"
 autodoc_member_order = "bysource"
 
-# HTML theme configuration
-html_theme = "sphinx_rtd_theme"
+# HTML theme configuration - Professional PyData theme like SciPy
+html_theme = "pydata_sphinx_theme"
 html_static_path = ["_static"]
-html_css_files = ["custom.css"]  # Load custom CSS
+html_css_files = ["maptor_brand.css"]
 
-# Brand integration - Professional logo placement
+# MAPTOR branding
 html_logo = "_static/MAPTOR_banner.svg"
 html_title = "MAPTOR Documentation"
+html_favicon = "_static/favicon.ico"  # Add this file to _static/
 
-# Theme options for better branding
+# Modern sidebar configuration
+html_sidebars = {"index": ["search-button-field"], "**": ["search-button-field", "sidebar-nav-bs"]}
+
+# Professional theme options - adapted from SciPy
 html_theme_options = {
-    "logo_only": False,
-    "prev_next_buttons_location": "bottom",
-    "style_external_links": False,
-    "style_nav_header_background": "#2d2d2d",
-    "collapse_navigation": False,
-    "sticky_navigation": True,
-    "navigation_depth": 4,
-    "includehidden": True,
-    "titles_only": False,
+    "header_links_before_dropdown": 6,
+    "icon_links": [
+        {
+            "name": "GitHub",
+            "url": "https://github.com/ChenDavidTimothy/maptor",
+            "icon": "fa-brands fa-github",
+        },
+        {
+            "name": "PyPI",
+            "url": "https://pypi.org/project/maptor/",
+            "icon": "fa-solid fa-box",
+        },
+    ],
+    "logo": {
+        "text": "MAPTOR",
+        "image_light": "_static/MAPTOR_banner.svg",
+        "image_dark": "_static/MAPTOR_banner.svg",
+    },
+    "navbar_start": ["navbar-logo"],
+    "navbar_end": ["theme-switcher", "navbar-icon-links"],
+    "navbar_persistent": [],
+    "secondary_sidebar_items": ["page-toc"],
+    "footer_start": ["copyright"],
+    "footer_end": ["theme-version"],
+    # MAPTOR brand colors
+    "navbar_style": "dark",
+    "primary_sidebar_end": [],
+    "show_toc_level": 2,
+    "navigation_with_keys": True,
 }
 
-# Intersphinx mapping - Added proper mappings
+# Intersphinx mapping
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
     "numpy": ("https://numpy.org/doc/stable/", None),
     "scipy": ("https://docs.scipy.org/doc/scipy/", None),
     "matplotlib": ("https://matplotlib.org/stable/", None),
+    "casadi": ("https://web.casadi.org/", None),
 }
 
 # Warning handling
@@ -105,6 +132,10 @@ napoleon_google_docstring = True
 napoleon_numpy_docstring = True
 napoleon_include_init_with_doc = False
 napoleon_include_private_with_doc = False
+
+# sphinx-copybutton configurations
+copybutton_prompt_text = r">>> |\.\.\. |\$ |In \[\d*\]: | {2,5}\.{3,}: | {5,8}: "
+copybutton_prompt_is_regexp = True
 
 
 # Auto-run API and examples generation
@@ -117,15 +148,15 @@ def setup(app):
     if api_script_path.exists():
         try:
             subprocess.run([sys.executable, str(api_script_path)], check=True)
-            print("API documentation generated")
+            print("✓ API documentation generated")
         except subprocess.CalledProcessError:
-            print("API generation had issues")
+            print("⚠ API generation had issues")
 
     # Generate examples documentation
     examples_script_path = Path(__file__).parent / "generate_examples_docs.py"
     if examples_script_path.exists():
         try:
             subprocess.run([sys.executable, str(examples_script_path)], check=True)
-            print("Examples documentation generated")
+            print("✓ Examples documentation generated")
         except subprocess.CalledProcessError:
-            print("Examples generation had issues")
+            print("⚠ Examples generation had issues")

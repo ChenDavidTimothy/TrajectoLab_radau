@@ -1,10 +1,89 @@
 MAPTOR: Multiphase Adaptive Trajectory Optimizer
-====================================================
+===============================================
 
-MAPTOR is a Python framework for solving optimal control problems using the Radau Pseudospectral Method.
+**Date**: |today| **Version**: |version|
+
+**Useful links**:
+`Install <https://pypi.org/project/maptor/>`__ |
+`Source Repository <https://github.com/ChenDavidTimothy/maptor>`__ |
+`Issues & Ideas <https://github.com/ChenDavidTimothy/maptor/issues>`__ |
+`Q&A Support <https://stackoverflow.com/questions/tagged/maptor>`__
+
+**MAPTOR** is a Python framework for solving optimal control problems using the Radau Pseudospectral Method.
+
+.. grid:: 1 1 2 2
+    :gutter: 2 3 4 4
+
+    .. grid-item-card::
+        :text-align: center
+
+        **🚀 Quick Start**
+        ^^^
+
+        Get up and running with MAPTOR in 5 minutes.
+        Learn the basic problem definition pattern and solve your first optimal control problem.
+
+        +++
+
+        .. button-ref:: quickstart
+            :color: primary
+            :click-parent:
+
+            Get Started
+
+    .. grid-item-card::
+        :text-align: center
+
+        **📚 Tutorials**
+        ^^^
+
+        In-depth guides covering solution access, advanced features,
+        and best practices for multiphase optimal control problems.
+
+        +++
+
+        .. button-ref:: tutorials/index
+            :color: primary
+            :click-parent:
+
+            Learn More
+
+    .. grid-item-card::
+        :text-align: center
+
+        **🔬 Examples Gallery**
+        ^^^
+
+        Complete, runnable examples from aerospace to robotics.
+        Each example includes mathematical formulation and detailed implementation.
+
+        +++
+
+        .. button-ref:: examples/index
+            :color: primary
+            :click-parent:
+
+            Browse Examples
+
+    .. grid-item-card::
+        :text-align: center
+
+        **📖 API Reference**
+        ^^^
+
+        Comprehensive reference documentation for all public classes,
+        functions, and methods in the MAPTOR framework.
+
+        +++
+
+        .. button-ref:: api/index
+            :color: primary
+            :click-parent:
+
+            API Docs
 
 Quick Example
-----------------
+-------------
 
 .. code-block:: python
 
@@ -32,8 +111,28 @@ Quick Example
         print(f"Optimal time: {solution.final_time:.3f}")
         solution.plot()
 
+Key Features
+------------
+
+✅ **Simple API**: Intuitive problem definition with automatic mesh generation
+
+✅ **Adaptive Refinement**: High-precision solutions with automatic error control
+
+✅ **Multiphase Support**: Complex mission profiles with phase transitions
+
+✅ **Built-in Analysis**: Comprehensive plotting and solution diagnostics
+
+✅ **Type Safety**: Full type hints for robust development
+
+Installation
+------------
+
+.. code-block:: bash
+
+    pip install maptor
+
 Documentation
-----------------
+-------------
 
 .. toctree::
    :maxdepth: 2
@@ -43,22 +142,6 @@ Documentation
    tutorials/index
    examples/index
    api/index
-
-🔧 Installation
----------------
-
-.. code-block:: bash
-
-    pip install maptor
-
-Features
------------
-
-* Simple problem definition API
-* Adaptive mesh refinement
-* High-precision solutions
-* Built-in plotting and analysis
-* Comprehensive type hints
 
 Indices and Tables
 ==================

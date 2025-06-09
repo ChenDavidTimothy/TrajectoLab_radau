@@ -1,0 +1,115 @@
+/* MAPTOR Brand Theme - Professional PyData Integration */
+
+/* Import modern fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+/* MAPTOR Brand Colors */
+:root {
+    /* MAPTOR Primary Brand Color */
+    --pst-color-primary: #991b1b;
+    --pst-color-primary-bg: #991b1b;
+
+    /* MAPTOR Secondary Colors */
+    --pst-color-secondary: #f87171;
+    --pst-color-accent: #2d2d2d;
+
+    /* Enhanced Typography */
+    --pst-font-family-base: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    --pst-font-family-monospace: 'JetBrains Mono', 'SF Mono', Monaco, 'Cascadia Code', monospace;
+}
+
+/* MAPTOR Logo Styling */
+.navbar-brand img {
+    height: 40px;
+    max-width: 200px;
+}
+
+/* Brand Color Integration */
+.bd-header {
+    background-color: var(--pst-color-accent);
+    border-bottom: 2px solid var(--pst-color-primary);
+}
+
+/* Primary buttons and links */
+.btn-primary {
+    background-color: var(--pst-color-primary);
+    border-color: var(--pst-color-primary);
+}
+
+.btn-primary:hover {
+    background-color: #7f1d1d;
+    border-color: #7f1d1d;
+}
+
+/* Navigation active states */
+.bd-sidebar .navbar-nav .nav-link.active {
+    color: var(--pst-color-primary);
+    font-weight: 600;
+}
+
+/* Code blocks - Enhanced readability */
+.highlight {
+    border-radius: 8px;
+    border: 1px solid var(--pst-color-border);
+}
+
+/* Table styling */
+.table th {
+    background-color: var(--pst-color-primary);
+    color: white;
+    border: none;
+}
+
+/* Admonition styling with MAPTOR colors */
+.admonition.important .admonition-title {
+    background-color: var(--pst-color-primary);
+    color: white;
+}
+
+/* Version and API badges */
+.badge {
+    background-color: var(--pst-color-primary);
+}
+
+/* Search highlighting */
+.highlighted {
+    background-color: var(--pst-color-secondary);
+    color: white;
+    padding: 2px 4px;
+    border-radius: 4px;
+}
+
+/* Footer branding */
+.bd-footer {
+    border-top: 2px solid var(--pst-color-primary);
+}
+
+/* Mathematical content styling */
+.math {
+    font-family: var(--pst-font-family-monospace);
+}
+
+/* Enhanced focus states for accessibility */
+.btn:focus,
+.form-control:focus,
+.nav-link:focus {
+    box-shadow: 0 0 0 0.2rem rgba(153, 27, 27, 0.25);
+}
+
+/* Custom scrollbar for webkit browsers */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--pst-color-surface);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--pst-color-primary);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #7f1d1d;
+}
