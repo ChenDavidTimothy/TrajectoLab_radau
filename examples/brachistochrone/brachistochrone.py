@@ -31,9 +31,9 @@ controls_guess = []
 for N in [5, 5]:
     # Simple linear state trajectories
     x_vals = np.array([0.0, 0.25, 0.5, 0.75, 1.0, 1.0])
-    y_vals = np.array([0.0, 0.1, 0.3, 0.6, 1.0, 1.2])
+    # y_vals = np.array([0.0, 0.1, 0.3, 0.6, 1.0, 1.2])
     v_vals = np.array([0.0, 1.0, 2.0, 3.0, 4.0, 4.5])
-    states_guess.append(np.array([x_vals, y_vals, v_vals]))
+    states_guess.append(np.array([x_vals, v_vals]))
 
     # Simple constant control
     u_vals = np.ones(N) * 0.5
