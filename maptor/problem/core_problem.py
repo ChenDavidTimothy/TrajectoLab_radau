@@ -188,6 +188,7 @@ class Phase:
     multiphase missions.
 
     The Phase class provides a fluent interface for defining:
+
     - Time variables with boundary conditions
     - State variables with initial, final, and path constraints
     - Control variables with bounds
@@ -254,11 +255,14 @@ class Phase:
 
         Args:
             initial: Initial time constraint. Can be:
+
                 - float: Fixed initial time (e.g., 0.0)
                 - (lower, upper): Bounded initial time range
                 - ca.MX: Symbolic expression for phase linking
                 - None: Unconstrained initial time
+
             final: Final time constraint. Can be:
+
                 - float: Fixed final time
                 - (lower, upper): Bounded final time range
                 - ca.MX: Symbolic expression for phase linking
@@ -314,16 +318,21 @@ class Phase:
         Args:
             name: Unique name for the state variable within this phase
             initial: Initial state constraint. Can be:
+
                 - float: Fixed initial value (e.g., position=0.0)
                 - (lower, upper): Bounded initial value range
                 - ca.MX: Symbolic expression for multiphase continuity
                 - None: Unconstrained initial state (optimization variable)
+
             final: Final state constraint. Can be:
+
                 - float: Fixed final value (e.g., altitude=1000.0)
                 - (lower, upper): Bounded final value range
                 - ca.MX: Symbolic expression for multiphase continuity
                 - None: Unconstrained final state
+
             boundary: Path constraint applied throughout the trajectory. Can be:
+
                 - float: State must equal this value at all times
                 - (lower, upper): State bounds (e.g., altitude >= 0)
                 - None: No path bounds on this state
@@ -379,6 +388,7 @@ class Phase:
         Args:
             name: Unique name for the control variable within this phase
             boundary: Control bounds constraint. Can be:
+
                 - float: Control must equal this constant value
                 - (lower, upper): Control bounds (e.g., thrust limits)
                 - (None, upper): Upper bound only
@@ -571,7 +581,7 @@ class Phase:
         Args:
             *constraint_expressions: Variable number of constraint expressions.
                 Each expression should evaluate to zero for equality constraints
-                or be written as inequality expressions (≤, ≥, <, >, ==).
+                or be written as inequality expressions (<=, >=, <, >, ==).
 
         Examples:
             State bounds and safety constraints:
@@ -791,6 +801,7 @@ class Problem:
     constraint specification.
 
     Key capabilities:
+
     - **Multiphase trajectory definition** with automatic continuity
     - **Static parameter optimization** (design variables)
     - **Flexible objective functions** (minimize/maximize any expression)
@@ -956,6 +967,7 @@ class Problem:
         Args:
             name: Unique name for the parameter
             boundary: Parameter bounds constraint. Can be:
+
                 - float: Fixed parameter value
                 - (lower, upper): Parameter bounds
                 - (None, upper): Upper bound only
@@ -1027,6 +1039,7 @@ class Problem:
 
         Args:
             objective_expr: Scalar expression to minimize. Can involve:
+
                 - Final state values (e.g., time.final, altitude.final)
                 - Integral terms from add_integral()
                 - Static parameters
@@ -1111,12 +1124,17 @@ class Problem:
             phase_states: Dictionary mapping phase IDs to state trajectory guesses.
                 Each phase entry is a list of state arrays (one per mesh interval).
                 Each array has shape (num_states, num_collocation_points).
+
             phase_controls: Dictionary mapping phase IDs to control trajectory guesses.
                 Each phase entry is a list of control arrays (one per mesh interval).
                 Each array has shape (num_controls, num_mesh_points).
+
             phase_initial_times: Dictionary mapping phase IDs to initial time guesses.
+
             phase_terminal_times: Dictionary mapping phase IDs to final time guesses.
+
             phase_integrals: Dictionary mapping phase IDs to integral value guesses.
+
             static_parameters: Array of static parameter guesses.
 
         Examples:

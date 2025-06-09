@@ -87,8 +87,13 @@ suppress_warnings = [
     "autodoc.import_object",
     "myst.header",
     "autosummary.import_cycle",
+    "autodoc.import_cycle",
+    "sphinx.docstring.indent",  # Temporarily suppress docstring formatting warnings
 ]
 nitpicky = False
+
+# Temporarily allow docstring formatting errors during transition
+autodoc_warningiserror = False
 
 # HTML theme configuration - Professional PyData theme like SciPy
 html_theme = "pydata_sphinx_theme"

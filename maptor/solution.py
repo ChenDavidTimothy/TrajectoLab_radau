@@ -557,7 +557,7 @@ class Solution:
 
         Args:
             phase_id: Specific phase to plot (None plots all phases)
-            *variable_names: Optional specific variable names to plot
+            variable_names: Optional specific variable names to plot
             figsize: Figure size for each plotting window
             show_phase_boundaries: Whether to show vertical lines at phase boundaries
 
