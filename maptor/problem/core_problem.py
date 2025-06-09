@@ -571,7 +571,7 @@ class Phase:
         return variables_problem._set_phase_integral(self._phase_def, integrand_expr)
 
     def path_constraints(self, *constraint_expressions: ca.MX | float | int) -> None:
-        """
+        r"""
         Add path constraints enforced at every point along the trajectory.
 
         Path constraints are enforced at all collocation points throughout the
@@ -579,7 +579,7 @@ class Phase:
         trajectory. Use for bounds, inequality constraints, and safety limits.
 
         Args:
-            *constraint_expressions: Variable number of constraint expressions.
+            \*constraint_expressions: Variable number of constraint expressions.
                 Each expression should evaluate to zero for equality constraints
                 or be written as inequality expressions (<=, >=, <, >, ==).
 
@@ -653,7 +653,7 @@ class Phase:
         _log_constraint_addition(len(constraint_expressions), self.phase_id, "path")
 
     def event_constraints(self, *constraint_expressions: ca.MX | float | int) -> None:
-        """
+        r"""
         Add event constraints enforced at phase boundaries or between phases.
 
         Event constraints are enforced at discrete points (phase start/end) rather
@@ -661,7 +661,7 @@ class Phase:
         discontinuous jumps, and constraints linking multiple phases.
 
         Args:
-            *constraint_expressions: Variable number of constraint expressions
+            \*constraint_expressions: Variable number of constraint expressions
                 involving boundary values, final states, or cross-phase continuity.
 
         Examples:
