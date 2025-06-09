@@ -503,6 +503,7 @@ Common Pitfalls to Avoid
 * **Don't mix up string vs tuple access** - understand when to use each pattern
 * **Don't ignore adaptive information** - it provides crucial algorithm insights
 * **Don't hardcode phase IDs** - use ``solution.phases.keys()`` for robustness
+
 Next Steps
 ----------
 
@@ -510,6 +511,8 @@ Next Steps
 * Review the ``solution.summary()`` method for comprehensive diagnostics
 * Practice with different optimal control problems from the examples gallery
 * Reference the complete API documentation for advanced usage patterns
+
+
 
 Running the Complete Example
 ----------------------------

@@ -1,3 +1,5 @@
+:orphan:
+
 # Solution Access Tutorial
 
 This directory contains tutorial materials for working with MAPTOR solution data.
