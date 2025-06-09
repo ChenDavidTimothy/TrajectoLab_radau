@@ -1,37 +1,27 @@
 {
     "recommendations": [
-        // Core Python support
         "ms-python.python",
         "ms-python.vscode-pylance",
 
-        // Ruff (replaces black, isort, flake8)
         "charliermarsh.ruff",
 
-        // Type checking
         "ms-python.mypy-type-checker",
 
-        // Testing and debugging
         "ms-python.debugpy",
 
-        // Git integration
         "eamodio.gitlens",
 
-        // Optional: Jupyter support (if using notebooks)
         "ms-toolsai.jupyter",
 
-        // Optional: Better TOML support
         "tamasfe.even-better-toml",
 
-        // Optional: Error Lens for inline error display
         "usernamehw.errorlens"
     ],
     "unwantedRecommendations": [
-        // Avoid conflicts with Ruff
         "ms-python.black-formatter",
         "ms-python.isort",
         "ms-python.flake8",
 
-        // No docstrings needed
         "njpwerner.autodocstring",
         "autoDocstring.python-docstring-generator"
     ]
