@@ -126,9 +126,6 @@ html_theme_options = {
             "icon": "fa-solid fa-box",
         },
     ],
-    "logo": {
-        "text": "MAPTOR",  # Only text, image handled by html_logo
-    },
     "navbar_start": ["navbar-logo"],
     "navbar_end": ["theme-switcher", "navbar-icon-links"],
     "navbar_persistent": [],
