@@ -7,7 +7,6 @@ MAPTOR: Multiphase Adaptive Trajectory Optimizer
 `Install <https://pypi.org/project/maptor/>`__ |
 `Source Repository <https://github.com/ChenDavidTimothy/maptor>`__ |
 `Issues & Ideas <https://github.com/ChenDavidTimothy/maptor/issues>`__ |
-`Q&A Support <https://stackoverflow.com/questions/tagged/maptor>`__
 
 **MAPTOR** is a Python framework for solving optimal control problems using the Radau Pseudospectral Method.
 
@@ -17,7 +16,7 @@ MAPTOR: Multiphase Adaptive Trajectory Optimizer
     .. grid-item-card::
         :text-align: center
 
-        **🚀 Quick Start**
+        **Quick Start**
         ^^^
 
         Get up and running with MAPTOR in 5 minutes.
@@ -34,7 +33,7 @@ MAPTOR: Multiphase Adaptive Trajectory Optimizer
     .. grid-item-card::
         :text-align: center
 
-        **📚 Tutorials**
+        **Tutorials**
         ^^^
 
         In-depth guides covering solution access, advanced features,
@@ -51,7 +50,7 @@ MAPTOR: Multiphase Adaptive Trajectory Optimizer
     .. grid-item-card::
         :text-align: center
 
-        **🔬 Examples Gallery**
+        **Examples Gallery**
         ^^^
 
         Complete, runnable examples from aerospace to robotics.
@@ -68,7 +67,7 @@ MAPTOR: Multiphase Adaptive Trajectory Optimizer
     .. grid-item-card::
         :text-align: center
 
-        **📖 API Reference**
+        **API Reference**
         ^^^
 
         Comprehensive reference documentation for all public classes,
@@ -114,15 +113,15 @@ Quick Example
 Key Features
 ------------
 
-✅ **Simple API**: Intuitive problem definition with automatic mesh generation
+**Simple API**: Intuitive problem definition with automatic mesh generation
 
-✅ **Adaptive Refinement**: High-precision solutions with automatic error control
+**Adaptive Refinement**: High-precision solutions with automatic error control
 
-✅ **Multiphase Support**: Complex mission profiles with phase transitions
+**Multiphase Support**: Complex mission profiles with phase transitions
 
-✅ **Built-in Analysis**: Comprehensive plotting and solution diagnostics
+**Built-in Analysis**: Comprehensive plotting and solution diagnostics
 
-✅ **Type Safety**: Full type hints for robust development
+**Type Safety**: Full type hints for robust development
 
 Installation
 ------------

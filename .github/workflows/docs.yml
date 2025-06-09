@@ -68,42 +68,42 @@ jobs:
       run: |
         if [ -f docs/_build/html/index.html ]; then
           echo "✓ Documentation HTML generated successfully"
-          echo "📊 Generated pages:"
+          echo "Generated pages:"
           find docs/_build/html -name "*.html" | head -10
 
           # Verify API documentation was generated
           if [ -d docs/_build/html/api ]; then
             echo "✓ API documentation included"
-            echo "📋 Generated API modules:"
+            echo "Generated API modules:"
             find docs/_build/html/api -name "*.html" | head -5
           else
-            echo "⚠ API documentation directory not found"
+            echo "API documentation directory not found"
           fi
 
           # Verify examples documentation was generated
           if [ -d docs/_build/html/examples ]; then
             echo "✓ Examples documentation included"
-            echo "📋 Generated examples:"
+            echo "Generated examples:"
             find docs/_build/html/examples -name "*.html" | head -5
 
             # Count examples
             EXAMPLE_COUNT=$(find docs/_build/html/examples -name "*.html" -not -name "index.html" | wc -l)
-            echo "📈 Total examples documented: $EXAMPLE_COUNT"
+            echo "Total examples documented: $EXAMPLE_COUNT"
           else
-            echo "⚠ Examples documentation directory not found"
+            echo "Examples documentation directory not found"
           fi
 
           # Check for essential pages
           if [ -f docs/_build/html/installation.html ]; then
-            echo "✓ Installation guide included"
+            echo "Installation guide included"
           fi
 
           if [ -f docs/_build/html/quickstart.html ]; then
-            echo "✓ Quickstart guide included"
+            echo "Quickstart guide included"
           fi
 
         else
-          echo "❌ Documentation build failed - no index.html found"
+          echo "Documentation build failed - no index.html found"
           exit 1
         fi
 

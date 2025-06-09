@@ -24,8 +24,8 @@
      inkscape:deskcolor="#d1d1d1"
      showgrid="false"
      inkscape:zoom="1.66"
-     inkscape:cx="306.3253"
-     inkscape:cy="100.3012"
+     inkscape:cx="459.03614"
+     inkscape:cy="109.93976"
      inkscape:window-width="1920"
      inkscape:window-height="991"
      inkscape:window-x="-9"
@@ -38,15 +38,17 @@
      fill="#2d2d2d"
      id="rect2" />
   <text
-     x="398.46399"
-     y="108.304"
+     x="397.52176"
+     y="113.3979"
      font-family="'IBM Plex Sans', sans-serif"
      font-weight="700"
-     font-size="96px"
+     font-size="154.889px"
      fill="#e5e7eb"
      text-anchor="middle"
      dominant-baseline="middle"
-     id="text6">MAPT<tspan
+     id="text6"
+     style="stroke-width:1.61343">MAPT<tspan
    fill="#991b1b"
-   id="tspan4">O</tspan>R</text>
+   id="tspan4"
+   style="stroke-width:2.17898">O</tspan>R</text>
 </svg>
