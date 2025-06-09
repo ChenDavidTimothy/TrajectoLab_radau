@@ -4,39 +4,28 @@ import numpy as np
 import maptor as mtor
 
 
+# Obstacle trajectory waypoints - single source of truth for animation
+OBSTACLE_WAYPOINTS = np.array(
+    [
+        [20.0, 20.0, 0.0],
+        [18.0, 18.0, 3.0],
+        [15.0, 15.0, 5.0],
+        [0.0, 0.0, 10.0],
+    ]
+)
+
+# Create module-level interpolants for efficiency and reliability
+_times = OBSTACLE_WAYPOINTS[:, 2]
+_x_coords = OBSTACLE_WAYPOINTS[:, 0]
+_y_coords = OBSTACLE_WAYPOINTS[:, 1]
+
+_x_interpolant = ca.interpolant("obs_x_interp", "linear", [_times], _x_coords)
+_y_interpolant = ca.interpolant("obs_y_interp", "linear", [_times], _y_coords)
+
+
 def obstacle_position(current_time):
-    # Define waypoints: [x, y, time]
-    waypoints = np.array(
-        [
-            [10.0, 15.0, 0.0],  # Start: upper left
-            [15.0, 10.0, 3.0],  # Move to center, crossing vehicle path
-            [12.0, 8.0, 5.0],  # Slow down near path
-            [8.0, 6.0, 8.0],  # Block lower route
-            [5.0, 12.0, 10.0],  # Move up to block alternative
-            [25.0, 25.0, 15.0],  # Exit area quickly
-        ]
-    )
-
-    # Clamp time to waypoint bounds
-    t_min, t_max = waypoints[0, 2], waypoints[-1, 2]
-    t_clamped = ca.fmax(t_min, ca.fmin(t_max, current_time))
-
-    # Initialize with final waypoint (fallback)
-    obs_x = waypoints[-1, 0]
-    obs_y = waypoints[-1, 1]
-
-    # Multi-segment interpolation with conditional logic
-    for i in range(len(waypoints) - 1):
-        t1, t2 = waypoints[i, 2], waypoints[i + 1, 2]
-        wp1, wp2 = waypoints[i], waypoints[i + 1]
-        in_segment = ca.logic_and(t_clamped >= t1, t_clamped < t2)
-        alpha = (t_clamped - t1) / (t2 - t1)
-        x_interp = (1 - alpha) * wp1[0] + alpha * wp2[0]
-        y_interp = (1 - alpha) * wp1[1] + alpha * wp2[1]
-        obs_x = ca.if_else(in_segment, x_interp, obs_x)
-        obs_y = ca.if_else(in_segment, y_interp, obs_y)
-
-    return obs_x, obs_y
+    t_clamped = ca.fmax(_times[0], ca.fmin(_times[-1], current_time))
+    return _x_interpolant(t_clamped), _y_interpolant(t_clamped)
 
 
 # Problem setup
@@ -47,12 +36,12 @@ phase = problem.set_phase(1)
 t = phase.time(initial=0.0)
 x = phase.state("x_position", initial=0.0, final=20.0)
 y = phase.state("y_position", initial=0.0, final=20.0)
-theta = phase.state("heading", initial=0.0, final=np.pi / 2)
+theta = phase.state("heading", initial=np.pi / 4.0, final=np.pi / 4.0)
 v = phase.state("velocity", initial=1.0, boundary=(0.5, 8.0))
 delta = phase.control("steering_angle", boundary=(-0.5, 0.5))
 a = phase.control("acceleration", boundary=(-3.0, 3.0))
 
-# Dynamics
+# Dynamics - bicycle model
 L = 2.5  # Wheelbase (m)
 phase.dynamics(
     {
@@ -63,7 +52,7 @@ phase.dynamics(
     }
 )
 
-# Path constraints
+# Path constraints - collision avoidance
 vehicle_radius = 1.5  # Vehicle safety radius (m)
 obstacle_radius = 2.5  # Obstacle radius (m)
 obs_x, obs_y = obstacle_position(t)
@@ -73,49 +62,28 @@ min_separation = vehicle_radius + obstacle_radius
 phase.path_constraints(distance_squared >= min_separation**2)
 phase.path_constraints(x >= -5.0, x <= 25.0, y >= -5.0, y <= 25.0)
 
-# Objective
+# Objective - minimize time
 problem.minimize(t.final)
 
-# Mesh and guess
-phase.mesh([6, 6, 6], [-1.0, -1 / 3, 1 / 3, 1.0])
+# Mesh and initial guess
+phase.mesh([8, 8, 8], [-1.0, -1 / 3, 1 / 3, 1.0])
 
-states_guess = []
-controls_guess = []
-for N in [6, 6, 6]:
-    tau = np.linspace(0, 1, N + 1)
-    states_guess.append(
-        np.array(
-            [
-                20.0 * tau,  # Linear x trajectory
-                20.0 * tau,  # Linear y trajectory
-                np.ones(N + 1) * 0.785,  # Constant heading ~45°
-                np.ones(N + 1) * 3.0,  # Constant velocity
-            ]
-        )
-    )
-    controls_guess.append(np.array([np.zeros(N), np.zeros(N)]))
 
-problem.guess(
-    phase_states={1: states_guess},
-    phase_controls={1: controls_guess},
-    phase_terminal_times={1: 12.0},
-)
-
-# Solve
+# Solve with adaptive mesh refinement
 solution = mtor.solve_adaptive(
     problem,
-    error_tolerance=1e-4,
-    max_iterations=20,
-    min_polynomial_degree=3,
-    max_polynomial_degree=9,
+    error_tolerance=1e-3,
+    max_iterations=30,
+    min_polynomial_degree=5,
+    max_polynomial_degree=15,
     nlp_options={"ipopt.print_level": 0, "ipopt.max_iter": 1000},
 )
 
-# Results
+# Results and analysis
 if __name__ == "__main__":
     if solution.status["success"]:
-        print(f"Optimal time: {solution.status['objective']:.6f}")
-        print("Reference: Problem-dependent (dynamic obstacle avoidance)")
+        print(f"Adaptive objective: {solution.status['objective']:.6f}")
+        solution.plot()
 
         # Final state verification
         x_final = solution[(1, "x_position")][-1]
@@ -125,6 +93,5 @@ if __name__ == "__main__":
         print(f"  x: {x_final:.6f} (target: 20.0)")
         print(f"  y: {y_final:.6f} (target: 20.0)")
 
-        solution.plot()
     else:
         print(f"Failed: {solution.status['message']}")

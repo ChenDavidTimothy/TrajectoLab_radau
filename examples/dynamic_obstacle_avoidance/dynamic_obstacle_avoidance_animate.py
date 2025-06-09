@@ -1,7 +1,7 @@
 from pathlib import Path
 
 # Import the solution by running the main problem
-import dynamic_obstacle_avoidance as dynamic_obstacle_avoidance
+import dynamic_obstacle_avoidance
 import matplotlib.animation as animation
 import matplotlib.pyplot as plt
 import numpy as np
@@ -9,24 +9,8 @@ from matplotlib.patches import Circle, Polygon
 
 
 def create_obstacle_trajectory_numpy(time_array):
-    """Create obstacle trajectory using same waypoints as symbolic version.
-
-    Args:
-        time_array: NumPy array of time points
-
-    Returns:
-        Tuple of (obs_x, obs_y) NumPy arrays for obstacle positions
-    """
-    waypoints = np.array(
-        [
-            [10.0, 15.0, 0.0],  # Start: upper left
-            [15.0, 10.0, 3.0],  # Move to center, crossing vehicle path
-            [12.0, 8.0, 5.0],  # Slow down near path
-            [8.0, 6.0, 8.0],  # Block lower route
-            [5.0, 12.0, 10.0],  # Move up to block alternative
-            [25.0, 25.0, 15.0],  # Exit area quickly
-        ]
-    )
+    # Use waypoints from main problem file - single source of truth
+    waypoints = dynamic_obstacle_avoidance.OBSTACLE_WAYPOINTS
 
     obs_x = np.zeros_like(time_array)
     obs_y = np.zeros_like(time_array)
@@ -52,17 +36,6 @@ def create_obstacle_trajectory_numpy(time_array):
 
 
 def create_vehicle_triangle(x, y, theta, size=1.0):
-    """Create triangle vertices representing vehicle orientation.
-
-    Args:
-        x: Vehicle x position
-        y: Vehicle y position
-        theta: Vehicle heading angle
-        size: Triangle size scale factor
-
-    Returns:
-        NumPy array of triangle vertices
-    """
     # Triangle pointing in heading direction
     front = np.array([x + size * np.cos(theta), y + size * np.sin(theta)])
     left_rear = np.array(
@@ -82,15 +55,6 @@ def create_vehicle_triangle(x, y, theta, size=1.0):
 
 
 def animate_obstacle_avoidance(solution, save_filename="obstacle_avoidance.mp4"):
-    """Create real-time animation of the dynamic obstacle avoidance solution.
-
-    Args:
-        solution: MAPTOR solution object containing trajectory data
-        save_filename: Output video filename
-
-    Returns:
-        matplotlib animation object
-    """
     if not solution.status["success"]:
         raise ValueError("Cannot animate a failed solution.")
 
@@ -209,7 +173,7 @@ if __name__ == "__main__":
 
         # Save mp4 in the same directory as this script
         script_dir = Path(__file__).parent
-        output_file = script_dir / "car_obstacle_avoidance.mp4"
+        output_file = script_dir / "dynamic_obstacle_avoidance.mp4"
 
         anim = animate_obstacle_avoidance(solution, str(output_file))
         plt.show()
