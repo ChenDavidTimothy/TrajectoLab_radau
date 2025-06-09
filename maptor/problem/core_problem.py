@@ -1,5 +1,5 @@
 import logging
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 import casadi as ca
@@ -1106,11 +1106,11 @@ class Problem:
 
     def guess(
         self,
-        phase_states: dict[PhaseID, Sequence[NumericArrayLike]] | None = None,
-        phase_controls: dict[PhaseID, Sequence[NumericArrayLike]] | None = None,
-        phase_initial_times: dict[PhaseID, float] | None = None,
-        phase_terminal_times: dict[PhaseID, float] | None = None,
-        phase_integrals: dict[PhaseID, float | NumericArrayLike] | None = None,
+        phase_states: Mapping[PhaseID, Sequence[NumericArrayLike]] | None = None,
+        phase_controls: Mapping[PhaseID, Sequence[NumericArrayLike]] | None = None,
+        phase_initial_times: Mapping[PhaseID, float] | None = None,
+        phase_terminal_times: Mapping[PhaseID, float] | None = None,
+        phase_integrals: Mapping[PhaseID, float | NumericArrayLike] | None = None,
         static_parameters: FloatArray | None = None,
     ) -> None:
         """

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Protocol, TypeAlias
 
@@ -18,6 +18,10 @@ NumericArrayLike: TypeAlias = (
     | Sequence[int]
     | list[float]
     | list[int]
+    | Sequence[Sequence[float]]
+    | Sequence[Sequence[int]]
+    | list[list[float]]
+    | list[list[int]]
 )
 
 ConstraintInput: TypeAlias = float | int | tuple[float | int | None, float | int | None] | None
@@ -163,11 +167,11 @@ class MultiPhaseInitialGuess:
 
     def __init__(
         self,
-        phase_states: dict[PhaseID, list[FloatArray]] | None = None,
-        phase_controls: dict[PhaseID, list[FloatArray]] | None = None,
-        phase_initial_times: dict[PhaseID, float] | None = None,
-        phase_terminal_times: dict[PhaseID, float] | None = None,
-        phase_integrals: dict[PhaseID, float | FloatArray] | None = None,
+        phase_states: Mapping[PhaseID, list[FloatArray]] | None = None,
+        phase_controls: Mapping[PhaseID, list[FloatArray]] | None = None,
+        phase_initial_times: Mapping[PhaseID, float] | None = None,
+        phase_terminal_times: Mapping[PhaseID, float] | None = None,
+        phase_integrals: Mapping[PhaseID, float | FloatArray] | None = None,
         static_parameters: FloatArray | None = None,
     ) -> None:
         self.phase_states = phase_states or {}

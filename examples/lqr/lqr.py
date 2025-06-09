@@ -28,12 +28,12 @@ states_guess = []
 controls_guess = []
 
 # First interval: 5 state points, 4 control points
-states_guess.append(np.array([[1.0, 0.8, 0.6, 0.4, 0.2]]))
-controls_guess.append(np.array([[-0.5, -0.4, -0.3, -0.2]]))
+states_guess.append([[1.0, 0.8, 0.6, 0.4, 0.2]])
+controls_guess.append([[-0.5, -0.4, -0.3, -0.2]])
 
 # Second interval: 5 state points, 4 control points
-states_guess.append(np.array([[0.2, 0.15, 0.1, 0.05, 0.0]]))
-controls_guess.append(np.array([[-0.1, -0.05, 0.0, 0.05]]))
+states_guess.append([[0.2, 0.15, 0.1, 0.05, 0.0]])
+controls_guess.append([[-0.1, -0.05, 0.0, 0.05]])
 
 problem.guess(
     phase_states={1: states_guess},

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 import numpy as np
@@ -23,14 +23,15 @@ def _validate_and_convert_arrays(arrays: Sequence[Any]) -> list[np.ndarray]:
 
 
 def _process_single_or_multi_integral(
-    integrals: float | np.ndarray, num_integrals: int
+    integrals: float | NumericArrayLike, num_integrals: int
 ) -> float | np.ndarray:
+    arr = np.array(integrals)
     if num_integrals == 1:
-        return integrals
-    return np.array(integrals)
+        return float(arr.item())
+    return arr
 
 
-def _validate_time_values(time_values: dict[PhaseID, float] | None, time_type: str) -> None:
+def _validate_time_values(time_values: Mapping[PhaseID, float] | None, time_type: str) -> None:
     if time_values is not None:
         for phase_id, time_val in time_values.items():
             _validate_array_numerical_integrity(
@@ -56,7 +57,7 @@ def _validate_static_parameters(
 
 
 def _validate_phase_states(
-    phase_states: dict[PhaseID, Sequence[NumericArrayLike]] | None, phases: dict[PhaseID, Any]
+    phase_states: Mapping[PhaseID, Sequence[NumericArrayLike]] | None, phases: dict[PhaseID, Any]
 ) -> dict[PhaseID, list[np.ndarray]]:
     validated_states = {}
     if phase_states is not None:
@@ -67,7 +68,7 @@ def _validate_phase_states(
 
 
 def _validate_phase_controls(
-    phase_controls: dict[PhaseID, Sequence[NumericArrayLike]] | None, phases: dict[PhaseID, Any]
+    phase_controls: Mapping[PhaseID, Sequence[NumericArrayLike]] | None, phases: dict[PhaseID, Any]
 ) -> dict[PhaseID, list[np.ndarray]]:
     validated_controls = {}
     if phase_controls is not None:
@@ -78,7 +79,7 @@ def _validate_phase_controls(
 
 
 def _validate_phase_integrals(
-    phase_integrals: dict[PhaseID, float | NumericArrayLike] | None, phases: dict[PhaseID, Any]
+    phase_integrals: Mapping[PhaseID, float | NumericArrayLike] | None, phases: dict[PhaseID, Any]
 ) -> dict[PhaseID, float | np.ndarray]:
     validated_integrals = {}
     if phase_integrals is not None:
@@ -96,8 +97,8 @@ def _validate_phase_integrals(
 def _create_validated_initial_guess(
     validated_states: dict[PhaseID, list[np.ndarray]],
     validated_controls: dict[PhaseID, list[np.ndarray]],
-    phase_initial_times: dict[PhaseID, float] | None,
-    phase_terminal_times: dict[PhaseID, float] | None,
+    phase_initial_times: Mapping[PhaseID, float] | None,
+    phase_terminal_times: Mapping[PhaseID, float] | None,
     validated_integrals: dict[PhaseID, float | np.ndarray],
     validated_static_parameters: np.ndarray | None,
 ) -> MultiPhaseInitialGuess:
@@ -148,11 +149,11 @@ class MultiPhaseInitialGuessRequirements:
 def _set_multiphase_initial_guess(
     current_guess_container: list,
     multiphase_state: MultiPhaseVariableState,
-    phase_states: dict[PhaseID, Sequence[NumericArrayLike]] | None = None,
-    phase_controls: dict[PhaseID, Sequence[NumericArrayLike]] | None = None,
-    phase_initial_times: dict[PhaseID, float] | None = None,
-    phase_terminal_times: dict[PhaseID, float] | None = None,
-    phase_integrals: dict[PhaseID, float | NumericArrayLike] | None = None,
+    phase_states: Mapping[PhaseID, Sequence[NumericArrayLike]] | None = None,
+    phase_controls: Mapping[PhaseID, Sequence[NumericArrayLike]] | None = None,
+    phase_initial_times: Mapping[PhaseID, float] | None = None,
+    phase_terminal_times: Mapping[PhaseID, float] | None = None,
+    phase_integrals: Mapping[PhaseID, float | NumericArrayLike] | None = None,
     static_parameters: FloatArray | None = None,
 ) -> None:
     validated_states = _validate_phase_states(phase_states, multiphase_state.phases)
