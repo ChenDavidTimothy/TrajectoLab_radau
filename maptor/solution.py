@@ -448,101 +448,11 @@ class Solution:
         }
 
     def _get_phase_ids(self) -> list[PhaseID]:
-        """Get sorted list of phase IDs."""
         if self._raw_solution is None:
             return []
         return sorted(self._raw_solution.phase_initial_times.keys())
 
     def __getitem__(self, key: str | tuple[PhaseID, str]) -> FloatArray:
-        """
-        Dictionary-style access to solution variables and time arrays.
-
-        Provides convenient access to trajectory data using either variable names
-        (automatically combines data from all phases containing the variable) or
-        explicit (phase_id, variable_name) tuples for phase-specific access.
-        This is the primary method for extracting solution data for analysis.
-
-        Args:
-            key: Either a variable name (combines all phases) or (phase_id, variable_name) tuple
-
-        Returns:
-            FloatArray containing the requested trajectory or time data.
-            For string keys, data from all phases containing the variable is
-            automatically concatenated in phase order.
-
-        Raises:
-            KeyError: If the variable name is not found in any phase
-
-        Examples:
-            Access complete Schwartz mission trajectories (auto-combines phases):
-
-            >>> # Get complete trajectory data across both Schwartz phases
-            >>> x0_complete = solution["x0"]           # Phase 1 + Phase 2 combined
-            >>> x1_complete = solution["x1"]           # Phase 1 + Phase 2 combined
-            >>> u_complete = solution["u"]             # Phase 1 + Phase 2 combined
-            >>>
-            >>> # Get complete time arrays for entire Schwartz mission
-            >>> all_state_times = solution["time_states"]     # Both phases combined
-            >>> all_control_times = solution["time_controls"] # Both phases combined
-
-            Access variables from specific Schwartz phases:
-
-            >>> # Get data from specific phases when analyzing transitions
-            >>> x0_phase1 = solution[(1, "x0")]       # Phase 1 (elliptical constraint)
-            >>> x1_phase2 = solution[(2, "x1")]       # Phase 2 (final approach)
-            >>> u_phase1 = solution[(1, "u")]         # Phase 1 control
-            >>>
-            >>> # Get phase-specific time arrays
-            >>> phase1_state_times = solution[(1, "time_states")]
-            >>> phase2_control_times = solution[(2, "time_controls")]
-
-            Use in Schwartz problem plotting and analysis:
-
-            >>> # Plot complete Schwartz mission trajectory
-            >>> import matplotlib.pyplot as plt
-            >>> t_complete = solution["time_states"]          # Complete mission time
-            >>> x0_complete = solution["x0"]                  # Complete x0 trajectory
-            >>> x1_complete = solution["x1"]                  # Complete x1 trajectory
-            >>>
-            >>> plt.figure(figsize=(12, 4))
-            >>> plt.subplot(1, 2, 1)
-            >>> plt.plot(t_complete, x0_complete)
-            >>> plt.xlabel("Time (s)")
-            >>> plt.ylabel("x0")
-            >>> plt.title("Complete Schwartz x0 Trajectory")
-            >>>
-            >>> plt.subplot(1, 2, 2)
-            >>> plt.plot(x0_complete, x1_complete)
-            >>> plt.xlabel("x0")
-            >>> plt.ylabel("x1")
-            >>> plt.title("Schwartz Phase Portrait")
-            >>> plt.show()
-
-            Get final Schwartz mission values:
-
-            >>> # Get actual mission final state (end of phase 2)
-            >>> final_x0 = solution["x0"][-1]         # True mission end
-            >>> final_x1 = solution["x1"][-1]         # True mission end
-            >>> final_objective = 5 * (final_x0**2 + final_x1**2)  # Schwartz objective
-
-            Handle missing variables gracefully:
-
-            >>> try:
-            ...     altitude_data = solution["altitude"]  # Not in Schwartz problem
-            >>> except KeyError:
-            ...     print("Altitude not found in Schwartz solution")
-            ...     # List available Schwartz variables
-            ...     for phase_id, phase_info in solution.phases.items():
-            ...         vars_list = phase_info["variables"]["state_names"] + phase_info["variables"]["control_names"]
-            ...         print(f"Phase {phase_id} variables: {vars_list}")  # ["x0", "x1"], ["u"]
-
-        Note:
-            - String keys automatically combine data from all phases containing the variable
-            - Tuple keys provide granular access to specific phase data
-            - Time arrays are properly concatenated to maintain temporal continuity
-            - All concatenation preserves np.float64 precision for numerical safety
-            - Phase data is combined in phase ID order for temporal consistency
-        """
         if not self.status["success"]:
             logger.warning("Cannot access variable '%s': Solution not successful", key)
             return np.array([], dtype=np.float64)
@@ -598,7 +508,6 @@ class Solution:
         raise KeyError(f"Variable '{var_name}' not found in phase {phase_id}")
 
     def _get_by_string_key(self, key: str) -> FloatArray:
-        """Get variable data from all phases containing it, concatenated in phase order."""
         matching_arrays = []
 
         for phase_id in self._get_phase_ids():
@@ -626,47 +535,6 @@ class Solution:
         return np.concatenate(matching_arrays, dtype=np.float64)
 
     def __contains__(self, key: str | tuple[PhaseID, str]) -> bool:
-        """
-        Check if a variable exists in the solution.
-
-        Convenient method to verify variable availability before attempting
-        to access it, preventing KeyError exceptions.
-
-        Args:
-            key: Either a variable name or (phase_id, variable_name) tuple
-
-        Returns:
-            True if variable exists, False otherwise
-
-        Examples:
-            Check Schwartz variable availability before access:
-
-            >>> if "x0" in solution:
-            ...     x0_data = solution["x0"]
-            ...     print(f"x0 range: {x0_data.min():.3f} to {x0_data.max():.3f}")
-            ... else:
-            ...     print("x0 not available in this solution")
-
-            Check phase-specific Schwartz variables:
-
-            >>> if (1, "u") in solution:
-            ...     u_phase1 = solution[(1, "u")]
-            ...     max_control = u_phase1.max()
-            ...     print(f"Maximum control in phase 1: {max_control:.2f}")
-            ... else:
-            ...     print("Control u not available in phase 1")
-
-            Validate multiple Schwartz variables:
-
-            >>> required_vars = ["x0", "x1", "u"]
-            >>> available_vars = [var for var in required_vars if var in solution]
-            >>> missing_vars = [var for var in required_vars if var not in solution]
-            >>>
-            >>> if missing_vars:
-            ...     print(f"Missing Schwartz variables: {missing_vars}")
-            ... else:
-            ...     print("All required Schwartz variables available")
-        """
         try:
             self[key]
             return True
