@@ -36,20 +36,6 @@ if solution.status["success"]:
     print(f"Adaptive objective: {solution.status['objective']:.6f}")
     solution.plot()
 
-    # Compare with fixed mesh
-    phase.mesh([20, 12, 20], [-1.0, -1 / 3, 1 / 3, 1.0])
-
-    fixed_solution = mtor.solve_fixed_mesh(
-        problem, nlp_options={"ipopt.print_level": 0, "ipopt.max_iter": 200}
-    )
-
-    if fixed_solution.status["success"]:
-        print(f"Fixed mesh objective: {fixed_solution.status['objective']:.6f}")
-        print(
-            f"Difference: {abs(solution.status['objective'] - fixed_solution.status['objective']):.2e}"
-        )
-    else:
-        print(f"Fixed mesh failed: {fixed_solution.status['message']}")
 
 else:
     print(f"Failed: {solution.status['message']}")
