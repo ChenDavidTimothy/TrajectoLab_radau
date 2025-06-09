@@ -183,24 +183,80 @@ table.docutils tr:hover {
 }
 
 /* Admonitions - brand accent backgrounds */
-.admonition {
-    background-color: #1f1f1f;
-    border-left: 4px solid #991b1b;
-    color: #e5e7eb;
+/* ADMONITION DARK THEME FIX - Distinct colors with clear visibility */
+
+/* Base dark theme for all admonitions */
+.rst-content .admonition {
+    background-color: #1f1f1f !important;
+    color: #e5e7eb !important;
+    border: 1px solid #404040 !important;
 }
 
-.admonition.note {
-    border-left-color: #f87171;
+/* NOTE - Blue accent (informational) */
+.rst-content .admonition.note {
+    border-left: 4px solid #3b82f6 !important;
+}
+.rst-content .admonition.note .admonition-title {
+    background-color: #1e40af !important;
+    color: #e5e7eb !important;
+    padding: 8px 12px !important;
+    margin: -12px -12px 12px -12px !important;
 }
 
-.admonition.warning {
-    border-left-color: #fbbf24;
-    background-color: #292524;
+/* WARNING - Amber accent (caution) */
+.rst-content .admonition.warning {
+    border-left: 4px solid #f59e0b !important;
+}
+.rst-content .admonition.warning .admonition-title {
+    background-color: #d97706 !important;
+    color: #e5e7eb !important;
+    padding: 8px 12px !important;
+    margin: -12px -12px 12px -12px !important;
 }
 
-.admonition.danger {
-    border-left-color: #ef4444;
-    background-color: #292524;
+/* DANGER/ERROR - Red accent (critical) */
+.rst-content .admonition.danger,
+.rst-content .admonition.error {
+    border-left: 4px solid #ef4444 !important;
+}
+.rst-content .admonition.danger .admonition-title,
+.rst-content .admonition.error .admonition-title {
+    background-color: #dc2626 !important;
+    color: #e5e7eb !important;
+    padding: 8px 12px !important;
+    margin: -12px -12px 12px -12px !important;
+}
+
+/* IMPORTANT - Brand maroon (your existing theme) */
+.rst-content .admonition.important {
+    border-left: 4px solid #991b1b !important;
+}
+.rst-content .admonition.important .admonition-title {
+    background-color: #991b1b !important;
+    color: #e5e7eb !important;
+    padding: 8px 12px !important;
+    margin: -12px -12px 12px -12px !important;
+}
+
+/* TIP/HINT - Green accent (helpful) */
+.rst-content .admonition.tip,
+.rst-content .admonition.hint {
+    border-left: 4px solid #10b981 !important;
+}
+.rst-content .admonition.tip .admonition-title,
+.rst-content .admonition.hint .admonition-title {
+    background-color: #059669 !important;
+    color: #e5e7eb !important;
+    padding: 8px 12px !important;
+    margin: -12px -12px 12px -12px !important;
+}
+
+/* Ensure all content inside admonitions is visible */
+.rst-content .admonition p,
+.rst-content .admonition ul,
+.rst-content .admonition ol,
+.rst-content .admonition code {
+    color: #e5e7eb !important;
 }
 
 /* API documentation - maintain readability */
