@@ -145,7 +145,7 @@ def _plot_multiphase_default(
         if state_pairs:
             fig = _create_multiphase_variable_plot(
                 solution,
-                "Multiphase States",
+                "States",
                 state_pairs,
                 figsize,
                 show_phase_boundaries,
@@ -163,7 +163,7 @@ def _plot_multiphase_default(
         if control_pairs:
             fig = _create_multiphase_variable_plot(
                 solution,
-                "Multiphase Controls",
+                "Controls",
                 control_pairs,
                 figsize,
                 show_phase_boundaries,
