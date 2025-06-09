@@ -503,7 +503,6 @@ Common Pitfalls to Avoid
 * **Don't mix up string vs tuple access** - understand when to use each pattern
 * **Don't ignore adaptive information** - it provides crucial algorithm insights
 * **Don't hardcode phase IDs** - use ``solution.phases.keys()`` for robustness
-
 Next Steps
 ----------
 
@@ -512,5 +511,14 @@ Next Steps
 * Practice with different optimal control problems from the examples gallery
 * Reference the complete API documentation for advanced usage patterns
 
-For the complete, runnable implementation of this tutorial, see:
-``tutorials/solution_access/reference_implementation.py``
+Running the Complete Example
+----------------------------
+
+The complete, runnable implementation is available at:
+``docs/source/tutorials/solution_access/reference_implementation.py``
+
+Run it from the project root:
+
+.. code-block:: bash
+
+    python docs/source/tutorials/solution_access/reference_implementation.py
