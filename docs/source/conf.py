@@ -56,7 +56,7 @@ myst_dmath_allow_labels = True
 # Set supported file extensions - use dictionary format for Sphinx 7+
 source_suffix = {
     ".rst": "restructuredtext",
-    ".md": "myst-parser",
+    ".md": "myst",
 }
 
 # Auto-generate everything
