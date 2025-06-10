@@ -1,393 +1,315 @@
 import casadi as ca
 import numpy as np
-from scipy.integrate import solve_ivp
-from scipy.interpolate import interp1d
 
 import maptor as mtor
 
 
-# =============================================================================
-# 1. Physical Constants and Scaling
-# =============================================================================
-T_phys = 4.446618e-3
-Isp_phys = 450
-mu_phys = 1.407645794e16
-gs_phys = 32.174
-Re_phys = 20925662.73
+# Constants from C++ PSOPT code (unchanged)
+ISP = 450.0  # [sec]
+MU = 1.407645794e16  # [ft^3/sec^2]
+G0 = 32.174  # [ft/sec^2]
+T_THRUST = 4.446618e-3  # [lb]
+RE = 20925662.73  # [ft]
 J2 = 1082.639e-6
 J3 = -2.565e-6
 J4 = -1.608e-6
-p0_phys = 21837080.052835
-w0_phys = 1.0
-LU = p0_phys
-MU = w0_phys
-TU = np.sqrt(LU**3 / mu_phys)
-mu_s = 1.0
-Re_s = Re_phys / LU
-T_s = T_phys * TU**2 / (MU * LU)
-gs_s = gs_phys * TU**2 / LU
-Isp_s = Isp_phys / TU
 
-# =============================================================================
-# 2. Scaled Problem Definition
-# =============================================================================
-p0_s = p0_phys / LU
-f0 = 0
-g0 = 0
-h0 = -0.25396764647494
-k0 = 0
-L0 = np.pi
-w0_s = w0_phys / MU
-pf_phys = 40007346.015232
-pf_s = pf_phys / LU
-pmin_s, pmax_s = 20000000 / LU, 60000000 / LU
-fmin, fmax = -1, 1
-gmin, gmax = -1, 1
-hmin, hmax = -1, 1
-kmin, kmax = -1, 1
-Lmin, Lmax = L0, 9 * 2 * np.pi
-wmin_s, wmax_s = 0.1 / MU, w0_phys / MU
-urmin, urmax = -1, 1
-utmin, utmax = -1, 1
-uhmin, uhmax = -1, 1
-taumin, taumax = -50, 0
-t0_s = 0
-tfmin_s, tfmax_s = 50000 / TU, 100000 / TU
-ff_target_sq = 0.73550320568829**2
-hf_target_sq = 0.61761258786099**2
+# Physical initial/final conditions (unchanged)
+PTI = 21837080.052835
+FTI = 0.0
+GTI = 0.0
+HTI = -0.25396764647494
+KTI = 0.0
+LTI = np.pi
+WTI = 1.0
 
-problem = mtor.Problem("Low-Thrust Orbit Transfer (Scaled)")
+PTF = 40007346.015232
+EVENT_FINAL_9 = 0.73550320568829
+EVENT_FINAL_10 = 0.61761258786099
+EVENT_FINAL_11 = 0.0
+EVENT_FINAL_12_LOWER = -10.0
+EVENT_FINAL_12_UPPER = 0.0
+
+EQ_TOL = 0.001
+
+# Scaling factors following shuttle_reentry.py pattern
+P_SCALE = 1e7  # Position parameter scaling [ft]
+L_SCALE = np.pi  # Longitude scaling [rad]
+T_SCALE = 1e4  # Time scaling [sec]
+
+# Problem setup
+problem = mtor.Problem("Low thrust transfer problem")
 phase = problem.set_phase(1)
 
-t = phase.time(initial=t0_s, final=(tfmin_s, tfmax_s))
-p = phase.state("p_scaled", initial=p0_s, final=pf_s, boundary=(pmin_s, pmax_s))
-f = phase.state("f", initial=f0, final=(fmin, fmax), boundary=(fmin, fmax))
-g = phase.state("g", initial=g0, final=(gmin, gmax), boundary=(gmin, gmax))
-h = phase.state("h", initial=h0, final=(hmin, hmax), boundary=(hmin, hmax))
-k = phase.state("k", initial=k0, final=(kmin, kmax), boundary=(kmin, kmax))
-L = phase.state("L", initial=L0, final=(Lmin, Lmax), boundary=(Lmin, Lmax))
-w = phase.state("w_scaled", initial=w0_s, final=(wmin_s, wmax_s), boundary=(wmin_s, wmax_s))
-ur = phase.control("ur", boundary=(urmin, urmax))
-ut = phase.control("ut", boundary=(utmin, utmax))
-uh = phase.control("uh", boundary=(uhmin, uhmax))
-tau = problem.parameter("tau", boundary=(taumin, taumax))
+# Scaled variables with O(1) bounds
+t_s = phase.time(initial=0.0, final=(50000.0 / T_SCALE, 100000.0 / T_SCALE))
+p_s = phase.state(
+    "p_scaled",
+    initial=PTI / P_SCALE,
+    boundary=(10.0e6 / P_SCALE, 60.0e6 / P_SCALE),
+)
+f = phase.state("f", initial=FTI, boundary=(-0.20, 0.20))  # Already O(1)
+g = phase.state("g", initial=GTI, boundary=(-0.10, 1.0))  # Already O(1)
+h = phase.state("h", initial=HTI, boundary=(-1.0, 1.0))  # Already O(1)
+k = phase.state("k", initial=KTI, boundary=(-0.20, 0.20))  # Already O(1)
+L_s = phase.state(
+    "L_scaled",
+    initial=LTI / L_SCALE,
+    boundary=(np.pi / L_SCALE, 20 * np.pi / L_SCALE),
+)
+w = phase.state("w", initial=WTI, boundary=(0.0, 2.0))  # Already O(1)
 
-# =============================================================================
-# 3. Scaled Dynamics
-# =============================================================================
-q = 1 + f * ca.cos(L) + g * ca.sin(L)
-r_s = p / q
+u1 = phase.control("u1", boundary=(-1.0, 1.0))
+u2 = phase.control("u2", boundary=(-1.0, 1.0))
+u3 = phase.control("u3", boundary=(-1.0, 1.0))
+
+tau = problem.parameter("tau", boundary=(-50.0, 0.0))
+
+# Convert scaled variables to physical variables for all physics calculations
+t = t_s * T_SCALE
+p = p_s * P_SCALE
+L = L_s * L_SCALE
+
+# Numerical safeguards
+eps = 1e-12
+
+# Physics calculations using physical variables (identical to C++ code)
+q = 1.0 + f * ca.cos(L) + g * ca.sin(L)
+r = p / ca.fmax(q, eps)
 alpha2 = h * h - k * k
-chi = ca.sqrt(h * h + k * k)
-s2 = 1 + chi * chi
-rX_s = (r_s / s2) * (ca.cos(L) + alpha2 * ca.cos(L) + 2 * h * k * ca.sin(L))
-rY_s = (r_s / s2) * (ca.sin(L) - alpha2 * ca.sin(L) + 2 * h * k * ca.cos(L))
-rZ_s = (2 * r_s / s2) * (h * ca.sin(L) - k * ca.cos(L))
-rMag_s = ca.sqrt(ca.fmax(1e-9, rX_s**2 + rY_s**2 + rZ_s**2))
-rXZMag_s = ca.sqrt(ca.fmax(1e-9, rX_s**2 + rZ_s**2))
-v_factor = ca.sqrt(mu_s / p)
-vX_s = (
-    -(1 / s2)
-    * v_factor
+X = ca.sqrt(h * h + k * k)
+s2 = 1 + X * X
+
+# Position vector components
+r1 = r / s2 * (ca.cos(L) + alpha2 * ca.cos(L) + 2 * h * k * ca.sin(L))
+r2 = r / s2 * (ca.sin(L) - alpha2 * ca.sin(L) + 2 * h * k * ca.cos(L))
+r3 = 2 * r / s2 * (h * ca.sin(L) - k * ca.cos(L))
+rvec = ca.vertcat(r1, r2, r3)
+
+# Velocity vector components
+sqrt_mu_p = ca.sqrt(MU / ca.fmax(p, eps))
+v1 = (
+    -(1.0 / s2)
+    * sqrt_mu_p
     * (ca.sin(L) + alpha2 * ca.sin(L) - 2 * h * k * ca.cos(L) + g - 2 * f * h * k + alpha2 * g)
 )
-vY_s = (
-    -(1 / s2)
-    * v_factor
+v2 = (
+    -(1.0 / s2)
+    * sqrt_mu_p
     * (-ca.cos(L) + alpha2 * ca.cos(L) + 2 * h * k * ca.sin(L) - f + 2 * g * h * k + alpha2 * f)
 )
-vZ_s = (2 / s2) * v_factor * (h * ca.cos(L) + k * ca.sin(L) + f * h + g * k)
-ir1, ir2, ir3 = rX_s / rMag_s, rY_s / rMag_s, rZ_s / rMag_s
-rCrossv_x = rY_s * vZ_s - rZ_s * vY_s
-rCrossv_y = rZ_s * vX_s - rX_s * vZ_s
-rCrossv_z = rX_s * vY_s - rY_s * vX_s
-rCrossvMag = ca.sqrt(ca.fmax(1e-9, rCrossv_x**2 + rCrossv_y**2 + rCrossv_z**2))
-rCrossvCrossr_x = rCrossv_y * rZ_s - rCrossv_z * rY_s
-rCrossvCrossr_y = rCrossv_z * rX_s - rCrossv_x * rZ_s
-rCrossvCrossr_z = rCrossv_x * rY_s - rCrossv_y * rX_s
-it1 = rCrossvCrossr_x / (rCrossvMag * rMag_s)
-it2 = rCrossvCrossr_y / (rCrossvMag * rMag_s)
-it3 = rCrossvCrossr_z / (rCrossvMag * rMag_s)
-ih1, ih2, ih3 = (
-    rCrossv_x / rCrossvMag,
-    rCrossv_y / rCrossvMag,
-    rCrossv_z / rCrossvMag,
+v3 = (2.0 / s2) * sqrt_mu_p * (h * ca.cos(L) + k * ca.sin(L) + f * h + g * k)
+vvec = ca.vertcat(v1, v2, v3)
+
+
+# Cross and dot products (unchanged)
+def cross_product(a, b):
+    return ca.vertcat(
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
+    )
+
+
+def dot_product(a, b):
+    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+
+
+# Reference frames (unchanged)
+rv = cross_product(rvec, vvec)
+rvr = cross_product(rv, rvec)
+norm_r = ca.sqrt(ca.fmax(dot_product(rvec, rvec), eps))
+norm_rv = ca.sqrt(ca.fmax(dot_product(rv, rv), eps))
+
+ir = rvec / norm_r
+ith = rvr / (norm_rv * norm_r)
+ih = rv / norm_rv
+
+# Compute in vector
+en = ca.vertcat(0.0, 0.0, 1.0)
+enir = dot_product(en, ir)
+in_vec = en - enir * ir
+norm_in = ca.sqrt(ca.fmax(dot_product(in_vec, in_vec), eps))
+in_normalized = in_vec / norm_in
+
+# Gravitational perturbations (unchanged physics)
+sin_phi = rvec[2] / norm_r
+sin_phi_clamped = ca.fmax(ca.fmin(sin_phi, 1.0 - eps), -1.0 + eps)
+cos_phi = ca.sqrt(1.0 - sin_phi_clamped**2)
+
+# J2, J3, J4 terms (identical to original)
+P2 = 0.5 * (3.0 * sin_phi_clamped**2 - 1.0)
+Pdash2 = 3.0 * sin_phi_clamped
+r_safe = ca.fmax(r, RE / 100.0)
+deltagn_j2 = -MU * cos_phi / (r_safe * r_safe) * (RE / r_safe) ** 2 * Pdash2 * J2
+deltagr_j2 = -MU / (r_safe * r_safe) * 3.0 * (RE / r_safe) ** 2 * P2 * J2
+
+P3 = 0.5 * (5.0 * sin_phi_clamped**3 - 3.0 * sin_phi_clamped)
+Pdash3 = 0.5 * (15.0 * sin_phi_clamped**2 - 3.0)
+deltagn_j3 = -MU * cos_phi / (r_safe * r_safe) * (RE / r_safe) ** 3 * Pdash3 * J3
+deltagr_j3 = -MU / (r_safe * r_safe) * 4.0 * (RE / r_safe) ** 3 * P3 * J3
+
+P4 = (1.0 / 8.0) * (35.0 * sin_phi_clamped**4 - 30.0 * sin_phi_clamped**2 + 3.0)
+Pdash4 = (1.0 / 8.0) * (140.0 * sin_phi_clamped**3 - 60.0 * sin_phi_clamped)
+deltagn_j4 = -MU * cos_phi / (r_safe * r_safe) * (RE / r_safe) ** 4 * Pdash4 * J4
+deltagr_j4 = -MU / (r_safe * r_safe) * 5.0 * (RE / r_safe) ** 4 * P4 * J4
+
+deltagn = deltagn_j2 + deltagn_j3 + deltagn_j4
+deltagr = deltagr_j2 + deltagr_j3 + deltagr_j4
+
+# Gravitational perturbation vector
+delta_g = deltagn * in_normalized - deltagr * ir
+
+# Transform to orbital frame
+DELTA_g1 = dot_product(ir, delta_g)
+DELTA_g2 = dot_product(ith, delta_g)
+DELTA_g3 = dot_product(ih, delta_g)
+
+# Thrust acceleration components
+w_safe = ca.fmax(w, eps)
+DELTA_T1 = G0 * T_THRUST * (1.0 + 0.01 * tau) * u1 / w_safe
+DELTA_T2 = G0 * T_THRUST * (1.0 + 0.01 * tau) * u2 / w_safe
+DELTA_T3 = G0 * T_THRUST * (1.0 + 0.01 * tau) * u3 / w_safe
+
+# Total acceleration
+delta1 = DELTA_g1 + DELTA_T1
+delta2 = DELTA_g2 + DELTA_T2
+delta3 = DELTA_g3 + DELTA_T3
+
+# Physical derivatives (identical to C++ code)
+sqrt_p_mu = ca.sqrt(ca.fmax(p, eps) / MU)
+q_safe = ca.fmax(ca.fabs(q), eps)
+
+pdot = 2 * p / q_safe * sqrt_p_mu * delta2
+fdot = (
+    sqrt_p_mu * ca.sin(L) * delta1
+    + sqrt_p_mu * (1.0 / q_safe) * ((q + 1.0) * ca.cos(L) + f) * delta2
+    - sqrt_p_mu * (g / q_safe) * (h * ca.sin(L) - k * ca.cos(L)) * delta3
 )
-enir = ir3
-enirir1, enirir2, enirir3 = enir * ir1, enir * ir2, enir * ir3
-enenirir1, enenirir2, enenirir3 = -enirir1, -enirir2, 1 - enirir3
-enenirirMag = np.sqrt(np.fmax(1e-9, enenirir1**2 + enenirir2**2 + enenirir3**2))
-in1, in2, in3 = (
-    enenirir1 / enenirirMag,
-    enenirir2 / enenirirMag,
-    enenirir3 / enenirirMag,
+gdot = (
+    -sqrt_p_mu * ca.cos(L) * delta1
+    + sqrt_p_mu * (1.0 / q_safe) * ((q + 1.0) * ca.sin(L) + g) * delta2
+    + sqrt_p_mu * (f / q_safe) * (h * ca.sin(L) - k * ca.cos(L)) * delta3
 )
-sinphi = rZ_s / rXZMag_s
-cosphi = ca.sqrt(ca.fmax(1e-9, 1 - sinphi**2))
-P2 = (3 * sinphi**2 - 2) / 2
-P3 = (5 * sinphi**3 - 3 * sinphi) / 2
-P4 = (35 * sinphi**4 - 30 * sinphi**2 + 3) / 8
-dP2 = 3 * sinphi
-dP3 = (15 * sinphi**2 - 3) / 2
-dP4 = (140 * sinphi**3 - 60 * sinphi) / 8
-sumn = (Re_s / r_s) ** 2 * dP2 * J2 + (Re_s / r_s) ** 3 * dP3 * J3 + (Re_s / r_s) ** 4 * dP4 * J4
-sumr = (
-    3 * (Re_s / r_s) ** 2 * P2 * J2
-    + 4 * (Re_s / r_s) ** 3 * P3 * J3
-    + 5 * (Re_s / r_s) ** 4 * P4 * J4
+hdot = sqrt_p_mu * s2 * ca.cos(L) / (2.0 * q_safe) * delta3
+kdot = sqrt_p_mu * s2 * ca.sin(L) / (2.0 * q_safe) * delta3
+Ldot = (
+    sqrt_p_mu * (1.0 / q_safe) * (h * ca.sin(L) - k * ca.cos(L)) * delta3
+    + ca.sqrt(MU * ca.fmax(p, eps)) * (q / ca.fmax(p, eps)) ** 2
 )
-delta_gn_s = -(mu_s * cosphi / (r_s**2)) * sumn
-delta_gr_s = -(mu_s / (r_s**2)) * sumr
-delta_g1 = delta_gn_s * in1 - delta_gr_s * ir1
-delta_g2 = delta_gn_s * in2 - delta_gr_s * ir2
-delta_g3 = delta_gn_s * in3 - delta_gr_s * ir3
-Deltag1 = ir1 * delta_g1 + ir2 * delta_g2 + ir3 * delta_g3
-Deltag2 = it1 * delta_g1 + it2 * delta_g2 + it3 * delta_g3
-Deltag3 = ih1 * delta_g1 + ih2 * delta_g2 + ih3 * delta_g3
-thrust_factor = (gs_s * T_s * (1 + 0.01 * tau)) / w
-DeltaT1 = thrust_factor * ur
-DeltaT2 = thrust_factor * ut
-DeltaT3 = thrust_factor * uh
-Delta1 = Deltag1 + DeltaT1
-Delta2 = Deltag2 + DeltaT2
-Delta3 = Deltag3 + DeltaT3
-dp = (2 * p / q) * ca.sqrt(p / mu_s) * Delta2
-df = (
-    ca.sqrt(p / mu_s) * ca.sin(L) * Delta1
-    + ca.sqrt(p / mu_s) * (1 / q) * ((q + 1) * ca.cos(L) + f) * Delta2
-    - ca.sqrt(p / mu_s) * (g / q) * (h * ca.sin(L) - k * ca.cos(L)) * Delta3
+wdot = -T_THRUST * (1.0 + 0.01 * tau) / ISP
+
+# *** CORRECTED DYNAMICS SECTION ***
+# Scaled dynamics: Apply the chain rule for time scaling.
+# The solver optimizes wrt scaled time t_s, so we need d(state)/d(t_s).
+# For a scaled state x_s = x / X_SCALE, the rule is:
+#   d(x_s)/d(t_s) = d(x_s)/dx * dx/dt * dt/d(t_s) = (1/X_SCALE) * (dx/dt) * T_SCALE
+# For an unscaled state x, the rule is:
+#   d(x)/d(t_s) = dx/dt * dt/d(t_s) = (dx/dt) * T_SCALE
+phase.dynamics(
+    {
+        p_s: (pdot / P_SCALE) * T_SCALE,
+        f: fdot * T_SCALE,
+        g: gdot * T_SCALE,
+        h: hdot * T_SCALE,
+        k: kdot * T_SCALE,
+        L_s: (Ldot / L_SCALE) * T_SCALE,
+        w: wdot * T_SCALE,
+    }
 )
-dg = (
-    -ca.sqrt(p / mu_s) * ca.cos(L) * Delta1
-    + ca.sqrt(p / mu_s) * (1 / q) * ((q + 1) * ca.sin(L) + g) * Delta2
-    + ca.sqrt(p / mu_s) * (f / q) * (h * ca.sin(L) - k * ca.cos(L)) * Delta3
+
+# Path constraint using physical variables
+thrust_magnitude_squared = u1**2 + u2**2 + u3**2
+phase.path_constraints(
+    thrust_magnitude_squared >= 1.0 - EQ_TOL,
+    thrust_magnitude_squared <= 1.0 + EQ_TOL,
 )
-dh = ca.sqrt(p / mu_s) * (s2 * ca.cos(L) / (2 * q)) * Delta3
-dk = ca.sqrt(p / mu_s) * (s2 * ca.sin(L) / (2 * q)) * Delta3
-dL = ca.sqrt(p / mu_s) * (1 / q) * (h * ca.sin(L) - k * ca.cos(L)) * Delta3 + ca.sqrt(mu_s * p) * (
-    (q / p) ** 2
-)
-dw = -(T_s * (1 + 0.01 * tau)) / (gs_s * Isp_s)
-phase.dynamics({p: dp, f: df, g: dg, h: dh, k: dk, L: dL, w: dw})
 
-# =============================================================================
-# 4. High-Fidelity Initial Guess Generation
-# =============================================================================
-
-
-def get_dynamics_and_controls_for_guess(y):
-    p, f, g, h, k, L, w = y
-    q = 1 + f * np.cos(L) + g * np.sin(L)
-    r = p / q
-    alpha2 = h * h - k * k
-    chi = np.sqrt(h * h + k * k)
-    s2 = 1 + chi * chi
-    rX = (r / s2) * (np.cos(L) + alpha2 * np.cos(L) + 2 * h * k * np.sin(L))
-    rY = (r / s2) * (np.sin(L) - alpha2 * np.sin(L) + 2 * h * k * np.cos(L))
-    rZ = (2 * r / s2) * (h * np.sin(L) - k * np.cos(L))
-    rMag = np.sqrt(np.fmax(1e-9, rX**2 + rY**2 + rZ**2))
-    rXZMag = np.sqrt(np.fmax(1e-9, rX**2 + rZ**2))
-    v_factor = np.sqrt(mu_phys / p)
-    vX = (
-        -(1 / s2)
-        * v_factor
-        * (np.sin(L) + alpha2 * np.sin(L) - 2 * h * k * np.cos(L) + g - 2 * f * h * k + alpha2 * g)
-    )
-    vY = (
-        -(1 / s2)
-        * v_factor
-        * (-np.cos(L) + alpha2 * np.cos(L) + 2 * h * k * np.sin(L) - f + 2 * g * h * k + alpha2 * f)
-    )
-    vZ = (2 / s2) * v_factor * (h * np.cos(L) + k * np.sin(L) + f * h + g * k)
-    v_vec = np.array([vX, vY, vZ])
-    v_mag = np.linalg.norm(v_vec)
-    v_hat = v_vec / v_mag
-    ir_vec = np.array([rX, rY, rZ]) / rMag
-    h_vec = np.cross(ir_vec * rMag, v_vec)
-    ih_vec = h_vec / np.linalg.norm(h_vec)
-    it_vec = np.cross(ih_vec, ir_vec)
-    ur = np.dot(v_hat, ir_vec)
-    ut = np.dot(v_hat, it_vec)
-    uh = np.dot(v_hat, ih_vec)
-    ir1, ir2, ir3 = ir_vec
-    it1, it2, it3 = it_vec
-    ih1, ih2, ih3 = ih_vec
-    enir = ir3
-    enirir1, enirir2, enirir3 = enir * ir1, enir * ir2, enir * ir3
-    enenirir1, enenirir2, enenirir3 = -enirir1, -enirir2, 1 - enirir3
-    enenirirMag = np.sqrt(np.fmax(1e-9, enenirir1**2 + enenirir2**2 + enenirir3**2))
-    in1, in2, in3 = (
-        enenirir1 / enenirirMag,
-        enenirir2 / enenirirMag,
-        enenirir3 / enenirirMag,
-    )
-    sinphi = rZ / rXZMag
-    cosphi = np.sqrt(np.fmax(1e-9, 1 - sinphi**2))
-    P2 = (3 * sinphi**2 - 2) / 2
-    P3 = (5 * sinphi**3 - 3 * sinphi) / 2
-    P4 = (35 * sinphi**4 - 30 * sinphi**2 + 3) / 8
-    dP2 = 3 * sinphi
-    dP3 = (15 * sinphi**2 - 3) / 2
-    dP4 = (140 * sinphi**3 - 60 * sinphi) / 8
-    sumn = (
-        (Re_phys / r) ** 2 * dP2 * J2
-        + (Re_phys / r) ** 3 * dP3 * J3
-        + (Re_phys / r) ** 4 * dP4 * J4
-    )
-    sumr = (
-        3 * (Re_phys / r) ** 2 * P2 * J2
-        + 4 * (Re_phys / r) ** 3 * P3 * J3
-        + 5 * (Re_phys / r) ** 4 * P4 * J4
-    )
-    delta_gn = -(mu_phys * cosphi / (r**2)) * sumn
-    delta_gr = -(mu_phys / (r**2)) * sumr
-    delta_g1 = delta_gn * in1 - delta_gr * ir1
-    delta_g2 = delta_gn * in2 - delta_gr * ir2
-    delta_g3 = delta_gn * in3 - delta_gr * ir3
-    Deltag1 = ir1 * delta_g1 + ir2 * delta_g2 + ir3 * delta_g3
-    Deltag2 = it1 * delta_g1 + it2 * delta_g2 + it3 * delta_g3
-    Deltag3 = ih1 * delta_g1 + ih2 * delta_g2 + ih3 * delta_g3
-    tau_guess = -25.0
-    thrust_factor = (T_phys * (1 + 0.01 * tau_guess)) / w
-    DeltaT1 = thrust_factor * ur
-    DeltaT2 = thrust_factor * ut
-    DeltaT3 = thrust_factor * uh
-    Delta1 = Deltag1 + DeltaT1
-    Delta2 = Deltag2 + DeltaT2
-    Delta3 = Deltag3 + DeltaT3
-    dp = (2 * p / q) * np.sqrt(p / mu_phys) * Delta2
-    df = (
-        np.sqrt(p / mu_phys) * np.sin(L) * Delta1
-        + np.sqrt(p / mu_phys) * (1 / q) * ((q + 1) * np.cos(L) + f) * Delta2
-        - np.sqrt(p / mu_phys) * (g / q) * (h * np.sin(L) - k * np.cos(L)) * Delta3
-    )
-    dg = (
-        -np.sqrt(p / mu_phys) * np.cos(L) * Delta1
-        + np.sqrt(p / mu_phys) * (1 / q) * ((q + 1) * np.sin(L) + g) * Delta2
-        + np.sqrt(p / mu_phys) * (f / q) * (h * np.sin(L) - k * np.cos(L)) * Delta3
-    )
-    dh = np.sqrt(p / mu_phys) * (s2 * np.cos(L) / (2 * q)) * Delta3
-    dk = np.sqrt(p / mu_phys) * (s2 * np.sin(L) / (2 * q)) * Delta3
-    dL = np.sqrt(p / mu_phys) * (1 / q) * (h * np.sin(L) - k * np.cos(L)) * Delta3 + np.sqrt(
-        mu_phys * p
-    ) * ((q / p) ** 2)
-    dw = -(T_phys * (1 + 0.01 * tau_guess)) / (gs_phys * Isp_phys)
-    return np.array([dp, df, dg, dh, dk, dL, dw]), np.array([ur, ut, uh])
-
-
-def dynamics_for_ode(t, y):
-    dydt, _ = get_dynamics_and_controls_for_guess(y)
-    return dydt
-
-
-def generate_physics_based_guess(poly_degrees):
-    print("Generating high-fidelity physics-based initial guess...")
-    y0_phys = np.array([p0_phys, f0, g0, h0, k0, L0, w0_phys])
-    t_final_guess_phys = 90000.0
-    t_span = [0, t_final_guess_phys]
-    sol = solve_ivp(
-        dynamics_for_ode,
-        t_span,
-        y0_phys,
-        method="RK45",
-        dense_output=True,
-        rtol=1e-6,
-        atol=1e-9,
-    )
-    num_intervals = len(poly_degrees)
-    L_start = sol.y[5, 0]
-    L_end = sol.y[5, -1]
-    L_grid = np.linspace(L_start, L_end, num_intervals + 1)
-    time_interpolator = interp1d(sol.y[5], sol.t, kind="linear", fill_value="extrapolate")
-    t_grid = time_interpolator(L_grid)
-    states_guess = []
-    controls_guess = []
-    for i in range(num_intervals):
-        num_state_points = poly_degrees[i] + 1
-        num_control_points = poly_degrees[i]
-        t_interval_states = np.linspace(t_grid[i], t_grid[i + 1], num_state_points)
-        y_interval_states = sol.sol(t_interval_states)
-        t_interval_controls = t_interval_states[:-1]
-        y_interval_for_controls = sol.sol(t_interval_controls)
-        u_interval = np.array(
-            [
-                get_dynamics_and_controls_for_guess(y_interval_for_controls[:, j])[1]
-                for j in range(num_control_points)
-            ]
-        ).T
-        y_interval_scaled = y_interval_states / np.array([LU, 1, 1, 1, 1, 1, MU]).reshape(-1, 1)
-        states_guess.append(y_interval_scaled)
-        controls_guess.append(u_interval)
-    tf_guess_scaled = t_final_guess_phys / TU
-    print("Initial guess generation complete.")
-    return states_guess, controls_guess, tf_guess_scaled
-
-
-# =============================================================================
-# 5. Constraints, Objective, and Solver Setup
-# =============================================================================
-phase.path_constraints(ur**2 + ut**2 + uh**2 == 1)
+# Event constraints using scaled state variables with scaled constraint values
 phase.event_constraints(
-    f.final**2 + g.final**2 == ff_target_sq,
-    h.final**2 + k.final**2 == hf_target_sq,
-    f.final * h.final + g.final * k.final == 0,
-    g.final * h.final - k.final * f.final >= -3,
-    g.final * h.final - k.final * f.final <= 0,
+    p_s.final == PTF / P_SCALE,  # Convert constraint value to scaled units
+    ca.sqrt(f.final**2 + g.final**2) == EVENT_FINAL_9,  # f,g already O(1)
+    ca.sqrt(h.final**2 + k.final**2) == EVENT_FINAL_10,  # h,k already O(1)
+    f.final * h.final + g.final * k.final == EVENT_FINAL_11,  # Already O(1)
 )
+
+gtf_htf_minus_ktf_ftf = g.final * h.final - k.final * f.final
+phase.event_constraints(
+    gtf_htf_minus_ktf_ftf >= EVENT_FINAL_12_LOWER,
+    gtf_htf_minus_ktf_ftf <= EVENT_FINAL_12_UPPER,
+)
+
+# Objective using physical variable
 problem.minimize(-w.final)
-poly_degrees = [8] * 8
-phase.mesh(
-    poly_degrees,
-    [-1.0, -6 / 7, -4 / 7, -2 / 7, 0, 2 / 7, 4 / 7, 6 / 7, 1.0],
-)
-states_guess, controls_guess, tf_guess = generate_physics_based_guess(poly_degrees)
+
+# Mesh and scaled initial guess
+phase.mesh([8, 8, 8, 8, 8, 8, 8, 8], [-1.0, -6 / 7, -4 / 7, -2 / 7, 0, 2 / 7, 4 / 7, 6 / 7, 1.0])
+
+states_guess = []
+controls_guess = []
+for N in [8, 8, 8, 8, 8, 8, 8, 8]:
+    tau_norm = np.linspace(-1, 1, N + 1)
+    t_norm = (tau_norm + 1) / 2
+
+    # Scaled initial guess
+    p_s_vals = (PTI + (PTF - PTI) * t_norm) / P_SCALE
+    f_vals = FTI + 0.01 * np.sin(2 * np.pi * t_norm)
+    g_vals = GTI + 0.01 * np.cos(2 * np.pi * t_norm)
+    h_vals = HTI * np.ones(N + 1)
+    k_vals = KTI + 0.01 * np.sin(np.pi * t_norm)
+    L_s_vals = (LTI + 2 * np.pi * t_norm) / L_SCALE
+    w_vals = WTI * (1 - 0.05 * t_norm)
+
+    states_guess.append(np.vstack([p_s_vals, f_vals, g_vals, h_vals, k_vals, L_s_vals, w_vals]))
+
+    # Unit thrust vector guess
+    u1_vals = 0.5 * np.ones(N)
+    u2_vals = 0.5 * np.ones(N)
+    u3_vals = np.sqrt(0.5) * np.ones(N)
+    controls_guess.append(np.vstack([u1_vals, u2_vals, u3_vals]))
+
 problem.guess(
     phase_states={1: states_guess},
     phase_controls={1: controls_guess},
-    phase_terminal_times={1: tf_guess},
-    static_parameters=np.array([-25]),
+    phase_terminal_times={1: 75000.0 / T_SCALE},  # Scaled time guess
+    static_parameters=np.array([-25.0]),
 )
+
+# Solve
 solution = mtor.solve_adaptive(
     problem,
+    error_tolerance=1e-4,
+    max_iterations=20,
+    min_polynomial_degree=3,
+    max_polynomial_degree=8,
     nlp_options={
         "ipopt.print_level": 5,
-        "ipopt.max_iter": 5000,
-        "ipopt.tol": 1e-7,
-        "ipopt.constr_viol_tol": 1e-7,
-        "ipopt.linear_solver": "mumps",
+        "ipopt.max_iter": 500,
+        "ipopt.tol": 1e-4,
+        "ipopt.constr_viol_tol": 1e-4,
+        "ipopt.acceptable_tol": 1e-3,
         "ipopt.mu_strategy": "adaptive",
-        "ipopt.warm_start_init_point": "yes",
+        "ipopt.linear_solver": "mumps",
     },
 )
 
-# =============================================================================
-# 6. Results
-# =============================================================================
+# Results (convert back to physical units)
 if solution.status["success"]:
-    final_mass_phys = solution[(1, "w_scaled")][-1] * MU
-    final_time_phys = solution.phases[1]["times"]["final"] * TU
-    print("\n" + "=" * 50)
-    print("Optimization Successful!")
-    print("=" * 50)
-    print(f"Final mass: {final_mass_phys:.6f} [kg or slug]")
-    print(f"Transfer time: {final_time_phys:.1f} s ({final_time_phys / 3600:.2f} hr)")
-    print(f"Objective (negative scaled mass): {solution.status['objective']:.6f}")
-    pf_actual_phys = solution[(1, "p_scaled")][-1] * LU
-    ff_actual = solution[(1, "f")][-1]
-    gf_actual = solution[(1, "g")][-1]
-    hf_actual = solution[(1, "h")][-1]
-    kf_actual = solution[(1, "k")][-1]
-    print("\nFinal orbital elements (physical units):")
-    print(f"p: {pf_actual_phys:.1f} ft (target: {pf_phys:.1f} ft)")
-    print(f"f: {ff_actual:.6f}")
-    print(f"g: {gf_actual:.6f}")
-    print(f"h: {hf_actual:.6f}")
-    print(f"k: {kf_actual:.6f}")
-    eccentricity_sq = ff_actual**2 + gf_actual**2
-    inclination_sq = hf_actual**2 + kf_actual**2
-    print("\nConstraint verification:")
-    print(f"f² + g²: {eccentricity_sq:.6f} (target: {ff_target_sq:.6f})")
-    print(f"h² + k²: {inclination_sq:.6f} (target: {hf_target_sq:.6f})")
+    final_mass = solution[(1, "w")][-1]
+    final_time_scaled = solution.phases[1]["times"]["final"]
+    final_time = final_time_scaled * T_SCALE
+    tau_opt = solution.parameters[0]
+
+    print(f"Final mass: {final_mass:.6f}")
+    print(f"Final time: {final_time:.1f} seconds ({final_time / 3600:.2f} hours)")
+    print(f"Optimal thrust parameter: {tau_opt:.2f}%")
+
+    # Show scaling effects
+    p_final_scaled = solution[(1, "p_scaled")][-1]
+    p_final_physical = p_final_scaled * P_SCALE
+    print(f"Final p (scaled): {p_final_scaled:.6f}")
+    print(f"Final p (physical): {p_final_physical:.1f} ft")
+
     solution.plot()
 else:
-    print(f"\nOptimization failed: {solution.status['message']}")
+    print(f"Failed: {solution.status['message']}")
