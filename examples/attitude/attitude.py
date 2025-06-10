@@ -143,13 +143,13 @@ integral_var = phase.add_integral(integrand)
 problem.minimize(integral_var)
 
 # Mesh and guess
-phase.mesh([8, 8, 8], [-1.0, -1 / 3, 1 / 3, 1.0])
+phase.mesh([10, 10, 10], [-1.0, -1 / 3, 1 / 3, 1.0])
 
 # Initial guess: constant values as specified in literature
 # States: constant (ω̄₀, r̄₀, h̄₀), Controls: zero
 states_guess = []
 controls_guess = []
-for N in [8, 8, 8]:
+for N in [10, 10, 10]:
     # Constant state values throughout each interval
     omega1_vals = np.full(N + 1, omega_0[0])
     omega2_vals = np.full(N + 1, omega_0[1])
@@ -198,10 +198,17 @@ solution = mtor.solve_adaptive(
     min_polynomial_degree=4,
     max_polynomial_degree=10,
     nlp_options={
-        "ipopt.print_level": 5,
-        "ipopt.max_iter": 5000,
-        "ipopt.tol": 1e-7,
+        "ipopt.max_iter": 20000,
+        "ipopt.mumps_pivtol": 5e-7,
+        "ipopt.mumps_mem_percent": 50000,
+        "ipopt.linear_solver": "mumps",
         "ipopt.constr_viol_tol": 1e-7,
+        "ipopt.print_level": 5,
+        "ipopt.nlp_scaling_method": "gradient-based",
+        "ipopt.mu_strategy": "adaptive",
+        "ipopt.check_derivatives_for_naninf": "yes",
+        "ipopt.hessian_approximation": "exact",
+        "ipopt.tol": 1e-8,
     },
 )
 
