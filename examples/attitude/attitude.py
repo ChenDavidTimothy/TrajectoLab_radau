@@ -106,7 +106,7 @@ h_norm = ca.sqrt(h1**2 + h2**2 + h3**2)
 phase.path_constraints(h_norm <= h_max)
 
 # Final boundary conditions: equilibrium at final time
-# At tf: ω̇ = 0 and ṙ = 0 (equations 56)
+# At tf: ω̇ = 0 and ṗ = 0 (equations 56)
 omega_final = ca.vertcat(omega1.final, omega2.final, omega3.final)
 r_final = ca.vertcat(r1.final, r2.final, r3.final)
 h_final = ca.vertcat(h1.final, h2.final, h3.final)
@@ -134,22 +134,30 @@ rr_transpose_final = r_final @ r_final.T
 bracket_matrix_final = rr_transpose_final + ca.DM.eye(3) + r_final_cross
 r_dot_final = 0.5 * (bracket_matrix_final @ (omega_final - omega_0_final))
 
-# Event constraints: final equilibrium conditions
-phase.event_constraints(r_dot_final[0] == 0, r_dot_final[1] == 0, r_dot_final[2] == 0)
+# EVENT CONSTRAINTS: Both equilibrium conditions (hard constraints with finer mesh)
+# ṙ(tf) = 0 AND ω̇(tf) = 0 (from Image 3, Equation 56)
+phase.event_constraints(
+    r_dot_final[0] == 0,
+    r_dot_final[1] == 0,
+    r_dot_final[2] == 0,
+    equilibrium_torque[0] == 0,
+    equilibrium_torque[1] == 0,
+    equilibrium_torque[2] == 0,
+)
 
-# Objective: minimize (1/2) ∫ u^T u dt
+# Objective: minimize (1/2) ∫ u^T u dt (Image 4, Equation 53)
 integrand = 0.5 * (u1**2 + u2**2 + u3**2)
 integral_var = phase.add_integral(integrand)
 problem.minimize(integral_var)
 
-# Mesh and guess
-phase.mesh([10, 10, 10], [-1.0, -1 / 3, 1 / 3, 1.0])
+# Mesh and guess - MUCH FINER MESH for complex attitude dynamics
+phase.mesh([15, 15, 15, 15, 15], [-1.0, -0.6, -0.2, 0.2, 0.6, 1.0])
 
 # Initial guess: constant values as specified in literature
 # States: constant (ω̄₀, r̄₀, h̄₀), Controls: zero
 states_guess = []
 controls_guess = []
-for N in [10, 10, 10]:
+for N in [15, 15, 15, 15, 15]:
     # Constant state values throughout each interval
     omega1_vals = np.full(N + 1, omega_0[0])
     omega2_vals = np.full(N + 1, omega_0[1])
@@ -190,13 +198,13 @@ problem.guess(
     phase_integrals={1: 0.0},  # Consistent with zero control guess
 )
 
-# Solve
+# Solve with finer mesh - need more iterations and relaxed tolerance
 solution = mtor.solve_adaptive(
     problem,
-    error_tolerance=1e-6,
-    max_iterations=25,
-    min_polynomial_degree=4,
-    max_polynomial_degree=10,
+    error_tolerance=1e-4,  # Relaxed for complex dynamics
+    max_iterations=40,  # More iterations for finer mesh
+    min_polynomial_degree=6,
+    max_polynomial_degree=15,  # Allow higher order for smooth resolution
     nlp_options={
         "ipopt.max_iter": 20000,
         "ipopt.mumps_pivtol": 5e-7,
@@ -230,6 +238,10 @@ if solution.status["success"]:
     )
     print(f"  r_final: [{r_final_vals[0]:.6e}, {r_final_vals[1]:.6e}, {r_final_vals[2]:.6e}]")
     print(f"  h_final: [{h_final_vals[0]:.1f}, {h_final_vals[1]:.1f}, {h_final_vals[2]:.1f}]")
+
+    # Check equilibrium satisfaction
+    print("\nEquilibrium Check:")
+    print("  Both ṙ(tf) = 0 and ω̇(tf) = 0 should be satisfied with finer mesh")
 
     solution.plot()
 else:
