@@ -13,53 +13,81 @@ logger = logging.getLogger(__name__)
 
 
 class Solution:
-    """Clean, bundled interface for multiphase optimal control problem solutions.
+    """
+    Optimal control solution with comprehensive data access and analysis capabilities.
 
-    The Solution class provides a comprehensive interface for accessing optimization
-    results, including trajectories, solver diagnostics, mesh information, and
-    adaptive refinement data.
+    Provides unified interface for accessing optimization results, trajectories,
+    solver diagnostics, mesh information, and adaptive refinement data. Supports
+    both single-phase and multiphase problems with automatic data concatenation.
+
+    **Data Access Patterns:**
+
+    **Mission-wide access (concatenates all phases):**
+    - `solution["variable_name"]` - Variable across all phases
+    - `solution["time_states"]` - State time points across all phases
+    - `solution["time_controls"]` - Control time points across all phases
+
+    **Phase-specific access:**
+    - `solution[(phase_id, "variable_name")]` - Variable in specific phase
+    - `solution[(phase_id, "time_states")]` - State times in specific phase
+    - `solution[(phase_id, "time_controls")]` - Control times in specific phase
+
+    **Existence checking:**
+    - `"variable_name" in solution` - Check mission-wide variable
+    - `(phase_id, "variable") in solution` - Check phase-specific variable
 
     Examples:
-        Basic solution usage with two-phase Schwartz problem:
+        Basic solution workflow:
 
-        >>> problem = mtor.Problem("Two-Phase Schwartz Problem")
-        >>> # ... define two-phase problem with x0, x1 states and u control ...
         >>> solution = mtor.solve_adaptive(problem)
         >>> if solution.status["success"]:
         ...     print(f"Objective: {solution.status['objective']:.6f}")
         ...     solution.plot()
 
-        Accessing trajectory data from multiphase problem:
+        Mission-wide data access:
 
-        >>> # Get mission-wide trajectories (auto-concatenates phases)
-        >>> x0_complete = solution["x0"]        # Both phases combined
-        >>> x1_complete = solution["x1"]        # Both phases combined
-        >>> u_complete = solution["u"]          # Both phases combined
+        >>> altitude_all = solution["altitude"]       # All phases concatenated
+        >>> velocity_all = solution["velocity"]       # All phases concatenated
+        >>> state_times_all = solution["time_states"] # All phase state times
+
+        Phase-specific data access:
+
+        >>> altitude_p1 = solution[(1, "altitude")]   # Phase 1 only
+        >>> velocity_p2 = solution[(2, "velocity")]   # Phase 2 only
+        >>> state_times_p1 = solution[(1, "time_states")]
+
+        Data extraction patterns:
+
+        >>> # Final/initial values
+        >>> final_altitude = solution["altitude"][-1]
+        >>> initial_velocity = solution["velocity"][0]
+        >>> final_mass_p1 = solution[(1, "mass")][-1]
         >>>
-        >>> # Get phase-specific data
-        >>> x0_phase1 = solution[(1, "x0")]     # Phase 1 only
-        >>> x1_phase2 = solution[(2, "x1")]     # Phase 2 only
-        >>>
-        >>> # Get time arrays
-        >>> time_states = solution["time_states"]
-        >>> time_controls = solution["time_controls"]
+        >>> # Extrema
+        >>> max_altitude = max(solution["altitude"])
+        >>> min_thrust_p2 = min(solution[(2, "thrust")])
 
-        Working with multiphase results:
+        Variable existence checking:
 
-        >>> # Examine all phases in Schwartz problem
+        >>> if "altitude" in solution:
+        ...     altitude_data = solution["altitude"]
+        >>> if (2, "thrust") in solution:
+        ...     thrust_p2 = solution[(2, "thrust")]
+
+        Phase information access:
+
         >>> for phase_id, phase_data in solution.phases.items():
         ...     duration = phase_data["times"]["duration"]
-        ...     states = phase_data["variables"]["state_names"]  # ["x0", "x1"]
-        ...     controls = phase_data["variables"]["control_names"]  # ["u"]
-        ...     print(f"Phase {phase_id}: {duration:.3f}s, states: {states}")
+        ...     state_names = phase_data["variables"]["state_names"]
 
-        Adaptive algorithm analysis:
+        Solution validation:
 
-        >>> if solution.adaptive:
-        ...     print(f"Converged: {solution.adaptive['converged']}")
-        ...     print(f"Iterations: {solution.adaptive['iterations']}")
-        ...     for phase_id, errors in solution.adaptive['final_errors'].items():
-        ...         print(f"Phase {phase_id} max error: {max(errors):.2e}")
+        >>> status = solution.status
+        >>> if status["success"]:
+        ...     objective = status["objective"]
+        ...     mission_time = status["total_mission_time"]
+        ... else:
+        ...     print(f"Failed: {status['message']}")
     """
 
     def __init__(
@@ -115,43 +143,42 @@ class Solution:
         """
         Complete solution status and optimization results.
 
-        Provides comprehensive information about the optimization outcome,
-        including success status, objective value, and mission duration.
-        This is typically the first property to check after solving.
+        Provides comprehensive optimization outcome information including
+        success status, objective value, and mission timing. Essential
+        for solution validation and performance assessment.
 
         Returns:
-            Dictionary containing:
+            Dictionary containing complete status information:
 
-            - **success** (bool): Whether optimization succeeded
-            - **message** (str): Solver status message with details
+            - **success** (bool): Optimization success status
+            - **message** (str): Detailed solver status message
             - **objective** (float): Final objective function value
-            - **total_mission_time** (float): Total time across all phases
+            - **total_mission_time** (float): Sum of all phase durations
 
         Examples:
-            Check if two-phase Schwartz optimization succeeded:
-
-            >>> solution = mtor.solve_adaptive(schwartz_problem)
-            >>> if solution.status["success"]:
-            ...     print("Optimization successful!")
-            ...     print(f"Optimal objective: {solution.status['objective']:.6f}")
-            ... else:
-            ...     print(f"Optimization failed: {solution.status['message']}")
-
-            Get mission duration for multiphase problem:
+            Success checking:
 
             >>> if solution.status["success"]:
-            ...     total_time = solution.status["total_mission_time"]  # Phase 1 + Phase 2
-            ...     objective = solution.status["objective"]           # 5*(x0_final² + x1_final²)
-            ...     print(f"Total mission time: {total_time:.3f} seconds")
-            ...     print(f"Final cost: {objective:.6e}")
+            ...     print("Optimization successful")
 
-            Handle optimization failures:
+            Objective extraction:
+
+            >>> objective = solution.status["objective"]
+            >>> mission_time = solution.status["total_mission_time"]
+
+            Error handling:
 
             >>> status = solution.status
             >>> if not status["success"]:
-            ...     print("Two-phase Schwartz optimization failed!")
-            ...     print(f"Reason: {status['message']}")
-            ...     print("Try different initial guess or tighter tolerances")
+            ...     print(f"Failed: {status['message']}")
+            ...     print(f"Objective: {status['objective']}")  # May be NaN
+
+            Status inspection:
+
+            >>> print(f"Success: {solution.status['success']}")
+            >>> print(f"Message: {solution.status['message']}")
+            >>> print(f"Objective: {solution.status['objective']:.6e}")
+            >>> print(f"Mission time: {solution.status['total_mission_time']:.3f}")
         """
         if self._raw_solution is None:
             return {
@@ -181,74 +208,75 @@ class Solution:
     @property
     def phases(self) -> dict[PhaseID, dict[str, Any]]:
         """
-        Comprehensive information for all phases in the optimal control problem.
+        Comprehensive phase information and data organization.
 
-        Provides detailed data about each phase including timing, variables,
-        mesh configuration, and time arrays. Essential for understanding
-        multiphase mission structure and accessing phase-specific data.
+        Provides detailed data for each phase including timing, variables,
+        mesh configuration, and trajectory arrays. Essential for understanding
+        multiphase structure and accessing phase-specific information.
 
         Returns:
-            Dictionary mapping phase IDs to phase data containing:
+            Dictionary mapping phase IDs to phase data:
 
-            - **times** (dict): Phase timing information
-
+            **Phase data structure:**
+            - **times** (dict): Phase timing
               - initial (float): Phase start time
               - final (float): Phase end time
               - duration (float): Phase duration
-
             - **variables** (dict): Variable information
-
-              - state_names (list): Ordered state variable names
-              - control_names (list): Ordered control variable names
-              - num_states (int): Number of state variables
-              - num_controls (int): Number of control variables
-
-            - **mesh** (dict): Mesh configuration details
-
+              - state_names (list): State variable names
+              - control_names (list): Control variable names
+              - num_states (int): Number of states
+              - num_controls (int): Number of controls
+            - **mesh** (dict): Mesh configuration
               - polynomial_degrees (list): Polynomial degree per interval
-              - mesh_nodes (FloatArray): Normalized mesh node locations
-              - num_intervals (int): Total number of mesh intervals
-
-            - **time_arrays** (dict): Time coordinate arrays
-
-              - states (FloatArray): Time points for state trajectories
-              - controls (FloatArray): Time points for control trajectories
-
-            - **integrals** (float | FloatArray | None): Integral values for this phase
+              - mesh_nodes (FloatArray): Mesh node locations
+              - num_intervals (int): Total intervals
+            - **time_arrays** (dict): Time coordinates
+              - states (FloatArray): State time points
+              - controls (FloatArray): Control time points
+            - **integrals** (float | FloatArray | None): Integral values
 
         Examples:
-            Examine all phases in two-phase Schwartz problem:
+            Phase iteration:
 
             >>> for phase_id, phase_data in solution.phases.items():
-            ...     times = phase_data["times"]
-            ...     variables = phase_data["variables"]
-            ...     print(f"Phase {phase_id}:")
-            ...     print(f"  Duration: {times['duration']:.3f} seconds")
-            ...     print(f"  States: {variables['state_names']}")      # ["x0", "x1"]
-            ...     print(f"  Controls: {variables['control_names']}")  # ["u"]
+            ...     print(f"Phase {phase_id}")
 
-            Get specific phase information from Schwartz problem:
+            Timing information:
 
             >>> phase_1 = solution.phases[1]
-            >>> first_phase_duration = phase_1["times"]["duration"]      # Phase 1: 0.0 to 1.0
-            >>> num_states = phase_1["variables"]["num_states"]          # 2 states (x0, x1)
-            >>> mesh_intervals = phase_1["mesh"]["num_intervals"]        # Number of intervals
-            >>> print(f"Phase 1: {first_phase_duration:.1f}s, {num_states} states, {mesh_intervals} intervals")
+            >>> duration = phase_1["times"]["duration"]
+            >>> start_time = phase_1["times"]["initial"]
+            >>> end_time = phase_1["times"]["final"]
 
-            Check mesh refinement results for each phase:
+            Variable information:
 
-            >>> for phase_id, phase_data in solution.phases.items():
-            ...     mesh = phase_data["mesh"]
-            ...     degrees = mesh["polynomial_degrees"]    # e.g., [6, 6] for two intervals
-            ...     intervals = mesh["num_intervals"]       # e.g., 2
-            ...     print(f"Phase {phase_id}: {intervals} intervals, degrees {degrees}")
+            >>> variables = solution.phases[1]["variables"]
+            >>> state_names = variables["state_names"]     # ["x", "y", "vx", "vy"]
+            >>> control_names = variables["control_names"] # ["thrust_x", "thrust_y"]
+            >>> num_states = variables["num_states"]       # 4
+            >>> num_controls = variables["num_controls"]   # 2
 
-            Access time arrays for Schwartz problem analysis:
+            Mesh information:
 
-            >>> phase_2 = solution.phases[2]
-            >>> state_times = phase_2["time_arrays"]["states"]     # Time points for x0, x1
-            >>> control_times = phase_2["time_arrays"]["controls"] # Time points for u
-            >>> print(f"Phase 2: {len(state_times)} state points, {len(control_times)} control points")
+            >>> mesh = solution.phases[1]["mesh"]
+            >>> degrees = mesh["polynomial_degrees"]       # [6, 8, 6]
+            >>> intervals = mesh["num_intervals"]          # 3
+            >>> nodes = mesh["mesh_nodes"]                 # [-1, -0.5, 0.5, 1]
+
+            Time arrays:
+
+            >>> time_arrays = solution.phases[1]["time_arrays"]
+            >>> state_times = time_arrays["states"]        # State time coordinates
+            >>> control_times = time_arrays["controls"]    # Control time coordinates
+
+            Integral values:
+
+            >>> integrals = solution.phases[1]["integrals"]
+            >>> if isinstance(integrals, float):
+            ...     single_integral = integrals             # Single integral
+            >>> else:
+            ...     multiple_integrals = integrals          # Array of integrals
         """
         if self._raw_solution is None:
             return {}
@@ -312,44 +340,48 @@ class Solution:
         """
         Static parameter optimization results and information.
 
-        Provides access to optimized static parameters that remain constant
-        throughout the mission but are optimized by the solver. Returns None
-        if no static parameters were defined in the problem.
+        Provides access to optimized static parameters with comprehensive
+        parameter information. Returns None if no parameters were defined.
 
         Returns:
-            Dictionary containing parameter information, or None if no parameters:
+            Parameter information dictionary or None:
 
             - **values** (FloatArray): Optimized parameter values
             - **names** (list[str] | None): Parameter names if available
             - **count** (int): Number of static parameters
 
         Examples:
-            Check if Schwartz problem has static parameters:
+            Parameter existence check:
 
             >>> if solution.parameters is not None:
-            ...     param_info = solution.parameters
-            ...     print(f"Found {param_info['count']} static parameters")
-            ...     print(f"Values: {param_info['values']}")
-            ... else:
-            ...     print("No static parameters in Schwartz problem")
+            ...     print("Problem has static parameters")
 
-            Access specific parameter values (if Schwartz problem had parameters):
+            Parameter access:
+
+            >>> params = solution.parameters
+            >>> if params:
+            ...     values = params["values"]        # [500.0, 1500.0, 0.1]
+            ...     count = params["count"]          # 3
+            ...     names = params["names"]          # ["mass", "thrust", "drag"] or None
+
+            Named parameter access:
 
             >>> params = solution.parameters
             >>> if params and params["names"]:
             ...     for name, value in zip(params["names"], params["values"]):
             ...         print(f"{name}: {value:.6f}")
-            ... else:
-            ...     # Parameters exist but no names available
+
+            Unnamed parameter access:
+
+            >>> params = solution.parameters
+            >>> if params:
             ...     for i, value in enumerate(params["values"]):
             ...         print(f"Parameter {i}: {value:.6f}")
 
-            Use parameters in Schwartz problem analysis:
+            No parameters case:
 
-            >>> if solution.parameters:
-            ...     # Example: if Schwartz had optimal final time as parameter
-            ...     optimal_param = solution.parameters["values"][0]
-            ...     print(f"Optimal parameter: {optimal_param:.6f}")
+            >>> if solution.parameters is None:
+            ...     print("No static parameters in problem")
         """
         if self._raw_solution is None or self._raw_solution.static_parameters is None:
             return None
@@ -373,59 +405,62 @@ class Solution:
     @property
     def adaptive(self) -> dict[str, Any] | None:
         """
-        Adaptive mesh refinement algorithm results and convergence information.
+        Adaptive mesh refinement algorithm results and convergence diagnostics.
 
-        Provides detailed information about the adaptive algorithm's performance,
-        convergence status, and final error estimates. Only available when using
-        the adaptive solver (solve_adaptive). Returns None for fixed mesh solutions.
+        Provides comprehensive adaptive algorithm performance data including
+        convergence status, error estimates, and refinement statistics. Only
+        available for adaptive solver solutions.
 
         Returns:
-            Dictionary containing adaptive algorithm data, or None if fixed mesh was used:
+            Adaptive algorithm data dictionary or None:
 
-            - **converged** (bool): Whether algorithm achieved target tolerance
-            - **iterations** (int): Number of refinement iterations performed
-            - **target_tolerance** (float): Target error tolerance specified
-            - **phase_converged** (dict): Per-phase convergence status mapping
-            - **final_errors** (dict): Final error estimates per phase (list of floats)
-            - **gamma_factors** (dict): Normalization factors used per phase
+            - **converged** (bool): Algorithm convergence status
+            - **iterations** (int): Refinement iterations performed
+            - **target_tolerance** (float): Target error tolerance
+            - **phase_converged** (dict): Per-phase convergence status
+            - **final_errors** (dict): Final error estimates per phase
+            - **gamma_factors** (dict): Normalization factors per phase
 
         Examples:
-            Check adaptive convergence for Schwartz problem:
+            Adaptive solution check:
 
             >>> if solution.adaptive:
-            ...     adaptive_info = solution.adaptive
-            ...     if adaptive_info["converged"]:
-            ...         print(f"Schwartz problem converged in {adaptive_info['iterations']} iterations")
-            ...         print(f"Target tolerance: {adaptive_info['target_tolerance']:.1e}")
-            ...     else:
-            ...         print("Schwartz problem did not converge within iteration limit")
-            ... else:
-            ...     print("Fixed mesh solution - no adaptive data available")
+            ...     print("Adaptive solution available")
 
-            Analyze per-phase convergence for two-phase Schwartz:
+            Convergence assessment:
+
+            >>> adaptive_info = solution.adaptive
+            >>> if adaptive_info:
+            ...     converged = adaptive_info["converged"]
+            ...     iterations = adaptive_info["iterations"]
+            ...     tolerance = adaptive_info["target_tolerance"]
+
+            Per-phase convergence:
 
             >>> if solution.adaptive:
             ...     for phase_id, converged in solution.adaptive["phase_converged"].items():
             ...         status = "✓" if converged else "✗"
-            ...         phase_name = "elliptical constraint" if phase_id == 1 else "final approach"
-            ...         print(f"Phase {phase_id} ({phase_name}): {status}")
+            ...         print(f"Phase {phase_id}: {status}")
 
-            Examine final error estimates for Schwartz phases:
+            Error analysis:
 
             >>> if solution.adaptive:
             ...     for phase_id, errors in solution.adaptive["final_errors"].items():
             ...         max_error = max(errors) if errors else 0.0
-            ...         avg_error = np.mean(errors) if errors else 0.0
-            ...         print(f"Phase {phase_id}: max_error={max_error:.2e}, avg_error={avg_error:.2e}")
+            ...         print(f"Phase {phase_id} max error: {max_error:.2e}")
 
-            Get refinement statistics for complex Schwartz dynamics:
+            Algorithm statistics:
 
-            >>> if solution.adaptive:
-            ...     total_iterations = solution.adaptive["iterations"]
-            ...     target_tol = solution.adaptive["target_tolerance"]
-            ...     converged = solution.adaptive["converged"]
-            ...     print(f"Schwartz adaptive refinement: {total_iterations} iterations")
-            ...     print(f"Target: {target_tol:.1e}, Converged: {converged}")
+            >>> adaptive = solution.adaptive
+            >>> if adaptive:
+            ...     print(f"Converged: {adaptive['converged']}")
+            ...     print(f"Iterations: {adaptive['iterations']}")
+            ...     print(f"Target tolerance: {adaptive['target_tolerance']:.1e}")
+
+            Fixed mesh solution:
+
+            >>> if solution.adaptive is None:
+            ...     print("Fixed mesh solution - no adaptive data")
         """
         if self._raw_solution is None or self._raw_solution.adaptive_data is None:
             return None
@@ -549,63 +584,52 @@ class Solution:
         show_phase_boundaries: bool = True,
     ) -> None:
         """
-        Plot multiphase trajectories with professional formatting and phase boundaries.
+        Plot solution trajectories with comprehensive customization options.
 
-        Creates comprehensive trajectory plots with automatic layout, interval coloring,
-        and phase boundary indicators. Supports both single-phase and multiphase
-        visualization with customizable variable selection.
+        Creates trajectory plots with automatic formatting, phase boundaries,
+        and flexible variable selection. Supports both single-phase and
+        multiphase visualization with professional styling.
 
         Args:
-            phase_id: Specific phase to plot (None plots all phases)
-            variable_names: Optional specific variable names to plot
-            figsize: Figure size for each plotting window
-            show_phase_boundaries: Whether to show vertical lines at phase boundaries
+            phase_id: Phase selection:
+                - None: Plot all phases (default)
+                - int: Plot specific phase only
+
+            variable_names: Variable selection:
+                - Empty: Plot all variables
+                - Specified: Plot only named variables
+
+            figsize: Figure size tuple (width, height)
+
+            show_phase_boundaries: Display vertical lines at phase transitions
 
         Examples:
-            Plot all Schwartz variables for both phases:
+            Basic plotting:
 
-            >>> solution.plot()  # Complete Schwartz solution visualization
+            >>> solution.plot()  # All variables, all phases
 
-            Plot specific Schwartz phase only:
+            Specific phase:
 
-            >>> solution.plot(phase_id=1)  # Only phase 1 (elliptical constraint region)
+            >>> solution.plot(phase_id=1)  # Phase 1 only
 
-            Plot specific Schwartz variables across both phases:
+            Selected variables:
 
-            >>> solution.plot(phase_id=None, "x0", "x1", "u")
+            >>> solution.plot(phase_id=None, "altitude", "velocity", "thrust")
 
-            Plot specific variables for specific Schwartz phase:
-
-            >>> solution.plot(1, "x0", "x1")  # Phase 1 states only
-
-            Customize Schwartz plot appearance:
+            Custom formatting:
 
             >>> solution.plot(
-            ...     figsize=(16, 10),           # Larger figure for detailed view
-            ...     show_phase_boundaries=True  # Show transition at t=1.0
+            ...     figsize=(16, 10),
+            ...     show_phase_boundaries=True
             ... )
 
-            Plot with custom Schwartz analysis:
+            Phase-specific variables:
 
-            >>> # Plot solution then add elliptical constraint visualization
-            >>> solution.plot(1, "x0", "x1")
-            >>> import matplotlib.pyplot as plt
-            >>>
-            >>> # Add elliptical constraint boundary to phase portrait
-            >>> plt.figure(1)  # Access the x0-x1 plot
-            >>> theta = np.linspace(0, 2*np.pi, 100)
-            >>> ellipse_x = 1 + 0.333 * np.cos(theta)  # Ellipse center and size
-            >>> ellipse_y = 0.4 + 0.3 * np.sin(theta)
-            >>> plt.plot(ellipse_x, ellipse_y, 'r--', label='Constraint boundary')
-            >>> plt.legend()
-            >>> plt.show()
+            >>> solution.plot(1, "x_position", "y_position")  # Phase 1 positions
 
-        Note:
-            - Automatically handles both state and control variables
-            - Uses distinct colors for different mesh intervals in adaptive solutions
-            - Shows phase boundaries as vertical lines in multiphase problems
-            - Creates separate subplots for each variable with proper scaling
-            - Includes time units and variable labels automatically
+            No phase boundaries:
+
+            >>> solution.plot(show_phase_boundaries=False)
         """
         from .plot import plot_multiphase_solution
 
@@ -613,65 +637,39 @@ class Solution:
 
     def summary(self, comprehensive: bool = True) -> None:
         """
-        Display detailed solution summary with optimization results and diagnostics.
+        Display solution summary with comprehensive details and diagnostics.
 
-        Prints a comprehensive overview of the solution including solver status,
-        objective value, phase information, mesh details, and adaptive algorithm
-        results if applicable. Essential for solution validation and analysis.
+        Prints detailed overview including solver status, phase information,
+        mesh details, and adaptive algorithm results. Essential for solution
+        validation and performance analysis.
 
         Args:
-            comprehensive: If True (default), show exhaustive summary with all details.
-                          If False, show concise summary with key information only.
+            comprehensive: Summary detail level:
+                - True: Full detailed summary (default)
+                - False: Concise key information only
 
         Examples:
-            Display full Schwartz solution summary (default):
+            Full summary:
 
+            >>> solution.summary()  # Comprehensive details
+
+            Concise summary:
+
+            >>> solution.summary(comprehensive=False)  # Key information only
+
+            Manual summary control:
+
+            >>> # Solve without automatic summary
+            >>> solution = mtor.solve_adaptive(problem, show_summary=False)
+            >>> # Display summary when needed
             >>> solution.summary()
-            # Prints comprehensive summary including:
-            # - Solver status and objective value (5*(x0_final² + x1_final²))
-            # - Phase-by-phase breakdown (Phase 1: 0.0-1.0s, Phase 2: 1.0-2.9s)
-            # - Mesh configuration and refinement details
-            # - Adaptive algorithm convergence (if solve_adaptive used)
-            # - Variable counts (2 states, 1 control per phase)
 
-            Display concise Schwartz summary:
+            Conditional summary:
 
-            >>> solution.summary(comprehensive=False)
-            # Prints brief summary with:
-            # - Success status and objective
-            # - Total mission time (2.9 seconds)
-            # - Number of phases (2)
-            # - Adaptive convergence status
-
-            Use in Schwartz validation workflow:
-
-            >>> solution = mtor.solve_adaptive(schwartz_problem)
-            >>>
-            >>> # Always check summary first
-            >>> solution.summary()
-            >>>
-            >>> # Then proceed with Schwartz-specific analysis if successful
             >>> if solution.status["success"]:
-            ...     # Check final state against elliptical constraint
-            ...     final_x0 = solution["x0"][-1]
-            ...     final_x1 = solution["x1"][-1]
-            ...     solution.plot()
+            ...     solution.summary()
             ... else:
-            ...     print("Schwartz solution failed - check summary for details")
-
-            Suppress automatic summary:
-
-            >>> # Solve without automatic summary display
-            >>> solution = mtor.solve_fixed_mesh(schwartz_problem, show_summary=False)
-            >>>
-            >>> # Display summary manually when needed
-            >>> solution.summary(comprehensive=True)
-
-        Note:
-            - Comprehensive summary includes mesh refinement details and error estimates
-            - Concise summary focuses on key results for quick validation
-            - Automatically adapts display based on single-phase vs multiphase problems
-            - Shows adaptive algorithm performance when applicable
+            ...     solution.summary(comprehensive=False)  # Brief failure info
         """
         if comprehensive:
             try:

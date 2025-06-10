@@ -249,54 +249,52 @@ class Phase:
         """
         Define the time variable for this phase with boundary conditions.
 
-        Creates the time coordinate for this phase, allowing specification of
-        initial and final time constraints. Supports both fixed times and
-        symbolic linking between phases for multiphase problems.
+        Creates the time coordinate for this phase with comprehensive constraint
+        specification. Supports fixed times, bounded ranges, and symbolic expressions
+        for multiphase trajectory continuity.
 
         Args:
-            initial: Initial time constraint. Can be:
+            initial: Initial time constraint with full constraint syntax:
 
                 - float: Fixed initial time (e.g., 0.0)
-                - (lower, upper): Bounded initial time range
+                - (lower, upper): Bounded initial time range (e.g., (0, 10))
+                - (None, upper): Upper bounded only (e.g., (None, 5))
+                - (lower, None): Lower bounded only (e.g., (2, None))
                 - ca.MX: Symbolic expression for phase linking
-                - None: Unconstrained initial time
+                - None: Unconstrained initial time (optimization variable)
 
-            final: Final time constraint. Can be:
+            final: Final time constraint with full constraint syntax:
 
-                - float: Fixed final time
-                - (lower, upper): Bounded final time range
+                - float: Fixed final time (e.g., 100.0)
+                - (lower, upper): Bounded final time range (e.g., (90, 110))
+                - (None, upper): Upper bounded only (e.g., (None, 200))
+                - (lower, None): Lower bounded only (e.g., (50, None))
                 - ca.MX: Symbolic expression for phase linking
                 - None: Free final time (optimization variable)
 
         Returns:
-            TimeVariableImpl: Time variable object with .initial and .final properties
-            for use in expressions and constraints
+            TimeVariableImpl: Time variable with .initial and .final properties
 
         Examples:
-            Fixed time phase (0 to 10 seconds):
+            Fixed values:
 
             >>> t = phase.time(initial=0.0, final=10.0)
 
-            Free final time (minimum time problem):
+            Ranges:
 
-            >>> t = phase.time(initial=0.0)  # final=None means optimize final time
-            >>> problem.minimize(t.final)   # Minimize final time
+            >>> t = phase.time(initial=(0, 5), final=(8, 12))
 
-            Bounded final time:
+            Single-sided bounds:
 
-            >>> t = phase.time(initial=0.0, final=(8.0, 12.0))  # 8 ≤ tf ≤ 12
+            >>> t = phase.time(initial=(None, 5), final=(10, None))
 
-            Multiphase with automatic time continuity:
+            Free variables:
 
-            >>> # Phase 1
-            >>> t1 = phase1.time(initial=0.0, final=100.0)
-            >>>
-            >>> # Phase 2 continues from Phase 1
-            >>> t2 = phase2.time(initial=t1.final, final=200.0)
+            >>> t = phase.time()  # Both free
 
-            Free initial and final times:
+            Symbolic linking:
 
-            >>> t = phase.time()  # Both times are optimization variables
+            >>> t2 = phase2.time(initial=t1.final)
         """
         return variables_problem.create_phase_time_variable(self._phase_def, initial, final)
 
@@ -308,69 +306,71 @@ class Phase:
         boundary: ConstraintInput = None,
     ) -> StateVariableImpl:
         """
-        Define a state variable for this phase with boundary and path constraints.
+        Define a state variable with comprehensive constraint specification.
 
-        Creates a state variable representing a component of the system state vector.
-        State variables are governed by differential equations defined through the
-        dynamics() method and can have constraints on their initial values, final
-        values, and bounds throughout the trajectory.
+        Creates a state variable with exhaustive constraint capabilities including
+        boundary conditions, path bounds, and symbolic multiphase linking. All
+        constraint types support the full constraint syntax.
 
         Args:
-            name: Unique name for the state variable within this phase
-            initial: Initial state constraint. Can be:
+            name: Unique state variable name within this phase
+            initial: Initial state constraint with full syntax:
 
-                - float: Fixed initial value (e.g., position=0.0)
-                - (lower, upper): Bounded initial value range
+                - float: Fixed initial value (e.g., 0.0)
+                - (lower, upper): Bounded initial range (e.g., (0, 10))
+                - (None, upper): Upper bounded only (e.g., (None, 100))
+                - (lower, None): Lower bounded only (e.g., (50, None))
                 - ca.MX: Symbolic expression for multiphase continuity
-                - None: Unconstrained initial state (optimization variable)
+                - None: Unconstrained initial state
 
-            final: Final state constraint. Can be:
+            final: Final state constraint with full syntax:
 
-                - float: Fixed final value (e.g., altitude=1000.0)
-                - (lower, upper): Bounded final value range
+                - float: Fixed final value (e.g., 1000.0)
+                - (lower, upper): Bounded final range (e.g., (990, 1010))
+                - (None, upper): Upper bounded only (e.g., (None, 1200))
+                - (lower, None): Lower bounded only (e.g., (800, None))
                 - ca.MX: Symbolic expression for multiphase continuity
                 - None: Unconstrained final state
 
-            boundary: Path constraint applied throughout the trajectory. Can be:
+            boundary: Path constraint applied throughout trajectory:
 
-                - float: State must equal this value at all times
-                - (lower, upper): State bounds (e.g., altitude >= 0)
-                - None: No path bounds on this state
+                - float: State equals this value at all times
+                - (lower, upper): State bounds throughout (e.g., (0, 1000))
+                - (None, upper): Upper path bound only (e.g., (None, 500))
+                - (lower, None): Lower path bound only (e.g., (0, None))
+                - None: No path bounds
 
-        Returns:
-            StateVariableImpl: State variable object with .initial and .final
-            properties for use in dynamics, constraints, and objective functions
+            Returns:
+                StateVariableImpl: State variable with .initial and .final properties
 
-        Examples:
-            Position with fixed initial and final conditions:
+            Examples:
+                Fixed values:
 
-            >>> pos = phase.state("position", initial=0.0, final=100.0)
+                >>> altitude = phase.state("altitude", initial=0.0, final=1000.0)
 
-            Velocity starting from rest with no final constraint:
+            Ranges:
 
-            >>> vel = phase.state("velocity", initial=0.0)
+            >>> position = phase.state("position", initial=(0, 5), final=(95, 105))
 
-            Altitude with physical bounds (must stay above ground):
+            Single-sided bounds:
 
-            >>> alt = phase.state("altitude", initial=0, boundary=(0, None))
+            >>> velocity = phase.state("velocity", initial=0, final=(None, 200))
 
-            Mass with bounds and consumption:
+            Path bounds:
 
-            >>> mass = phase.state("mass", initial=1000, boundary=(100, 1000))
+            >>> mass = phase.state("mass", boundary=(100, 1000))
 
-            Multiphase state continuity:
+            All constraint types:
 
-            >>> # Phase 1
-            >>> h1 = phase1.state("altitude", initial=0)
-            >>> v1 = phase1.state("velocity", initial=0)
-            >>>
-            >>> # Phase 2 with continuous states
-            >>> h2 = phase2.state("altitude", initial=h1.final)  # h continuous
-            >>> v2 = phase2.state("velocity", initial=v1.final)  # v continuous
+            >>> state = phase.state("x", initial=(0, 10), final=(90, 110), boundary=(0, None))
 
-            Target final state with tolerance:
+            Symbolic linking:
 
-            >>> pos = phase.state("position", final=(99.0, 101.0))  # Target ≈ 100
+            >>> h2 = phase2.state("altitude", initial=h1.final)
+
+            Unconstrained:
+
+            >>> free_state = phase.state("free_variable")
         """
         return variables_problem._create_phase_state_variable(
             self._phase_def, name, initial, final, boundary
@@ -378,53 +378,42 @@ class Phase:
 
     def control(self, name: str, boundary: ConstraintInput = None) -> ca.MX:
         """
-        Define a control variable for this phase with bounds.
+        Define a control variable with comprehensive bound specification.
 
-        Creates a control input variable representing actuator commands, forces,
-        or other control inputs that can be varied to optimize the trajectory.
-        Control variables appear in the dynamics equations and can be bounded
-        to represent physical actuator limitations.
+        Creates a control input with exhaustive constraint capabilities. Control
+        variables represent actuator commands that can be optimized subject to
+        physical or design limitations.
 
         Args:
-            name: Unique name for the control variable within this phase
-            boundary: Control bounds constraint. Can be:
+            name: Unique control variable name within this phase
+            boundary: Control bounds with full constraint syntax:
 
-                - float: Control must equal this constant value
-                - (lower, upper): Control bounds (e.g., thrust limits)
-                - (None, upper): Upper bound only
-                - (lower, None): Lower bound only
+                - float: Fixed control value (e.g., 100.0)
+                - (lower, upper): Symmetric/asymmetric bounds (e.g., (-50, 100))
+                - (None, upper): Upper bound only (e.g., (None, 1000))
+                - (lower, None): Lower bound only (e.g., (0, None))
                 - None: Unconstrained control
 
         Returns:
-            ca.MX: CasADi symbolic variable representing the control input
-            for use in dynamics equations and cost functions
+            ca.MX: Control variable for use in dynamics and cost functions
 
         Examples:
-            Bounded thrust control:
+            Bounded control:
 
-            >>> thrust = phase.control("thrust", boundary=(0, 2000))  # 0 ≤ T ≤ 2000 N
+            >>> thrust = phase.control("thrust", boundary=(0, 2000))
 
-            Steering angle with symmetric bounds:
+            Single-sided bounds:
 
-            >>> steer = phase.control("steering", boundary=(-30, 30))  # ±30 degrees
+            >>> power = phase.control("power", boundary=(0, None))
+            >>> brake = phase.control("brake", boundary=(None, 100))
 
-            Throttle as fraction:
+            Fixed value:
 
-            >>> throttle = phase.control("throttle", boundary=(0, 1))  # 0 to 100%
+            >>> constant = phase.control("thrust", boundary=1500)
 
-            Unconstrained force:
+            Unconstrained:
 
-            >>> force = phase.control("force")  # No bounds
-
-            One-sided constraint:
-
-            >>> power = phase.control("power", boundary=(0, None))  # Power ≥ 0
-
-            Use in dynamics:
-
-            >>> thrust = phase.control("thrust", boundary=(0, 1000))
-            >>> mass = phase.state("mass", initial=1000)
-            >>> acceleration = thrust / mass  # Control appears in dynamics
+            >>> free_control = phase.control("force")
         """
         return variables_problem.create_phase_control_variable(self._phase_def, name, boundary)
 
@@ -433,69 +422,46 @@ class Phase:
         dynamics_dict: dict[ca.MX | StateVariableImpl, ca.MX | float | int | StateVariableImpl],
     ) -> None:
         """
-        Define the differential equations governing this phase's dynamics.
+        Define differential equations with comprehensive expression support.
 
-        Specifies the system of ordinary differential equations (ODEs) that
-        describe how the state variables evolve over time. The dynamics must
-        be provided for all state variables in the phase.
+        Specifies system ODEs describing state evolution. Dynamics expressions
+        can involve states, controls, time, parameters, and arbitrary mathematical
+        relationships. Must provide dynamics for all states in the phase.
 
         Args:
-            dynamics_dict: Dictionary mapping state variables to their time
-                derivatives. Keys are state variables (from state() method),
-                values are expressions for dx/dt in terms of states, controls,
-                and parameters.
+            dynamics_dict: Maps state variables to time derivatives (dx/dt).
+                Keys: State variables from state() method
+                Values: Expressions for derivatives using states, controls, parameters
 
         Examples:
-            Simple point mass dynamics:
+            Basic dynamics:
 
-            >>> pos = phase.state("position", initial=0)
-            >>> vel = phase.state("velocity", initial=0)
-            >>> thrust = phase.control("thrust", boundary=(0, 100))
-            >>>
-            >>> phase.dynamics({
-            ...     pos: vel,                    # dx/dt = v
-            ...     vel: thrust - 0.1 * vel     # dv/dt = T - drag
-            ... })
+            >>> pos = phase.state("position")
+            >>> vel = phase.state("velocity")
+            >>> thrust = phase.control("thrust")
+            >>> phase.dynamics({pos: vel, vel: thrust - 0.1*vel})
 
-            Rocket dynamics with mass consumption:
+            With mass:
 
-            >>> h = phase.state("altitude", initial=0)
-            >>> v = phase.state("velocity", initial=0)
-            >>> m = phase.state("mass", initial=1000)
-            >>> T = phase.control("thrust", boundary=(0, 2000))
-            >>>
-            >>> phase.dynamics({
-            ...     h: v,                        # altitude rate
-            ...     v: T/m - 9.81,              # acceleration
-            ...     m: -T * 0.001               # mass consumption
-            ... })
-
-            Nonlinear satellite dynamics:
-
-            >>> import casadi as ca
-            >>> r = phase.state("radius", initial=7000e3)
-            >>> theta = phase.state("angle", initial=0)
-            >>> vr = phase.state("radial_velocity", initial=0)
-            >>> vt = phase.state("tangential_velocity", initial=7500)
-            >>> ur = phase.control("radial_thrust")
-            >>> ut = phase.control("tangential_thrust")
-            >>>
-            >>> mu = 3.986e14  # Earth gravitational parameter
-            >>> phase.dynamics({
-            ...     r: vr,
-            ...     theta: vt / r,
-            ...     vr: vt**2/r - mu/r**2 + ur,
-            ...     vt: -vr*vt/r + ut
-            ... })
-
-            Using parameters in dynamics:
-
-            >>> mass_param = problem.parameter("vehicle_mass", boundary=(100, 1000))
-            >>> drag_coeff = problem.parameter("drag_coefficient", boundary=(0.1, 0.5))
-            >>>
+            >>> mass = phase.state("mass", initial=1000)
             >>> phase.dynamics({
             ...     pos: vel,
-            ...     vel: thrust/mass_param - drag_coeff * vel**2
+            ...     vel: thrust/mass - 9.81,
+            ...     mass: -thrust * 0.001
+            ... })
+
+            With parameters:
+
+            >>> drag_coeff = problem.parameter("drag")
+            >>> phase.dynamics({pos: vel, vel: thrust - drag_coeff*vel**2})
+
+            Multiple states/controls:
+
+            >>> phase.dynamics({
+            ...     x: vx,
+            ...     y: vy,
+            ...     vx: fx,
+            ...     vy: fy - 9.81
             ... })
         """
         self._phase_def._functions_built = False
@@ -508,140 +474,72 @@ class Phase:
 
     def add_integral(self, integrand_expr: ca.MX | float | int) -> ca.MX:
         """
-        Add an integral term to be computed over this phase.
+        Add integral term with comprehensive integrand expression support.
 
-        Creates an integral variable that accumulates the specified integrand
-        expression over the phase duration. Useful for cost functions,
-        constraint integrals, and quantities that accumulate over time.
+        Creates integral variables for cost functions, constraint integrals, and
+        accumulated quantities. Supports arbitrary expressions involving states,
+        controls, time, and parameters.
 
         Args:
-            integrand_expr: Expression to integrate over the phase. Can include
-                states, controls, time, and parameters.
+            integrand_expr: Expression to integrate over phase duration.
+                Can involve any combination of states, controls, time, parameters.
 
         Returns:
-            ca.MX: Symbolic variable representing the integral value, which can
-            be used in objective functions or constraints
+            ca.MX: Integral variable for use in objectives and constraints
 
         Examples:
-            Quadratic cost integral:
+            Quadratic cost:
 
-            >>> pos = phase.state("position")
-            >>> vel = phase.state("velocity")
-            >>> thrust = phase.control("thrust")
-            >>>
-            >>> # Minimize energy and tracking error
-            >>> cost = phase.add_integral(pos**2 + vel**2 + 0.1*thrust**2)
+            >>> cost = phase.add_integral(x**2 + u**2)
             >>> problem.minimize(cost)
 
-            Fuel consumption:
+            Resource consumption:
 
-            >>> thrust = phase.control("thrust", boundary=(0, 1000))
-            >>> fuel_used = phase.add_integral(thrust * 0.001)  # kg/s consumption
-            >>>
-            >>> # Constraint on total fuel
-            >>> phase.event_constraints(fuel_used <= 50)  # Max 50 kg fuel
+            >>> fuel = phase.add_integral(thrust * 0.001)
 
             Distance traveled:
 
-            >>> velocity = phase.state("velocity")
-            >>> distance = phase.add_integral(velocity)  # ∫v dt = distance
-
-            Heat load accumulation:
-
-            >>> import casadi as ca
-            >>> velocity = phase.state("velocity")
-            >>> altitude = phase.state("altitude")
-            >>> heat_rate = 0.001 * velocity**3 * ca.exp(-altitude/7000)
-            >>> total_heat = phase.add_integral(heat_rate)
-            >>>
-            >>> # Heat constraint
-            >>> phase.event_constraints(total_heat <= 1000)
+            >>> distance = phase.add_integral(velocity)
 
             Multiple integrals:
 
-            >>> # Different cost components
-            >>> fuel_cost = phase.add_integral(thrust * fuel_price)
-            >>> time_cost = phase.add_integral(1.0)  # Time integral
-            >>> comfort_cost = phase.add_integral(acceleration**2)
-            >>>
-            >>> # Weighted objective
-            >>> problem.minimize(fuel_cost + 10*time_cost + comfort_cost)
+            >>> energy = phase.add_integral(thrust**2)
+            >>> fuel = phase.add_integral(thrust * rate)
+            >>> problem.minimize(energy + 10*fuel)
         """
         self._phase_def._functions_built = False
         return variables_problem._set_phase_integral(self._phase_def, integrand_expr)
 
     def path_constraints(self, *constraint_expressions: ca.MX | float | int) -> None:
         r"""
-        Add path constraints enforced at every point along the trajectory.
+        Add path constraints enforced continuously throughout the trajectory.
 
-        Path constraints are enforced at all collocation points throughout the
-        phase, ensuring the specified conditions hold continuously along the
-        trajectory. Use for bounds, inequality constraints, and safety limits.
+        Path constraints are enforced at all collocation points, ensuring conditions
+        hold throughout the phase. Use for safety limits, physical bounds, and
+        trajectory shaping that cannot be expressed through state boundary parameters.
 
         Args:
-            \*constraint_expressions: Variable number of constraint expressions.
-                Each expression should evaluate to zero for equality constraints
-                or be written as inequality expressions (<=, >=, <, >, ==).
+            \*constraint_expressions: Constraint expressions enforced continuously
 
         Examples:
-            State bounds and safety constraints:
+            State bounds:
 
-            >>> altitude = phase.state("altitude")
-            >>> velocity = phase.state("velocity")
-            >>> thrust = phase.control("thrust")
-            >>>
+            >>> phase.path_constraints(altitude >= 0, velocity <= 250)
+
+            Control bounds:
+
+            >>> phase.path_constraints(thrust >= 0, thrust <= 2000)
+
+            Complex expressions:
+
+            >>> phase.path_constraints((x-50)**2 + (y-50)**2 >= 100)
+
+            Multiple constraints:
+
             >>> phase.path_constraints(
-            ...     altitude >= 0,           # Stay above ground
-            ...     velocity <= 200,         # Speed limit
-            ...     thrust >= 0,             # Physical thrust limit
-            ...     altitude <= 50000        # Maximum altitude
-            ... )
-
-            Nonlinear path constraints:
-
-            >>> import casadi as ca
-            >>> x = phase.state("x_position")
-            >>> y = phase.state("y_position")
-            >>>
-            >>> # Avoid circular obstacle at (10, 10) with radius 5
-            >>> obstacle_constraint = (x-10)**2 + (y-10)**2 >= 25
-            >>> phase.path_constraints(obstacle_constraint)
-
-            Dynamic pressure limits:
-
-            >>> velocity = phase.state("velocity")
-            >>> altitude = phase.state("altitude")
-            >>>
-            >>> # Atmospheric density model
-            >>> rho = 1.225 * ca.exp(-altitude/8400)  # kg/m³
-            >>> dynamic_pressure = 0.5 * rho * velocity**2
-            >>>
-            >>> phase.path_constraints(dynamic_pressure <= 50000)  # Pa limit
-
-            Control rate limits:
-
-            >>> # Note: Control rates need to be defined as additional states
-            >>> thrust = phase.control("thrust")
-            >>> thrust_rate = phase.state("thrust_rate")
-            >>>
-            >>> phase.dynamics({thrust_rate: 0})  # Defined elsewhere
-            >>> phase.path_constraints(
-            ...     thrust_rate >= -100,      # Thrust rate bounds
-            ...     thrust_rate <= 100
-            ... )
-
-            Complex geometric constraints:
-
-            >>> x = phase.state("x")
-            >>> y = phase.state("y")
-            >>> z = phase.state("z")
-            >>>
-            >>> # Stay within cylindrical flight corridor
-            >>> lateral_distance = ca.sqrt(x**2 + y**2)
-            >>> phase.path_constraints(
-            ...     lateral_distance <= 1000,  # 1km radius
-            ...     z >= 100,                  # Minimum altitude
-            ...     z <= 10000                 # Maximum altitude
+            ...     altitude >= 0,
+            ...     velocity <= 200,
+            ...     acceleration <= 20
             ... )
         """
         _validate_constraint_expressions_not_empty(constraint_expressions, self.phase_id, "path")
@@ -654,72 +552,43 @@ class Phase:
 
     def event_constraints(self, *constraint_expressions: ca.MX | float | int) -> None:
         r"""
-        Add event constraints enforced at phase boundaries or between phases.
+        Add event constraints for expressions not representable as state/control bounds.
 
-        Event constraints are enforced at discrete points (phase start/end) rather
-        than continuously along the trajectory. Use for boundary conditions,
-        discontinuous jumps, and constraints linking multiple phases.
+        **Primary Purpose:** Constraints on integral terms, static parameters,
+        cross-phase expressions, and complex mathematical relationships that cannot
+        be expressed through state initial/final/boundary or control boundary parameters.
+
+        **When to use event_constraints vs state parameters:**
+        - Use state parameters for simple state boundaries: `state("x", final=(90, 110))`
+        - Use event_constraints for integrals, parameters, and complex expressions
 
         Args:
-            \*constraint_expressions: Variable number of constraint expressions
-                involving boundary values, final states, or cross-phase continuity.
+            \*constraint_expressions: Constraint expressions involving:
+
+                - Integral terms from `phase.add_integral()`
+                - Static parameters from `problem.parameter()`
+                - Cross-phase linking expressions
+                - Complex mathematical relationships
+                - Multi-variable constraint expressions
 
         Examples:
-            Boundary condition constraints:
+            Integral constraints:
 
-            >>> altitude = phase.state("altitude", initial=0)
-            >>> velocity = phase.state("velocity", initial=0)
-            >>>
-            >>> # Target final conditions
-            >>> phase.event_constraints(
-            ...     altitude.final >= 1000,    # Reach minimum altitude
-            ...     velocity.final <= 10       # Final velocity limit
-            ... )
+            >>> fuel_used = phase.add_integral(thrust * 0.001)
+            >>> phase.event_constraints(fuel_used <= 100)
 
-            Multiphase continuity (automatic alternative to symbolic):
+            Parameter constraints:
 
-            >>> # Manual continuity constraints (symbolic is preferred)
-            >>> h1 = phase1.state("altitude")
-            >>> v1 = phase1.state("velocity")
-            >>> h2 = phase2.state("altitude")
-            >>> v2 = phase2.state("velocity")
-            >>>
-            >>> phase2.event_constraints(
-            ...     h2.initial == h1.final,    # Altitude continuity
-            ...     v2.initial == v1.final     # Velocity continuity
-            ... )
+            >>> mass = problem.parameter("mass", boundary=(100, 1000))
+            >>> phase.event_constraints(mass >= 200)
 
-            Mission-specific boundary constraints:
+            Cross-phase linking:
 
-            >>> # Orbit insertion requirements
-            >>> radius = phase.state("radius")
-            >>> speed = phase.state("speed")
-            >>> flight_angle = phase.state("flight_path_angle")
-            >>>
-            >>> target_radius = 7000e3  # 7000 km
-            >>> orbital_speed = ca.sqrt(3.986e14 / target_radius)
-            >>>
-            >>> phase.event_constraints(
-            ...     radius.final >= target_radius,       # Reach orbit altitude
-            ...     speed.final >= orbital_speed * 0.95,  # Near orbital velocity
-            ...     ca.fabs(flight_angle.final) <= 0.1   # Nearly horizontal
-            ... )
+            >>> phase2.event_constraints(h2.initial == h1.final)
 
-            Resource constraints:
+            Complex expressions:
 
-            >>> fuel_used = phase.add_integral(thrust_magnitude * 0.001)
-            >>> phase.event_constraints(fuel_used <= 100)  # Max 100kg fuel
-
-            Equality constraints for exact targeting:
-
-            >>> pos_x = phase.state("x_position")
-            >>> pos_y = phase.state("y_position")
-            >>>
-            >>> # Exact final position
-            >>> phase.event_constraints(
-            ...     pos_x.final == 1000.0,     # Exactly at x=1000
-            ...     pos_y.final == 500.0       # Exactly at y=500
-            ... )
+            >>> phase.event_constraints(x.final**2 + y.final**2 >= 100)
         """
         _validate_constraint_expressions_not_empty(constraint_expressions, self.phase_id, "event")
 
@@ -730,61 +599,38 @@ class Phase:
 
     def mesh(self, polynomial_degrees: list[int], mesh_points: NumericArrayLike) -> None:
         """
-        Configure the pseudospectral mesh for numerical solution of this phase.
+        Configure pseudospectral mesh with comprehensive discretization control.
 
-        Defines the mesh discretization used by the Radau pseudospectral method.
-        The mesh consists of intervals with specified polynomial degrees and
-        node distributions that determine solution accuracy and computational cost.
+        Defines mesh discretization for Radau pseudospectral method with precise
+        control over polynomial degrees and interval distribution. Critical for
+        balancing solution accuracy with computational efficiency.
 
         Args:
-            polynomial_degrees: List of polynomial degrees for each mesh interval.
-                Higher degrees provide better accuracy but increase computational cost.
-                Typical values: 3-8 for most problems, up to 15 for smooth solutions.
-            mesh_points: Array of normalized mesh points in [-1, 1] defining
-                interval boundaries. Must have length = len(polynomial_degrees) + 1.
-                Points are automatically scaled to the actual phase time domain.
+            polynomial_degrees: Polynomial degree for each mesh interval.
+                Higher degrees: better accuracy, more computational cost.
+                Typical range: 3-12, up to 15 for very smooth solutions.
+            mesh_points: Normalized mesh points in [-1, 1] defining interval
+                boundaries. Length must equal len(polynomial_degrees) + 1.
+                Points automatically scaled to actual phase time domain.
 
         Examples:
-            Simple uniform mesh:
+            Uniform mesh:
 
-            >>> # 3 intervals, each with 4th-order polynomials
-            >>> phase.mesh([4, 4, 4], [-1, -0.3, 0.3, 1])
+            >>> phase.mesh([4, 4, 4], [-1, -1/3, 1/3, 1])
 
-            Non-uniform mesh for rapid initial transients:
+            Non-uniform intervals:
 
-            >>> # Fine mesh early, coarser later
-            >>> phase.mesh([6, 4, 3], [-1, -0.8, 0, 1])
+            >>> phase.mesh([6, 4], [-1, -0.5, 1])
 
-            High-accuracy smooth solution:
+            High accuracy:
 
-            >>> # High-order polynomials for very smooth dynamics
             >>> phase.mesh([10, 10], [-1, 0, 1])
 
-            Adaptive starting point:
+            Single interval:
 
-            >>> # Start with simple mesh for adaptive refinement
-            >>> phase.mesh([3, 3, 3], [-1, -1/3, 1/3, 1])
-
-            Complex trajectory with multiple regions:
-
-            >>> # Different polynomial orders for different flight phases
-            >>> phase.mesh(
-            ...     [6, 4, 4, 6],           # Higher order for boost/entry
-            ...     [-1, -0.5, 0, 0.5, 1]  # 4 intervals
-            ... )
-
-            Minimum mesh for testing:
-
-            >>> # Simplest possible mesh
-            >>> phase.mesh([3], [-1, 1])
-
-        Note:
-            - Total collocation points = sum(polynomial_degrees)
-            - Computational cost scales roughly as O(N³) where N = total points
-            - For adaptive solving, start with moderate polynomial degrees (3-6)
-            - Non-uniform mesh points can focus resolution where needed
-            - Mesh points are normalized; actual timing comes from time constraints
+            >>> phase.mesh([5], [-1, 1])
         """
+
         logger.info(
             "Setting mesh for phase %d: %d intervals", self.phase_id, len(polynomial_degrees)
         )
@@ -958,68 +804,42 @@ class Problem:
 
     def parameter(self, name: str, boundary: ConstraintInput = None) -> ca.MX:
         """
-        Define a static parameter for design optimization.
+        Define a static parameter for design optimization with exhaustive constraint syntax.
 
-        Static parameters are optimization variables that remain constant throughout
-        the entire mission but can be varied by the optimizer to improve performance.
-        Useful for design variables, physical constants, or configuration parameters.
+        Creates optimization variables that remain constant throughout the mission
+        but can be varied to optimize performance. Supports all constraint types
+        for comprehensive design space specification.
 
         Args:
-            name: Unique name for the parameter
-            boundary: Parameter bounds constraint. Can be:
+            name: Unique parameter name
+            boundary: Parameter constraint with full syntax:
 
-                - float: Fixed parameter value
-                - (lower, upper): Parameter bounds
-                - (None, upper): Upper bound only
-                - (lower, None): Lower bound only
+                - float: Fixed parameter value (e.g., 1000.0)
+                - (lower, upper): Bounded parameter range (e.g., (100, 500))
+                - (None, upper): Upper bounded only (e.g., (None, 1000))
+                - (lower, None): Lower bounded only (e.g., (0, None))
                 - None: Unconstrained parameter
 
         Returns:
-            ca.MX: CasADi symbolic variable representing the parameter for use
-            in dynamics, constraints, and objective functions across all phases
+            ca.MX: Parameter variable for use across all phases
 
         Examples:
-            Vehicle design parameters:
+            Bounded parameter:
 
-            >>> # Mass and thrust parameters to optimize
-            >>> dry_mass = problem.parameter("dry_mass", boundary=(100, 500))
-            >>> max_thrust = problem.parameter("max_thrust", boundary=(1000, 5000))
-            >>>
-            >>> # Use in dynamics across multiple phases
-            >>> total_mass = dry_mass + fuel_mass
-            >>> acceleration = thrust_control * max_thrust / total_mass
+            >>> mass = problem.parameter("mass", boundary=(100, 500))
 
-            Physical constants that might be uncertain:
+            Single-sided bounds:
 
-            >>> # Atmospheric density variation
-            >>> density_factor = problem.parameter("density_factor", boundary=(0.8, 1.2))
-            >>> drag_coeff = problem.parameter("drag_coefficient", boundary=(0.1, 0.5))
-            >>>
-            >>> # Use in atmospheric flight dynamics
-            >>> drag_force = 0.5 * density_factor * 1.225 * velocity**2 * drag_coeff
+            >>> area = problem.parameter("area", boundary=(10, None))
+            >>> drag = problem.parameter("drag", boundary=(None, 0.5))
 
-            Mission configuration parameters:
+            Fixed parameter:
 
-            >>> # Orbit insertion parameters
-            >>> target_altitude = problem.parameter("target_altitude", boundary=(200e3, 800e3))
-            >>> inclination = problem.parameter("inclination", boundary=(0, 90))
-            >>>
-            >>> # Use in final constraints
-            >>> phase.event_constraints(
-            ...     altitude.final >= target_altitude,
-            ...     orbit_inclination.final == inclination
-            ... )
+            >>> gravity = problem.parameter("gravity", boundary=9.81)
 
-            Economic optimization parameters:
+            Unconstrained:
 
-            >>> # Cost factors for economic optimization
-            >>> fuel_cost = problem.parameter("fuel_price", boundary=(1, 10))  # $/kg
-            >>> time_cost = problem.parameter("time_value", boundary=(100, 1000))  # $/hour
-            >>>
-            >>> # Use in economic objective
-            >>> fuel_expense = fuel_used * fuel_cost
-            >>> time_expense = mission_time * time_cost / 3600
-            >>> problem.minimize(fuel_expense + time_expense)
+            >>> free_param = problem.parameter("design_var")
         """
         _validate_constraint_inputs(name, boundary, "Parameter")
 
@@ -1031,74 +851,45 @@ class Problem:
 
     def minimize(self, objective_expr: ca.MX | float | int) -> None:
         """
-        Set the objective function to minimize.
+        Set objective function with comprehensive expression support.
 
-        Defines the scalar cost function that the optimizer will minimize. Can include
-        final state values, integral terms, parameters, and complex expressions
-        combining multiple phases and objectives.
+        Defines scalar optimization objective supporting final states, integral
+        terms, static parameters, and complex multi-phase expressions. Can combine
+        multiple objective components with arbitrary mathematical relationships.
 
         Args:
-            objective_expr: Scalar expression to minimize. Can involve:
+            objective_expr: Scalar expression to minimize. Supports:
 
-                - Final state values (e.g., time.final, altitude.final)
-                - Integral terms from add_integral()
-                - Static parameters
-                - Mathematical combinations of the above
+                - Final state values (state.final)
+                - Integral terms (from add_integral())
+                - Static parameters (from parameter())
+                - Time variables (time.final)
+                - Complex mathematical combinations
 
         Examples:
-            Minimum time problems:
+            Minimum time:
 
-            >>> t = phase.time(initial=0)
-            >>> problem.minimize(t.final)  # Minimize final time
+            >>> problem.minimize(t.final)
 
-            Energy minimization:
+            Final state:
 
-            >>> # Minimize control energy
+            >>> problem.minimize(-altitude.final)  # Maximize altitude
+
+            Integral cost:
+
             >>> energy = phase.add_integral(thrust**2)
             >>> problem.minimize(energy)
 
-            Maximum final altitude:
+            Multi-objective:
 
-            >>> altitude = phase.state("altitude")
-            >>> problem.minimize(-altitude.final)  # Negative for maximization
+            >>> fuel_cost = phase.add_integral(thrust * price)
+            >>> time_cost = t.final * rate
+            >>> problem.minimize(fuel_cost + time_cost)
 
-            Multiphase mission optimization:
+            Parameter optimization:
 
-            >>> # Launch to orbit with minimum fuel
-            >>> fuel_p1 = phase1.add_integral(thrust1 * 0.001)  # Phase 1 fuel
-            >>> fuel_p2 = phase2.add_integral(thrust2 * 0.001)  # Phase 2 fuel
-            >>> total_fuel = fuel_p1 + fuel_p2
-            >>> problem.minimize(total_fuel)
-
-            Multi-objective with weights:
-
-            >>> # Balance fuel consumption and mission time
-            >>> fuel_cost = phase.add_integral(thrust * fuel_price)
-            >>> time_cost = mission_time.final * time_value
-            >>> comfort_cost = phase.add_integral(acceleration**2)
-            >>>
-            >>> total_cost = fuel_cost + 0.1*time_cost + 0.01*comfort_cost
-            >>> problem.minimize(total_cost)
-
-            Design optimization:
-
-            >>> # Minimize mass while meeting performance requirements
-            >>> vehicle_mass = problem.parameter("mass", boundary=(100, 1000))
-            >>> final_velocity = velocity.final
-            >>>
-            >>> # Penalize low performance and high mass
-            >>> performance_penalty = ca.fmax(0, 1000 - final_velocity)**2
-            >>> mass_penalty = vehicle_mass * 0.1
-            >>> problem.minimize(performance_penalty + mass_penalty)
-
-            Terminal constraint optimization:
-
-            >>> # Soft constraints through penalty terms
-            >>> target_altitude = 1000
-            >>> altitude_error = (altitude.final - target_altitude)**2
-            >>> velocity_error = velocity.final**2  # Zero final velocity
-            >>>
-            >>> problem.minimize(altitude_error + velocity_error)
+            >>> mass = problem.parameter("mass")
+            >>> problem.minimize(mass - performance)
         """
         self._multiphase_state._functions_built = False
         variables_problem._set_multiphase_objective(self._multiphase_state, objective_expr)
@@ -1114,128 +905,79 @@ class Problem:
         static_parameters: FloatArray | None = None,
     ) -> None:
         """
-        Provide initial guess for improved optimization convergence.
+        Provide comprehensive initial guess for all optimization variables.
 
-        Supplies the nonlinear programming (NLP) solver with starting values for
-        optimization variables. Good initial guesses significantly improve convergence
-        speed and success rate, especially for complex nonlinear problems.
+        Supplies starting values for NLP solver with exhaustive variable coverage.
+        Arrays must match mesh configuration exactly. Supports all variable types
+        with flexible guess specification strategies.
 
         Args:
-            phase_states: Dictionary mapping phase IDs to state trajectory guesses.
-                Each phase entry is a list of state arrays (one per mesh interval).
-                Each array has shape (num_states, num_collocation_points).
+            phase_states: State trajectory guesses per phase.
+                Structure: {phase_id: [interval_arrays]}
+                Each interval_array: shape (num_states, num_collocation_points)
 
-            phase_controls: Dictionary mapping phase IDs to control trajectory guesses.
-                Each phase entry is a list of control arrays (one per mesh interval).
-                Each array has shape (num_controls, num_mesh_points).
+            phase_controls: Control trajectory guesses per phase.
+                Structure: {phase_id: [interval_arrays]}
+                Each interval_array: shape (num_controls, num_mesh_points)
 
-            phase_initial_times: Dictionary mapping phase IDs to initial time guesses.
+            phase_initial_times: Initial time guesses per phase.
+                Structure: {phase_id: initial_time_value}
 
-            phase_terminal_times: Dictionary mapping phase IDs to final time guesses.
+            phase_terminal_times: Final time guesses per phase.
+                Structure: {phase_id: final_time_value}
 
-            phase_integrals: Dictionary mapping phase IDs to integral value guesses.
+            phase_integrals: Integral value guesses per phase.
+                Structure: {phase_id: integral_values}
+                - float: Single integral per phase
+                - array: Multiple integrals per phase
 
-            static_parameters: Array of static parameter guesses.
+            static_parameters: Static parameter guesses.
+                Array length must match number of parameters defined.
 
         Examples:
-            Simple linear interpolation guess:
+            Basic array format (mesh: [4, 4], 2 intervals, 2 states, 1 control):
 
             >>> import numpy as np
-            >>>
-            >>> # Configure mesh first
-            >>> phase.mesh([5, 5], [-1, 0, 1])  # 2 intervals, 5 points each
-            >>>
-            >>> # Generate state guess for each interval
-            >>> states_guess = []
-            >>> controls_guess = []
-            >>>
-            >>> for N in [5, 5]:  # For each mesh interval
-            ...     # Time points within interval
-            ...     t = np.linspace(0, 1, N+1)
-            ...
-            ...     # Linear interpolation between boundary conditions
-            ...     pos_vals = 0.0 + (100.0 - 0.0) * t  # 0 to 100
-            ...     vel_vals = 0.0 + (10.0 - 0.0) * t   # 0 to 10
-            ...     states_guess.append(np.array([pos_vals, vel_vals]))
-            ...
-            ...     # Constant control guess
-            ...     thrust_vals = np.ones(N) * 5.0  # Constant thrust
-            ...     controls_guess.append(np.array([thrust_vals]))
-            >>>
+            >>> # States: shape (num_states, num_points_per_interval)
+            >>> states_guess = [
+            ...     np.array([[0, 1, 2, 3, 4],      # State 1, interval 1: 5 points
+            ...               [0, 0, 1, 2, 3]]),    # State 2, interval 1: 5 points
+            ...     np.array([[4, 5, 6, 7, 8],      # State 1, interval 2: 5 points
+            ...               [3, 4, 5, 6, 7]])     # State 2, interval 2: 5 points
+            ... ]
+            >>> # Controls: shape (num_controls, num_points_per_interval)
+            >>> controls_guess = [
+            ...     np.array([[1, 1, 1, 1]]),       # Control 1, interval 1: 4 points
+            ...     np.array([[2, 2, 2, 2]])        # Control 1, interval 2: 4 points
+            ... ]
+            >>> problem.guess(
+            ...     phase_states={1: states_guess},
+            ...     phase_controls={1: controls_guess}
+            ... )
+
+            With time and integrals:
+
             >>> problem.guess(
             ...     phase_states={1: states_guess},
             ...     phase_controls={1: controls_guess},
-            ...     phase_terminal_times={1: 10.0}
+            ...     phase_terminal_times={1: 10.0},
+            ...     phase_integrals={1: 50.0}
             ... )
 
-            Multiphase rocket trajectory guess:
+            Multiple phases:
 
-            >>> # Phase 1: Boost phase guess
-            >>> boost_states = []
-            >>> boost_controls = []
-            >>> for N in [6, 6]:  # Mesh intervals
-            ...     t_norm = np.linspace(0, 1, N+1)
-            ...     # Quadratic altitude profile
-            ...     h_vals = 0.5 * 100 * t_norm**2  # Accelerating ascent
-            ...     v_vals = 100 * t_norm           # Linear velocity increase
-            ...     m_vals = 1000 - 50 * t_norm     # Mass consumption
-            ...     boost_states.append(np.array([h_vals, v_vals, m_vals]))
-            ...
-            ...     # High initial thrust, tapering off
-            ...     T_vals = 2000 * (1 - 0.5 * np.linspace(0, 1, N))
-            ...     boost_controls.append(np.array([T_vals]))
-            >>>
-            >>> # Phase 2: Coast phase guess
-            >>> coast_states = []
-            >>> coast_controls = []
-            >>> for N in [4, 4]:
-            ...     t_norm = np.linspace(0, 1, N+1)
-            ...     # Ballistic trajectory
-            ...     h_start = 2500  # End of boost
-            ...     v_start = 120   # End of boost velocity
-            ...     h_vals = h_start + v_start*t_norm - 0.5*9.81*t_norm**2
-            ...     v_vals = v_start - 9.81*t_norm
-            ...     m_vals = np.ones(N+1) * 950  # Constant mass
-            ...     coast_states.append(np.array([h_vals, v_vals, m_vals]))
-            ...
-            ...     # Zero thrust during coast
-            ...     T_vals = np.zeros(N)
-            ...     coast_controls.append(np.array([T_vals]))
-            >>>
             >>> problem.guess(
-            ...     phase_states={1: boost_states, 2: coast_states},
-            ...     phase_controls={1: boost_controls, 2: coast_controls},
-            ...     phase_initial_times={1: 0.0, 2: 120.0},
-            ...     phase_terminal_times={1: 120.0, 2: 300.0},
-            ...     phase_integrals={1: 50.0, 2: 0.0}  # Fuel consumption guess
+            ...     phase_states={1: states_p1, 2: states_p2},
+            ...     phase_controls={1: controls_p1, 2: controls_p2},
+            ...     phase_terminal_times={1: 10.0, 2: 20.0}
             ... )
 
-            Parameter optimization guess:
+            With static parameters:
 
-            >>> # Include static parameter guesses
             >>> problem.guess(
             ...     phase_states={1: states_guess},
-            ...     phase_controls={1: controls_guess},
-            ...     static_parameters=np.array([500.0, 1500.0])  # [mass, thrust]
+            ...     static_parameters=np.array([100.0, 1500.0])
             ... )
-
-            Analytical solution as guess:
-
-            >>> # Use known analytical solution for similar problem
-            >>> def analytical_trajectory(t):
-            ...     # Simplified analytical solution
-            ...     pos = 0.5 * thrust_nominal * t**2 / mass_nominal
-            ...     vel = thrust_nominal * t / mass_nominal
-            ...     return pos, vel
-            >>>
-            >>> # Generate guess from analytical solution
-            >>> # ... create state/control arrays from analytical_trajectory
-
-        Note:
-            - Array dimensions must match mesh configuration exactly
-            - Poor initial guesses can cause convergence failure
-            - Linear interpolation between boundary conditions often works well
-            - Consider using solutions from similar problems as starting points
         """
         components = []
         if phase_states is not None:

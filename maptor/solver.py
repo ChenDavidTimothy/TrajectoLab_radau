@@ -38,56 +38,73 @@ def solve_fixed_mesh(
     show_summary: bool = True,
 ) -> Solution:
     """
-    Solve a multiphase optimal control problem using fixed pseudospectral meshes.
+    Solve optimal control problem using fixed pseudospectral meshes.
+
+    Solves the problem using the exact mesh configuration specified in each
+    phase without adaptive refinement. Provides direct control over mesh
+    discretization for computational efficiency or specific accuracy requirements.
 
     Args:
-        problem: Multiphase Problem instance with configured meshes, dynamics, and objective
-        nlp_options: Optional IPOPT solver options
-        show_summary: Whether to display comprehensive solution summary (default: True)
+        problem: Configured Problem instance with mesh, dynamics, and objective
+        nlp_options: IPOPT solver options with full customization:
+
+            - "ipopt.print_level": Output verbosity (0-12, default: 0)
+            - "ipopt.max_iter": Maximum iterations (default: 3000)
+            - "ipopt.tol": Optimization tolerance (default: 1e-8)
+            - "ipopt.constr_viol_tol": Constraint violation tolerance
+            - "ipopt.linear_solver": Linear solver ("mumps", "ma27", "ma57")
+            - "ipopt.hessian_approximation": Hessian method ("exact", "limited-memory")
+            - Any IPOPT option as "ipopt.option_name": value
+
+        show_summary: Whether to display solution summary (default: True)
 
     Returns:
-        Solution object containing optimization results, trajectories, and metadata.
-
-    Raises:
-        maptor.ConfigurationError: If problem is not properly configured
+        Solution: Optimization results with trajectories and solver diagnostics
 
     Examples:
-        >>> # Create a simple rocket ascent problem
-        >>> problem = Problem("Rocket Ascent")
-        >>>
-        >>> # Define phase with state variables
-        >>> phase = problem.set_phase(1)
-        >>> time = phase.time(initial=0, final=10)
-        >>> altitude = phase.state("altitude", initial=0, final=1000)
-        >>> velocity = phase.state("velocity", initial=0)
-        >>> thrust = phase.control("thrust", boundary=(0, 1000))
-        >>>
-        >>> # Define dynamics
-        >>> phase.dynamics({
-        ...     altitude: velocity,
-        ...     velocity: thrust - 9.81
-        ... })
-        >>>
-        >>> # Add path constraints (applied at every collocation point)
-        >>> phase.path_constraints(
-        ...     altitude >= 0,           # Stay above ground
-        ...     thrust <= 1000,          # Maximum thrust limit
-        ...     velocity <= 100          # Speed limit
+        Basic usage:
+
+        >>> solution = mtor.solve_fixed_mesh(problem)
+
+        Custom solver options:
+
+        >>> solution = mtor.solve_fixed_mesh(
+        ...     problem,
+        ...     nlp_options={
+        ...         "ipopt.print_level": 5,       # Verbose output
+        ...         "ipopt.max_iter": 1000,       # Iteration limit
+        ...         "ipopt.tol": 1e-6             # Tolerance
+        ...     }
         ... )
-        >>>
-        >>> # Add event constraints (applied at boundaries)
-        >>> phase.event_constraints(
-        ...     altitude.initial == 0,   # Start at ground level
-        ...     velocity.initial == 0,   # Start from rest
-        ...     altitude.final >= 1000   # Reach target altitude
+
+        High-accuracy solver settings:
+
+        >>> solution = mtor.solve_fixed_mesh(
+        ...     problem,
+        ...     nlp_options={
+        ...         "ipopt.tol": 1e-10,
+        ...         "ipopt.constr_viol_tol": 1e-9,
+        ...         "ipopt.hessian_approximation": "exact"
+        ...     }
         ... )
-        >>>
-        >>> # Define objective and mesh
-        >>> problem.minimize(time.final)
-        >>> phase.mesh([4, 4], [0, 0.5, 1.0])
-        >>>
-        >>> # Solve the problem
-        >>> solution = solve_fixed_mesh(problem)
+
+        Linear solver options:
+
+        >>> solution = mtor.solve_fixed_mesh(
+        ...     problem,
+        ...     nlp_options={
+        ...         "ipopt.linear_solver": "mumps",
+        ...         "ipopt.mumps_mem_percent": 50000
+        ...     }
+        ... )
+
+        Silent solving:
+
+        >>> solution = mtor.solve_fixed_mesh(
+        ...     problem,
+        ...     nlp_options={"ipopt.print_level": 0},
+        ...     show_summary=False
+        ... )
     """
     logger.info("Starting multiphase fixed-mesh solve: problem='%s'", problem.name)
 
@@ -138,93 +155,162 @@ def solve_adaptive(
     show_summary: bool = True,
 ) -> Solution:
     """
-    Solve a multiphase optimal control problem using adaptive mesh refinement.
+    Solve optimal control problem using adaptive mesh refinement.
+
+    Automatically refines mesh until target error tolerance is achieved across
+    all phases. Provides high-accuracy solutions with computational efficiency
+    through adaptive polynomial degree and interval refinement.
 
     Args:
-        problem: Multiphase Problem instance with initial mesh configurations for each phase
-        error_tolerance: Target relative error tolerance (default: 1e-6)
-        max_iterations: Maximum refinement iterations (default: 10)
-        min_polynomial_degree: Minimum polynomial degree per interval (default: 3)
-        max_polynomial_degree: Maximum polynomial degree per interval (default: 10)
-        ode_solver_tolerance: Relative tolerance for error estimation ODE solver (default: 1e-7)
-        ode_method: ODE integration method for error estimation (default: "RK45")
-        ode_max_step: Maximum step size for ODE solver (default: None)
-        ode_atol_factor: Factor for absolute tolerance calculation (atol = rtol * factor) (default: 1e-2)
-        num_error_sim_points: Number of points for error simulation (default: 50)
-        ode_solver: Custom ODE solver function (default: scipy.integrate.solve_ivp)
-        nlp_options: Optional IPOPT solver options for each NLP solve
-        initial_guess: Initial guess for first iteration (overrides problem guess)
-        show_summary: Whether to display comprehensive solution summary (default: True)
+        problem: Configured Problem instance with initial mesh configurations
+
+        error_tolerance: Target relative error tolerance with ranges:
+            - 1e-3: Coarse accuracy, fast solving
+            - 1e-6: Standard accuracy (default)
+            - 1e-9: High accuracy, slower convergence
+
+        max_iterations: Maximum refinement iterations:
+            - 5-10: Standard problems (default: 10)
+            - 15-25: Complex problems
+            - 30+: Very challenging problems
+
+        min_polynomial_degree: Minimum polynomial degree per interval:
+            - 3: Fast, lower accuracy (default)
+            - 4-5: Balanced accuracy/speed
+            - 6+: High accuracy start
+
+        max_polynomial_degree: Maximum polynomial degree per interval:
+            - 8-10: Standard limit (default: 10)
+            - 12-15: High accuracy problems
+            - 20+: Very smooth solutions only
+
+        ode_solver_tolerance: ODE integration tolerance for error estimation:
+            - 1e-7: Standard (default)
+            - 1e-9: High accuracy error estimation
+            - 1e-5: Faster, less accurate
+
+        ode_method: ODE integration method options:
+            - "RK45": Runge-Kutta 4(5) (default)
+            - "RK23": Runge-Kutta 2(3)
+            - "DOP853": Dormand-Prince 8(5,3)
+            - "LSODA": Automatic stiff/non-stiff
+            - "Radau": Implicit Runge-Kutta
+
+        ode_max_step: Maximum ODE step size:
+            - None: Automatic (default)
+            - float: Fixed maximum step
+
+        ode_atol_factor: Absolute tolerance factor (atol = rtol * factor):
+            - 1e-2: Standard (default)
+            - 1e-3: Tighter absolute tolerance
+
+        num_error_sim_points: Points for error simulation:
+            - 30-50: Standard (default: 50)
+            - 100+: High-resolution error estimation
+
+        ode_solver: Custom ODE solver function:
+            - None: Use scipy.solve_ivp (default)
+            - Callable: Custom solver implementation
+
+        nlp_options: IPOPT options for each NLP solve (same as solve_fixed_mesh)
+
+        initial_guess: Override problem initial guess:
+            - None: Use problem.guess() (default)
+            - MultiPhaseInitialGuess: Custom guess
+
+        show_summary: Display solution summary (default: True)
 
     Returns:
-        Solution object with final refined meshes and high-accuracy results.
-
-    Raises:
-        maptor.ConfigurationError: If problem is not properly configured or parameters are invalid
+        Solution: High-accuracy adaptive solution with refinement diagnostics
 
     Examples:
-        >>> # Create a multiphase spacecraft trajectory problem
-        >>> problem = Problem("Spacecraft Trajectory")
-        >>>
-        >>> # Phase 1: Launch ascent
-        >>> p1 = problem.set_phase(1)
-        >>> t1 = p1.time(initial=0, final=100)
-        >>> altitude_p1 = p1.state("altitude", initial=0)
-        >>> velocity_p1 = p1.state("velocity", initial=0)
-        >>> mass_p1 = p1.state("mass", initial=1000)
-        >>> thrust_p1 = p1.control("thrust")
-        >>>
-        >>> p1.dynamics({
-        ...     altitude_p1: velocity_p1,
-        ...     velocity_p1: thrust_p1 / mass_p1 - 9.81,
-        ...     mass_p1: -thrust_p1 * 0.001
-        ... })
-        >>>
-        >>> # Path constraints for phase 1
-        >>> p1.path_constraints(
-        ...     altitude_p1 >= 0,
-        ...     thrust_p1 >= 0,
-        ...     thrust_p1 <= 2000
+        Basic adaptive solving:
+
+        >>> solution = mtor.solve_adaptive(problem)
+
+        High-accuracy solving:
+
+        >>> solution = mtor.solve_adaptive(
+        ...     problem,
+        ...     error_tolerance=1e-8,
+        ...     max_iterations=20,
+        ...     max_polynomial_degree=15
+        ... )
+
+        Fast approximate solving:
+
+        >>> solution = mtor.solve_adaptive(
+        ...     problem,
+        ...     error_tolerance=1e-3,
+        ...     max_iterations=5,
+        ...     min_polynomial_degree=3,
+        ...     max_polynomial_degree=6
+        ... )
+
+        Custom ODE solver settings:
+
+        >>> solution = mtor.solve_adaptive(
+        ...     problem,
+        ...     ode_method="LSODA",
+        ...     ode_solver_tolerance=1e-9,
+        ...     num_error_sim_points=100
+        ... )
+
+        Complex problem settings:
+
+        >>> solution = mtor.solve_adaptive(
+        ...     problem,
+        ...     error_tolerance=1e-6,
+        ...     max_iterations=30,
+        ...     min_polynomial_degree=4,
+        ...     max_polynomial_degree=12,
+        ...     nlp_options={
+        ...         "ipopt.max_iter": 3000,
+        ...         "ipopt.tol": 1e-8,
+        ...         "ipopt.linear_solver": "mumps"
+        ...     }
+        ... )
+
+        Override initial guess:
+
+        >>> custom_guess = MultiPhaseInitialGuess(...)
+        >>> solution = mtor.solve_adaptive(
+        ...     problem,
+        ...     initial_guess=custom_guess
+        ... )
+
+        Silent adaptive solving:
+
+        >>> solution = mtor.solve_adaptive(
+        ...     problem,
+        ...     nlp_options={"ipopt.print_level": 0},
+        ...     show_summary=False
+        ... )
+
+        Polynomial degree ranges:
+
+        >>> # Conservative polynomial progression
+        >>> solution = mtor.solve_adaptive(
+        ...     problem,
+        ...     min_polynomial_degree=3,
+        ...     max_polynomial_degree=8
         ... )
         >>>
-        >>> # Event constraints for phase 1
-        >>> p1.event_constraints(
-        ...     altitude_p1.initial == 0,
-        ...     velocity_p1.initial == 0,
-        ...     mass_p1.initial == 1000
+        >>> # Aggressive high-accuracy
+        >>> solution = mtor.solve_adaptive(
+        ...     problem,
+        ...     min_polynomial_degree=6,
+        ...     max_polynomial_degree=20
         ... )
-        >>>
-        >>> # Phase 2: Orbital insertion (linked via symbolic constraints)
-        >>> p2 = problem.set_phase(2)
-        >>> t2 = p2.time(initial=t1.final, final=200)  # Automatic phase linking
-        >>> altitude_p2 = p2.state("altitude", initial=altitude_p1.final)  # Continuous altitude
-        >>> velocity_p2 = p2.state("velocity", initial=velocity_p1.final)  # Continuous velocity
-        >>> mass_p2 = p2.state("mass", initial=mass_p1.final)              # Continuous mass
-        >>> thrust_p2 = p2.control("thrust")
-        >>>
-        >>> p2.dynamics({
-        ...     altitude_p2: velocity_p2,
-        ...     velocity_p2: thrust_p2 / mass_p2,
-        ...     mass_p2: -thrust_p2 * 0.001
-        ... })
-        >>>
-        >>> # Phase 2 constraints
-        >>> p2.path_constraints(
-        ...     thrust_p2 >= 0,
-        ...     thrust_p2 <= 1000
-        ... )
-        >>>
-        >>> p2.event_constraints(
-        ...     altitude_p2.final >= 200000,  # Reach orbital altitude
-        ...     velocity_p2.final >= 7800     # Achieve orbital velocity
-        ... )
-        >>>
-        >>> # Configure meshes and solve adaptively
-        >>> p1.mesh([3, 3], [0, 0.5, 1.0])
-        >>> p2.mesh([3, 3], [0, 0.5, 1.0])
-        >>> problem.minimize(mass_p1.initial - mass_p2.final)  # Maximize payload
-        >>>
-        >>> solution = solve_adaptive(problem, error_tolerance=1e-5)
+
+        Error tolerance ranges:
+
+        >>> # Quick verification
+        >>> solution = mtor.solve_adaptive(problem, error_tolerance=1e-3)
+        >>> # Production accuracy
+        >>> solution = mtor.solve_adaptive(problem, error_tolerance=1e-6)
+        >>> # Research accuracy
+        >>> solution = mtor.solve_adaptive(problem, error_tolerance=1e-9)
     """
     logger.info(
         "Starting multiphase adaptive solve: problem='%s', tolerance=%.1e, max_iter=%d",
