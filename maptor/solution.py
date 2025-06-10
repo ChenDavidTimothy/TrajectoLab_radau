@@ -218,22 +218,23 @@ class Solution:
             Dictionary mapping phase IDs to phase data:
 
             **Phase data structure:**
+
             - **times** (dict): Phase timing
-              - initial (float): Phase start time
-              - final (float): Phase end time
-              - duration (float): Phase duration
+                - initial (float): Phase start time
+                - final (float): Phase end time
+                - duration (float): Phase duration
             - **variables** (dict): Variable information
-              - state_names (list): State variable names
-              - control_names (list): Control variable names
-              - num_states (int): Number of states
-              - num_controls (int): Number of controls
+                - state_names (list): State variable names
+                - control_names (list): Control variable names
+                - num_states (int): Number of states
+                - num_controls (int): Number of controls
             - **mesh** (dict): Mesh configuration
-              - polynomial_degrees (list): Polynomial degree per interval
-              - mesh_nodes (FloatArray): Mesh node locations
-              - num_intervals (int): Total intervals
+                - polynomial_degrees (list): Polynomial degree per interval
+                - mesh_nodes (FloatArray): Mesh node locations
+                - num_intervals (int): Total intervals
             - **time_arrays** (dict): Time coordinates
-              - states (FloatArray): State time points
-              - controls (FloatArray): Control time points
+                - states (FloatArray): State time points
+                - controls (FloatArray): Control time points
             - **integrals** (float | FloatArray | None): Integral values
 
         Examples:
