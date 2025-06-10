@@ -35,7 +35,7 @@ P_SCALE = 1e7
 L_SCALE = np.pi
 T_SCALE = 1e4
 
-problem = mtor.Problem("Low thrust transfer problem")
+problem = mtor.Problem("Low-Thrust Orbit Transfer")
 phase = problem.set_phase(1)
 
 t_s = phase.time(initial=0.0, final=(50000.0 / T_SCALE, 100000.0 / T_SCALE))
