@@ -1,3 +1,15 @@
+# ==============================================================================
+# Multiphase Vehicle Launch Problem (PSOPT Replication)
+#
+# This script is a corrected version of the original Python implementation.
+# The manual scaling of the state derivatives has been fixed to be
+# mathematically equivalent to the physical system by correctly applying the
+# chain rule for the scaled time variable.
+#
+# All physical constants, vehicle parameters, constraints, and the problem
+# structure are identical to the C++ PSOPT example.
+# ==============================================================================
+
 import casadi as ca
 import numpy as np
 
@@ -7,7 +19,9 @@ import maptor as mtor
 def _cross_product(a, b):
     """Compute cross product of two 3D vectors."""
     return ca.vertcat(
-        a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
     )
 
 
@@ -90,7 +104,7 @@ def _rv_to_orbital_elements(rv, vv, mu):
     return ca.vertcat(a, e, i, Om, om, nu)
 
 
-# Physical constants
+# Physical constants - EXACT PSOPT VALUES
 MU = 3.986012e14  # Earth gravitational parameter (m^3/s^2)
 RE = 6378145.0  # Earth radius (m)
 OMEGA = 7.29211585e-5  # Earth rotation rate (rad/s)
@@ -100,7 +114,7 @@ CD = 0.5  # Drag coefficient
 SA = 4 * np.pi  # Reference surface area (m^2)
 G0 = 9.80665  # Sea level gravity (m/s^2)
 
-# Scaling factors to prevent numerical issues (following low_thrust pattern)
+# Scaling factors to prevent numerical issues
 R_SCALE = 1e6  # Position scaling (m)
 V_SCALE = 1e3  # Velocity scaling (m/s)
 M_SCALE = 1e4  # Mass scaling (kg)
@@ -121,17 +135,17 @@ OMEGA_MATRIX[2, 0] = 0.0
 OMEGA_MATRIX[2, 1] = 0.0
 OMEGA_MATRIX[2, 2] = 0.0
 
-# Propulsion parameters
+# Propulsion parameters - EXACT PSOPT VALUES
 THRUST_SRB = 628500.0  # SRB thrust (N)
 THRUST_FIRST = 1083100.0  # First stage thrust (N)
 THRUST_SECOND = 110094.0  # Second stage thrust (N)
 
-# Stage characteristics
+# Stage characteristics - EXACT PSOPT VALUES
 BT_SRB = 75.2  # SRB burn time (s)
 BT_FIRST = 261.0  # First stage burn time (s)
 BT_SECOND = 700.0  # Second stage burn time (s)
 
-# Mass parameters (kg)
+# Mass parameters (kg) - EXACT PSOPT VALUES
 M_TOT_SRB = 19290.0
 M_PROP_SRB = 17010.0
 M_DRY_SRB = M_TOT_SRB - M_PROP_SRB
@@ -146,7 +160,7 @@ M_DRY_SECOND = M_TOT_SECOND - M_PROP_SECOND
 
 M_PAYLOAD = 4164.0
 
-# Specific impulse calculations
+# Specific impulse calculations - EXACT PSOPT LOGIC
 MDOT_SRB = M_PROP_SRB / BT_SRB
 ISP_SRB = THRUST_SRB / (G0 * MDOT_SRB)
 
@@ -156,7 +170,7 @@ ISP_FIRST = THRUST_FIRST / (G0 * MDOT_FIRST)
 MDOT_SECOND = M_PROP_SECOND / BT_SECOND
 ISP_SECOND = THRUST_SECOND / (G0 * MDOT_SECOND)
 
-# Initial conditions (Cape Canaveral) - scaled
+# Initial conditions (Cape Canaveral) - EXACT PSOPT VALUES
 LAT0 = 28.5 * np.pi / 180.0  # Geocentric latitude
 X0 = RE * np.cos(LAT0)  # x component of initial position
 Y0 = 0.0  # y component of initial position
@@ -170,25 +184,21 @@ OMEGA_MATRIX_np = np.array([[0.0, -OMEGA, 0.0], [OMEGA, 0.0, 0.0], [0.0, 0.0, 0.
 V0_phys = OMEGA_MATRIX_np @ np.array([X0, Y0, Z0])
 V0_values = [V0_phys[0] / V_SCALE, V0_phys[1] / V_SCALE, V0_phys[2] / V_SCALE]
 
-# CasADi versions for dynamics calculations (physical units)
-R0 = ca.vertcat(X0, Y0, Z0)
-V0 = ca.vertcat(*V0_phys)
-
-# Target orbital elements
+# Target orbital elements - EXACT PSOPT VALUES
 AF = 24361140.0  # Semi-major axis (m)
 EF = 0.7308  # Eccentricity
 INCF = 28.5 * np.pi / 180.0  # Inclination (rad)
 OMF = 269.8 * np.pi / 180.0  # RAAN (rad)
 OMEGAF = 130.5 * np.pi / 180.0  # Argument of periapsis (rad)
 
-# Phase timing
+# Phase timing - EXACT PSOPT VALUES
 T0 = 0.0
 T1 = 75.2  # End of phase 1 (6 SRBs drop)
 T2 = 150.4  # End of phase 2 (3 SRBs drop)
 T3 = 261.0  # End of phase 3 (first stage drops)
 T4 = 961.0  # End of phase 4 (target orbit)
 
-# Initial masses for each phase (scaled)
+# Initial masses for each phase (scaled) - EXACT PSOPT CALCULATIONS
 M10 = (M_PAYLOAD + M_TOT_SECOND + M_TOT_FIRST + 9 * M_TOT_SRB) / M_SCALE
 M1F = (M10 * M_SCALE - (6 * MDOT_SRB + MDOT_FIRST) * T1) / M_SCALE
 M20 = (M1F * M_SCALE - 6 * M_DRY_SRB) / M_SCALE
@@ -198,11 +208,11 @@ M3F = (M30 * M_SCALE - MDOT_FIRST * (T3 - T2)) / M_SCALE
 M40 = (M3F * M_SCALE - M_DRY_FIRST) / M_SCALE
 M4F = M_PAYLOAD / M_SCALE
 
-# Bounds (scaled and more generous for complex problem)
-RMIN = -5 * RE / R_SCALE
-RMAX = 5 * RE / R_SCALE
-VMIN = -20000.0 / V_SCALE
-VMAX = 20000.0 / V_SCALE
+# Bounds (scaled) - EXACT PSOPT VALUES
+RMIN = -2 * RE / R_SCALE
+RMAX = 2 * RE / R_SCALE
+VMIN = -10000.0 / V_SCALE
+VMAX = 10000.0 / V_SCALE
 
 # Problem setup
 problem = mtor.Problem("Multiphase Vehicle Launch")
@@ -220,7 +230,7 @@ phase2 = problem.set_phase(2)
 t2 = phase2.time(initial=T1, final=T2)
 r2 = [phase2.state(f"r{i}", initial=r1[i].final, boundary=(RMIN, RMAX)) for i in range(3)]
 v2 = [phase2.state(f"v{i}", initial=v1[i].final, boundary=(VMIN, VMAX)) for i in range(3)]
-m2 = phase2.state("mass", initial=m1.final - 6 * M_DRY_SRB, boundary=(M2F, M20))
+m2 = phase2.state("mass", initial=m1.final - 6 * M_DRY_SRB / M_SCALE, boundary=(M2F, M20))
 u2 = [phase2.control(f"u{i}", boundary=(-1.0, 1.0)) for i in range(3)]
 
 # Phase 3: First Stage Only (150.4 - 261.0s)
@@ -228,7 +238,7 @@ phase3 = problem.set_phase(3)
 t3 = phase3.time(initial=T2, final=T3)
 r3 = [phase3.state(f"r{i}", initial=r2[i].final, boundary=(RMIN, RMAX)) for i in range(3)]
 v3 = [phase3.state(f"v{i}", initial=v2[i].final, boundary=(VMIN, VMAX)) for i in range(3)]
-m3 = phase3.state("mass", initial=m2.final - 3 * M_DRY_SRB, boundary=(M3F, M30))
+m3 = phase3.state("mass", initial=m2.final - 3 * M_DRY_SRB / M_SCALE, boundary=(M3F, M30))
 u3 = [phase3.control(f"u{i}", boundary=(-1.0, 1.0)) for i in range(3)]
 
 # Phase 4: Second Stage Only (261.0 - 961.0s)
@@ -236,19 +246,19 @@ phase4 = problem.set_phase(4)
 t4 = phase4.time(initial=T3, final=(T3, T4))
 r4 = [phase4.state(f"r{i}", initial=r3[i].final, boundary=(RMIN, RMAX)) for i in range(3)]
 v4 = [phase4.state(f"v{i}", initial=v3[i].final, boundary=(VMIN, VMAX)) for i in range(3)]
-m4 = phase4.state("mass", initial=m3.final - M_DRY_FIRST, boundary=(M4F, M40))
+m4 = phase4.state("mass", initial=m3.final - M_DRY_FIRST / M_SCALE, boundary=(M4F, M40))
 u4 = [phase4.control(f"u{i}", boundary=(-1.0, 1.0)) for i in range(3)]
 
 
 def _define_phase_dynamics(phase, r_vars, v_vars, m_var, u_vars, phase_num):
-    """Define dynamics for a given phase with numerical safety."""
+    """Define dynamics for a given phase with correct manual scaling."""
     # Position and velocity vectors (scaled)
     r_vec_scaled = ca.vertcat(*r_vars)
     v_vec_scaled = ca.vertcat(*v_vars)
     m_scaled = m_var
     u_vec = ca.vertcat(*u_vars)
 
-    # Convert to physical units
+    # Convert to physical units for dynamics calculations
     r_vec = r_vec_scaled * R_SCALE
     v_vec = v_vec_scaled * V_SCALE
     m_phys = m_scaled * M_SCALE
@@ -271,44 +281,39 @@ def _define_phase_dynamics(phase, r_vars, v_vars, m_var, u_vars, phase_num):
     # Atmospheric density with safe exponential
     rho = RHO0 * ca.exp(-ca.fmin(altitude_safe / H, 50.0))  # Clamp exponent
 
-    # Drag force with safe operations
+    # Drag force (physical units)
     bc = (rho / (2 * m_safe)) * SA * CD
     bc_speed = bc * speed_rel
     drag = -v_rel * bc_speed
 
-    # Gravitational force with safe operations
+    # Gravitational force (physical units)
     mu_over_rad_cubed = MU / (rad_safe**3)
     grav = -mu_over_rad_cubed * r_vec
 
-    # Thrust and mass flow for each phase
+    # Thrust and mass flow (physical units) - EXACT PSOPT LOGIC
     if phase_num == 1:
-        # 6 SRBs + First stage
         T_total = 6 * THRUST_SRB + THRUST_FIRST
         mdot = -(6 * THRUST_SRB / (G0 * ISP_SRB) + THRUST_FIRST / (G0 * ISP_FIRST))
     elif phase_num == 2:
-        # 3 SRBs + First stage
         T_total = 3 * THRUST_SRB + THRUST_FIRST
         mdot = -(3 * THRUST_SRB / (G0 * ISP_SRB) + THRUST_FIRST / (G0 * ISP_FIRST))
     elif phase_num == 3:
-        # First stage only
         T_total = THRUST_FIRST
         mdot = -THRUST_FIRST / (G0 * ISP_FIRST)
     elif phase_num == 4:
-        # Second stage only
         T_total = THRUST_SECOND
         mdot = -THRUST_SECOND / (G0 * ISP_SECOND)
 
-    # Thrust vector with safe mass division
+    # Thrust vector (physical units)
     T_over_m = T_total / m_safe
     thrust = T_over_m * u_vec
 
-    # Total acceleration
+    # Total acceleration (physical units)
     acceleration = thrust + drag + grav
 
-    # Convert back to scaled derivatives
-    r_dot_scaled = v_vec_scaled  # Already scaled
-    v_dot_scaled = acceleration / V_SCALE
-    m_dot_scaled = mdot / M_SCALE
+    r_dot_scaled = v_vec_scaled * (T_SCALE * V_SCALE / R_SCALE)
+    v_dot_scaled = acceleration * (T_SCALE / V_SCALE)
+    m_dot_scaled = mdot * (T_SCALE / M_SCALE)
 
     # Set dynamics
     dynamics_dict = {}
@@ -319,9 +324,9 @@ def _define_phase_dynamics(phase, r_vars, v_vars, m_var, u_vars, phase_num):
 
     phase.dynamics(dynamics_dict)
 
-    # Path constraint: unit thrust vector with tolerance for robustness
+    # Path constraint: unit thrust vector
     thrust_magnitude_squared = ca.fmax(_dot_product(u_vec, u_vec), EPS)
-    phase.path_constraints(thrust_magnitude_squared >= 0.98, thrust_magnitude_squared <= 1.02)
+    phase.path_constraints(thrust_magnitude_squared == 1.0)
 
 
 # Define dynamics for all phases
@@ -330,7 +335,7 @@ _define_phase_dynamics(phase2, r2, v2, m2, u2, 2)
 _define_phase_dynamics(phase3, r3, v3, m3, u3, 3)
 _define_phase_dynamics(phase4, r4, v4, m4, u4, 4)
 
-# Final orbital element constraints (Phase 4) - with small tolerances for feasibility
+# Final orbital element constraints (Phase 4)
 r_final_scaled = ca.vertcat(*[r4[i].final for i in range(3)])
 v_final_scaled = ca.vertcat(*[v4[i].final for i in range(3)])
 
@@ -340,87 +345,60 @@ v_final = v_final_scaled * V_SCALE
 
 oe_final = _rv_to_orbital_elements(r_final, v_final, MU)
 
-# Allow small tolerances on orbital elements for robustness
-a_tol = 0.01 * AF  # 1% tolerance on semi-major axis
-e_tol = 0.01  # Absolute tolerance on eccentricity
-angle_tol = 0.01  # Small angle tolerance (rad)
-
+# Constrain the 5 target orbital elements (PSOPT does not constrain true anomaly)
 phase4.event_constraints(
-    oe_final[0] >= AF - a_tol,
-    oe_final[0] <= AF + a_tol,
-    oe_final[1] >= EF - e_tol,
-    oe_final[1] <= EF + e_tol,
-    oe_final[2] >= INCF - angle_tol,
-    oe_final[2] <= INCF + angle_tol,
-    oe_final[3] >= OMF - angle_tol,
-    oe_final[3] <= OMF + angle_tol,
-    oe_final[4] >= OMEGAF - angle_tol,
-    oe_final[4] <= OMEGAF + angle_tol,
+    oe_final[0] == AF,
+    oe_final[1] == EF,
+    oe_final[2] == INCF,
+    oe_final[3] == OMF,
+    oe_final[4] == OMEGAF,
 )
 
 # Objective: Maximize final mass
 problem.minimize(-m4.final)
 
-# Mesh configuration (fine mesh for complex problem)
+# Mesh configuration
 phase1.mesh([6, 6, 6, 6], [-1.0, -0.5, 0.0, 0.5, 1.0])
 phase2.mesh([6, 6, 6, 6], [-1.0, -0.5, 0.0, 0.5, 1.0])
 phase3.mesh([6, 6, 6, 6, 6], [-1.0, -0.6, -0.2, 0.2, 0.6, 1.0])
 phase4.mesh([8, 8, 8, 8, 8, 8], [-1.0, -0.6, -0.2, 0.2, 0.6, 0.8, 1.0])
 
 
-# Initial guess
-def _generate_phase_guess(polynomial_degrees, r_init, v_init, m_init, m_final, t_init, t_final):
-    """Generate initial guess for a phase based on mesh configuration."""
+# Initial guess (PSOPT-style constant guess for position/velocity)
+def _generate_phase_guess(polynomial_degrees, r_init, v_init, m_init, m_final):
     states_guess = []
     controls_guess = []
-
     for N in polynomial_degrees:
-        # States: N+1 time points for polynomial degree N
         N_state_points = N + 1
-        states = np.zeros((7, N_state_points))  # 7 state variables
-
-        # Linear interpolation for position and velocity
+        states = np.zeros((7, N_state_points))
         for i in range(3):
-            states[i, :] = r_init[i]  # Position (constant guess)
-            states[i + 3, :] = v_init[i]  # Velocity (constant guess)
-
-        # Mass decreases linearly
+            states[i, :] = r_init[i]
+            states[i + 3, :] = v_init[i]
         states[6, :] = np.linspace(m_init, m_final, N_state_points)
-
         states_guess.append(states)
 
-        # Controls: N time points for polynomial degree N
         N_control_points = N
-        controls = np.zeros((3, N_control_points))  # 3 control variables
-        controls[0, :] = 1.0  # ux = 1 (thrust in x-direction initially)
-        controls[1, :] = 0.0  # uy = 0
-        controls[2, :] = 0.0  # uz = 0
-
+        controls = np.zeros((3, N_control_points))
+        controls[0, :] = 1.0
         controls_guess.append(controls)
-
     return states_guess, controls_guess
 
 
-# Generate guesses for all phases (matching fine mesh)
-states_p1, controls_p1 = _generate_phase_guess([6, 6, 6, 6], R0_values, V0_values, M10, M1F, T0, T1)
-states_p2, controls_p2 = _generate_phase_guess([6, 6, 6, 6], R0_values, V0_values, M20, M2F, T1, T2)
-states_p3, controls_p3 = _generate_phase_guess(
-    [6, 6, 6, 6, 6], R0_values, V0_values, M30, M3F, T2, T3
-)
-states_p4, controls_p4 = _generate_phase_guess(
-    [8, 8, 8, 8, 8, 8], R0_values, V0_values, M40, M4F, T3, T4
-)
+states_p1, controls_p1 = _generate_phase_guess([6, 6, 6, 6], R0_values, V0_values, M10, M1F)
+states_p2, controls_p2 = _generate_phase_guess([6, 6, 6, 6], R0_values, V0_values, M20, M2F)
+states_p3, controls_p3 = _generate_phase_guess([6, 6, 6, 6, 6], R0_values, V0_values, M30, M3F)
+states_p4, controls_p4 = _generate_phase_guess([8, 8, 8, 8, 8, 8], R0_values, V0_values, M40, M4F)
 
 problem.guess(
     phase_states={1: states_p1, 2: states_p2, 3: states_p3, 4: states_p4},
     phase_controls={1: controls_p1, 2: controls_p2, 3: controls_p3, 4: controls_p4},
 )
 
-# Solve with fine mesh and increased iteration limits
+# Solve with settings appropriate for this complex problem
 solution = mtor.solve_adaptive(
     problem,
-    error_tolerance=1e-3,
-    max_iterations=15,
+    error_tolerance=1e-4,
+    max_iterations=20,
     min_polynomial_degree=4,
     max_polynomial_degree=10,
     nlp_options={
@@ -432,8 +410,6 @@ solution = mtor.solve_adaptive(
         "ipopt.mu_strategy": "adaptive",
         "ipopt.linear_solver": "mumps",
         "ipopt.hessian_approximation": "limited-memory",
-        "ipopt.watchdog_shortened_iter_trigger": 10,
-        "ipopt.accept_every_trial_step": "yes",
     },
 )
 
@@ -443,23 +419,12 @@ if solution.status["success"]:
     final_mass = final_mass_scaled * M_SCALE
     mission_time = solution.status["total_mission_time"]
 
+    print("\n--- OPTIMIZATION SUCCESSFUL ---")
     print(f"Final mass: {final_mass:.1f} kg")
     print(f"Mission time: {mission_time:.1f} seconds")
     print(f"Payload fraction: {final_mass / (M10 * M_SCALE) * 100:.2f}%")
 
-    # Check final orbital elements
-    r_final_sol_scaled = [solution[(4, f"r{i}")][-1] for i in range(3)]
-    v_final_sol_scaled = [solution[(4, f"v{i}")][-1] for i in range(3)]
-
-    # Convert to physical units for display
-    r_final_sol = [r * R_SCALE for r in r_final_sol_scaled]
-    v_final_sol = [v * V_SCALE for v in v_final_sol_scaled]
-
-    print("\nTarget vs Achieved Orbital Elements:")
-    print(f"Semi-major axis: {AF / 1000:.1f} km (target)")
-    print(f"Eccentricity: {EF:.4f} (target)")
-    print(f"Inclination: {INCF * 180 / np.pi:.1f}° (target)")
-
     solution.plot()
 else:
+    print("\n--- OPTIMIZATION FAILED ---")
     print(f"Failed: {solution.status['message']}")
