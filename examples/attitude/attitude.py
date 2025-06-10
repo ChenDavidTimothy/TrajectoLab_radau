@@ -79,7 +79,7 @@ J_inv = ca.DM(np.linalg.inv(J))
 omega_dot = J_inv @ (tau_gg - omega_cross_term - u)
 
 # ṙ = (1/2)[rr^T + I + r×][ω - ω₀(r)]
-rr_transpose = ca.outer(r, r)
+rr_transpose = r @ r.T
 bracket_matrix = rr_transpose + ca.DM.eye(3) + r_cross
 r_dot = 0.5 * (bracket_matrix @ (omega - omega_0_func))
 
@@ -130,7 +130,7 @@ J_omega_final_plus_h = ca.DM(J) @ omega_final + h_final
 equilibrium_torque = tau_gg_final - omega_final_cross @ J_omega_final_plus_h
 
 # Final ṙ = 0 condition
-rr_transpose_final = ca.outer(r_final, r_final)
+rr_transpose_final = r_final @ r_final.T
 bracket_matrix_final = rr_transpose_final + ca.DM.eye(3) + r_final_cross
 r_dot_final = 0.5 * (bracket_matrix_final @ (omega_final - omega_0_final))
 
@@ -198,8 +198,8 @@ solution = mtor.solve_adaptive(
     min_polynomial_degree=4,
     max_polynomial_degree=10,
     nlp_options={
-        "ipopt.print_level": 0,
-        "ipopt.max_iter": 2000,
+        "ipopt.print_level": 5,
+        "ipopt.max_iter": 5000,
         "ipopt.tol": 1e-7,
         "ipopt.constr_viol_tol": 1e-7,
     },
