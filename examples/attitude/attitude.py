@@ -58,7 +58,7 @@ u = ca.vertcat(u1, u2, u3)
 # Compute auxiliary matrices
 r_cross = skew_symmetric(r)
 r_norm_sq = ca.dot(r, r)
-C = ca.DM.eye(3) + (2.0 / (1.0 + r_norm_sq)) * (r_cross @ r_cross - r_cross)
+C = ca.DM.eye(3) + (2.0 / (1.0 + r_norm_sq)) * (r_cross @ r_cross + r_cross)
 
 # Extract columns C2 and C3
 C2 = C[:, 1]  # Second column (0-indexed)
@@ -115,7 +115,7 @@ h_final = ca.vertcat(h1.final, h2.final, h3.final)
 r_final_cross = skew_symmetric(r_final)
 r_final_norm_sq = ca.dot(r_final, r_final)
 C_final = ca.DM.eye(3) + (2.0 / (1.0 + r_final_norm_sq)) * (
-    r_final_cross @ r_final_cross - r_final_cross
+    r_final_cross @ r_final_cross + r_final_cross
 )
 C2_final = C_final[:, 1]
 C3_final = C_final[:, 2]
