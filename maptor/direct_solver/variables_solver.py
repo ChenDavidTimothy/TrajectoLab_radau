@@ -4,7 +4,6 @@ from dataclasses import dataclass
 import casadi as ca
 
 from ..tl_types import PhaseID, ProblemProtocol
-from ..utils.constants import MINIMUM_TIME_INTERVAL
 from .types_solver import (
     _MultiPhaseVariable,
     _PhaseIntervalBundle,
@@ -72,9 +71,6 @@ def _apply_time_constraints(
 
     _apply_bound_constraints(opti, initial_time_var, t0_constraint)
     _apply_bound_constraints(opti, terminal_time_var, tf_constraint)
-
-    # Minimum interval prevents singular coordinate transformations
-    opti.subject_to(terminal_time_var > initial_time_var + MINIMUM_TIME_INTERVAL)
 
 
 def _create_time_variables(context: _VariableCreationContext) -> list[ca.MX]:
