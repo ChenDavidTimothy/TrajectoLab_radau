@@ -12,6 +12,8 @@ from maptor.tl_types import (
     ProblemProtocol,
 )
 
+from ...utils.constants import INTERVAL_WIDTH_TOLERANCE, MINIMUM_ERROR_VALUE
+
 
 __all__ = [
     "_calculate_gamma_normalizers_for_phase",
@@ -80,7 +82,11 @@ def _compute_combined_errors(
 def _apply_error_bounds(max_error: float) -> float:
     if np.isnan(max_error):
         return np.inf
-    return max(max_error, 1e-15) if 0.0 < max_error < 1e-15 else float(max_error)
+    return (
+        max(max_error, MINIMUM_ERROR_VALUE)
+        if 0.0 < max_error < MINIMUM_ERROR_VALUE
+        else float(max_error)
+    )
 
 
 def _calculate_combined_error_estimate(
@@ -129,7 +135,7 @@ def _extract_interval_parameters(
     tau_start, tau_end = global_mesh[interval_idx], global_mesh[interval_idx + 1]
     beta_k = (tau_end - tau_start) / 2.0
 
-    if abs(beta_k) < 1e-12:
+    if abs(beta_k) < INTERVAL_WIDTH_TOLERANCE:
         raise ValueError(f"Interval {interval_idx} has zero width")
 
     beta_k0 = (tau_end + tau_start) / 2.0

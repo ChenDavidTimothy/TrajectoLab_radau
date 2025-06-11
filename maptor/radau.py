@@ -7,7 +7,7 @@ from scipy.special import roots_jacobi as _scipy_roots_jacobi
 
 from .input_validation import _validate_positive_integer
 from .tl_types import FloatArray
-from .utils.constants import ZERO_TOLERANCE
+from .utils.constants import DEFAULT_LRU_CACHE_SIZE, ZERO_TOLERANCE
 
 
 @dataclass
@@ -209,7 +209,7 @@ def _compute_lagrange_derivative_coefficients_at_point(
     return derivatives
 
 
-@functools.lru_cache(maxsize=32)
+@functools.lru_cache(maxsize=DEFAULT_LRU_CACHE_SIZE)
 def _compute_radau_collocation_components(
     num_collocation_nodes: int,
 ) -> RadauBasisComponents:

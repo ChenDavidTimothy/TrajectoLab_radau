@@ -4,6 +4,7 @@ __all__ = [
     "_map_local_tau_from_interval_k_plus_1_to_equivalent_in_interval_k",
     "_map_local_tau_from_interval_k_to_equivalent_in_interval_k_plus_1",
 ]
+from maptor.utils.constants import INTERVAL_WIDTH_TOLERANCE
 
 
 def _compute_interval_parameters(global_start: float, global_end: float) -> tuple[float, float]:
@@ -17,7 +18,7 @@ def _map_global_normalized_tau_to_local_interval_tau(
 ) -> float:
     beta, beta0 = _compute_interval_parameters(global_start, global_end)
 
-    if abs(beta) < 1e-12:
+    if abs(beta) < INTERVAL_WIDTH_TOLERANCE:
         return 0.0
 
     return (global_tau - beta0) / beta
