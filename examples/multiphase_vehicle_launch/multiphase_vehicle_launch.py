@@ -1,19 +1,39 @@
-# ==============================================================================
-# Multiphase Vehicle Launch Problem (PSOPT Replication)
-#
-# This script is a corrected version of the original Python implementation.
-# The manual scaling of the state derivatives has been fixed to be
-# mathematically equivalent to the physical system by correctly applying the
-# chain rule for the scaled time variable.
-#
-# All physical constants, vehicle parameters, constraints, and the problem
-# structure are identical to the C++ PSOPT example.
-# ==============================================================================
-
 import casadi as ca
 import numpy as np
 
 import maptor as mtor
+
+
+def _oe2rv(orbital_elements, mu):
+    """Convert orbital elements to position and velocity vectors (physical units)."""
+    a, e, i, Om, om, nu = orbital_elements
+
+    p = a * (1 - e * e)
+    r = p / (1 + e * np.cos(nu))
+
+    # Position in perifocal frame
+    rv_pf = np.array([r * np.cos(nu), r * np.sin(nu), 0.0])
+
+    # Velocity in perifocal frame
+    vv_pf = np.array([-np.sin(nu), e + np.cos(nu), 0.0]) * np.sqrt(mu / p)
+
+    # Rotation matrix from perifocal to inertial frame
+    cO, sO = np.cos(Om), np.sin(Om)
+    co, so = np.cos(om), np.sin(om)
+    ci, si = np.cos(i), np.sin(i)
+
+    R = np.array(
+        [
+            [cO * co - sO * so * ci, -cO * so - sO * co * ci, sO * si],
+            [sO * co + cO * so * ci, -sO * so + cO * co * ci, -cO * si],
+            [so * si, co * si, ci],
+        ]
+    )
+
+    ri = R @ rv_pf
+    vi = R @ vv_pf
+
+    return ri, vi
 
 
 def _cross_product(a, b):
@@ -37,18 +57,15 @@ def _smooth_heaviside(x, steepness=10.0):
 
 def _rv_to_orbital_elements(rv, vv, mu):
     """Convert position and velocity to orbital elements using numerically safe operations."""
-    # Angular momentum vector
-    K = ca.vertcat(0.0, 0.0, 1.0)  # z-axis unit vector
+    K = ca.vertcat(0.0, 0.0, 1.0)
     hv = _cross_product(rv, vv)
     nv = _cross_product(K, hv)
 
-    # Safe magnitudes with epsilon protection
     n = ca.sqrt(ca.fmax(_dot_product(nv, nv), EPS))
     h2 = ca.fmax(_dot_product(hv, hv), EPS)
     v2 = ca.fmax(_dot_product(vv, vv), EPS)
     r = ca.sqrt(ca.fmax(_dot_product(rv, rv), EPS))
 
-    # Eccentricity vector with safe operations
     rv_dot_vv = _dot_product(rv, vv)
     mu_safe = ca.fmax(mu, EPS)
     r_safe = ca.fmax(r, EPS)
@@ -59,25 +76,19 @@ def _rv_to_orbital_elements(rv, vv, mu):
         (1 / mu_safe) * ((v2 - mu_safe / r_safe) * rv[2] - rv_dot_vv * vv[2]),
     )
 
-    # Safe orbital element calculations
-    p = h2 / mu_safe  # Semi-latus rectum
-    e = ca.sqrt(ca.fmax(_dot_product(ev, ev), EPS))  # Eccentricity
+    p = h2 / mu_safe
+    e = ca.sqrt(ca.fmax(_dot_product(ev, ev), EPS))
     e_safe = ca.fmax(e, EPS)
-
-    # Protect against e >= 1 (parabolic/hyperbolic orbits)
     e_clamped = ca.fmin(e_safe, 0.999)
-    a = p / (1 - e_clamped * e_clamped)  # Semi-major axis
+    a = p / (1 - e_clamped * e_clamped)
 
-    # Safe inclination calculation
     h_mag = ca.sqrt(h2)
     h_mag_safe = ca.fmax(h_mag, EPS)
     cos_i = ca.fmax(ca.fmin(hv[2] / h_mag_safe, 1.0 - EPS), -1.0 + EPS)
-    i = ca.acos(cos_i)  # Inclination
+    i = ca.acos(cos_i)
 
-    # Smooth Heaviside parameters matching PSOPT (a_eps = 0.1 -> steepness = 10)
     steepness = 10.0
 
-    # RAAN (Omega) with safe calculations
     n_safe = ca.fmax(n, EPS)
     cos_Om = ca.fmax(ca.fmin(nv[0] / n_safe, 1.0 - EPS), -1.0 + EPS)
     Om_base = ca.acos(cos_Om)
@@ -85,7 +96,6 @@ def _rv_to_orbital_elements(rv, vv, mu):
     H_Om = _smooth_heaviside(nv[1], steepness)
     Om = H_Om * Om_base + (1 - H_Om) * Om_alternative
 
-    # Argument of periapsis (omega) with safe calculations
     nv_dot_ev = _dot_product(nv, ev)
     cos_om = ca.fmax(ca.fmin(nv_dot_ev / (n_safe * e_safe), 1.0 - EPS), -1.0 + EPS)
     om_base = ca.acos(cos_om)
@@ -93,7 +103,6 @@ def _rv_to_orbital_elements(rv, vv, mu):
     H_om = _smooth_heaviside(ev[2], steepness)
     om = H_om * om_base + (1 - H_om) * om_alternative
 
-    # True anomaly (nu) with safe calculations
     ev_dot_rv = _dot_product(ev, rv)
     cos_nu = ca.fmax(ca.fmin(ev_dot_rv / (e_safe * r_safe), 1.0 - EPS), -1.0 + EPS)
     nu_base = ca.acos(cos_nu)
@@ -105,25 +114,24 @@ def _rv_to_orbital_elements(rv, vv, mu):
 
 
 # Physical constants - EXACT PSOPT VALUES
-MU = 3.986012e14  # Earth gravitational parameter (m^3/s^2)
-RE = 6378145.0  # Earth radius (m)
-OMEGA = 7.29211585e-5  # Earth rotation rate (rad/s)
-RHO0 = 1.225  # Sea level air density (kg/m^3)
-H = 7200.0  # Density scale height (m)
-CD = 0.5  # Drag coefficient
-SA = 4 * np.pi  # Reference surface area (m^2)
-G0 = 9.80665  # Sea level gravity (m/s^2)
+MU = 3.986012e14
+RE = 6378145.0
+OMEGA = 7.29211585e-5
+RHO0 = 1.225
+H = 7200.0
+CD = 0.5
+SA = 4 * np.pi
+G0 = 9.80665
 
-# Scaling factors to prevent numerical issues
-R_SCALE = 1e6  # Position scaling (m)
-V_SCALE = 1e3  # Velocity scaling (m/s)
-M_SCALE = 1e4  # Mass scaling (kg)
-T_SCALE = 1e2  # Time scaling (s)
+# Scaling factors (NO TIME SCALING - like C++ PSOPT)
+R_SCALE = 1e6
+V_SCALE = 1e3
+M_SCALE = 1e4
 
 # Numerical safety epsilon
 EPS = 1e-12
 
-# Earth rotation matrix (CasADi version for dynamics)
+# Earth rotation matrix
 OMEGA_MATRIX = ca.MX(3, 3)
 OMEGA_MATRIX[0, 0] = 0.0
 OMEGA_MATRIX[0, 1] = -OMEGA
@@ -136,14 +144,14 @@ OMEGA_MATRIX[2, 1] = 0.0
 OMEGA_MATRIX[2, 2] = 0.0
 
 # Propulsion parameters - EXACT PSOPT VALUES
-THRUST_SRB = 628500.0  # SRB thrust (N)
-THRUST_FIRST = 1083100.0  # First stage thrust (N)
-THRUST_SECOND = 110094.0  # Second stage thrust (N)
+THRUST_SRB = 628500.0
+THRUST_FIRST = 1083100.0
+THRUST_SECOND = 110094.0
 
 # Stage characteristics - EXACT PSOPT VALUES
-BT_SRB = 75.2  # SRB burn time (s)
-BT_FIRST = 261.0  # First stage burn time (s)
-BT_SECOND = 700.0  # Second stage burn time (s)
+BT_SRB = 75.2
+BT_FIRST = 261.0
+BT_SECOND = 700.0
 
 # Mass parameters (kg) - EXACT PSOPT VALUES
 M_TOT_SRB = 19290.0
@@ -171,12 +179,12 @@ MDOT_SECOND = M_PROP_SECOND / BT_SECOND
 ISP_SECOND = THRUST_SECOND / (G0 * MDOT_SECOND)
 
 # Initial conditions (Cape Canaveral) - EXACT PSOPT VALUES
-LAT0 = 28.5 * np.pi / 180.0  # Geocentric latitude
-X0 = RE * np.cos(LAT0)  # x component of initial position
-Y0 = 0.0  # y component of initial position
-Z0 = RE * np.sin(LAT0)  # z component of initial position
+LAT0 = 28.5 * np.pi / 180.0
+X0 = RE * np.cos(LAT0)
+Y0 = 0.0
+Z0 = RE * np.sin(LAT0)
 
-# Convert to numerical values for MAPTOR constraints (scaled)
+# Convert to scaled values
 R0_values = [X0 / R_SCALE, Y0 / R_SCALE, Z0 / R_SCALE]
 
 # Calculate initial velocity due to Earth rotation (scaled)
@@ -185,18 +193,35 @@ V0_phys = OMEGA_MATRIX_np @ np.array([X0, Y0, Z0])
 V0_values = [V0_phys[0] / V_SCALE, V0_phys[1] / V_SCALE, V0_phys[2] / V_SCALE]
 
 # Target orbital elements - EXACT PSOPT VALUES
-AF = 24361140.0  # Semi-major axis (m)
-EF = 0.7308  # Eccentricity
-INCF = 28.5 * np.pi / 180.0  # Inclination (rad)
-OMF = 269.8 * np.pi / 180.0  # RAAN (rad)
-OMEGAF = 130.5 * np.pi / 180.0  # Argument of periapsis (rad)
+AF = 24361140.0
+EF = 0.7308
+INCF = 28.5 * np.pi / 180.0
+OMF = 269.8 * np.pi / 180.0
+OMEGAF = 130.5 * np.pi / 180.0
+NU_GUESS = 0.0  # From C++ PSOPT
 
-# Phase timing - EXACT PSOPT VALUES
+# Convert target orbital elements to position/velocity
+target_oe = [AF, EF, INCF, OMF, OMEGAF, NU_GUESS]
+R_TARGET_phys, V_TARGET_phys = _oe2rv(target_oe, MU)
+
+# Scale target coordinates
+R_TARGET_values = [
+    R_TARGET_phys[0] / R_SCALE,
+    R_TARGET_phys[1] / R_SCALE,
+    R_TARGET_phys[2] / R_SCALE,
+]
+V_TARGET_values = [
+    V_TARGET_phys[0] / V_SCALE,
+    V_TARGET_phys[1] / V_SCALE,
+    V_TARGET_phys[2] / V_SCALE,
+]
+
+# Phase timing - EXACT PSOPT VALUES (NO SCALING)
 T0 = 0.0
-T1 = 75.2  # End of phase 1 (6 SRBs drop)
-T2 = 150.4  # End of phase 2 (3 SRBs drop)
-T3 = 261.0  # End of phase 3 (first stage drops)
-T4 = 961.0  # End of phase 4 (target orbit)
+T1 = 75.2
+T2 = 150.4
+T3 = 261.0
+T4 = 961.0
 
 # Initial masses for each phase (scaled) - EXACT PSOPT CALCULATIONS
 M10 = (M_PAYLOAD + M_TOT_SECOND + M_TOT_FIRST + 9 * M_TOT_SRB) / M_SCALE
@@ -217,7 +242,7 @@ VMAX = 10000.0 / V_SCALE
 # Problem setup
 problem = mtor.Problem("Multiphase Vehicle Launch")
 
-# Phase 1: 6 SRBs + First Stage (0 - 75.2s)
+# Phase 1: 6 SRBs + First Stage (0 - 75.2s) - TIMES IN PHYSICAL UNITS
 phase1 = problem.set_phase(1)
 t1 = phase1.time(initial=T0, final=T1)
 r1 = [phase1.state(f"r{i}", initial=R0_values[i], boundary=(RMIN, RMAX)) for i in range(3)]
@@ -251,8 +276,7 @@ u4 = [phase4.control(f"u{i}", boundary=(-1.0, 1.0)) for i in range(3)]
 
 
 def _define_phase_dynamics(phase, r_vars, v_vars, m_var, u_vars, phase_num):
-    """Define dynamics for a given phase with correct manual scaling."""
-    # Position and velocity vectors (scaled)
+    """Define dynamics for a given phase with CORRECT manual scaling (NO TIME SCALING)."""
     r_vec_scaled = ca.vertcat(*r_vars)
     v_vec_scaled = ca.vertcat(*v_vars)
     m_scaled = m_var
@@ -263,7 +287,6 @@ def _define_phase_dynamics(phase, r_vars, v_vars, m_var, u_vars, phase_num):
     v_vec = v_vec_scaled * V_SCALE
     m_phys = m_scaled * M_SCALE
 
-    # Safe mass operations
     m_safe = ca.fmax(m_phys, EPS)
 
     # Relative velocity (accounting for Earth rotation)
@@ -274,12 +297,12 @@ def _define_phase_dynamics(phase, r_vars, v_vars, m_var, u_vars, phase_num):
     # Safe radius and altitude calculations
     rad_squared = ca.fmax(_dot_product(r_vec, r_vec), EPS)
     rad = ca.sqrt(rad_squared)
-    rad_safe = ca.fmax(rad, RE + 1000.0)  # Minimum altitude 1km
+    rad_safe = ca.fmax(rad, RE + 1000.0)
     altitude = rad_safe - RE
-    altitude_safe = ca.fmax(altitude, 0.0)  # Non-negative altitude
+    altitude_safe = ca.fmax(altitude, 0.0)
 
-    # Atmospheric density with safe exponential
-    rho = RHO0 * ca.exp(-ca.fmin(altitude_safe / H, 50.0))  # Clamp exponent
+    # Atmospheric density
+    rho = RHO0 * ca.exp(-ca.fmin(altitude_safe / H, 50.0))
 
     # Drag force (physical units)
     bc = (rho / (2 * m_safe)) * SA * CD
@@ -311,9 +334,15 @@ def _define_phase_dynamics(phase, r_vars, v_vars, m_var, u_vars, phase_num):
     # Total acceleration (physical units)
     acceleration = thrust + drag + grav
 
-    r_dot_scaled = v_vec_scaled * (T_SCALE * V_SCALE / R_SCALE)
-    v_dot_scaled = acceleration * (T_SCALE / V_SCALE)
-    m_dot_scaled = mdot * (T_SCALE / M_SCALE)
+    # CORRECT manual scaling (NO TIME SCALING - like C++ PSOPT)
+    # dr_scaled/dt = dr_physical/dt * (1/R_SCALE) = v_physical/R_SCALE
+    r_dot_scaled = v_vec / R_SCALE
+
+    # dv_scaled/dt = dv_physical/dt * (1/V_SCALE) = acceleration/V_SCALE
+    v_dot_scaled = acceleration / V_SCALE
+
+    # dm_scaled/dt = dm_physical/dt * (1/M_SCALE) = mdot/M_SCALE
+    m_dot_scaled = mdot / M_SCALE
 
     # Set dynamics
     dynamics_dict = {}
@@ -357,37 +386,45 @@ phase4.event_constraints(
 # Objective: Maximize final mass
 problem.minimize(-m4.final)
 
-# Mesh configuration
-phase1.mesh([6, 6, 6, 6], [-1.0, -0.5, 0.0, 0.5, 1.0])
-phase2.mesh([6, 6, 6, 6], [-1.0, -0.5, 0.0, 0.5, 1.0])
-phase3.mesh([6, 6, 6, 6, 6], [-1.0, -0.6, -0.2, 0.2, 0.6, 1.0])
-phase4.mesh([8, 8, 8, 8, 8, 8], [-1.0, -0.6, -0.2, 0.2, 0.6, 0.8, 1.0])
+# Mesh configuration - Coarser mesh for realistic convergence
+phase1.mesh([4, 5], [-1.0, 0.0, 1.0])
+phase2.mesh([4, 5], [-1.0, 0.0, 1.0])
+phase3.mesh([4, 5, 4], [-1.0, -0.3, 0.3, 1.0])
+phase4.mesh([5, 6, 7], [-1.0, -0.2, 0.4, 1.0])
 
 
-# Initial guess (PSOPT-style constant guess for position/velocity)
 def _generate_phase_guess(polynomial_degrees, r_init, v_init, m_init, m_final):
+    """Generate initial guess for a phase matching C++ PSOPT format."""
     states_guess = []
     controls_guess = []
     for N in polynomial_degrees:
         N_state_points = N + 1
         states = np.zeros((7, N_state_points))
+        # Constant position and velocity (matching C++ linspace with same start/end)
         for i in range(3):
-            states[i, :] = r_init[i]
-            states[i + 3, :] = v_init[i]
+            states[i, :] = r_init[i]  # Constant position
+            states[i + 3, :] = v_init[i]  # Constant velocity
+        # Linear mass variation
         states[6, :] = np.linspace(m_init, m_final, N_state_points)
         states_guess.append(states)
 
         N_control_points = N
         controls = np.zeros((3, N_control_points))
-        controls[0, :] = 1.0
+        controls[0, :] = 1.0  # [1, 0, 0] control guess
+        # controls[1,:] and controls[2,:] remain 0.0
         controls_guess.append(controls)
     return states_guess, controls_guess
 
 
-states_p1, controls_p1 = _generate_phase_guess([6, 6, 6, 6], R0_values, V0_values, M10, M1F)
-states_p2, controls_p2 = _generate_phase_guess([6, 6, 6, 6], R0_values, V0_values, M20, M2F)
-states_p3, controls_p3 = _generate_phase_guess([6, 6, 6, 6, 6], R0_values, V0_values, M30, M3F)
-states_p4, controls_p4 = _generate_phase_guess([8, 8, 8, 8, 8, 8], R0_values, V0_values, M40, M4F)
+# CORRECTED initial guesses matching new coarser mesh
+states_p1, controls_p1 = _generate_phase_guess([4, 5], R0_values, V0_values, M10, M1F)
+states_p2, controls_p2 = _generate_phase_guess([4, 5], R0_values, V0_values, M20, M2F)
+states_p3, controls_p3 = _generate_phase_guess([4, 5, 4], R0_values, V0_values, M30, M3F)
+
+# Phase 4 uses TARGET orbital coordinates (CRITICAL FIX)
+states_p4, controls_p4 = _generate_phase_guess(
+    [5, 6, 7], R_TARGET_values, V_TARGET_values, M40, M4F
+)
 
 problem.guess(
     phase_states={1: states_p1, 2: states_p2, 3: states_p3, 4: states_p4},
@@ -397,7 +434,7 @@ problem.guess(
 # Solve with settings appropriate for this complex problem
 solution = mtor.solve_adaptive(
     problem,
-    error_tolerance=1e-4,
+    error_tolerance=1e-5,
     max_iterations=20,
     min_polynomial_degree=4,
     max_polynomial_degree=10,
