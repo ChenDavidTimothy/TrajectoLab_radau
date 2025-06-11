@@ -104,14 +104,14 @@ problem.minimize(-x_s.final)
 
 # The key insight: Fine mesh with low polynomial degrees eliminates oscillations
 phase.mesh(
-    [4, 4, 4, 4, 4, 4, 4, 4, 4, 4],  # Low degree polynomials
+    [3, 3, 3, 3, 3, 3, 3, 3, 3, 3],  # Low degree polynomials
     np.linspace(-1.0, 1.0, 11),  # Fine, uniform spacing
 )
 
 # Initial guess with original scaling
 states_guess = []
 controls_guess = []
-for N in [4, 4, 4, 4, 4, 4, 4, 4, 4, 4]:
+for N in [3, 3, 3, 3, 3, 3, 3, 3, 3, 3]:
     tau = np.linspace(-1, 1, N + 1)
     t_norm = (tau + 1) / 2
 
@@ -135,13 +135,14 @@ solution = mtor.solve_adaptive(
     problem,
     error_tolerance=1e-6,
     max_iterations=30,
-    min_polynomial_degree=4,
+    min_polynomial_degree=3,
     max_polynomial_degree=8,
+    ode_method="BDF",
     nlp_options={
         "ipopt.max_iter": 2000,
-        "ipopt.tol": 1e-8,
-        "ipopt.constr_viol_tol": 1e-9,
-        "ipopt.acceptable_tol": 1e-6,
+        "ipopt.tol": 1e-6,
+        "ipopt.constr_viol_tol": 1e-6,
+        "ipopt.acceptable_tol": 1e-3,
         "ipopt.linear_solver": "mumps",
         "ipopt.print_level": 5,
     },
