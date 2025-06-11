@@ -25,12 +25,6 @@ from maptor.utils.constants import (
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_NLP_OPTIONS: dict[str, object] = {
-    "ipopt.print_level": 0,
-    "ipopt.sb": "yes",
-    "print_time": 0,
-}
-
 
 def solve_fixed_mesh(
     problem: Problem,
@@ -121,7 +115,7 @@ def solve_fixed_mesh(
 
     _validate_multiphase_problem_ready_for_solving(cast(ProblemProtocol, problem))
 
-    problem.solver_options = nlp_options or DEFAULT_NLP_OPTIONS
+    problem.solver_options = nlp_options or {}
     logger.debug("NLP solver options: %s", problem.solver_options)
 
     protocol_problem = cast(ProblemProtocol, problem)
@@ -332,7 +326,7 @@ def solve_adaptive(
     )
     _validate_multiphase_problem_ready_for_solving(cast(ProblemProtocol, problem))
 
-    problem.solver_options = nlp_options or DEFAULT_NLP_OPTIONS
+    problem.solver_options = nlp_options or {}
     protocol_problem = cast(ProblemProtocol, problem)
 
     if initial_guess is not None:
