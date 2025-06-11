@@ -5,12 +5,16 @@ import numpy as np
 # MACHINE PRECISION FOUNDATION
 # ===========================
 
+
 # Fundamental machine precision constants
 MACHINE_EPS = float(np.finfo(np.float64).eps)  # ~2.22e-16
 SQRT_MACHINE_EPS = float(np.sqrt(MACHINE_EPS))  # ~1.49e-8
 CBRT_MACHINE_EPS = float(np.cbrt(MACHINE_EPS))  # ~6.06e-6
 FOURTH_ROOT_MACHINE_EPS = float(np.sqrt(SQRT_MACHINE_EPS))  # ~1.22e-4
 
+
+MAX_MATHEMATICAL_CONDITION = 1.0 / SQRT_MACHINE_EPS
+RELATIVE_PRECISION = float(np.sqrt(MACHINE_EPS))
 # ===========================
 # CORE NUMERICAL TOLERANCES - MACHINE PRECISION BASED
 # ===========================
