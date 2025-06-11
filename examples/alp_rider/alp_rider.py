@@ -5,67 +5,68 @@ import maptor as mtor
 
 
 # Problem setup
-problem = mtor.Problem("Alp Rider")
+problem = mtor.Problem("Alp rider problem")
 phase = problem.set_phase(1)
 
-# Variables
+# Variables - exact values from C++ PSOPT
 t = phase.time(initial=0.0, final=20.0)
-y1 = phase.state("y1", initial=2.0, final=2.0)
-y2 = phase.state("y2", initial=1.0, final=3.0)
-y3 = phase.state("y3", initial=2.0, final=1.0)
-y4 = phase.state("y4", initial=1.0, final=-2.0)
-u1 = phase.control("u1")
-u2 = phase.control("u2")
+x1 = phase.state("x1", initial=2.0, final=2.0, boundary=(-4.0, 4.0))
+x2 = phase.state("x2", initial=1.0, final=3.0, boundary=(-4.0, 4.0))
+x3 = phase.state("x3", initial=2.0, final=1.0, boundary=(-4.0, 4.0))
+x4 = phase.state("x4", initial=1.0, final=-2.0, boundary=(-4.0, 4.0))
+u1 = phase.control("u1", boundary=(-500.0, 500.0))
+u2 = phase.control("u2", boundary=(-500.0, 500.0))
 
-# Dynamics
+# Dynamics - exact from C++ PSOPT dae function
 phase.dynamics(
     {
-        y1: -10 * y1 + u1 + u2,
-        y2: -2 * y2 + u1 + 2 * u2,
-        y3: -3 * y3 + 5 * y4 + u1 - u2,
-        y4: 5 * y3 - 3 * y4 + u1 + 3 * u2,
+        x1: -10 * x1 + u1 + u2,
+        x2: -2 * x2 + u1 + 2 * u2,
+        x3: -3 * x3 + 5 * x4 + u1 - u2,
+        x4: 5 * x3 - 3 * x4 + u1 + 3 * u2,
     }
 )
 
-
-# Path constraint: y1² + y2² + y3² + y4² ≥ terrain following function
-def p_function(t_val, a, b):
+# Auxiliary function pk(t, a, b) = exp(-b*(t-a)^2) from C++ PSOPT
+def pk(t_val, a, b):
     return ca.exp(-b * (t_val - a) ** 2)
 
-
+# Path constraint - exact from C++ PSOPT path[0] constraint
+# x1² + x2² + x3² + x4² ≥ 3*pk(t,3,12) + 3*pk(t,6,10) + 3*pk(t,10,6) + 8*pk(t,15,4) + 0.01
 terrain_function = (
-    3 * p_function(t, 3, 12)
-    + 3 * p_function(t, 6, 10)
-    + 3 * p_function(t, 10, 6)
-    + 8 * p_function(t, 15, 4)
+    3 * pk(t, 3, 12)
+    + 3 * pk(t, 6, 10)
+    + 3 * pk(t, 10, 6)
+    + 8 * pk(t, 15, 4)
     + 0.01
 )
 
-state_norm_squared = y1**2 + y2**2 + y3**2 + y4**2
+state_norm_squared = x1**2 + x2**2 + x3**2 + x4**2
 phase.path_constraints(state_norm_squared >= terrain_function)
 
-# Objective
-integrand = 100 * (y1**2 + y2**2 + y3**2 + y4**2) + 0.01 * (u1**2 + u2**2)
+# Objective - exact from C++ PSOPT integrand_cost function
+integrand = 100.0 * (x1**2 + x2**2 + x3**2 + x4**2) + 0.01 * (u1**2 + u2**2)
 integral_var = phase.add_integral(integrand)
 problem.minimize(integral_var)
 
 # Mesh and guess
 phase.mesh([14, 14, 14], [-1.0, -1 / 3, 1 / 3, 1.0])
 
+# Initial guess - exact replication of C++ PSOPT guess
 states_guess = []
 controls_guess = []
 for N in [14, 14, 14]:
     tau = np.linspace(-1, 1, N + 1)
     t_norm = (tau + 1) / 2
 
-    # Linear interpolation between initial and final conditions
-    y1_vals = 2.0 + (2.0 - 2.0) * t_norm  # 2 to 2
-    y2_vals = 1.0 + (3.0 - 1.0) * t_norm  # 1 to 3
-    y3_vals = 2.0 + (1.0 - 2.0) * t_norm  # 2 to 1
-    y4_vals = 1.0 + (-2.0 - 1.0) * t_norm  # 1 to -2
+    # Linear interpolation between initial and final conditions (linspace equivalent)
+    x1_vals = 2.0 + (2.0 - 2.0) * t_norm  # linspace(2, 2, N+1)
+    x2_vals = 1.0 + (3.0 - 1.0) * t_norm  # linspace(1, 3, N+1)
+    x3_vals = 2.0 + (1.0 - 2.0) * t_norm  # linspace(2, 1, N+1)
+    x4_vals = 1.0 + (-2.0 - 1.0) * t_norm  # linspace(1, -2, N+1)
 
-    states_guess.append(np.vstack([y1_vals, y2_vals, y3_vals, y4_vals]))
-    controls_guess.append(np.vstack([np.zeros(N), np.zeros(N)]))
+    states_guess.append(np.vstack([x1_vals, x2_vals, x3_vals, x4_vals]))
+    controls_guess.append(np.vstack([np.zeros(N), np.zeros(N)]))  # zeros(2, N)
 
 problem.guess(
     phase_states={1: states_guess},
@@ -73,7 +74,6 @@ problem.guess(
     phase_integrals={1: 2000.0},
 )
 
-# Solve
 solution = mtor.solve_adaptive(
     problem,
     error_tolerance=5e-4,
@@ -98,19 +98,20 @@ solution = mtor.solve_adaptive(
 
 # Results
 if solution.status["success"]:
-    print(f"Objective: {solution.status['objective']:.5f}")
-    print(
-        f"Reference: 2030.85609 (Error: {(abs(solution.status['objective'] - 2030.85609) / 2030.85609) * 100:.3f}%)"
-    )
+    print(f"Objective: {solution.status['objective']:.8f}")
+    print(f"Reference: 2030.85609 (Error: {abs(solution.status['objective'] - 2030.85609) / 2030.85609 * 100:.3f}%)")
 
-    # Final state values
-    y1_final = solution[(1, "y1")][-1]
-    y2_final = solution[(1, "y2")][-1]
-    y3_final = solution[(1, "y3")][-1]
-    y4_final = solution[(1, "y4")][-1]
-    print(
-        f"Final states: y1={y1_final:.6f}, y2={y2_final:.6f}, y3={y3_final:.6f}, y4={y4_final:.6f}"
-    )
+    # Final state verification
+    x1_final = solution[(1, "x1")][-1]
+    x2_final = solution[(1, "x2")][-1]
+    x3_final = solution[(1, "x3")][-1]
+    x4_final = solution[(1, "x4")][-1]
+
+    print("Final states:")
+    print(f"  x1: {x1_final:.6f} (target: 2.0)")
+    print(f"  x2: {x2_final:.6f} (target: 3.0)")
+    print(f"  x3: {x3_final:.6f} (target: 1.0)")
+    print(f"  x4: {x4_final:.6f} (target: -2.0)")
 
     solution.plot()
 else:
