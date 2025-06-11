@@ -8,7 +8,7 @@ import numpy as np
 
 from .exceptions import ConfigurationError, DataIntegrityError
 from .tl_types import FloatArray, MultiPhaseInitialGuess, NumericArrayLike, PhaseID, ProblemProtocol
-from .utils.precision import _is_mathematically_zero
+from .utils.constants import MESH_TOLERANCE, ZERO_TOLERANCE
 
 
 logger = logging.getLogger(__name__)
@@ -129,19 +129,18 @@ def _validate_mesh_configuration(
             f"Mesh points count ({len(mesh_points)}) != intervals+1 ({num_intervals + 1})"
         )
 
-    if not _is_mathematically_zero(mesh_points[0] + 1.0, 1.0):
+    # Normalized domain requirements for coordinate transformations
+    if not np.isclose(mesh_points[0], -1.0, atol=ZERO_TOLERANCE):
         raise ConfigurationError(f"First mesh point must be -1.0, got {mesh_points[0]}")
-    if not _is_mathematically_zero(mesh_points[-1] - 1.0, 1.0):
+    if not np.isclose(mesh_points[-1], 1.0, atol=ZERO_TOLERANCE):
         raise ConfigurationError(f"Last mesh point must be 1.0, got {mesh_points[-1]}")
 
+    # Minimum spacing prevents singular coordinate transformations
     mesh_diffs = np.diff(mesh_points)
-    mesh_scale = np.max(np.abs(mesh_points))
-    for i, diff in enumerate(mesh_diffs):
-        if _is_mathematically_zero(diff, mesh_scale):
-            raise ConfigurationError(
-                f"Mesh spacing too small between points {i} and {i + 1}: {diff} "
-                f"(relative to mesh scale {mesh_scale})"
-            )
+    if not np.all(mesh_diffs > MESH_TOLERANCE):
+        raise ConfigurationError(
+            f"Mesh points must be strictly increasing with min spacing {MESH_TOLERANCE}"
+        )
 
 
 # ===================

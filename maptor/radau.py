@@ -5,14 +5,9 @@ from typing import Literal, cast, overload
 import numpy as np
 from scipy.special import roots_jacobi as _scipy_roots_jacobi
 
-from .exceptions import DataIntegrityError
 from .input_validation import _validate_positive_integer
 from .tl_types import FloatArray
-from .utils.constants import (
-    DEFAULT_LRU_CACHE_SIZE,
-    MACHINE_EPS,
-)
-from .utils.precision import _is_mathematically_zero, _validate_mathematical_condition
+from .utils.constants import ZERO_TOLERANCE
 
 
 @dataclass
@@ -119,26 +114,27 @@ def _compute_barycentric_weights(nodes: FloatArray) -> FloatArray:
     nodes_row = nodes[np.newaxis, :]
     differences_matrix = nodes_col - nodes_row
 
-    # Scale-relative condition number validation
-    node_scale = np.max(np.abs(nodes))
-    min_spacing = np.min(np.diff(np.sort(nodes)))
-    condition_estimate = node_scale / (min_spacing + MACHINE_EPS)
+    diagonal_mask = np.eye(num_nodes, dtype=bool)
 
-    _validate_mathematical_condition(condition_estimate, "barycentric weights computation")
+    near_zero_mask = np.abs(differences_matrix) < ZERO_TOLERANCE
+    perturbation = np.sign(differences_matrix) * ZERO_TOLERANCE
+    perturbation[perturbation == 0] = ZERO_TOLERANCE
 
-    # Check for mathematically zero differences
-    for i in range(num_nodes):
-        for j in range(num_nodes):
-            if i != j and _is_mathematically_zero(differences_matrix[i, j], node_scale):
-                raise DataIntegrityError(
-                    f"Nodes {i} and {j} are mathematically identical relative to scale {node_scale}",
-                    "Node spacing too small for reliable computation",
-                )
+    off_diagonal_near_zero = near_zero_mask & ~diagonal_mask
+    differences_matrix = np.where(off_diagonal_near_zero, perturbation, differences_matrix)
 
-    differences_matrix[np.eye(num_nodes, dtype=bool)] = 1.0
+    differences_matrix[diagonal_mask] = 1.0
+
     products = np.prod(differences_matrix, axis=1, dtype=np.float64)
 
-    return (1.0 / products).astype(np.float64)
+    small_product_mask = np.abs(products) < ZERO_TOLERANCE**2
+    safe_products = np.where(
+        small_product_mask,
+        np.where(products == 0, 1.0 / (ZERO_TOLERANCE**2), np.sign(products) / (ZERO_TOLERANCE**2)),
+        1.0 / products,
+    )
+
+    return safe_products.astype(np.float64)
 
 
 def _evaluate_lagrange_polynomial_at_point(
@@ -148,11 +144,8 @@ def _evaluate_lagrange_polynomial_at_point(
 ) -> FloatArray:
     num_nodes = len(polynomial_definition_nodes)
 
-    node_scale = max(np.max(np.abs(polynomial_definition_nodes)), 1.0)
-    differences = evaluation_point_tau - polynomial_definition_nodes
-    coincident_mask = np.array(
-        [_is_mathematically_zero(diff, node_scale) for diff in differences], dtype=bool
-    )
+    differences = np.abs(evaluation_point_tau - polynomial_definition_nodes)
+    coincident_mask = differences < ZERO_TOLERANCE
 
     if np.any(coincident_mask):
         lagrange_values = np.zeros(num_nodes, dtype=np.float64)
@@ -161,21 +154,19 @@ def _evaluate_lagrange_polynomial_at_point(
 
     diffs = evaluation_point_tau - polynomial_definition_nodes
 
-    # Use scale-relative safe division
-    from .utils.precision import _safe_division
+    near_zero_mask = np.abs(diffs) < ZERO_TOLERANCE
+    safe_diffs = np.where(
+        near_zero_mask, np.where(diffs == 0, ZERO_TOLERANCE, np.sign(diffs) * ZERO_TOLERANCE), diffs
+    )
 
-    try:
-        terms = np.array(
-            [_safe_division(barycentric_weights[i], diffs[i], node_scale) for i in range(num_nodes)]
-        )
-    except ZeroDivisionError:
-        return np.zeros(num_nodes, dtype=np.float64)
-
+    terms = barycentric_weights / safe_diffs
     sum_terms = np.sum(terms)
-    if _is_mathematically_zero(sum_terms, np.max(np.abs(terms))):
+
+    if abs(sum_terms) < ZERO_TOLERANCE:
         return np.zeros(num_nodes, dtype=np.float64)
 
-    return cast(FloatArray, terms / sum_terms)
+    normalized_terms = terms / sum_terms
+    return cast(FloatArray, normalized_terms)
 
 
 def _compute_lagrange_derivative_coefficients_at_point(
@@ -185,13 +176,8 @@ def _compute_lagrange_derivative_coefficients_at_point(
 ) -> FloatArray:
     num_nodes = len(polynomial_definition_nodes)
 
-    node_scale = max(np.max(np.abs(polynomial_definition_nodes)), 1.0)
-    differences = evaluation_point_tau - polynomial_definition_nodes
-
-    # Find nodes that are mathematically coincident with evaluation point
-    matched_indices = [
-        i for i, diff in enumerate(differences) if _is_mathematically_zero(diff, node_scale)
-    ]
+    differences = np.abs(evaluation_point_tau - polynomial_definition_nodes)
+    matched_indices = np.where(differences < ZERO_TOLERANCE)[0]
 
     if len(matched_indices) == 0:
         return np.zeros(num_nodes, dtype=np.float64)
@@ -200,41 +186,30 @@ def _compute_lagrange_derivative_coefficients_at_point(
     derivatives = np.zeros(num_nodes, dtype=np.float64)
 
     node_diffs = polynomial_definition_nodes[matched_node_idx_k] - polynomial_definition_nodes
+
+    near_zero_mask = np.abs(node_diffs) < ZERO_TOLERANCE
+    safe_diffs = np.where(
+        near_zero_mask,
+        np.where(node_diffs == 0, ZERO_TOLERANCE, np.sign(node_diffs) * ZERO_TOLERANCE),
+        node_diffs,
+    )
+
     non_diagonal_mask = np.arange(num_nodes) != matched_node_idx_k
 
-    if _is_mathematically_zero(
-        barycentric_weights[matched_node_idx_k], np.max(np.abs(barycentric_weights))
-    ):
+    if abs(barycentric_weights[matched_node_idx_k]) < ZERO_TOLERANCE:
         derivatives[non_diagonal_mask] = 0.0
     else:
-        from .utils.precision import _safe_division
-
         weight_ratios = barycentric_weights / barycentric_weights[matched_node_idx_k]
-
-        for i in range(num_nodes):
-            if i != matched_node_idx_k:
-                try:
-                    derivatives[i] = _safe_division(weight_ratios[i], node_diffs[i], node_scale)
-                except ZeroDivisionError:
-                    derivatives[i] = 0.0
-
-    # Diagonal element
-    try:
-        from .utils.precision import _safe_division
-
-        diagonal_sum = sum(
-            _safe_division(1.0, node_diffs[i], node_scale)
-            for i in range(num_nodes)
-            if i != matched_node_idx_k and not _is_mathematically_zero(node_diffs[i], node_scale)
+        derivatives[non_diagonal_mask] = (
+            weight_ratios[non_diagonal_mask] / safe_diffs[non_diagonal_mask]
         )
-        derivatives[matched_node_idx_k] = diagonal_sum
-    except ZeroDivisionError:
-        derivatives[matched_node_idx_k] = 0.0
+
+    derivatives[matched_node_idx_k] = np.sum(1.0 / safe_diffs[non_diagonal_mask])
 
     return derivatives
 
 
-@functools.lru_cache(maxsize=DEFAULT_LRU_CACHE_SIZE)
+@functools.lru_cache(maxsize=32)
 def _compute_radau_collocation_components(
     num_collocation_nodes: int,
 ) -> RadauBasisComponents:

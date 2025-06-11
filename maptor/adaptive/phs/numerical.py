@@ -4,7 +4,6 @@ __all__ = [
     "_map_local_tau_from_interval_k_plus_1_to_equivalent_in_interval_k",
     "_map_local_tau_from_interval_k_to_equivalent_in_interval_k_plus_1",
 ]
-from ...utils.precision import _is_mathematically_zero
 
 
 def _compute_interval_parameters(global_start: float, global_end: float) -> tuple[float, float]:
@@ -18,8 +17,7 @@ def _map_global_normalized_tau_to_local_interval_tau(
 ) -> float:
     beta, beta0 = _compute_interval_parameters(global_start, global_end)
 
-    interval_scale = max(abs(global_start), abs(global_end), 1.0)
-    if _is_mathematically_zero(beta, interval_scale):
+    if abs(beta) < 1e-12:
         return 0.0
 
     return (global_tau - beta0) / beta

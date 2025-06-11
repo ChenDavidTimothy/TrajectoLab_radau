@@ -14,5 +14,5 @@ def _tau_to_time(
     # physical_time = time_scale * (mesh_scale * tau + mesh_offset) + time_offset
     return (
         (time_end - time_start) * ((mesh_end - mesh_start) * tau + (mesh_end + mesh_start))
-        + 2.0 * (time_end + time_start)
-    ) / 4.0
+        + 2 * (time_end + time_start)
+    ) / 4

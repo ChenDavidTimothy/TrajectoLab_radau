@@ -326,12 +326,11 @@ class PhaseDefinition:
         self, constraint: _BoundaryConstraint, constraint_type: str
     ) -> tuple[float, float]:
         if constraint.is_symbolic():
-            # Use large but not arbitrary bounds for symbolic constraints
-            return (-1e20, 1e20)
+            return (-1e6, 1e6)
         if constraint.equals is not None:
             return (constraint.equals, constraint.equals)
-        lower = constraint.lower if constraint.lower is not None else -1e20
-        upper = constraint.upper if constraint.upper is not None else 1e20
+        lower = constraint.lower if constraint.lower is not None else -1e6
+        upper = constraint.upper if constraint.upper is not None else 1e6
         return (lower, upper)
 
     @property

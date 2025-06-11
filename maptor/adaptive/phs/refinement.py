@@ -22,12 +22,6 @@ from maptor.tl_types import (
     PhaseID,
     ProblemProtocol,
 )
-from maptor.utils.constants import (
-    MIN_H_SUBINTERVALS,
-    MIN_REFINEMENT_NODES,
-)
-
-from ...utils.precision import _is_mathematically_zero
 
 
 __all__ = ["_h_reduce_intervals", "_h_refine_params", "_p_reduce_interval", "_p_refine_interval"]
@@ -77,8 +71,8 @@ def _compute_p_refine_target(
     max_error: float, current_Nk: int, error_tol: float, N_max: int
 ) -> int:
     if np.isinf(max_error):
-        return max(MIN_REFINEMENT_NODES, N_max - current_Nk)
-    return max(MIN_REFINEMENT_NODES, int(np.ceil(np.log10(max_error / error_tol))))
+        return max(1, N_max - current_Nk)
+    return max(1, int(np.ceil(np.log10(max_error / error_tol))))
 
 
 def _p_refine_interval(
@@ -97,7 +91,7 @@ def _p_refine_interval(
 
 
 def _h_refine_params(target_Nk: int, N_min: int) -> HRefineResult:
-    num_subintervals = max(MIN_H_SUBINTERVALS, int(np.ceil(target_Nk / N_min)))
+    num_subintervals = max(2, int(np.ceil(target_Nk / N_min)))
     return HRefineResult([N_min] * num_subintervals)
 
 
@@ -162,9 +156,8 @@ def _extract_merge_mesh_parameters(
     beta_k = (tau_shared - tau_start_k) / 2.0
     beta_kp1 = (tau_end_kp1 - tau_shared) / 2.0
 
-    mesh_scale = max(abs(tau_start_k), abs(tau_shared), abs(tau_end_kp1), 1.0)
-    if _is_mathematically_zero(beta_k, mesh_scale) or _is_mathematically_zero(beta_kp1, mesh_scale):
-        raise ValueError(f"Interval has zero width relative to mesh scale {mesh_scale}")
+    if abs(beta_k) < 1e-12 or abs(beta_kp1) < 1e-12:
+        raise ValueError("Interval has zero width")
 
     return tau_start_k, tau_shared, tau_end_kp1, beta_k, beta_kp1
 

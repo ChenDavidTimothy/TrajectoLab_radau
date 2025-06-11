@@ -12,9 +12,6 @@ from maptor.tl_types import (
     ProblemProtocol,
 )
 
-from ...utils.constants import RELATIVE_PRECISION
-from ...utils.precision import _is_mathematically_zero
-
 
 __all__ = [
     "_calculate_gamma_normalizers_for_phase",
@@ -27,14 +24,7 @@ logger = logging.getLogger(__name__)
 
 def _calculate_gamma_normalization_factors(max_state_values: FloatArray) -> FloatArray:
     gamma_denominator = 1.0 + max_state_values
-
-    # Use scale-relative minimum instead of arbitrary 1e-12
-    state_scale = np.max(max_state_values) if max_state_values.size > 0 else 1.0
-
-    min_denominator = state_scale * RELATIVE_PRECISION
-    safe_denominator = np.maximum(gamma_denominator, min_denominator)
-
-    return (1.0 / safe_denominator).reshape(-1, 1)
+    return (1.0 / np.maximum(gamma_denominator, np.float64(1e-12))).reshape(-1, 1)
 
 
 def _find_maximum_state_values_across_phase_intervals(
@@ -90,7 +80,7 @@ def _compute_combined_errors(
 def _apply_error_bounds(max_error: float) -> float:
     if np.isnan(max_error):
         return np.inf
-    return float(max_error)
+    return max(max_error, 1e-15) if 0.0 < max_error < 1e-15 else float(max_error)
 
 
 def _calculate_combined_error_estimate(
@@ -139,11 +129,8 @@ def _extract_interval_parameters(
     tau_start, tau_end = global_mesh[interval_idx], global_mesh[interval_idx + 1]
     beta_k = (tau_end - tau_start) / 2.0
 
-    mesh_scale = max(abs(tau_start), abs(tau_end), 1.0)
-    if _is_mathematically_zero(beta_k, mesh_scale):
-        raise ValueError(
-            f"Interval {interval_idx} has zero width relative to mesh scale {mesh_scale}"
-        )
+    if abs(beta_k) < 1e-12:
+        raise ValueError(f"Interval {interval_idx} has zero width")
 
     beta_k0 = (tau_end + tau_start) / 2.0
     return tau_start, tau_end, beta_k, beta_k0

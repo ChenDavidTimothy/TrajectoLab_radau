@@ -2,9 +2,9 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 import casadi as ca
-import numpy as np
 
 from ..tl_types import PhaseID, ProblemProtocol
+from ..utils.constants import MINIMUM_TIME_INTERVAL
 from .types_solver import (
     _MultiPhaseVariable,
     _PhaseIntervalBundle,
@@ -54,10 +54,9 @@ def _apply_bound_constraints(opti: ca.Opti, variable: ca.MX, constraint: _BoundC
     if constraint.is_fixed:
         opti.subject_to(variable == constraint.lower)
     else:
-        # Only apply user-specified bounds, no arbitrary defaults
-        if constraint.lower != float("-inf") and not np.isneginf(constraint.lower):
+        if constraint.lower > -1e5:
             opti.subject_to(variable >= constraint.lower)
-        if constraint.upper != float("inf") and not np.isinf(constraint.upper):
+        if constraint.upper < 1e5:
             opti.subject_to(variable <= constraint.upper)
 
 
@@ -73,6 +72,9 @@ def _apply_time_constraints(
 
     _apply_bound_constraints(opti, initial_time_var, t0_constraint)
     _apply_bound_constraints(opti, terminal_time_var, tf_constraint)
+
+    # Minimum interval prevents singular coordinate transformations
+    opti.subject_to(terminal_time_var > initial_time_var + MINIMUM_TIME_INTERVAL)
 
 
 def _create_time_variables(context: _VariableCreationContext) -> list[ca.MX]:

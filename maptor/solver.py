@@ -15,10 +15,7 @@ from maptor.tl_types import (
     ProblemProtocol,
 )
 from maptor.utils.constants import (
-    DEFAULT_ADAPTIVE_MAX_ITERATIONS,
     DEFAULT_ERROR_SIM_POINTS,
-    DEFAULT_MAX_POLYNOMIAL_DEGREE,
-    DEFAULT_MIN_POLYNOMIAL_DEGREE,
     DEFAULT_ODE_ATOL_FACTOR,
     DEFAULT_ODE_MAX_STEP,
     DEFAULT_ODE_METHOD,
@@ -137,10 +134,10 @@ def solve_fixed_mesh(
 
 def solve_adaptive(
     problem: Problem,
-    error_tolerance: float = 1e-6,  # Keep this as user-configurable
-    max_iterations: int = DEFAULT_ADAPTIVE_MAX_ITERATIONS,
-    min_polynomial_degree: int = DEFAULT_MIN_POLYNOMIAL_DEGREE,
-    max_polynomial_degree: int = DEFAULT_MAX_POLYNOMIAL_DEGREE,
+    error_tolerance: float = 1e-6,
+    max_iterations: int = 10,
+    min_polynomial_degree: int = 3,
+    max_polynomial_degree: int = 10,
     ode_solver_tolerance: float = DEFAULT_ODE_RTOL,
     ode_method: str = DEFAULT_ODE_METHOD,
     ode_max_step: float | None = DEFAULT_ODE_MAX_STEP,
