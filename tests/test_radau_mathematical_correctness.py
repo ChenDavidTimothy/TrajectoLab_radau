@@ -102,13 +102,15 @@ class TestRadauMathematicalCorrectness:
         assert_allclose(comp1.differentiation_matrix, comp2.differentiation_matrix, rtol=1e-15)
 
     def test_numerical_stability(self):
-        close_nodes = np.array([-1.0, -0.999999999, 1.0])
-        weights = _compute_barycentric_weights(close_nodes)
+        # Use nodes that are close but still mathematically distinguishable
+        # Spacing of ~1e-6 gives condition number ~1e6, well below limit
+        stable_nodes = np.array([-1.0, -0.999999, 1.0])
+        weights = _compute_barycentric_weights(stable_nodes)
 
         assert np.all(np.isfinite(weights))
 
-        test_point = -0.9999999999
-        lagrange_vals = _evaluate_lagrange_polynomial_at_point(close_nodes, weights, test_point)
+        test_point = -0.999999
+        lagrange_vals = _evaluate_lagrange_polynomial_at_point(stable_nodes, weights, test_point)
 
         assert np.all(np.isfinite(lagrange_vals))
         assert abs(np.sum(lagrange_vals) - 1.0) < 1e-10

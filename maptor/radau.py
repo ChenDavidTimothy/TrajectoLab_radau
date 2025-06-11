@@ -5,14 +5,14 @@ from typing import Literal, cast, overload
 import numpy as np
 from scipy.special import roots_jacobi as _scipy_roots_jacobi
 
+from .exceptions import DataIntegrityError
 from .input_validation import _validate_positive_integer
 from .tl_types import FloatArray
 from .utils.constants import (
     DEFAULT_LRU_CACHE_SIZE,
     MACHINE_EPS,
-    MAX_CONDITION_NUMBER,
-    ZERO_TOLERANCE,
 )
+from .utils.precision import _is_mathematically_zero, _validate_mathematical_condition
 
 
 @dataclass
@@ -119,23 +119,25 @@ def _compute_barycentric_weights(nodes: FloatArray) -> FloatArray:
     nodes_row = nodes[np.newaxis, :]
     differences_matrix = nodes_col - nodes_row
 
-    # Condition-number-based perturbation instead of arbitrary ZERO_TOLERANCE
-    condition_estimate = np.max(np.abs(nodes)) / (np.min(np.diff(np.sort(nodes))) + MACHINE_EPS)
+    # Scale-relative condition number validation
+    node_scale = np.max(np.abs(nodes))
+    min_spacing = np.min(np.diff(np.sort(nodes)))
+    condition_estimate = node_scale / (min_spacing + MACHINE_EPS)
 
-    if condition_estimate > MAX_CONDITION_NUMBER:
-        perturbation_scale = condition_estimate * MACHINE_EPS
-        diagonal_mask = np.eye(num_nodes, dtype=bool)
-        near_zero_mask = np.abs(differences_matrix) < perturbation_scale
-        off_diagonal_near_zero = near_zero_mask & ~diagonal_mask
+    _validate_mathematical_condition(condition_estimate, "barycentric weights computation")
 
-        perturbation = np.sign(differences_matrix) * perturbation_scale
-        perturbation[perturbation == 0] = perturbation_scale
-        differences_matrix = np.where(off_diagonal_near_zero, perturbation, differences_matrix)
+    # Check for mathematically zero differences
+    for i in range(num_nodes):
+        for j in range(num_nodes):
+            if i != j and _is_mathematically_zero(differences_matrix[i, j], node_scale):
+                raise DataIntegrityError(
+                    f"Nodes {i} and {j} are mathematically identical relative to scale {node_scale}",
+                    "Node spacing too small for reliable computation",
+                )
 
     differences_matrix[np.eye(num_nodes, dtype=bool)] = 1.0
     products = np.prod(differences_matrix, axis=1, dtype=np.float64)
 
-    # Remove artificial floor - use machine precision
     return (1.0 / products).astype(np.float64)
 
 
@@ -146,8 +148,11 @@ def _evaluate_lagrange_polynomial_at_point(
 ) -> FloatArray:
     num_nodes = len(polynomial_definition_nodes)
 
-    differences = np.abs(evaluation_point_tau - polynomial_definition_nodes)
-    coincident_mask = differences < ZERO_TOLERANCE
+    node_scale = max(np.max(np.abs(polynomial_definition_nodes)), 1.0)
+    differences = evaluation_point_tau - polynomial_definition_nodes
+    coincident_mask = np.array(
+        [_is_mathematically_zero(diff, node_scale) for diff in differences], dtype=bool
+    )
 
     if np.any(coincident_mask):
         lagrange_values = np.zeros(num_nodes, dtype=np.float64)
@@ -156,15 +161,18 @@ def _evaluate_lagrange_polynomial_at_point(
 
     diffs = evaluation_point_tau - polynomial_definition_nodes
 
-    near_zero_mask = np.abs(diffs) < ZERO_TOLERANCE
-    safe_diffs = np.where(
-        near_zero_mask, np.where(diffs == 0, ZERO_TOLERANCE, np.sign(diffs) * ZERO_TOLERANCE), diffs
-    )
+    # Use scale-relative safe division
+    from .utils.precision import _safe_division
 
-    terms = barycentric_weights / safe_diffs
+    try:
+        terms = np.array(
+            [_safe_division(barycentric_weights[i], diffs[i], node_scale) for i in range(num_nodes)]
+        )
+    except ZeroDivisionError:
+        return np.zeros(num_nodes, dtype=np.float64)
+
     sum_terms = np.sum(terms)
-
-    if abs(sum_terms) < ZERO_TOLERANCE:
+    if _is_mathematically_zero(sum_terms, np.max(np.abs(terms))):
         return np.zeros(num_nodes, dtype=np.float64)
 
     return cast(FloatArray, terms / sum_terms)
@@ -177,8 +185,13 @@ def _compute_lagrange_derivative_coefficients_at_point(
 ) -> FloatArray:
     num_nodes = len(polynomial_definition_nodes)
 
-    differences = np.abs(evaluation_point_tau - polynomial_definition_nodes)
-    matched_indices = np.where(differences < ZERO_TOLERANCE)[0]
+    node_scale = max(np.max(np.abs(polynomial_definition_nodes)), 1.0)
+    differences = evaluation_point_tau - polynomial_definition_nodes
+
+    # Find nodes that are mathematically coincident with evaluation point
+    matched_indices = [
+        i for i, diff in enumerate(differences) if _is_mathematically_zero(diff, node_scale)
+    ]
 
     if len(matched_indices) == 0:
         return np.zeros(num_nodes, dtype=np.float64)
@@ -187,25 +200,36 @@ def _compute_lagrange_derivative_coefficients_at_point(
     derivatives = np.zeros(num_nodes, dtype=np.float64)
 
     node_diffs = polynomial_definition_nodes[matched_node_idx_k] - polynomial_definition_nodes
-
-    near_zero_mask = np.abs(node_diffs) < ZERO_TOLERANCE
-    safe_diffs = np.where(
-        near_zero_mask,
-        np.where(node_diffs == 0, ZERO_TOLERANCE, np.sign(node_diffs) * ZERO_TOLERANCE),
-        node_diffs,
-    )
-
     non_diagonal_mask = np.arange(num_nodes) != matched_node_idx_k
 
-    if abs(barycentric_weights[matched_node_idx_k]) < ZERO_TOLERANCE:
+    if _is_mathematically_zero(
+        barycentric_weights[matched_node_idx_k], np.max(np.abs(barycentric_weights))
+    ):
         derivatives[non_diagonal_mask] = 0.0
     else:
-        weight_ratios = barycentric_weights / barycentric_weights[matched_node_idx_k]
-        derivatives[non_diagonal_mask] = (
-            weight_ratios[non_diagonal_mask] / safe_diffs[non_diagonal_mask]
-        )
+        from .utils.precision import _safe_division
 
-    derivatives[matched_node_idx_k] = np.sum(1.0 / safe_diffs[non_diagonal_mask])
+        weight_ratios = barycentric_weights / barycentric_weights[matched_node_idx_k]
+
+        for i in range(num_nodes):
+            if i != matched_node_idx_k:
+                try:
+                    derivatives[i] = _safe_division(weight_ratios[i], node_diffs[i], node_scale)
+                except ZeroDivisionError:
+                    derivatives[i] = 0.0
+
+    # Diagonal element
+    try:
+        from .utils.precision import _safe_division
+
+        diagonal_sum = sum(
+            _safe_division(1.0, node_diffs[i], node_scale)
+            for i in range(num_nodes)
+            if i != matched_node_idx_k and not _is_mathematically_zero(node_diffs[i], node_scale)
+        )
+        derivatives[matched_node_idx_k] = diagonal_sum
+    except ZeroDivisionError:
+        derivatives[matched_node_idx_k] = 0.0
 
     return derivatives
 

@@ -163,10 +163,14 @@ class TestErrorEstimationConsistency:
             assert np.all(np.isfinite(gamma_factors))
             assert np.all(gamma_factors > 0)
 
-            # Must match actual implementation: 1/max(1+max_val, 1e-12)
+            # Test scale-relative behavior (not arbitrary 1e-12)
             gamma_denominator = 1.0 + max_state_values
-            safe_denominator = np.maximum(gamma_denominator, 1e-12)
-            expected = (1.0 / safe_denominator).reshape(-1, 1)
+            state_scale = np.max(max_state_values) if max_state_values.size > 0 else 1.0
+            from maptor.utils.constants import RELATIVE_PRECISION
+
+            min_denominator = state_scale * RELATIVE_PRECISION
+            expected_denominator = np.maximum(gamma_denominator, min_denominator)
+            expected = (1.0 / expected_denominator).reshape(-1, 1)
 
             assert_allclose(gamma_factors, expected, rtol=1e-15)
 

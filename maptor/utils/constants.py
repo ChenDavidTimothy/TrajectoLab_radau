@@ -19,27 +19,9 @@ RELATIVE_PRECISION = float(np.sqrt(MACHINE_EPS))
 # CORE NUMERICAL TOLERANCES - MACHINE PRECISION BASED
 # ===========================
 
-# Near-zero detection (conservative for accumulated rounding errors)
-ZERO_TOLERANCE = 100 * MACHINE_EPS  # ~2.22e-14
-
-# Mesh spacing (derivative accuracy requirement)
-MESH_TOLERANCE = 1000 * MACHINE_EPS  # ~2.22e-13
 
 # Minimum physical time interval
 MINIMUM_TIME_INTERVAL = SQRT_MACHINE_EPS  # ~1.49e-8
-
-# ===========================
-# ALGORITHM-SPECIFIC TOLERANCES - MACHINE PRECISION BASED
-# ===========================
-
-# Interpolation boundary checking
-INTERPOLATION_TOLERANCE = 10 * MACHINE_EPS  # ~2.22e-15
-
-# Interval width detection
-INTERVAL_WIDTH_TOLERANCE = 100 * MACHINE_EPS  # ~2.22e-14
-
-# General near-zero for numerical comparisons
-NEAR_ZERO_TOLERANCE = 100 * MACHINE_EPS  # ~2.22e-14
 
 # ===========================
 # ADAPTIVE ALGORITHM CONSTANTS - EXTRACTED MAGIC NUMBERS
@@ -51,8 +33,6 @@ MIN_REFINEMENT_NODES = 1
 # Minimum h-refinement subintervals (extracted from refinement.py)
 MIN_H_SUBINTERVALS = 2
 
-# Maximum condition number for barycentric weights before perturbation
-MAX_CONDITION_NUMBER = 1e12
 
 # ===========================
 # ODE SOLVER DEFAULTS - MACHINE PRECISION BASED

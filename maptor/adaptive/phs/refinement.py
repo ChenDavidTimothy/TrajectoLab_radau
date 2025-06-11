@@ -23,10 +23,11 @@ from maptor.tl_types import (
     ProblemProtocol,
 )
 from maptor.utils.constants import (
-    INTERVAL_WIDTH_TOLERANCE,
     MIN_H_SUBINTERVALS,
     MIN_REFINEMENT_NODES,
 )
+
+from ...utils.precision import _is_mathematically_zero
 
 
 __all__ = ["_h_reduce_intervals", "_h_refine_params", "_p_reduce_interval", "_p_refine_interval"]
@@ -161,8 +162,9 @@ def _extract_merge_mesh_parameters(
     beta_k = (tau_shared - tau_start_k) / 2.0
     beta_kp1 = (tau_end_kp1 - tau_shared) / 2.0
 
-    if abs(beta_k) < INTERVAL_WIDTH_TOLERANCE or abs(beta_kp1) < INTERVAL_WIDTH_TOLERANCE:
-        raise ValueError("Interval has zero width")
+    mesh_scale = max(abs(tau_start_k), abs(tau_shared), abs(tau_end_kp1), 1.0)
+    if _is_mathematically_zero(beta_k, mesh_scale) or _is_mathematically_zero(beta_kp1, mesh_scale):
+        raise ValueError(f"Interval has zero width relative to mesh scale {mesh_scale}")
 
     return tau_start_k, tau_shared, tau_end_kp1, beta_k, beta_kp1
 
