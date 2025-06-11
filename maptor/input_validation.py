@@ -8,7 +8,7 @@ import numpy as np
 
 from .exceptions import ConfigurationError, DataIntegrityError
 from .tl_types import FloatArray, MultiPhaseInitialGuess, NumericArrayLike, PhaseID, ProblemProtocol
-from .utils.constants import MESH_TOLERANCE, ZERO_TOLERANCE
+from .utils.constants import MESH_TOLERANCE, NUMERICAL_ZERO
 
 
 logger = logging.getLogger(__name__)
@@ -130,9 +130,9 @@ def _validate_mesh_configuration(
         )
 
     # Normalized domain requirements for coordinate transformations
-    if not np.isclose(mesh_points[0], -1.0, atol=ZERO_TOLERANCE):
+    if not np.isclose(mesh_points[0], -1.0, atol=NUMERICAL_ZERO):
         raise ConfigurationError(f"First mesh point must be -1.0, got {mesh_points[0]}")
-    if not np.isclose(mesh_points[-1], 1.0, atol=ZERO_TOLERANCE):
+    if not np.isclose(mesh_points[-1], 1.0, atol=NUMERICAL_ZERO):
         raise ConfigurationError(f"Last mesh point must be 1.0, got {mesh_points[-1]}")
 
     # Minimum spacing prevents singular coordinate transformations

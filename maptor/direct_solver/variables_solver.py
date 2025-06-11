@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import casadi as ca
 
 from ..tl_types import PhaseID, ProblemProtocol
-from ..utils.constants import MINIMUM_TIME_INTERVAL
+from ..utils.constants import DEFAULT_BOUND_INFINITY, MINIMUM_TIME_INTERVAL
 from .types_solver import (
     _MultiPhaseVariable,
     _PhaseIntervalBundle,
@@ -54,9 +54,9 @@ def _apply_bound_constraints(opti: ca.Opti, variable: ca.MX, constraint: _BoundC
     if constraint.is_fixed:
         opti.subject_to(variable == constraint.lower)
     else:
-        if constraint.lower > -1e5:
+        if constraint.lower > -DEFAULT_BOUND_INFINITY:
             opti.subject_to(variable >= constraint.lower)
-        if constraint.upper < 1e5:
+        if constraint.upper < DEFAULT_BOUND_INFINITY:
             opti.subject_to(variable <= constraint.upper)
 
 

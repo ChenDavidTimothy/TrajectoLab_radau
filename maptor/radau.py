@@ -7,7 +7,7 @@ from scipy.special import roots_jacobi as _scipy_roots_jacobi
 
 from .input_validation import _validate_positive_integer
 from .tl_types import FloatArray
-from .utils.constants import ZERO_TOLERANCE
+from .utils.constants import NUMERICAL_ZERO
 
 
 @dataclass
@@ -116,9 +116,9 @@ def _compute_barycentric_weights(nodes: FloatArray) -> FloatArray:
 
     diagonal_mask = np.eye(num_nodes, dtype=bool)
 
-    near_zero_mask = np.abs(differences_matrix) < ZERO_TOLERANCE
-    perturbation = np.sign(differences_matrix) * ZERO_TOLERANCE
-    perturbation[perturbation == 0] = ZERO_TOLERANCE
+    near_zero_mask = np.abs(differences_matrix) < NUMERICAL_ZERO
+    perturbation = np.sign(differences_matrix) * NUMERICAL_ZERO
+    perturbation[perturbation == 0] = NUMERICAL_ZERO
 
     off_diagonal_near_zero = near_zero_mask & ~diagonal_mask
     differences_matrix = np.where(off_diagonal_near_zero, perturbation, differences_matrix)
@@ -127,10 +127,10 @@ def _compute_barycentric_weights(nodes: FloatArray) -> FloatArray:
 
     products = np.prod(differences_matrix, axis=1, dtype=np.float64)
 
-    small_product_mask = np.abs(products) < ZERO_TOLERANCE**2
+    small_product_mask = np.abs(products) < NUMERICAL_ZERO**2
     safe_products = np.where(
         small_product_mask,
-        np.where(products == 0, 1.0 / (ZERO_TOLERANCE**2), np.sign(products) / (ZERO_TOLERANCE**2)),
+        np.where(products == 0, 1.0 / (NUMERICAL_ZERO**2), np.sign(products) / (NUMERICAL_ZERO**2)),
         1.0 / products,
     )
 
@@ -145,7 +145,7 @@ def _evaluate_lagrange_polynomial_at_point(
     num_nodes = len(polynomial_definition_nodes)
 
     differences = np.abs(evaluation_point_tau - polynomial_definition_nodes)
-    coincident_mask = differences < ZERO_TOLERANCE
+    coincident_mask = differences < NUMERICAL_ZERO
 
     if np.any(coincident_mask):
         lagrange_values = np.zeros(num_nodes, dtype=np.float64)
@@ -154,15 +154,15 @@ def _evaluate_lagrange_polynomial_at_point(
 
     diffs = evaluation_point_tau - polynomial_definition_nodes
 
-    near_zero_mask = np.abs(diffs) < ZERO_TOLERANCE
+    near_zero_mask = np.abs(diffs) < NUMERICAL_ZERO
     safe_diffs = np.where(
-        near_zero_mask, np.where(diffs == 0, ZERO_TOLERANCE, np.sign(diffs) * ZERO_TOLERANCE), diffs
+        near_zero_mask, np.where(diffs == 0, NUMERICAL_ZERO, np.sign(diffs) * NUMERICAL_ZERO), diffs
     )
 
     terms = barycentric_weights / safe_diffs
     sum_terms = np.sum(terms)
 
-    if abs(sum_terms) < ZERO_TOLERANCE:
+    if abs(sum_terms) < NUMERICAL_ZERO:
         return np.zeros(num_nodes, dtype=np.float64)
 
     normalized_terms = terms / sum_terms
@@ -177,7 +177,7 @@ def _compute_lagrange_derivative_coefficients_at_point(
     num_nodes = len(polynomial_definition_nodes)
 
     differences = np.abs(evaluation_point_tau - polynomial_definition_nodes)
-    matched_indices = np.where(differences < ZERO_TOLERANCE)[0]
+    matched_indices = np.where(differences < NUMERICAL_ZERO)[0]
 
     if len(matched_indices) == 0:
         return np.zeros(num_nodes, dtype=np.float64)
@@ -187,16 +187,16 @@ def _compute_lagrange_derivative_coefficients_at_point(
 
     node_diffs = polynomial_definition_nodes[matched_node_idx_k] - polynomial_definition_nodes
 
-    near_zero_mask = np.abs(node_diffs) < ZERO_TOLERANCE
+    near_zero_mask = np.abs(node_diffs) < NUMERICAL_ZERO
     safe_diffs = np.where(
         near_zero_mask,
-        np.where(node_diffs == 0, ZERO_TOLERANCE, np.sign(node_diffs) * ZERO_TOLERANCE),
+        np.where(node_diffs == 0, NUMERICAL_ZERO, np.sign(node_diffs) * NUMERICAL_ZERO),
         node_diffs,
     )
 
     non_diagonal_mask = np.arange(num_nodes) != matched_node_idx_k
 
-    if abs(barycentric_weights[matched_node_idx_k]) < ZERO_TOLERANCE:
+    if abs(barycentric_weights[matched_node_idx_k]) < NUMERICAL_ZERO:
         derivatives[non_diagonal_mask] = 0.0
     else:
         weight_ratios = barycentric_weights / barycentric_weights[matched_node_idx_k]

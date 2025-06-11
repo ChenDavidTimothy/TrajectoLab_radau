@@ -7,6 +7,13 @@ from matplotlib.axes import Axes as MplAxes
 from matplotlib.figure import Figure as MplFigure
 
 from .tl_types import FloatArray, PhaseID
+from .utils.constants import (
+    DEFAULT_FIGURE_SIZE,
+    DEFAULT_GRID_ALPHA,
+    DEFAULT_PHASE_BOUNDARY_ALPHA,
+    DEFAULT_PHASE_BOUNDARY_LINEWIDTH,
+    TRAJECTORY_TIME_TOLERANCE,
+)
 
 
 if TYPE_CHECKING:
@@ -20,9 +27,11 @@ def plot_multiphase_solution(
     solution: "Solution",
     phase_id: PhaseID | None = None,
     variable_names: tuple[str, ...] = (),
-    figsize: tuple[float, float] = (12.0, 8.0),
+    figsize: tuple[float, float] | None = None,
     show_phase_boundaries: bool = True,
 ) -> None:
+    if figsize is None:
+        figsize = DEFAULT_FIGURE_SIZE
     """
     Plot multiphase trajectories with interval coloring and phase boundaries.
 
@@ -220,7 +229,7 @@ def _create_variable_plot(
 
         ax.set_ylabel(var_name)
         ax.set_xlabel("Time")
-        ax.grid(True, alpha=0.3)
+        ax.grid(True, alpha=DEFAULT_GRID_ALPHA)
         ax.legend()
 
     for i in range(num_vars, len(axes)):
@@ -254,8 +263,8 @@ def _create_multiphase_variable_plot(
                         final_time,
                         color="red",
                         linestyle="--",
-                        alpha=0.7,
-                        linewidth=2,
+                        alpha=DEFAULT_PHASE_BOUNDARY_ALPHA,
+                        linewidth=DEFAULT_PHASE_BOUNDARY_LINEWIDTH,
                         label="Phase Boundary" if phase_id == phase_ids[0] else "",
                     )
 
@@ -323,7 +332,7 @@ def _plot_control_step_function_intervals(
 
     if len(intervals) > 0:
         final_time = intervals[-1][1]
-        if len(time_array) > 0 and time_array[-1] < final_time - 1e-10:
+        if len(time_array) > 0 and time_array[-1] < final_time - TRAJECTORY_TIME_TOLERANCE:
             extended_times = np.append(extended_times, final_time)
             extended_values = np.append(extended_values, values_array[-1])
     elif len(time_array) > 1:
@@ -332,14 +341,14 @@ def _plot_control_step_function_intervals(
         extended_values = np.append(extended_values, values_array[-1])
 
     for k, (t_start, t_end) in enumerate(intervals):
-        mask = (time_array >= t_start - 1e-10) & (time_array <= t_end + 1e-10)
+        mask = (time_array >= t_start - 1e-10) & (time_array <= t_end + TRAJECTORY_TIME_TOLERANCE)
         if not np.any(mask):
             continue
 
         interval_times = time_array[mask]
         interval_values = values_array[mask]
 
-        if len(interval_times) > 0 and interval_times[-1] < t_end - 1e-10:
+        if len(interval_times) > 0 and interval_times[-1] < t_end - TRAJECTORY_TIME_TOLERANCE:
             interval_times = np.append(interval_times, t_end)
             interval_values = np.append(interval_values, interval_values[-1])
 
@@ -369,7 +378,7 @@ def _plot_state_linear_intervals(
         return
 
     for k, (t_start, t_end) in enumerate(intervals):
-        mask = (time_array >= t_start - 1e-10) & (time_array <= t_end + 1e-10)
+        mask = (time_array >= t_start - 1e-10) & (time_array <= t_end + TRAJECTORY_TIME_TOLERANCE)
         if not np.any(mask):
             continue
 

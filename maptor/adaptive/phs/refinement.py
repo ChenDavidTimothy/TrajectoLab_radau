@@ -22,6 +22,7 @@ from maptor.tl_types import (
     PhaseID,
     ProblemProtocol,
 )
+from maptor.utils.constants import BOUNDARY_MATCHING_TOLERANCE
 
 
 __all__ = ["_h_reduce_intervals", "_h_refine_params", "_p_reduce_interval", "_p_refine_interval"]
@@ -156,7 +157,7 @@ def _extract_merge_mesh_parameters(
     beta_k = (tau_shared - tau_start_k) / 2.0
     beta_kp1 = (tau_end_kp1 - tau_shared) / 2.0
 
-    if abs(beta_k) < 1e-12 or abs(beta_kp1) < 1e-12:
+    if abs(beta_k) < BOUNDARY_MATCHING_TOLERANCE or abs(beta_kp1) < BOUNDARY_MATCHING_TOLERANCE:
         raise ValueError("Interval has zero width")
 
     return tau_start_k, tau_shared, tau_end_kp1, beta_k, beta_kp1
