@@ -20,7 +20,7 @@ phase = problem.set_phase(1)
 
 # Variables
 t = phase.time(initial=0.0, final=(0.1, 200.0))
-x = phase.state("x", initial=0.0, final=(0.0, 1500.0))
+x = phase.state("x", initial=0.0, final=(0.0, 1500.0), boundary=(0.0, 1500.0))
 y = phase.state("y", initial=1000.0, final=900.0)
 vx = phase.state("vx", initial=13.2275675, final=13.2275675)
 vy = phase.state("vy", initial=-1.28750052, final=-1.28750052)
