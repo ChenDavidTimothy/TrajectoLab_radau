@@ -12,7 +12,7 @@ from maptor.tl_types import (
     ProblemProtocol,
 )
 
-from ...utils.constants import INTERVAL_WIDTH_TOLERANCE, MINIMUM_ERROR_VALUE
+from ...utils.constants import INTERVAL_WIDTH_TOLERANCE
 
 
 __all__ = [
@@ -82,11 +82,7 @@ def _compute_combined_errors(
 def _apply_error_bounds(max_error: float) -> float:
     if np.isnan(max_error):
         return np.inf
-    return (
-        max(max_error, MINIMUM_ERROR_VALUE)
-        if 0.0 < max_error < MINIMUM_ERROR_VALUE
-        else float(max_error)
-    )
+    return float(max_error)
 
 
 def _calculate_combined_error_estimate(

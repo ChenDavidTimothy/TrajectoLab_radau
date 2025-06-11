@@ -22,7 +22,11 @@ from maptor.tl_types import (
     PhaseID,
     ProblemProtocol,
 )
-from maptor.utils.constants import INTERVAL_WIDTH_TOLERANCE
+from maptor.utils.constants import (
+    INTERVAL_WIDTH_TOLERANCE,
+    MIN_H_SUBINTERVALS,
+    MIN_REFINEMENT_NODES,
+)
 
 
 __all__ = ["_h_reduce_intervals", "_h_refine_params", "_p_reduce_interval", "_p_refine_interval"]
@@ -72,8 +76,8 @@ def _compute_p_refine_target(
     max_error: float, current_Nk: int, error_tol: float, N_max: int
 ) -> int:
     if np.isinf(max_error):
-        return max(1, N_max - current_Nk)
-    return max(1, int(np.ceil(np.log10(max_error / error_tol))))
+        return max(MIN_REFINEMENT_NODES, N_max - current_Nk)
+    return max(MIN_REFINEMENT_NODES, int(np.ceil(np.log10(max_error / error_tol))))
 
 
 def _p_refine_interval(
@@ -92,7 +96,7 @@ def _p_refine_interval(
 
 
 def _h_refine_params(target_Nk: int, N_min: int) -> HRefineResult:
-    num_subintervals = max(2, int(np.ceil(target_Nk / N_min)))
+    num_subintervals = max(MIN_H_SUBINTERVALS, int(np.ceil(target_Nk / N_min)))
     return HRefineResult([N_min] * num_subintervals)
 
 

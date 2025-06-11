@@ -7,7 +7,12 @@ from scipy.special import roots_jacobi as _scipy_roots_jacobi
 
 from .input_validation import _validate_positive_integer
 from .tl_types import FloatArray
-from .utils.constants import DEFAULT_LRU_CACHE_SIZE, ZERO_TOLERANCE
+from .utils.constants import (
+    DEFAULT_LRU_CACHE_SIZE,
+    MACHINE_EPS,
+    MAX_CONDITION_NUMBER,
+    ZERO_TOLERANCE,
+)
 
 
 @dataclass
@@ -114,27 +119,24 @@ def _compute_barycentric_weights(nodes: FloatArray) -> FloatArray:
     nodes_row = nodes[np.newaxis, :]
     differences_matrix = nodes_col - nodes_row
 
-    diagonal_mask = np.eye(num_nodes, dtype=bool)
+    # Condition-number-based perturbation instead of arbitrary ZERO_TOLERANCE
+    condition_estimate = np.max(np.abs(nodes)) / (np.min(np.diff(np.sort(nodes))) + MACHINE_EPS)
 
-    near_zero_mask = np.abs(differences_matrix) < ZERO_TOLERANCE
-    perturbation = np.sign(differences_matrix) * ZERO_TOLERANCE
-    perturbation[perturbation == 0] = ZERO_TOLERANCE
+    if condition_estimate > MAX_CONDITION_NUMBER:
+        perturbation_scale = condition_estimate * MACHINE_EPS
+        diagonal_mask = np.eye(num_nodes, dtype=bool)
+        near_zero_mask = np.abs(differences_matrix) < perturbation_scale
+        off_diagonal_near_zero = near_zero_mask & ~diagonal_mask
 
-    off_diagonal_near_zero = near_zero_mask & ~diagonal_mask
-    differences_matrix = np.where(off_diagonal_near_zero, perturbation, differences_matrix)
+        perturbation = np.sign(differences_matrix) * perturbation_scale
+        perturbation[perturbation == 0] = perturbation_scale
+        differences_matrix = np.where(off_diagonal_near_zero, perturbation, differences_matrix)
 
-    differences_matrix[diagonal_mask] = 1.0
-
+    differences_matrix[np.eye(num_nodes, dtype=bool)] = 1.0
     products = np.prod(differences_matrix, axis=1, dtype=np.float64)
 
-    small_product_mask = np.abs(products) < ZERO_TOLERANCE**2
-    safe_products = np.where(
-        small_product_mask,
-        np.where(products == 0, 1.0 / (ZERO_TOLERANCE**2), np.sign(products) / (ZERO_TOLERANCE**2)),
-        1.0 / products,
-    )
-
-    return safe_products.astype(np.float64)
+    # Remove artificial floor - use machine precision
+    return (1.0 / products).astype(np.float64)
 
 
 def _evaluate_lagrange_polynomial_at_point(
@@ -165,8 +167,7 @@ def _evaluate_lagrange_polynomial_at_point(
     if abs(sum_terms) < ZERO_TOLERANCE:
         return np.zeros(num_nodes, dtype=np.float64)
 
-    normalized_terms = terms / sum_terms
-    return cast(FloatArray, normalized_terms)
+    return cast(FloatArray, terms / sum_terms)
 
 
 def _compute_lagrange_derivative_coefficients_at_point(

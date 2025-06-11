@@ -1,100 +1,83 @@
-from typing import TypeAlias
+import numpy as np
 
-
-_Tolerance: TypeAlias = float
-_Duration: TypeAlias = float
-_Factor: TypeAlias = float
-_Count: TypeAlias = int
-_Limit: TypeAlias = int
-_Bound: TypeAlias = float
 
 # ===========================
-# CORE NUMERICAL TOLERANCES
+# MACHINE PRECISION FOUNDATION
 # ===========================
 
-# Tolerance for considering floating point values as zero.
-ZERO_TOLERANCE: _Tolerance = 1e-18
-
-# Minimum spacing required between mesh points.
-MESH_TOLERANCE: _Tolerance = 1e-9
-
-# Minimum allowed time interval for optimal control problems.
-MINIMUM_TIME_INTERVAL: _Duration = 1e-6
+# Fundamental machine precision constants
+MACHINE_EPS = float(np.finfo(np.float64).eps)  # ~2.22e-16
+SQRT_MACHINE_EPS = float(np.sqrt(MACHINE_EPS))  # ~1.49e-8
+CBRT_MACHINE_EPS = float(np.cbrt(MACHINE_EPS))  # ~6.06e-6
+FOURTH_ROOT_MACHINE_EPS = float(np.sqrt(SQRT_MACHINE_EPS))  # ~1.22e-4
 
 # ===========================
-# ARBITRARY TOLERANCES - CONFIGURABLE
+# CORE NUMERICAL TOLERANCES - MACHINE PRECISION BASED
 # ===========================
 
-# Tolerance for interpolation boundary checking.
-INTERPOLATION_TOLERANCE: _Tolerance = 1e-10
+# Near-zero detection (conservative for accumulated rounding errors)
+ZERO_TOLERANCE = 100 * MACHINE_EPS  # ~2.22e-14
 
-# Tolerance for considering interval width as zero.
-INTERVAL_WIDTH_TOLERANCE: _Tolerance = 1e-12
+# Mesh spacing (derivative accuracy requirement)
+MESH_TOLERANCE = 1000 * MACHINE_EPS  # ~2.22e-13
 
-# General near-zero tolerance for numerical comparisons.
-NEAR_ZERO_TOLERANCE: _Tolerance = 1e-12
-
-# ===========================
-# DEFAULT BOUNDS - ARBITRARY
-# ===========================
-
-# Default lower bound for unconstrained variables.
-DEFAULT_VARIABLE_LOWER_BOUND: _Bound = -1e5
-
-# Default upper bound for unconstrained variables.
-DEFAULT_VARIABLE_UPPER_BOUND: _Bound = 1e5
-
-# Default lower bound for time variables.
-DEFAULT_TIME_LOWER_BOUND: _Bound = -1e6
-
-# Default upper bound for time variables.
-DEFAULT_TIME_UPPER_BOUND: _Bound = 1e6
+# Minimum physical time interval
+MINIMUM_TIME_INTERVAL = SQRT_MACHINE_EPS  # ~1.49e-8
 
 # ===========================
-# CACHE AND PERFORMANCE
+# ALGORITHM-SPECIFIC TOLERANCES - MACHINE PRECISION BASED
 # ===========================
 
-# Default LRU cache size for expensive computations.
-DEFAULT_LRU_CACHE_SIZE: _Count = 32
+# Interpolation boundary checking
+INTERPOLATION_TOLERANCE = 10 * MACHINE_EPS  # ~2.22e-15
 
-# Default maximum NLP iterations.
-DEFAULT_NLP_MAX_ITERATIONS: _Limit = 3000
+# Interval width detection
+INTERVAL_WIDTH_TOLERANCE = 100 * MACHINE_EPS  # ~2.22e-14
 
-# ===========================
-# ODE SOLVER DEFAULTS
-# ===========================
-
-# Default relative tolerance for ODE solvers.
-DEFAULT_ODE_RTOL: _Tolerance = 1e-7
-
-# Factor for computing absolute tolerance from relative tolerance (atol = rtol * factor).
-DEFAULT_ODE_ATOL_FACTOR: _Factor = 1e-2
-
-# Default ODE integration method.
-DEFAULT_ODE_METHOD: str = "RK45"
-
-# Default maximum step size for ODE solver (None = no limit).
-DEFAULT_ODE_MAX_STEP: float | None = None
+# General near-zero for numerical comparisons
+NEAR_ZERO_TOLERANCE = 100 * MACHINE_EPS  # ~2.22e-14
 
 # ===========================
-# ADAPTIVE ALGORITHM DEFAULTS
+# ADAPTIVE ALGORITHM CONSTANTS - EXTRACTED MAGIC NUMBERS
 # ===========================
 
-# Default number of points for error simulation.
-DEFAULT_ERROR_SIM_POINTS: int = 50
+# Minimum refinement increment (extracted from refinement.py)
+MIN_REFINEMENT_NODES = 1
 
-# Default maximum adaptive refinement iterations.
-DEFAULT_ADAPTIVE_MAX_ITERATIONS: _Count = 10
+# Minimum h-refinement subintervals (extracted from refinement.py)
+MIN_H_SUBINTERVALS = 2
 
-# Default minimum polynomial degree.
-DEFAULT_MIN_POLYNOMIAL_DEGREE: _Count = 3
-
-# Default maximum polynomial degree.
-DEFAULT_MAX_POLYNOMIAL_DEGREE: _Count = 10
+# Maximum condition number for barycentric weights before perturbation
+MAX_CONDITION_NUMBER = 1e12
 
 # ===========================
-# ERROR BOUNDS - SAFETY
+# ODE SOLVER DEFAULTS - MACHINE PRECISION BASED
 # ===========================
 
-# Minimum error value to prevent underflow.
-MINIMUM_ERROR_VALUE: _Tolerance = 1e-15
+# ODE relative tolerance (cube root for derivative accuracy)
+DEFAULT_ODE_RTOL = CBRT_MACHINE_EPS  # ~6.06e-6
+
+# Absolute tolerance factor
+DEFAULT_ODE_ATOL_FACTOR = 1e-2
+
+# Default ODE method
+DEFAULT_ODE_METHOD = "RK45"
+
+# Default maximum step size
+DEFAULT_ODE_MAX_STEP = None
+
+# ===========================
+# CACHE AND PERFORMANCE - UNCHANGED
+# ===========================
+
+DEFAULT_LRU_CACHE_SIZE = 32
+DEFAULT_NLP_MAX_ITERATIONS = 3000
+
+# ===========================
+# ADAPTIVE ALGORITHM DEFAULTS - UNCHANGED
+# ===========================
+
+DEFAULT_ERROR_SIM_POINTS = 50
+DEFAULT_ADAPTIVE_MAX_ITERATIONS = 10
+DEFAULT_MIN_POLYNOMIAL_DEGREE = 3
+DEFAULT_MAX_POLYNOMIAL_DEGREE = 10

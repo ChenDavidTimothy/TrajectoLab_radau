@@ -2,12 +2,9 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 import casadi as ca
+import numpy as np
 
 from ..tl_types import PhaseID, ProblemProtocol
-from ..utils.constants import (
-    DEFAULT_VARIABLE_LOWER_BOUND,
-    DEFAULT_VARIABLE_UPPER_BOUND,
-)
 from .types_solver import (
     _MultiPhaseVariable,
     _PhaseIntervalBundle,
@@ -57,9 +54,10 @@ def _apply_bound_constraints(opti: ca.Opti, variable: ca.MX, constraint: _BoundC
     if constraint.is_fixed:
         opti.subject_to(variable == constraint.lower)
     else:
-        if constraint.lower > DEFAULT_VARIABLE_LOWER_BOUND:
+        # Only apply user-specified bounds, no arbitrary defaults
+        if constraint.lower != float("-inf") and not np.isneginf(constraint.lower):
             opti.subject_to(variable >= constraint.lower)
-        if constraint.upper < DEFAULT_VARIABLE_UPPER_BOUND:
+        if constraint.upper != float("inf") and not np.isinf(constraint.upper):
             opti.subject_to(variable <= constraint.upper)
 
 

@@ -10,7 +10,6 @@ import casadi as ca
 from ..exceptions import DataIntegrityError
 from ..input_validation import _validate_constraint_input_format, _validate_string_not_empty
 from ..tl_types import FloatArray, PhaseID
-from ..utils.constants import DEFAULT_TIME_LOWER_BOUND, DEFAULT_TIME_UPPER_BOUND
 
 
 ConstraintInput: TypeAlias = (
@@ -327,11 +326,12 @@ class PhaseDefinition:
         self, constraint: _BoundaryConstraint, constraint_type: str
     ) -> tuple[float, float]:
         if constraint.is_symbolic():
-            return (DEFAULT_TIME_LOWER_BOUND, DEFAULT_TIME_UPPER_BOUND)
+            # Use large but not arbitrary bounds for symbolic constraints
+            return (-1e20, 1e20)
         if constraint.equals is not None:
             return (constraint.equals, constraint.equals)
-        lower = constraint.lower if constraint.lower is not None else DEFAULT_TIME_LOWER_BOUND
-        upper = constraint.upper if constraint.upper is not None else DEFAULT_TIME_UPPER_BOUND
+        lower = constraint.lower if constraint.lower is not None else -1e20
+        upper = constraint.upper if constraint.upper is not None else 1e20
         return (lower, upper)
 
     @property
