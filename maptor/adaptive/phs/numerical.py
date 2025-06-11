@@ -5,7 +5,7 @@ __all__ = [
     "_map_local_tau_from_interval_k_to_equivalent_in_interval_k_plus_1",
 ]
 
-from maptor.utils.constants import BOUNDARY_MATCHING_TOLERANCE
+from maptor.utils.constants import COORDINATE_PRECISION
 
 
 def _compute_interval_parameters(global_start: float, global_end: float) -> tuple[float, float]:
@@ -19,7 +19,7 @@ def _map_global_normalized_tau_to_local_interval_tau(
 ) -> float:
     beta, beta0 = _compute_interval_parameters(global_start, global_end)
 
-    if abs(beta) < BOUNDARY_MATCHING_TOLERANCE:
+    if abs(beta) < COORDINATE_PRECISION:
         return 0.0
 
     return (global_tau - beta0) / beta

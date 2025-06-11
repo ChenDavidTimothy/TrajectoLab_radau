@@ -11,7 +11,7 @@ from maptor.tl_types import (
     PhaseID,
     ProblemProtocol,
 )
-from maptor.utils.constants import BOUNDARY_MATCHING_TOLERANCE
+from maptor.utils.constants import COORDINATE_PRECISION
 
 
 __all__ = [
@@ -25,9 +25,7 @@ logger = logging.getLogger(__name__)
 
 def _calculate_gamma_normalization_factors(max_state_values: FloatArray) -> FloatArray:
     gamma_denominator = 1.0 + max_state_values
-    return (1.0 / np.maximum(gamma_denominator, np.float64(BOUNDARY_MATCHING_TOLERANCE))).reshape(
-        -1, 1
-    )
+    return (1.0 / np.maximum(gamma_denominator, np.float64(COORDINATE_PRECISION))).reshape(-1, 1)
 
 
 def _find_maximum_state_values_across_phase_intervals(
@@ -132,7 +130,7 @@ def _extract_interval_parameters(
     tau_start, tau_end = global_mesh[interval_idx], global_mesh[interval_idx + 1]
     beta_k = (tau_end - tau_start) / 2.0
 
-    if abs(beta_k) < BOUNDARY_MATCHING_TOLERANCE:
+    if abs(beta_k) < COORDINATE_PRECISION:
         raise ValueError(f"Interval {interval_idx} has zero width")
 
     beta_k0 = (tau_end + tau_start) / 2.0

@@ -8,7 +8,7 @@ import numpy as np
 
 from .exceptions import ConfigurationError, DataIntegrityError
 from .tl_types import FloatArray, MultiPhaseInitialGuess, NumericArrayLike, PhaseID, ProblemProtocol
-from .utils.constants import MESH_TOLERANCE, NUMERICAL_ZERO
+from .utils.constants import COORDINATE_PRECISION, NUMERICAL_ZERO
 
 
 logger = logging.getLogger(__name__)
@@ -137,9 +137,9 @@ def _validate_mesh_configuration(
 
     # Minimum spacing prevents singular coordinate transformations
     mesh_diffs = np.diff(mesh_points)
-    if not np.all(mesh_diffs > MESH_TOLERANCE):
+    if not np.all(mesh_diffs > COORDINATE_PRECISION):
         raise ConfigurationError(
-            f"Mesh points must be strictly increasing with min spacing {MESH_TOLERANCE}"
+            f"Mesh points must be strictly increasing with min spacing {COORDINATE_PRECISION}"
         )
 
 

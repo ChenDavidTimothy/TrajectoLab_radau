@@ -17,7 +17,7 @@ from maptor.tl_types import (
     PhaseID,
     ProblemProtocol,
 )
-from maptor.utils.constants import INTERPOLATION_TOLERANCE
+from maptor.utils.constants import COORDINATE_PRECISION
 
 
 __all__ = ["_propagate_multiphase_solution_to_new_meshes"]
@@ -29,7 +29,7 @@ def _find_containing_interval_index(global_tau: float, mesh_points: FloatArray) 
     if mesh_points.ndim != 1 or mesh_points.size < 2:
         return None
 
-    tolerance = INTERPOLATION_TOLERANCE
+    tolerance = COORDINATE_PRECISION
     if global_tau < mesh_points[0] - tolerance or global_tau > mesh_points[-1] + tolerance:
         return (
             0

@@ -12,7 +12,7 @@ from .utils.constants import (
     DEFAULT_GRID_ALPHA,
     DEFAULT_PHASE_BOUNDARY_ALPHA,
     DEFAULT_PHASE_BOUNDARY_LINEWIDTH,
-    TRAJECTORY_TIME_TOLERANCE,
+    TIME_PRECISION,
 )
 
 
@@ -332,7 +332,7 @@ def _plot_control_step_function_intervals(
 
     if len(intervals) > 0:
         final_time = intervals[-1][1]
-        if len(time_array) > 0 and time_array[-1] < final_time - TRAJECTORY_TIME_TOLERANCE:
+        if len(time_array) > 0 and time_array[-1] < final_time - TIME_PRECISION:
             extended_times = np.append(extended_times, final_time)
             extended_values = np.append(extended_values, values_array[-1])
     elif len(time_array) > 1:
@@ -341,14 +341,14 @@ def _plot_control_step_function_intervals(
         extended_values = np.append(extended_values, values_array[-1])
 
     for k, (t_start, t_end) in enumerate(intervals):
-        mask = (time_array >= t_start - 1e-10) & (time_array <= t_end + TRAJECTORY_TIME_TOLERANCE)
+        mask = (time_array >= t_start - 1e-10) & (time_array <= t_end + TIME_PRECISION)
         if not np.any(mask):
             continue
 
         interval_times = time_array[mask]
         interval_values = values_array[mask]
 
-        if len(interval_times) > 0 and interval_times[-1] < t_end - TRAJECTORY_TIME_TOLERANCE:
+        if len(interval_times) > 0 and interval_times[-1] < t_end - TIME_PRECISION:
             interval_times = np.append(interval_times, t_end)
             interval_values = np.append(interval_values, interval_values[-1])
 
@@ -378,7 +378,7 @@ def _plot_state_linear_intervals(
         return
 
     for k, (t_start, t_end) in enumerate(intervals):
-        mask = (time_array >= t_start - 1e-10) & (time_array <= t_end + TRAJECTORY_TIME_TOLERANCE)
+        mask = (time_array >= t_start - 1e-10) & (time_array <= t_end + TIME_PRECISION)
         if not np.any(mask):
             continue
 
