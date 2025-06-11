@@ -51,15 +51,10 @@ def _determine_interpolation_parameters(
     prev_interval_idx = _find_containing_interval_index(global_tau, prev_mesh_points)
 
     if prev_interval_idx is None:
-        if global_tau < prev_mesh_points[0]:
-            return 0, -1.0
-        elif global_tau > prev_mesh_points[-1]:
-            return len(prev_mesh_points) - 2, 1.0
-        else:
-            raise InterpolationError(
-                f"Could not locate global_tau {global_tau} in mesh boundaries",
-                "Mesh boundary mapping error",
-            )
+        raise InterpolationError(
+            f"Global tau {global_tau} outside mesh domain [{prev_mesh_points[0]}, {prev_mesh_points[-1]}]",
+            "Mesh boundary mapping error",
+        )
 
     prev_tau_start, prev_tau_end = (
         prev_mesh_points[prev_interval_idx],

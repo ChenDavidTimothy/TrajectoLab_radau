@@ -490,8 +490,9 @@ class Solution:
 
     def __getitem__(self, key: str | tuple[PhaseID, str]) -> FloatArray:
         if not self.status["success"]:
-            logger.warning("Cannot access variable '%s': Solution not successful", key)
-            return np.array([], dtype=np.float64)
+            raise RuntimeError(
+                f"Cannot access variable '{key}': Solution failed with message: {self.status['message']}"
+            )
 
         if isinstance(key, tuple):
             return self._get_by_tuple_key(key)
@@ -508,7 +509,7 @@ class Solution:
 
         # Explicit None check for mypy type safety
         if self._raw_solution is None:
-            return np.array([], dtype=np.float64)
+            raise RuntimeError("Cannot access variable: No solution data available")
 
         phase_id, var_name = key
 

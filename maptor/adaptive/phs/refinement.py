@@ -201,9 +201,7 @@ def _create_merged_numerical_dynamics_functions(
         )
         physical_time = alpha * global_tau + alpha_0
 
-        state_deriv_np = numerical_dynamics_function(
-            np.clip(state, -1e6, 1e6), u_val, physical_time, static_parameters
-        )
+        state_deriv_np = numerical_dynamics_function(state, u_val, physical_time, static_parameters)
         return scaling_k * state_deriv_np
 
     def merged_bwd_rhs(local_tau_kp1: float, state: FloatArray) -> FloatArray:
@@ -213,9 +211,7 @@ def _create_merged_numerical_dynamics_functions(
         )
         physical_time = alpha * global_tau + alpha_0
 
-        state_deriv_np = numerical_dynamics_function(
-            np.clip(state, -1e6, 1e6), u_val, physical_time, static_parameters
-        )
+        state_deriv_np = numerical_dynamics_function(state, u_val, physical_time, static_parameters)
         return scaling_kp1 * state_deriv_np
 
     return merged_fwd_rhs, merged_bwd_rhs

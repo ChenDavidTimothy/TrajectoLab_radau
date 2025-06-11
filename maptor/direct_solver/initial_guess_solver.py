@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -7,6 +8,9 @@ import casadi as ca
 from ..input_validation import _set_integral_guess_values
 from ..tl_types import FloatArray, PhaseID, ProblemProtocol
 from .types_solver import _MultiPhaseVariable, _PhaseVariable
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -20,7 +24,7 @@ class _PhaseGuessContext:
     num_controls: int
     num_mesh_intervals: int
     num_integrals: int
-    initial_guess: Any  # MultiPhaseInitialGuess
+    initial_guess: Any
 
 
 @dataclass
@@ -60,20 +64,22 @@ def _apply_state_guesses(context: _PhaseGuessContext, phase_states: list[FloatAr
         if k == 0:
             initial_var = context.phase_vars.state_at_mesh_nodes[0]
             if num_provided_states == context.num_states:
-                # Complete guess - use original logic
                 context.opti.set_initial(initial_var, state_guess_k[:, 0])
             else:
-                # Partial guess - skip, let CasADi handle defaults
-                pass
+                logger.info(
+                    f"Phase {context.phase_id} initial state guess has {num_provided_states} states, "
+                    f"expected {context.num_states}. Using CasADi defaults for missing states."
+                )
 
         # Set terminal node guess
         terminal_var = context.phase_vars.state_at_mesh_nodes[k + 1]
         if num_provided_states == context.num_states:
-            # Complete guess - use original logic
             context.opti.set_initial(terminal_var, state_guess_k[:, -1])
         else:
-            # Partial guess - skip, let CasADi handle defaults
-            pass
+            logger.info(
+                f"Phase {context.phase_id} terminal state guess has {num_provided_states} states, "
+                f"expected {context.num_states}. Using CasADi defaults for missing states."
+            )
 
     # Apply interior state node guesses
     for k in range(context.num_mesh_intervals):
@@ -83,13 +89,14 @@ def _apply_state_guesses(context: _PhaseGuessContext, phase_states: list[FloatAr
             num_provided_states = state_guess_k.shape[0]
 
             if num_provided_states == context.num_states:
-                # Complete guess - use original logic
                 num_interior_nodes = interior_var.shape[1]
                 interior_guess = state_guess_k[:, 1 : 1 + num_interior_nodes]
                 context.opti.set_initial(interior_var, interior_guess)
             else:
-                # Partial guess - skip, let CasADi handle defaults
-                pass
+                logger.info(
+                    f"Phase {context.phase_id} interior state guess has {num_provided_states} states, "
+                    f"expected {context.num_states}. Using CasADi defaults for missing states."
+                )
 
 
 def _apply_control_guesses(context: _PhaseGuessContext, phase_controls: list[FloatArray]) -> None:
@@ -98,11 +105,12 @@ def _apply_control_guesses(context: _PhaseGuessContext, phase_controls: list[Flo
         num_provided_controls = control_guess_k.shape[0]
 
         if num_provided_controls == context.num_controls:
-            # Complete guess - use original logic
             context.opti.set_initial(context.phase_vars.control_variables[k], control_guess_k)
         else:
-            # Partial guess - skip, let CasADi handle defaults
-            pass
+            logger.info(
+                f"Phase {context.phase_id} control guess has {num_provided_controls} controls, "
+                f"expected {context.num_controls}. Using CasADi defaults for missing controls."
+            )
 
 
 def _apply_integral_guesses(
