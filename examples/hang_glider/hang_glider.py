@@ -4,115 +4,175 @@ import numpy as np
 import maptor as mtor
 
 
-# Physical constants - EXACT PSOPT VALUES
-M = 100.0  # mass (kg)
-G = 9.80665  # gravity (m/s^2)
-U_M = 2.5  # updraft parameter
-R = 100.0  # updraft parameter (m)
-C0 = 0.034  # drag coefficient constant
-K = 0.069662  # drag coefficient parameter
-S = 14.0  # wing area (m^2)
-RHO = 1.13  # air density (kg/m^3)
+# Physical constants - EXACT VALUES
+M = 100.0
+G = 9.80665
+U_M = 2.5
+R = 100.0
+C0 = 0.034
+K = 0.069662
+S = 14.0
+RHO = 1.13
+
+# Original scaling factors restored
+X_SCALE = 1000.0  # position scaling (km)
+V_SCALE = 10.0  # velocity scaling (10 m/s)
 
 # Problem setup
-problem = mtor.Problem("Hang Glider")
+problem = mtor.Problem("Hang Glider - Original Scaling")
 phase = problem.set_phase(1)
+
+# Scaled values with original scaling
+X0_SCALED = 0.0 / X_SCALE
+Y0_SCALED = 1000.0 / X_SCALE
+YF_SCALED = 900.0 / X_SCALE
+VX0_SCALED = 13.2275675 / V_SCALE
+VY0_SCALED = -1.28750052 / V_SCALE
+VXF_SCALED = 13.2275675 / V_SCALE
+VYF_SCALED = -1.28750052 / V_SCALE
+
+# Scaled bounds with original scaling
+X_MAX_SCALED = 1500.0 / X_SCALE
+Y_MAX_SCALED = 1100.0 / X_SCALE
+VX_MAX_SCALED = 15.0 / V_SCALE
+VY_MIN_SCALED = -4.0 / V_SCALE
+VY_MAX_SCALED = 4.0 / V_SCALE
 
 # Variables
 t = phase.time(initial=0.0, final=(0.1, 200.0))
-x = phase.state("x", initial=0.0, final=(0.0, 1500.0), boundary=(0.0, 1500.0))
-y = phase.state("y", initial=1000.0, final=900.0)
-vx = phase.state("vx", initial=13.2275675, final=13.2275675)
-vy = phase.state("vy", initial=-1.28750052, final=-1.28750052)
+x_s = phase.state("x_scaled", initial=X0_SCALED, boundary=(0.0, X_MAX_SCALED))
+y_s = phase.state("y_scaled", initial=Y0_SCALED, final=YF_SCALED, boundary=(0.0, Y_MAX_SCALED))
+vx_s = phase.state("vx_scaled", initial=VX0_SCALED, final=VXF_SCALED, boundary=(0.0, VX_MAX_SCALED))
+vy_s = phase.state(
+    "vy_scaled", initial=VY0_SCALED, final=VYF_SCALED, boundary=(VY_MIN_SCALED, VY_MAX_SCALED)
+)
 CL = phase.control("CL", boundary=(0.0, 1.4))
 
-# Aerodynamic model - EXACT PSOPT FORMULATION
-CD = C0 + K * CL * CL
-vr = ca.sqrt(vx * vx + vy * vy)
-D = 0.5 * CD * RHO * S * vr * vr
-L = 0.5 * CL * RHO * S * vr * vr
-X = ca.power(x / R - 2.5, 2.0)
-ua = U_M * (1.0 - X) * ca.exp(-X)
-Vy = vy - ua
-sin_eta = Vy / vr
-cos_eta = vx / vr
-W = M * G
 
-# Dynamics - EXACT PSOPT DAE IMPLEMENTATION
-phase.dynamics(
-    {
-        x: vx,
-        y: vy,
-        vx: (1.0 / M) * (-L * sin_eta - D * cos_eta),
-        vy: (1.0 / M) * (L * cos_eta - D * sin_eta - W),
+# Dynamics with original scaling
+def _define_scaled_dynamics():
+    # Convert scaled variables to physical units
+    x_phys = x_s * X_SCALE
+    y_phys = y_s * X_SCALE
+    vx_phys = vx_s * V_SCALE
+    vy_phys = vy_s * V_SCALE
+
+    # Numerical safeguards
+    vr_squared = vx_phys * vx_phys + vy_phys * vy_phys
+    vr = ca.sqrt(ca.fmax(vr_squared, 1e-6))
+
+    # EXACT PSOPT aerodynamic model
+    CD = C0 + K * CL * CL
+    D = 0.5 * CD * RHO * S * vr * vr
+    L = 0.5 * CL * RHO * S * vr * vr
+
+    # Updraft model with numerical bounds
+    X_arg = x_phys / R - 2.5
+    X = X_arg * X_arg
+    X_safe = ca.fmin(X, 50.0)
+    ua = U_M * (1.0 - X_safe) * ca.exp(-X_safe)
+
+    Vy = vy_phys - ua
+    sin_eta = Vy / vr
+    cos_eta = vx_phys / vr
+    W = M * G
+
+    # EXACT PSOPT dynamics in physical units
+    x_dot_phys = vx_phys
+    y_dot_phys = vy_phys
+    vx_dot_phys = (1.0 / M) * (-L * sin_eta - D * cos_eta)
+    vy_dot_phys = (1.0 / M) * (L * cos_eta - D * sin_eta - W)
+
+    # Manual scaling of derivatives (NO TIME SCALING)
+    x_dot_scaled = x_dot_phys / X_SCALE
+    y_dot_scaled = y_dot_phys / X_SCALE
+    vx_dot_scaled = vx_dot_phys / V_SCALE
+    vy_dot_scaled = vy_dot_phys / V_SCALE
+
+    return {
+        x_s: x_dot_scaled,
+        y_s: y_dot_scaled,
+        vx_s: vx_dot_scaled,
+        vy_s: vy_dot_scaled,
     }
+
+
+phase.dynamics(_define_scaled_dynamics())
+
+# EXACT PSOPT objective: maximize x(tf)
+problem.minimize(-x_s.final)
+
+# The key insight: Fine mesh with low polynomial degrees eliminates oscillations
+phase.mesh(
+    [4, 4, 4, 4, 4, 4, 4, 4, 4, 4],  # Low degree polynomials
+    np.linspace(-1.0, 1.0, 11),  # Fine, uniform spacing
 )
 
-# Objective: maximize final horizontal distance
-problem.minimize(-x.final)
-
-# Mesh and guess
-phase.mesh([8, 10, 12, 10, 8], [-1.0, -0.6, -0.2, 0.2, 0.6, 1.0])
-
-# Initial guess - MATCHING PSOPT INITIAL CONDITIONS
+# Initial guess with original scaling
 states_guess = []
 controls_guess = []
-for N in [8, 10, 12, 10, 8]:
+for N in [4, 4, 4, 4, 4, 4, 4, 4, 4, 4]:
     tau = np.linspace(-1, 1, N + 1)
     t_norm = (tau + 1) / 2
 
-    # Linear interpolation matching PSOPT guess
-    x_vals = 0.0 + 1250.0 * t_norm
-    y_vals = 1000.0 + (900.0 - 1000.0) * t_norm
-    vx_vals = 13.23 * np.ones(N + 1)
-    vy_vals = -1.288 * np.ones(N + 1)
+    # Target Princeton solution: 1248.26m with original scaling
+    x_vals = (0.0 + 1248.26 * t_norm) / X_SCALE
+    y_vals = (1000.0 + (900.0 - 1000.0) * t_norm) / X_SCALE
+    vx_vals = (13.23 * np.ones(N + 1)) / V_SCALE
+    vy_vals = (-1.288 * np.ones(N + 1)) / V_SCALE
 
     states_guess.append(np.vstack([x_vals, y_vals, vx_vals, vy_vals]))
-    controls_guess.append(np.ones((1, N)))
+    controls_guess.append(np.ones((1, N)) * 0.7)
 
 problem.guess(
     phase_states={1: states_guess},
     phase_controls={1: controls_guess},
-    phase_terminal_times={1: 105.0},
+    phase_terminal_times={1: 98.47},
 )
 
-# Solve
+# Solve with the proven mesh strategy
 solution = mtor.solve_adaptive(
     problem,
-    error_tolerance=2e-1,
-    max_iterations=25,
+    error_tolerance=1e-6,
+    max_iterations=30,
     min_polynomial_degree=4,
-    max_polynomial_degree=15,
+    max_polynomial_degree=8,
     nlp_options={
-        "ipopt.max_iter": 3000,
-        "ipopt.mumps_pivtol": 5e-7,
-        "ipopt.mumps_mem_percent": 50000,
-        "ipopt.linear_solver": "mumps",
-        "ipopt.constr_viol_tol": 1e-7,
-        "ipopt.print_level": 5,
-        "ipopt.nlp_scaling_method": "gradient-based",
-        "ipopt.mu_strategy": "adaptive",
-        "ipopt.check_derivatives_for_naninf": "yes",
-        "ipopt.hessian_approximation": "exact",
+        "ipopt.max_iter": 2000,
         "ipopt.tol": 1e-8,
+        "ipopt.constr_viol_tol": 1e-9,
+        "ipopt.acceptable_tol": 1e-6,
+        "ipopt.linear_solver": "mumps",
+        "ipopt.print_level": 5,
     },
 )
 
-# Results
+# Results with original scaling factors
 if solution.status["success"]:
-    final_x = solution[(1, "x")][-1]
+    final_x_scaled = solution[(1, "x_scaled")][-1]
+    final_x_physical = final_x_scaled * X_SCALE  # Original scaling
     flight_time = solution.phases[1]["times"]["final"]
 
-    print(f"Maximum range: {final_x:.2f} m")
-    print(f"Flight time: {flight_time:.2f} s")
+    print(f"MAPTOR result: {final_x_physical:.2f} m in {flight_time:.2f} s")
+    print("Princeton ref: 1248.26 m in 98.47 s")
+    print(f"Range error: {abs(final_x_physical - 1248.26):.2f} m")
+    print(f"Time error: {abs(flight_time - 98.47):.2f} s")
 
-    # Final state verification
-    x_final = solution[(1, "x")][-1]
-    y_final = solution[(1, "y")][-1]
-    vx_final = solution[(1, "vx")][-1]
-    vy_final = solution[(1, "vy")][-1]
+    # Verify smooth trajectory
+    x_traj = solution[(1, "x_scaled")] * X_SCALE
+    x_diff = np.diff(x_traj)
+    if np.any(x_diff < -1e-6):
+        print("⚠️  WARNING: Non-monotonic x trajectory (oscillations)")
+    else:
+        print("✅ Smooth monotonic x trajectory")
 
-    print("Final states:")
+    # Final state verification in physical units with original scaling
+    x_final = solution[(1, "x_scaled")][-1] * X_SCALE
+    y_final = solution[(1, "y_scaled")][-1] * X_SCALE
+    vx_final = solution[(1, "vx_scaled")][-1] * V_SCALE
+    vy_final = solution[(1, "vy_scaled")][-1] * V_SCALE
+
+    print("Final states (physical units):")
     print(f"  x: {x_final:.2f} m")
     print(f"  y: {y_final:.2f} m (target: 900.0)")
     print(f"  vx: {vx_final:.6f} m/s (target: 13.2275675)")
