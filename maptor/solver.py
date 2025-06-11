@@ -15,7 +15,11 @@ from maptor.tl_types import (
     ProblemProtocol,
 )
 from maptor.utils.constants import (
+    DEFAULT_ADAPTIVE_ERROR_TOLERANCE,
+    DEFAULT_ADAPTIVE_MAX_ITERATIONS,
     DEFAULT_ERROR_SIM_POINTS,
+    DEFAULT_MAX_POLYNOMIAL_DEGREE,
+    DEFAULT_MIN_POLYNOMIAL_DEGREE,
     DEFAULT_ODE_ATOL_FACTOR,
     DEFAULT_ODE_MAX_STEP,
     DEFAULT_ODE_METHOD,
@@ -42,12 +46,6 @@ def solve_fixed_mesh(
         problem: Configured Problem instance with mesh, dynamics, and objective
         nlp_options: IPOPT solver options with full customization:
 
-            - "ipopt.print_level": Output verbosity (0-12, default: 0)
-            - "ipopt.max_iter": Maximum iterations (default: 3000)
-            - "ipopt.tol": Optimization tolerance (default: 1e-8)
-            - "ipopt.constr_viol_tol": Constraint violation tolerance
-            - "ipopt.linear_solver": Linear solver ("mumps", "ma27", "ma57")
-            - "ipopt.hessian_approximation": Hessian method ("exact", "limited-memory")
             - Any IPOPT option as "ipopt.option_name": value
 
         show_summary: Whether to display solution summary (default: True)
@@ -134,10 +132,10 @@ def solve_fixed_mesh(
 
 def solve_adaptive(
     problem: Problem,
-    error_tolerance: float = 1e-6,
-    max_iterations: int = 10,
-    min_polynomial_degree: int = 3,
-    max_polynomial_degree: int = 10,
+    error_tolerance: float = DEFAULT_ADAPTIVE_ERROR_TOLERANCE,
+    max_iterations: int = DEFAULT_ADAPTIVE_MAX_ITERATIONS,
+    min_polynomial_degree: int = DEFAULT_MIN_POLYNOMIAL_DEGREE,
+    max_polynomial_degree: int = DEFAULT_MAX_POLYNOMIAL_DEGREE,
     ode_solver_tolerance: float = DEFAULT_ODE_RTOL,
     ode_method: str = DEFAULT_ODE_METHOD,
     ode_max_step: float | None = DEFAULT_ODE_MAX_STEP,
