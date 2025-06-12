@@ -17,12 +17,7 @@ u1_1 = phase1.control("u1", boundary=(-10.0, 10.0))
 u2_1 = phase1.control("u2", boundary=(-10.0, 10.0))
 
 # Phase 1 dynamics: Simple integrator
-phase1.dynamics({
-    x1_1: x3_1,
-    x2_1: x4_1,
-    x3_1: u1_1,
-    x4_1: u2_1
-})
+phase1.dynamics({x1_1: x3_1, x2_1: x4_1, x3_1: u1_1, x4_1: u2_1})
 
 # Phase 1 reference tracking objective
 w1, w2, w3, w4 = 100.0, 100.0, 500.0, 500.0
@@ -31,10 +26,12 @@ x2ref_1 = 0.0
 x3ref_1 = 0.5
 x4ref_1 = 0.0
 
-integrand_1 = (w1 * (x1_1 - x1ref_1)**2 +
-               w2 * (x2_1 - x2ref_1)**2 +
-               w3 * (x3_1 - x3ref_1)**2 +
-               w4 * (x4_1 - x4ref_1)**2)
+integrand_1 = (
+    w1 * (x1_1 - x1ref_1) ** 2
+    + w2 * (x2_1 - x2ref_1) ** 2
+    + w3 * (x3_1 - x3ref_1) ** 2
+    + w4 * (x4_1 - x4ref_1) ** 2
+)
 integral_1 = phase1.add_integral(integrand_1)
 
 # Phase 2: Second tracking phase (1 to 2 seconds) with automatic continuity
@@ -48,12 +45,7 @@ u1_2 = phase2.control("u1", boundary=(-10.0, 10.0))
 u2_2 = phase2.control("u2", boundary=(-10.0, 10.0))
 
 # Phase 2 dynamics: Same integrator
-phase2.dynamics({
-    x1_2: x3_2,
-    x2_2: x4_2,
-    x3_2: u1_2,
-    x4_2: u2_2
-})
+phase2.dynamics({x1_2: x3_2, x2_2: x4_2, x3_2: u1_2, x4_2: u2_2})
 
 # Phase 2 reference tracking objective
 x1ref_2 = 0.5
@@ -61,18 +53,21 @@ x2ref_2 = (t2 - 1.0) / 2.0
 x3ref_2 = 0.0
 x4ref_2 = 0.5
 
-integrand_2 = (w1 * (x1_2 - x1ref_2)**2 +
-               w2 * (x2_2 - x2ref_2)**2 +
-               w3 * (x3_2 - x3ref_2)**2 +
-               w4 * (x4_2 - x4ref_2)**2)
+integrand_2 = (
+    w1 * (x1_2 - x1ref_2) ** 2
+    + w2 * (x2_2 - x2ref_2) ** 2
+    + w3 * (x3_2 - x3ref_2) ** 2
+    + w4 * (x4_2 - x4ref_2) ** 2
+)
 integral_2 = phase2.add_integral(integrand_2)
 
 # Total objective: Sum of both phase costs
 problem.minimize(integral_1 + integral_2)
 
 # Mesh configuration
-phase1.mesh([15, 15], [-1.0, 0.0, 1.0])
-phase2.mesh([15, 15], [-1.0, 0.0, 1.0])
+phase1.mesh([6, 6], [-1.0, 0.95, 1.0])
+phase2.mesh([6, 6], [-1.0, -0.95, 1.0])
+
 
 # Initial guess following PSOPT pattern
 def _generate_phase_guess(N_intervals, t_start, t_end, x_start, x_end):
@@ -97,34 +92,39 @@ def _generate_phase_guess(N_intervals, t_start, t_end, x_start, x_end):
 
     return states_guess, controls_guess
 
+
 # Phase 1 initial guess: from initial to midpoint
 x_initial = [0.0, 0.0, 0.5, 0.0]
 x_midpoint = [0.25, 0.25, 0.25, 0.25]  # (initial + final) / 2
-states_p1, controls_p1 = _generate_phase_guess([15, 15], 0.0, 1.0, x_initial, x_midpoint)
+states_p1, controls_p1 = _generate_phase_guess([6, 6], 0.0, 1.0, x_initial, x_midpoint)
+
 
 # Phase 2 initial guess: from midpoint to final
 x_final = [0.5, 0.5, 0.0, 0.5]
-states_p2, controls_p2 = _generate_phase_guess([15, 15], 1.0, 2.0, x_midpoint, x_final)
+states_p2, controls_p2 = _generate_phase_guess([6, 6], 1.0, 2.0, x_midpoint, x_final)
 
 problem.guess(
     phase_states={1: states_p1, 2: states_p2},
     phase_controls={1: controls_p1, 2: controls_p2},
-    phase_integrals={1: 10.0, 2: 10.0}
+    phase_integrals={1: 10.0, 2: 10.0},
 )
 
 # Solve
 solution = mtor.solve_adaptive(
     problem,
-    error_tolerance=1e-6,
+    error_tolerance=1e-5,
     max_iterations=25,
-    min_polynomial_degree=3,
-    max_polynomial_degree=12,
+    min_polynomial_degree=4,
+    max_polynomial_degree=8,
     nlp_options={
+        "ipopt.max_iter": 500,
+        "ipopt.linear_solver": "mumps",
+        "ipopt.constr_viol_tol": 1e-10,
         "ipopt.print_level": 0,
-        "ipopt.max_iter": 1000,
-        "ipopt.tol": 1e-6,
-        "ipopt.constr_viol_tol": 1e-7,
-    }
+        "ipopt.nlp_scaling_method": "gradient-based",
+        "ipopt.mu_strategy": "adaptive",
+        "ipopt.tol": 1e-10,
+    },
 )
 
 # Results
