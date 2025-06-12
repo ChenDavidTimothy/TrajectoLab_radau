@@ -36,13 +36,6 @@ $$\frac{dv}{dt} = g \cos \theta$$
 
 - $\theta(t)$: Path angle with respect to the vertical (rad)
 
-## Result
-
-![States](brachistochrone_states.png)
-*State trajectories: horizontal position x(t), vertical position y(t), and speed v(t)*
-
-![Controls](brachistochrone_controls.png)
-*Control trajectory: path angle θ(t)*
 
 ## Running This Example
 

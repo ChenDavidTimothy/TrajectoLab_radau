@@ -1,527 +1,519 @@
 Working with Solution Data
 ==========================
 
-This tutorial demonstrates comprehensive solution data extraction using MAPTOR's ``Solution`` class.
-We'll work through a complete two-phase Schwartz optimal control problem to show every available
-method for accessing and analyzing optimization results.
+This comprehensive tutorial covers all of MAPTOR's solution data extraction capabilities. After completing this guide, you'll understand how to access any optimization result using MAPTOR's unified solution interface.
 
-Overview of Solution Access
-----------------------------
+**Prerequisites:** Complete the :doc:`../quickstart` guide first to understand the basic problem-solving workflow.
 
-MAPTOR's ``Solution`` class provides a unified interface for accessing optimization results
-across single-phase and multiphase problems. The key access patterns are:
+**Scope:** This tutorial covers the complete solution access API, from basic trajectory extraction to comprehensive adaptive algorithm diagnostics.
 
-* **Dictionary-style access**: ``solution["variable"]`` for mission-wide trajectories
-* **Tuple access**: ``solution[(phase_id, "variable")]`` for phase-specific data
-* **Property access**: ``solution.status``, ``solution.phases``, ``solution.adaptive``
-* **Metadata bundles**: Comprehensive timing, mesh, and convergence information
+Solution Access Framework
+--------------------------
 
-Example Problem: Two-Phase Schwartz
-------------------------------------
-
-We'll use a two-phase Schwartz problem with elliptical path constraints and phase transitions.
-This showcases multiphase solution access patterns and advanced constraint handling.
+MAPTOR provides a **unified solution interface** for accessing optimization results across all problem types. You systematically extract trajectories, metadata, and diagnostics using consistent access patterns that work for both single-phase and multiphase problems.
 
 .. code-block:: python
 
-    import matplotlib.pyplot as plt
-    import numpy as np
     import maptor as mtor
 
-    # Problem setup
-    problem = mtor.Problem("Two-Phase Schwartz Problem")
+    # Solve any optimal control problem
+    solution = mtor.solve_adaptive(problem)
 
-    # Phase 1
-    phase1 = problem.set_phase(1)
-    phase1.time(initial=0.0, final=1.0)
-    x0_1 = phase1.state("x0", initial=1.0)
-    x1_1 = phase1.state("x1", initial=1.0, boundary=(-0.8, None))
-    u1 = phase1.control("u", boundary=(-1.0, 1.0))
+    # Access results through unified interface
+    objective = solution.status["objective"]
+    trajectory = solution["position"]
+    final_value = trajectory[-1]
 
-    phase1.dynamics({
-        x0_1: x1_1,
-        x1_1: u1 - 0.1 * (1 + 2 * x0_1**2) * x1_1,
-    })
+A **solution** contains all optimization results with automatic data organization, trajectory concatenation, and comprehensive metadata for analysis and visualization.
 
-    # Path constraint: feasible region outside ellipse
-    elliptical_constraint = 1 - 9 * (x0_1 - 1) ** 2 - ((x1_1 - 0.4) / 0.3) ** 2
-    phase1.path_constraints(elliptical_constraint <= 0)
-    phase1.mesh([6, 6], [-1.0, 0.0, 1.0])
+Status Validation
+------------------
 
-    # Phase 2
-    phase2 = problem.set_phase(2)
-    phase2.time(initial=1.0, final=2.9)
-    x0_2 = phase2.state("x0", initial=x0_1.final)
-    x1_2 = phase2.state("x1", initial=x1_1.final)
-    u2 = phase2.control("u")
+Every solution provides complete optimization outcome information through the status property:
 
-    phase2.dynamics({
-        x0_2: x1_2,
-        x1_2: u2 - 0.1 * (1 + 2 * x0_2**2) * x1_2,
-    })
-    phase2.mesh([8, 8], [-1.0, 0.0, 1.0])
-
-    # Objective
-    objective_expr = 5 * (x0_2.final**2 + x1_2.final**2)
-    problem.minimize(objective_expr)
-
-    # Solve with adaptive mesh refinement
-    solution = mtor.solve_adaptive(
-        problem,
-        error_tolerance=1e-4,
-        max_iterations=25,
-        nlp_options={"ipopt.print_level": 0}
-    )
-
-Essential Solution Validation
------------------------------
-
-**Always validate solution status before accessing data:**
+**Basic Status Access:**
 
 .. code-block:: python
 
-    # Basic status validation
+    # Essential validation
     success = solution.status["success"]
     objective = solution.status["objective"]
-    total_time = solution.status["total_mission_time"]
     message = solution.status["message"]
 
-    print(f"Success: {success}")
-    print(f"Objective: {objective:.12e}")
-    print(f"Mission time: {total_time:.6f}")
-
-    if not success:
-        print(f"Optimization failed: {message}")
-        return  # Stop processing if failed
-
-The ``status`` property is a dictionary containing:
-
-* ``success`` (bool): Whether optimization succeeded
-* ``objective`` (float): Final objective function value
-* ``total_mission_time`` (float): Total time across all phases
-* ``message`` (str): Detailed solver status message
-
-Mission-Wide Trajectory Access
--------------------------------
-
-Use string keys to automatically combine trajectory data from all phases:
+**Complete Status Information:**
 
 .. code-block:: python
 
-    # Complete mission trajectories (auto-concatenated)
-    x0_trajectory = solution["x0"]           # All phases combined
-    x1_trajectory = solution["x1"]           # All phases combined
-    u_trajectory = solution["u"]             # All phases combined
-    time_states = solution["time_states"]    # Complete time array
-    time_controls = solution["time_controls"] # Control time points
+    # All status components
+    status = solution.status
+    success = status["success"]           # bool: Optimization success
+    objective = status["objective"]       # float: Final objective value
+    total_time = status["total_mission_time"]  # float: Complete mission duration
+    message = status["message"]           # str: Detailed solver message
 
-    print(f"Complete mission:")
-    print(f"x0: {len(x0_trajectory)} points, values {x0_trajectory}")
-    print(f"x1: {len(x1_trajectory)} points, values {x1_trajectory}")
-    print(f"u: {len(u_trajectory)} points, values {u_trajectory}")
+**Status Validation Patterns:**
 
-String key access automatically:
+.. code-block:: python
 
-* Concatenates data from all phases containing the variable
-* Maintains temporal order (phases combined by ID)
-* Preserves ``np.float64`` precision for numerical safety
-* Provides seamless mission-wide trajectories for analysis
+    # Success checking
+    if solution.status["success"]:
+        print("Optimization succeeded")
+
+    # Objective extraction
+    optimal_cost = solution.status["objective"]
+
+    # Mission timing
+    duration = solution.status["total_mission_time"]
+
+    # Solver diagnostics
+    solver_info = solution.status["message"]
+
+The status property provides immediate access to optimization outcomes and is essential for determining whether to proceed with data extraction.
+
+Mission-Wide Data Access
+-------------------------
+
+Use string keys to automatically access complete mission trajectories with automatic phase concatenation:
+
+**Basic Trajectory Access:**
+
+.. code-block:: python
+
+    # Complete mission trajectories
+    time_states = solution["time_states"]       # All state time points
+    time_controls = solution["time_controls"]   # All control time points
+    position = solution["position"]             # Complete position trajectory
+    velocity = solution["velocity"]             # Complete velocity trajectory
+    thrust = solution["thrust"]                 # Complete control trajectory
+
+**Time Coordinate Access:**
+
+.. code-block:: python
+
+    # State and control time arrays
+    state_times = solution["time_states"]
+    control_times = solution["time_controls"]
+
+    # Time span analysis
+    mission_start = state_times[0]
+    mission_end = state_times[-1]
+    total_duration = mission_end - mission_start
+
+**Variable Trajectory Access:**
+
+.. code-block:: python
+
+    # State trajectories
+    altitude = solution["altitude"]
+    mass = solution["mass"]
+    angle = solution["angle"]
+
+    # Control trajectories
+    throttle = solution["throttle"]
+    steering = solution["steering"]
+    power = solution["power"]
+
+**Final Value Extraction:**
+
+.. code-block:: python
+
+    # Mission endpoints
+    final_position = solution["position"][-1]
+    final_velocity = solution["velocity"][-1]
+    initial_mass = solution["mass"][0]
+    final_mass = solution["mass"][-1]
+
+String key access automatically concatenates data from all phases containing the specified variable, providing seamless mission-wide analysis.
 
 Phase-Specific Data Access
 ---------------------------
 
 Use tuple keys for granular control over individual phase data:
 
+**Single Phase Access:**
+
 .. code-block:: python
 
-    # Phase-specific trajectory access
-    phase_ids = [1, 2]  # Available phases
+    # Phase-specific trajectories
+    phase1_position = solution[(1, "position")]
+    phase1_velocity = solution[(1, "velocity")]
+    phase1_thrust = solution[(1, "thrust")]
 
-    for phase_id in phase_ids:
-        x0_phase = solution[(phase_id, "x0")]
-        x1_phase = solution[(phase_id, "x1")]
-        u_phase = solution[(phase_id, "u")]
-        t_states_phase = solution[(phase_id, "time_states")]
-        t_controls_phase = solution[(phase_id, "time_controls")]
+    # Phase-specific time coordinates
+    phase1_state_times = solution[(1, "time_states")]
+    phase1_control_times = solution[(1, "time_controls")]
 
-        print(f"Phase {phase_id} trajectories:")
-        print(f"  x0: {len(x0_phase)} points, [{x0_phase[0]:.6f} to {x0_phase[-1]:.6f}]")
-        print(f"  x1: {len(x1_phase)} points, [{x1_phase[0]:.6f} to {x1_phase[-1]:.6f}]")
-        print(f"  u: {len(u_phase)} points, [{u_phase[0]:.6f} to {u_phase[-1]:.6f}]")
+**Multi-Phase Access:**
 
-Tuple access pattern ``(phase_id, variable_name)`` provides:
+.. code-block:: python
 
-* Complete control over which phase data to access
-* Essential for analyzing phase-specific characteristics
-* Required for phase boundary analysis and transitions
-* Enables different processing for different mission segments
+    # Access each phase individually
+    ascent_altitude = solution[(1, "altitude")]
+    coast_altitude = solution[(2, "altitude")]
+    descent_altitude = solution[(3, "altitude")]
+
+    # Phase-specific controls
+    ascent_thrust = solution[(1, "thrust")]
+    coast_thrust = solution[(2, "thrust")]    # May be zero
+    descent_thrust = solution[(3, "thrust")]
+
+**Phase Boundary Analysis:**
+
+.. code-block:: python
+
+    # Phase transition values
+    phase1_final_mass = solution[(1, "mass")][-1]
+    phase2_initial_mass = solution[(2, "mass")][0]
+
+    # Continuity verification
+    altitude_transition = solution[(1, "altitude")][-1]
+    altitude_continuation = solution[(2, "altitude")][0]
+
+**Phase Comparison:**
+
+.. code-block:: python
+
+    # Compare phase characteristics
+    phase1_duration = len(solution[(1, "time_states")])
+    phase2_duration = len(solution[(2, "time_states")])
+
+    # Phase-specific extrema
+    max_thrust_p1 = max(solution[(1, "thrust")])
+    max_thrust_p2 = max(solution[(2, "thrust")])
+
+Tuple access pattern ``(phase_id, variable_name)`` provides complete control over which phase data to extract and enables detailed phase-specific analysis.
+
+Variable Existence Validation
+------------------------------
+
+Safely validate variable availability before accessing solution data:
+
+**Basic Existence Checking:**
+
+.. code-block:: python
+
+    # String key validation
+    if "altitude" in solution:
+        altitude_data = solution["altitude"]
+
+    # Tuple key validation
+    if (1, "thrust") in solution:
+        thrust_data = solution[(1, "thrust")]
+
+**Multiple Variable Validation:**
+
+.. code-block:: python
+
+    # Check multiple variables
+    required_vars = ["position", "velocity", "thrust"]
+    available_vars = [var for var in required_vars if var in solution]
+
+    # Conditional access
+    if "fuel_mass" in solution:
+        fuel_trajectory = solution["fuel_mass"]
+    else:
+        print("Fuel mass not tracked in this problem")
+
+**Phase-Specific Validation:**
+
+.. code-block:: python
+
+    # Phase variable existence
+    if (2, "steering") in solution:
+        steering_profile = solution[(2, "steering")]
+
+    # Multi-phase validation
+    phases_with_thrust = []
+    for phase_id in [1, 2, 3]:
+        if (phase_id, "thrust") in solution:
+            phases_with_thrust.append(phase_id)
+
+**Safe Access Patterns:**
+
+.. code-block:: python
+
+    # Conditional trajectory extraction
+    trajectories = {}
+    for var_name in ["x", "y", "z", "vx", "vy", "vz"]:
+        if var_name in solution:
+            trajectories[var_name] = solution[var_name]
+
+    # Phase-conditional access
+    phase_data = {}
+    for phase_id in range(1, 4):
+        if (phase_id, "altitude") in solution:
+            phase_data[phase_id] = solution[(phase_id, "altitude")]
+
+The ``in`` operator works with both string and tuple keys, enabling robust solution processing workflows.
 
 Phase Information Analysis
 --------------------------
 
-The ``phases`` property provides comprehensive metadata for each phase:
+The ``phases`` property provides comprehensive metadata for detailed mission analysis:
+
+**Basic Phase Information:**
 
 .. code-block:: python
 
-    # Examine phase structure and timing
+    # Available phases
     phase_ids = list(solution.phases.keys())
-    print(f"Number of phases: {len(phase_ids)}")
+    num_phases = len(solution.phases)
 
-    for phase_id in phase_ids:
-        phase_data = solution.phases[phase_id]
+    # Single phase data
+    phase_data = solution.phases[1]
 
-        # Phase timing information
-        initial_time = phase_data["times"]["initial"]
-        final_time = phase_data["times"]["final"]
-        duration = phase_data["times"]["duration"]
-
-        # Phase variables
-        state_names = phase_data["variables"]["state_names"]
-        control_names = phase_data["variables"]["control_names"]
-        num_states = phase_data["variables"]["num_states"]
-        num_controls = phase_data["variables"]["num_controls"]
-
-        # Mesh configuration
-        num_intervals = phase_data["mesh"]["num_intervals"]
-        polynomial_degrees = phase_data["mesh"]["polynomial_degrees"]
-
-        print(f"Phase {phase_id}:")
-        print(f"  Time: [{initial_time:.6f}, {final_time:.6f}], duration: {duration:.6f}")
-        print(f"  Variables: {num_states} states, {num_controls} controls")
-        print(f"  States: {state_names}")
-        print(f"  Controls: {control_names}")
-        print(f"  Mesh: {num_intervals} intervals, degrees: {polynomial_degrees}")
-
-Each phase bundle contains:
-
-* **Timing**: Initial time, final time, and duration
-* **Variables**: State and control names with counts
-* **Mesh**: Intervals, polynomial degrees, and node locations
-* **Time Arrays**: State and control time coordinate arrays
-
-Variable Existence Checking
-----------------------------
-
-Safely validate variable availability before accessing:
+**Timing Information:**
 
 .. code-block:: python
 
-    # Check variable existence to prevent KeyError
-    available_vars = []
-    test_vars = ["x0", "x1", "u", "time_states", "time_controls"]
+    # Phase timing
+    for phase_id, phase_data in solution.phases.items():
+        times = phase_data["times"]
+        initial_time = times["initial"]
+        final_time = times["final"]
+        duration = times["duration"]
 
-    for var in test_vars:
-        if var in solution:
-            available_vars.append(var)
-
-    print(f"Available variables: {available_vars}")
-
-    # Safe access pattern
-    if "altitude" in solution:
-        altitude_data = solution["altitude"]
-        print(f"Altitude range: {altitude_data.min():.1f} to {altitude_data.max():.1f}")
-    else:
-        print("Altitude not available in this solution")
-
-    # Phase-specific checking
-    if (1, "thrust") in solution:
-        thrust_data = solution[(1, "thrust")]
-        max_thrust = thrust_data.max()
-        print(f"Maximum thrust in phase 1: {max_thrust:.2f}")
-
-The ``in`` operator works with both string and tuple keys, enabling robust solution processing
-workflows that gracefully handle missing variables.
-
-Adaptive Algorithm Analysis
----------------------------
-
-When using ``solve_adaptive``, examine convergence and refinement performance:
+**Variable Information:**
 
 .. code-block:: python
 
-    # Adaptive algorithm results (only available for adaptive solutions)
-    if solution.adaptive is not None:
-        converged = solution.adaptive["converged"]
-        iterations = solution.adaptive["iterations"]
-        tolerance = solution.adaptive["target_tolerance"]
-        phase_converged = solution.adaptive["phase_converged"]
-        final_errors = solution.adaptive["final_errors"]
+    # Phase variables
+    for phase_id, phase_data in solution.phases.items():
+        variables = phase_data["variables"]
+        state_names = variables["state_names"]
+        control_names = variables["control_names"]
+        num_states = variables["num_states"]
+        num_controls = variables["num_controls"]
 
-        print("Adaptive refinement:")
-        print(f"  Converged: {converged}")
-        print(f"  Iterations: {iterations}")
-        print(f"  Tolerance: {tolerance:.3e}")
+**Mesh Configuration:**
 
-        print("  Phase convergence:")
-        for phase_id, phase_conv in phase_converged.items():
-            print(f"    Phase {phase_id}: {phase_conv}")
+.. code-block:: python
 
-        print("  Final errors:")
-        for phase_id, errors in final_errors.items():
-            if errors:
-                max_error = max(errors)
-                mean_error = np.mean(errors)
-                print(f"    Phase {phase_id}: max={max_error:.3e}, mean={mean_error:.3e}")
-    else:
-        print("Fixed mesh solution - no adaptive data available")
+    # Mesh details
+    for phase_id, phase_data in solution.phases.items():
+        mesh = phase_data["mesh"]
+        polynomial_degrees = mesh["polynomial_degrees"]
+        mesh_nodes = mesh["mesh_nodes"]
+        num_intervals = mesh["num_intervals"]
 
-The ``adaptive`` property provides:
+**Time Array Access:**
 
-* **Convergence status**: Whether target tolerance was achieved
-* **Iteration count**: Number of refinement cycles performed
-* **Phase-specific convergence**: Per-phase convergence status
-* **Error estimates**: Final error estimates for each phase and interval
+.. code-block:: python
+
+    # Direct time array access
+    for phase_id, phase_data in solution.phases.items():
+        time_arrays = phase_data["time_arrays"]
+        state_times = time_arrays["states"]
+        control_times = time_arrays["controls"]
+
+**Integral Values:**
+
+.. code-block:: python
+
+    # Phase integral extraction
+    for phase_id, phase_data in solution.phases.items():
+        integrals = phase_data["integrals"]
+        if integrals is not None:
+            if isinstance(integrals, float):
+                single_integral = integrals
+            else:
+                multiple_integrals = integrals
+
+Each phase provides complete timing, variable, mesh, and integral information for comprehensive mission analysis.
 
 Static Parameter Access
 -----------------------
 
-Extract optimized static parameters (if defined in the problem):
+Extract optimized design parameters that remain constant throughout the mission:
+
+**Parameter Availability:**
 
 .. code-block:: python
 
-    # Static parameters (constant throughout mission but optimized)
+    # Check parameter existence
     if solution.parameters is not None:
-        param_count = solution.parameters["count"]
+        print("Problem includes static parameters")
+    else:
+        print("No static parameters")
+
+**Basic Parameter Access:**
+
+.. code-block:: python
+
+    # Parameter extraction
+    if solution.parameters:
         param_values = solution.parameters["values"]
+        param_count = solution.parameters["count"]
         param_names = solution.parameters["names"]
 
-        print("Static parameters:")
-        print(f"  Count: {param_count}")
+**Named Parameter Access:**
 
-        if param_names is not None:
-            for name, value in zip(param_names, param_values, strict=False):
-                print(f"  {name}: {value:.12e}")
-        else:
-            for i, value in enumerate(param_values):
-                print(f"  param_{i}: {value:.12e}")
+.. code-block:: python
+
+    # With parameter names
+    params = solution.parameters
+    if params and params["names"]:
+        for name, value in zip(params["names"], params["values"]):
+            print(f"{name}: {value}")
+
+**Unnamed Parameter Access:**
+
+.. code-block:: python
+
+    # Without parameter names
+    params = solution.parameters
+    if params:
+        for i, value in enumerate(params["values"]):
+            print(f"Parameter {i}: {value}")
+
+**Parameter Value Extraction:**
+
+.. code-block:: python
+
+    # Direct value access
+    if solution.parameters:
+        optimized_mass = solution.parameters["values"][0]
+        optimized_thrust = solution.parameters["values"][1]
+        design_parameter = solution.parameters["values"][2]
+
+Static parameters represent optimization variables that remain constant throughout the mission but are determined by the solver.
+
+Adaptive Algorithm Analysis
+---------------------------
+
+Examine convergence and refinement performance for adaptive solutions:
+
+**Algorithm Status:**
+
+.. code-block:: python
+
+    # Adaptive solution check
+    if solution.adaptive:
+        print("Adaptive solution available")
     else:
-        print("No static parameters in this problem")
+        print("Fixed mesh solution")
 
-Static parameters are optimization variables that remain constant throughout the mission
-but are determined by the solver (e.g., optimal vehicle mass, design parameters).
-
-Advanced Data Extraction
--------------------------
-
-Perform comprehensive mission analysis and bounds calculation:
+**Convergence Information:**
 
 .. code-block:: python
 
-    # Mission final values (complete mission, not just first phase)
-    final_x0 = solution["x0"][-1]
-    final_x1 = solution["x1"][-1]
-    final_time = solution["time_states"][-1]
+    # Basic convergence data
+    if solution.adaptive:
+        converged = solution.adaptive["converged"]
+        iterations = solution.adaptive["iterations"]
+        tolerance = solution.adaptive["target_tolerance"]
 
-    print("Mission final state:")
-    print(f"x0_final: {final_x0:.12e}")
-    print(f"x1_final: {final_x1:.12e}")
-    print(f"time_final: {final_time:.6f}")
-
-    # Mission data analysis
-    x0_trajectory = solution["x0"]
-    x1_trajectory = solution["x1"]
-    u_trajectory = solution["u"]
-    time_states = solution["time_states"]
-
-    # Time span analysis
-    t_start = time_states[0]
-    t_end = time_states[-1]
-    t_mid = time_states[len(time_states) // 2]
-
-    print(f"Time span: {t_start:.6f} to {t_end:.6f}")
-    print(f"Midpoint time: {t_mid:.6f}")
-
-    # State space bounds
-    x0_min, x0_max = x0_trajectory.min(), x0_trajectory.max()
-    x1_min, x1_max = x1_trajectory.min(), x1_trajectory.max()
-    u_min, u_max = u_trajectory.min(), u_trajectory.max()
-
-    print(f"State bounds: x0=[{x0_min:.6f}, {x0_max:.6f}], x1=[{x1_min:.6f}, {x1_max:.6f}]")
-    print(f"Control bounds: u=[{u_min:.6f}, {u_max:.6f}]")
-
-This demonstrates extracting key mission statistics for performance analysis and validation.
-
-Mesh Configuration Analysis
-----------------------------
-
-Examine detailed mesh refinement and computational efficiency:
+**Phase-Specific Convergence:**
 
 .. code-block:: python
 
-    # Detailed mesh analysis
-    print("Mesh configuration:")
-    total_intervals = 0
+    # Per-phase convergence status
+    if solution.adaptive:
+        phase_converged = solution.adaptive["phase_converged"]
+        for phase_id, status in phase_converged.items():
+            print(f"Phase {phase_id}: {'Converged' if status else 'Not converged'}")
 
-    for phase_id in solution.phases.keys():
-        mesh_data = solution.phases[phase_id]["mesh"]
-        nodes = mesh_data["mesh_nodes"]
-        degrees = mesh_data["polynomial_degrees"]
-        intervals = mesh_data["num_intervals"]
-        total_intervals += intervals
-
-        print(f"  Phase {phase_id}: {intervals} intervals, degrees {degrees}")
-
-        # Show node locations for small meshes
-        if len(nodes) <= 10:
-            nodes_str = "[" + ", ".join(f"{n:.4f}" for n in nodes) + "]"
-            print(f"    Nodes: {nodes_str}")
-
-    print(f"  Total intervals: {total_intervals}")
-
-Mesh details are essential for:
-
-* Understanding computational cost and accuracy trade-offs
-* Validating adaptive refinement performance
-* Analyzing where the algorithm concentrated computational effort
-
-Custom Visualization Preparation
----------------------------------
-
-Prepare data for advanced plotting beyond the built-in ``solution.plot()``:
+**Error Analysis:**
 
 .. code-block:: python
 
-    # Prepare data for custom analysis and plotting
-    mission_data = {
-        "time_states": solution["time_states"],
-        "time_controls": solution["time_controls"],
-        "x0": solution["x0"],
-        "x1": solution["x1"],
-        "u": solution["u"],
-    }
+    # Error estimates
+    if solution.adaptive:
+        final_errors = solution.adaptive["final_errors"]
+        for phase_id, errors in final_errors.items():
+            if errors:
+                max_error = max(errors)
+                mean_error = sum(errors) / len(errors)
 
-    print("Data extraction complete:")
-    print(f"  State points: {len(mission_data['time_states'])}")
-    print(f"  Control points: {len(mission_data['time_controls'])}")
+**Refinement Factors:**
 
-    # Phase-colored trajectory plotting
-    plt.figure(figsize=(15, 10))
+.. code-block:: python
 
-    # Mission-wide trajectory
-    plt.subplot(2, 3, 1)
-    plt.plot(mission_data["time_states"], mission_data["x0"])
-    plt.xlabel("Time")
-    plt.ylabel("x0")
-    plt.title("State x0")
-    plt.grid(True)
+    # Algorithm parameters
+    if solution.adaptive:
+        gamma_factors = solution.adaptive["gamma_factors"]
+        for phase_id, factors in gamma_factors.items():
+            if factors is not None:
+                refinement_data = factors
 
-    # Phase-specific coloring
-    plt.subplot(2, 3, 2)
-    phase_colors = ["blue", "red"]
-    for i, phase_id in enumerate([1, 2]):
-        x0_phase = solution[(phase_id, "x0")]
-        x1_phase = solution[(phase_id, "x1")]
-        plt.plot(x0_phase, x1_phase, color=phase_colors[i], label=f"Phase {phase_id}")
-    plt.xlabel("x0")
-    plt.ylabel("x1")
-    plt.title("Phase-Colored Trajectory")
-    plt.legend()
-    plt.grid(True)
+**Complete Adaptive Analysis:**
 
-    plt.tight_layout()
-    plt.show()
+.. code-block:: python
+
+    # Full adaptive diagnostics
+    adaptive = solution.adaptive
+    if adaptive:
+        algorithm_converged = adaptive["converged"]
+        total_iterations = adaptive["iterations"]
+        target_accuracy = adaptive["target_tolerance"]
+        phase_status = adaptive["phase_converged"]
+        error_estimates = adaptive["final_errors"]
+        normalization_factors = adaptive["gamma_factors"]
+
+The ``adaptive`` property provides comprehensive algorithm performance data for understanding solution quality and refinement behavior.
 
 Built-in Solution Methods
--------------------------
+--------------------------
 
-MAPTOR provides convenient built-in methods for common tasks:
+MAPTOR provides convenient methods for common solution analysis tasks:
+
+**Comprehensive Plotting:**
 
 .. code-block:: python
 
-    # Built-in comprehensive plotting
-    solution.plot(show_phase_boundaries=True)
+    # Default plotting (all variables, all phases)
+    solution.plot()
 
-    # Comprehensive solution summary
-    solution.summary(comprehensive=True)
+    # Specific phase plotting
+    solution.plot(phase_id=1)
 
-    # Quick validation summary
+    # Selected variables
+    solution.plot("altitude", "velocity", "thrust")
+
+    # Phase-specific variables
+    solution.plot(1, "position", "velocity")
+
+    # Custom formatting
+    solution.plot(figsize=(16, 10), show_phase_boundaries=True)
+
+**Solution Summaries:**
+
+.. code-block:: python
+
+    # Comprehensive summary (default)
+    solution.summary()
+
+    # Concise summary
     solution.summary(comprehensive=False)
 
-Error Handling Best Practices
-------------------------------
-
-Implement robust solution processing with proper error handling:
+**Plot Customization:**
 
 .. code-block:: python
 
-    def process_solution_safely(solution):
-        """Demonstrate robust solution processing."""
+    # All phases with boundaries
+    solution.plot(show_phase_boundaries=True)
 
-        # Always check success first
-        if not solution.status["success"]:
-            print(f"Solution failed: {solution.status['message']}")
-            return None
+    # No phase boundaries
+    solution.plot(show_phase_boundaries=False)
 
-        # Validate required variables exist
-        required_vars = ["x0", "x1", "u"]
-        missing_vars = [var for var in required_vars if var not in solution]
+    # Large figure size
+    solution.plot(figsize=(20, 12))
 
-        if missing_vars:
-            print(f"Missing required variables: {missing_vars}")
-            return None
+**Summary Control:**
 
-        # Safe data extraction
-        try:
-            mission_data = {
-                "objective": solution.status["objective"],
-                "total_time": solution.status["total_mission_time"],
-                "trajectories": {var: solution[var] for var in required_vars},
-                "final_state": {var: solution[var][-1] for var in ["x0", "x1"]},
-            }
+.. code-block:: python
 
-            print("✓ Solution processed successfully")
-            return mission_data
+    # Detailed diagnostics
+    solution.summary(comprehensive=True)
 
-        except Exception as e:
-            print(f"Error processing solution: {e}")
-            return None
+    # Key information only
+    solution.summary(comprehensive=False)
 
-    # Use the robust processor
-    processed_data = process_solution_safely(solution)
-    if processed_data:
-        print(f"Final objective: {processed_data['objective']:.6e}")
-
-Best Practices Summary
-----------------------
-
-1. **Always validate success** before accessing solution data
-2. **Use string keys** for mission-wide trajectory analysis
-3. **Use tuple keys** for phase-specific investigations
-4. **Check variable existence** with ``in`` operator for robust code
-5. **Examine adaptive results** to understand algorithm performance
-6. **Bundle metadata access** using ``.phases`` and ``.adaptive`` properties
-7. **Preserve data precision** - all arrays maintain ``np.float64`` precision
-8. **Handle errors gracefully** with proper validation and exception handling
-9. **Use built-in methods** (``plot()``, ``summary()``) for common tasks
-10. **Prepare custom analysis** by extracting data into structured dictionaries
-
-Common Pitfalls to Avoid
--------------------------
-
-* **Don't access data from failed solutions** - always check ``status["success"]`` first
-* **Don't assume variables exist** - use ``in`` operator before accessing
-* **Don't mix up string vs tuple access** - understand when to use each pattern
-* **Don't ignore adaptive information** - it provides crucial algorithm insights
-* **Don't hardcode phase IDs** - use ``solution.phases.keys()`` for robustness
+Built-in methods provide immediate visualization and analysis capabilities without requiring custom plotting code.
 
 Next Steps
 ----------
 
-* Explore the built-in ``solution.plot()`` method for quick visualization
-* Review the ``solution.summary()`` method for comprehensive diagnostics
-* Practice with different optimal control problems from the examples gallery
-* Reference the complete API documentation for advanced usage patterns
-
-
-
-Running the Complete Example
-----------------------------
-
-The complete, runnable implementation is available at:
-``docs/source/tutorials/solution_access/reference_implementation.py``
-
-Run it from the project root:
-
-.. code-block:: bash
-
-    python docs/source/tutorials/solution_access/reference_implementation.py
+* **Problem Definition**: Study :doc:`problem_definition` to understand how solution structure relates to problem formulation
+* **Complete Examples**: Explore :doc:`../examples/index` for solution analysis in context of specific problems
+* **API Reference**: Use :doc:`../api/index` for detailed method signatures and advanced options
