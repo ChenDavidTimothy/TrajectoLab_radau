@@ -162,9 +162,9 @@ def solve_adaptive(
             - 1e-9: High accuracy, slower convergence
 
         max_iterations: Maximum refinement iterations:
-            - 5-10: Standard problems (default: 10)
+            - 5-10: Standard problems
             - 15-25: Complex problems
-            - 30+: Very challenging problems
+            - 30+: Very challenging problems (default: 30)
 
         min_polynomial_degree: Minimum polynomial degree per interval:
             - 3: Fast, lower accuracy (default)
@@ -193,8 +193,7 @@ def solve_adaptive(
             - float: Fixed maximum step
 
         ode_atol_factor: Absolute tolerance factor (atol = rtol * factor):
-            - 1e-2: Standard (default)
-            - 1e-3: Tighter absolute tolerance
+            - 1e-8 (default)
 
         num_error_sim_points: Points for error simulation:
             - 30-50: Standard (default: 50)
