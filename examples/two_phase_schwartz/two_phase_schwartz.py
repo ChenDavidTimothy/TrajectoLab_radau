@@ -23,7 +23,7 @@ phase1.dynamics(
 # Path constraint: feasible region outside ellipse
 elliptical_constraint = 1 - 9 * (x0_1 - 1) ** 2 - ((x1_1 - 0.4) / 0.3) ** 2
 phase1.path_constraints(elliptical_constraint <= 0)
-phase1.mesh([6, 6], [-1.0, 0.0, 1.0])
+phase1.mesh([4, 4], [-1.0, 0.0, 1.0])
 
 # Phase 2
 phase2 = problem.set_phase(2)
@@ -38,7 +38,7 @@ phase2.dynamics(
         x1_2: u2 - 0.1 * (1 + 2 * x0_2**2) * x1_2,
     }
 )
-phase2.mesh([8, 8], [-1.0, 0.0, 1.0])
+phase2.mesh([4, 4], [-1.0, 0.0, 1.0])
 
 # Objective
 objective_expr = 5 * (x0_2.final**2 + x1_2.final**2)
@@ -50,7 +50,7 @@ controls_p1 = []
 states_p2 = []
 controls_p2 = []
 
-for N in [6, 6]:
+for N in [4, 4]:
     tau_states = np.linspace(-1, 1, N + 1)
     t_norm_states = (tau_states + 1) / 2
     x0_vals = 1.0 + 0.2 * t_norm_states
@@ -61,7 +61,7 @@ for N in [6, 6]:
     u_vals = 0.3 * np.sin(np.pi * t_norm_controls)
     controls_p1.append(np.array([u_vals]))
 
-for N in [8, 8]:
+for N in [4, 4]:
     tau_states = np.linspace(-1, 1, N + 1)
     t_norm_states = (tau_states + 1) / 2
     x0_end_p1 = 1.2
