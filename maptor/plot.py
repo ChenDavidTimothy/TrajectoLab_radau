@@ -230,7 +230,6 @@ def _create_variable_plot(
         ax.set_ylabel(var_name)
         ax.set_xlabel("Time")
         ax.grid(True, alpha=DEFAULT_GRID_ALPHA)
-        ax.legend()
 
     for i in range(num_vars, len(axes)):
         axes[i].set_visible(False)
@@ -265,12 +264,7 @@ def _create_multiphase_variable_plot(
                         linestyle="--",
                         alpha=DEFAULT_PHASE_BOUNDARY_ALPHA,
                         linewidth=DEFAULT_PHASE_BOUNDARY_LINEWIDTH,
-                        label="Phase Boundary" if phase_id == phase_ids[0] else "",
                     )
-
-                _, labels = ax.get_legend_handles_labels()
-                if "Phase Boundary" in labels:
-                    ax.legend()
 
     if show_immediately:
         plt.show()
@@ -284,11 +278,9 @@ def _plot_single_variable_with_intervals(
     phase_data = solution.phases[phase_id]
 
     if var_name in phase_data["variables"]["state_names"]:
-        var_type = "state"
         time_data = solution[(phase_id, "time_states")]
         var_data = solution[(phase_id, var_name)]
     elif var_name in phase_data["variables"]["control_names"]:
-        var_type = "control"
         time_data = solution[(phase_id, "time_controls")]
         var_data = solution[(phase_id, var_name)]
     else:
@@ -301,69 +293,11 @@ def _plot_single_variable_with_intervals(
     interval_boundaries = _get_phase_mesh_intervals(solution, phase_id)
 
     if interval_colors is None or len(interval_boundaries) == 0:
-        if var_type == "control":
-            _plot_control_step_function_simple(ax, time_data, var_data, f"Phase {phase_id}")
-        else:
-            _plot_state_linear_simple(ax, time_data, var_data, f"Phase {phase_id}")
+        _plot_state_linear_simple(ax, time_data, var_data, f"Phase {phase_id}")
     else:
-        if var_type == "control":
-            _plot_control_step_function_intervals(
-                ax, time_data, var_data, interval_boundaries, interval_colors, phase_id
-            )
-        else:
-            _plot_state_linear_intervals(
-                ax, time_data, var_data, interval_boundaries, interval_colors, phase_id
-            )
-
-
-def _plot_control_step_function_intervals(
-    ax: MplAxes,
-    time_array: FloatArray,
-    values_array: FloatArray,
-    intervals: list[tuple[float, float]],
-    colors: np.ndarray,
-    phase_id: PhaseID,
-) -> None:
-    if len(time_array) == 0:
-        return
-
-    extended_times = np.copy(time_array)
-    extended_values = np.copy(values_array)
-
-    if len(intervals) > 0:
-        final_time = intervals[-1][1]
-        if len(time_array) > 0 and time_array[-1] < final_time - TIME_PRECISION:
-            extended_times = np.append(extended_times, final_time)
-            extended_values = np.append(extended_values, values_array[-1])
-    elif len(time_array) > 1:
-        dt = time_array[-1] - time_array[-2]
-        extended_times = np.append(extended_times, time_array[-1] + dt * 0.1)
-        extended_values = np.append(extended_values, values_array[-1])
-
-    for k, (t_start, t_end) in enumerate(intervals):
-        mask = (time_array >= t_start - 1e-10) & (time_array <= t_end + TIME_PRECISION)
-        if not np.any(mask):
-            continue
-
-        interval_times = time_array[mask]
-        interval_values = values_array[mask]
-
-        if len(interval_times) > 0 and interval_times[-1] < t_end - TIME_PRECISION:
-            interval_times = np.append(interval_times, t_end)
-            interval_values = np.append(interval_values, interval_values[-1])
-
-        color = colors[k % len(colors)]
-
-        ax.step(
-            interval_times,
-            interval_values,
-            where="post",
-            color=color,
-            linewidth=1.5,
-            label=f"Phase {phase_id} Int {k + 1}" if k == 0 else "",
+        _plot_state_linear_intervals(
+            ax, time_data, var_data, interval_boundaries, interval_colors, phase_id
         )
-
-        ax.plot(time_array[mask], values_array[mask], "o", color=color, markersize=4)
 
 
 def _plot_state_linear_intervals(
@@ -392,29 +326,13 @@ def _plot_state_linear_intervals(
             linestyle="-",
             linewidth=1.5,
             markersize=7,
-            label=f"Phase {phase_id} Int {k + 1}" if k == 0 else "",
         )
-
-
-def _plot_control_step_function_simple(
-    ax: MplAxes, time_array: FloatArray, values_array: FloatArray, label: str
-) -> None:
-    extended_times = np.copy(time_array)
-    extended_values = np.copy(values_array)
-
-    if len(time_array) > 1:
-        dt = time_array[-1] - time_array[-2]
-        extended_times = np.append(extended_times, time_array[-1] + dt * 0.1)
-        extended_values = np.append(extended_values, values_array[-1])
-
-    ax.step(extended_times, extended_values, where="post", linewidth=1.5, label=label)
-    ax.plot(time_array, values_array, "o", markersize=4)
 
 
 def _plot_state_linear_simple(
     ax: MplAxes, time_array: FloatArray, values_array: FloatArray, label: str
 ) -> None:
-    ax.plot(time_array, values_array, ".-", linewidth=1.5, markersize=3, label=label)
+    ax.plot(time_array, values_array, ".-", linewidth=1.5, markersize=3)
 
 
 def _get_phase_interval_colors(solution: "Solution", phase_id: PhaseID) -> np.ndarray | None:
