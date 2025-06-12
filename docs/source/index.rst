@@ -16,7 +16,7 @@ MAPTOR: Multiphase Adaptive Trajectory Optimizer
     .. grid-item-card::
         :text-align: center
 
-        **Quick Start**
+        **Getting Started**
         ^^^
 
         Get up and running with MAPTOR in 5 minutes.
