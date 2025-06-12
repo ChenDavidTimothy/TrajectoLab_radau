@@ -4,7 +4,11 @@ import numpy as np
 import maptor as mtor
 
 
-# Physical constants - EXACT VALUES
+# ============================================================================
+# Physical Constants and Parameters
+# ============================================================================
+
+# Physical constants
 M = 100.0
 G = 9.80665
 U_M = 2.5
@@ -14,13 +18,19 @@ K = 0.069662
 S = 14.0
 RHO = 1.13
 
+
+# ============================================================================
+# Scaling Factors
+# ============================================================================
+
 # Original scaling factors restored
 X_SCALE = 1000.0  # position scaling (km)
 V_SCALE = 10.0  # velocity scaling (10 m/s)
 
-# Problem setup
-problem = mtor.Problem("Hang Glider - Original Scaling")
-phase = problem.set_phase(1)
+
+# ============================================================================
+# Initial and Target Conditions
+# ============================================================================
 
 # Scaled values with original scaling
 X0_SCALED = 0.0 / X_SCALE
@@ -38,7 +48,19 @@ VX_MAX_SCALED = 15.0 / V_SCALE
 VY_MIN_SCALED = -4.0 / V_SCALE
 VY_MAX_SCALED = 4.0 / V_SCALE
 
+
+# ============================================================================
+# Problem Setup
+# ============================================================================
+
+problem = mtor.Problem("Hang Glider - Original Scaling")
+phase = problem.set_phase(1)
+
+
+# ============================================================================
 # Variables
+# ============================================================================
+
 t = phase.time(initial=0.0, final=(0.1, 200.0))
 x_s = phase.state("x_scaled", initial=X0_SCALED, boundary=(0.0, X_MAX_SCALED))
 y_s = phase.state("y_scaled", initial=Y0_SCALED, final=YF_SCALED, boundary=(0.0, Y_MAX_SCALED))
@@ -49,7 +71,11 @@ vy_s = phase.state(
 CL = phase.control("CL", boundary=(0.0, 1.4))
 
 
-# Dynamics with original scaling
+# ============================================================================
+# Dynamics with Original Scaling
+# ============================================================================
+
+
 def _define_scaled_dynamics():
     # Convert scaled variables to physical units
     x_phys = x_s * X_SCALE
@@ -61,7 +87,7 @@ def _define_scaled_dynamics():
     vr_squared = vx_phys * vx_phys + vy_phys * vy_phys
     vr = ca.sqrt(ca.fmax(vr_squared, 1e-6))
 
-    # EXACT PSOPT aerodynamic model
+    # Aerodynamic model
     CD = C0 + K * CL * CL
     D = 0.5 * CD * RHO * S * vr * vr
     L = 0.5 * CL * RHO * S * vr * vr
@@ -77,7 +103,7 @@ def _define_scaled_dynamics():
     cos_eta = vx_phys / vr
     W = M * G
 
-    # EXACT PSOPT dynamics in physical units
+    # Dynamics in physical units
     x_dot_phys = vx_phys
     y_dot_phys = vy_phys
     vx_dot_phys = (1.0 / M) * (-L * sin_eta - D * cos_eta)
@@ -99,8 +125,18 @@ def _define_scaled_dynamics():
 
 phase.dynamics(_define_scaled_dynamics())
 
-# EXACT PSOPT objective: maximize x(tf)
+
+# ============================================================================
+# Objective
+# ============================================================================
+
+# Objective: maximize x(tf)
 problem.minimize(-x_s.final)
+
+
+# ============================================================================
+# Mesh Configuration and Initial Guess
+# ============================================================================
 
 # The key insight: Fine mesh with low polynomial degrees eliminates oscillations
 phase.mesh(
@@ -129,6 +165,11 @@ problem.guess(
     phase_terminal_times={1: 105},
 )
 
+
+# ============================================================================
+# Solve
+# ============================================================================
+
 # Solve with the proven mesh strategy
 solution = mtor.solve_adaptive(
     problem,
@@ -148,6 +189,11 @@ solution = mtor.solve_adaptive(
     },
 )
 
+
+# ============================================================================
+# Results Analysis
+# ============================================================================
+
 # Results with original scaling factors
 if solution.status["success"]:
     final_x_scaled = solution[(1, "x_scaled")][-1]
@@ -155,17 +201,9 @@ if solution.status["success"]:
     flight_time = solution.phases[1]["times"]["final"]
 
     print(f"MAPTOR result: {final_x_physical:.2f} m in {flight_time:.2f} s")
-    print("Princeton ref: 1248.26 m in 98.47 s")
+    print("Literature ref: 1248.26 m in 98.47 s")
     print(f"Range error: {abs(final_x_physical - 1248.26):.2f} m")
     print(f"Time error: {abs(flight_time - 98.47):.2f} s")
-
-    # Verify smooth trajectory
-    x_traj = solution[(1, "x_scaled")] * X_SCALE
-    x_diff = np.diff(x_traj)
-    if np.any(x_diff < -1e-6):
-        print("⚠️  WARNING: Non-monotonic x trajectory (oscillations)")
-    else:
-        print("✅ Smooth monotonic x trajectory")
 
     # Final state verification in physical units with original scaling
     x_final = solution[(1, "x_scaled")][-1] * X_SCALE
