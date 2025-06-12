@@ -10,14 +10,14 @@ phase = problem.set_phase(1)
 
 # Variables
 t = phase.time(initial=0.0)
-x = phase.state("x", initial=0.0, final=10.0)
-y = phase.state("y", initial=10.0, final=5.0)
+x = phase.state("x", initial=0.0, final=2.0)
+y = phase.state("y", initial=0.0, final=2.0)
 v = phase.state("v", initial=0.0)
 theta = phase.control("u", boundary=(0.0, np.pi / 2))
 
 # Dynamics
 g = 9.81
-phase.dynamics({x: v * ca.sin(theta), y: -v * ca.cos(theta), v: g * ca.cos(theta)})
+phase.dynamics({x: v * ca.sin(theta), y: v * ca.cos(theta), v: g * ca.cos(theta)})
 
 # Objective
 problem.minimize(t.final)
