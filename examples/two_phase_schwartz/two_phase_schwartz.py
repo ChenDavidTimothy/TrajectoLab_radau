@@ -23,7 +23,7 @@ phase1.dynamics(
 # Path constraint: feasible region outside ellipse
 elliptical_constraint = 1 - 9 * (x0_1 - 1) ** 2 - ((x1_1 - 0.4) / 0.3) ** 2
 phase1.path_constraints(elliptical_constraint <= 0)
-phase1.mesh([8, 8], [-1.0, 0.0, 1.0])
+phase1.mesh([15], [-1.0, 1.0])
 
 # Phase 2
 phase2 = problem.set_phase(2)
@@ -38,7 +38,7 @@ phase2.dynamics(
         x1_2: u2 - 0.1 * (1 + 2 * x0_2**2) * x1_2,
     }
 )
-phase2.mesh([8, 8], [-1.0, 0.0, 1.0])
+phase2.mesh([15], [-1.0, 1.0])
 
 # Objective
 objective_expr = 5 * (x0_2.final**2 + x1_2.final**2)
@@ -50,7 +50,7 @@ controls_p1 = []
 states_p2 = []
 controls_p2 = []
 
-for N in [8, 8]:
+for N in [15]:
     tau_states = np.linspace(-1, 1, N + 1)
     t_norm_states = (tau_states + 1) / 2
     x0_vals = 1.0 + 0.2 * t_norm_states
@@ -61,7 +61,7 @@ for N in [8, 8]:
     u_vals = 0.3 * np.sin(np.pi * t_norm_controls)
     controls_p1.append(np.array([u_vals]))
 
-for N in [8, 8]:
+for N in [15]:
     tau_states = np.linspace(-1, 1, N + 1)
     t_norm_states = (tau_states + 1) / 2
     x0_end_p1 = 1.2
@@ -84,19 +84,21 @@ problem.guess(
 # Solve
 solution = mtor.solve_adaptive(
     problem,
+    error_tolerance=1e-5,
+    max_iterations=30,
     min_polynomial_degree=3,
-    max_polynomial_degree=8,
-    ode_solver_tolerance=1e-5,
-    ode_method="DOP853",
+    max_polynomial_degree=20,
     nlp_options={
-        "ipopt.max_iter": 2000,
-        "ipopt.tol": 1e-6,
-        "ipopt.constr_viol_tol": 1e-6,
-        "ipopt.acceptable_tol": 1e-3,
-        "ipopt.linear_solver": "mumps",
         "ipopt.print_level": 0,
+        "ipopt.max_iter": 500,
+        "ipopt.tol": 1e-4,
+        "ipopt.constr_viol_tol": 1e-4,
+        "ipopt.acceptable_tol": 1e-3,
+        "ipopt.mu_strategy": "adaptive",
+        "ipopt.linear_solver": "mumps",
     },
 )
+
 
 # Results
 if solution.status["success"]:
@@ -108,35 +110,8 @@ if solution.status["success"]:
     x1_final = solution[(2, "x1")][-1]
     print(f"Final state: x0={x0_final:.6f}, x1={x1_final:.6f}")
 
-    # Show phase information using new bundles
-    print("\nPhase Information:")
-    for phase_id, phase_data in solution.phases.items():
-        times = phase_data["times"]
-        variables = phase_data["variables"]
-        mesh = phase_data["mesh"]
-
-        print(f"  Phase {phase_id}:")
-        print(
-            f"    Duration: {times['duration']:.6f} (from {times['initial']:.3f} to {times['final']:.3f})"
-        )
-        print(f"    States: {variables['state_names']}")
-        print(f"    Controls: {variables['control_names']}")
-        print(f"    Mesh intervals: {mesh['num_intervals']}")
-        print(f"    Polynomial degrees: {mesh['polynomial_degrees']}")
-
-    # Show adaptive algorithm results if available
-    if solution.adaptive:
-        print("\nAdaptive Algorithm:")
-        print(f"  Converged: {solution.adaptive['converged']}")
-        print(f"  Iterations: {solution.adaptive['iterations']}")
-        print(f"  Target tolerance: {solution.adaptive['target_tolerance']:.1e}")
-
-        print("  Phase convergence:")
-        for phase_id, converged in solution.adaptive["phase_converged"].items():
-            print(f"    Phase {phase_id}: {converged}")
-
     # Plotting
-    solution.plot(show_phase_boundaries=True)
+    solution.plot()
 
 else:
     print(f"Failed: {solution.status['message']}")
