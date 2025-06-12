@@ -36,8 +36,8 @@ MAPTOR: Multiphase Adaptive Trajectory Optimizer
         **Tutorials**
         ^^^
 
-        In-depth guides covering solution access, advanced features,
-        and best practices for multiphase optimal control problems.
+        Comprehensive guides covering complete problem definition,
+        solution data access, and best practices for multiphase optimal control.
 
         +++
 

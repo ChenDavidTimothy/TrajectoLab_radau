@@ -9,7 +9,15 @@ providing detailed explanations of core MAPTOR concepts with complete, runnable 
 .. toctree::
    :maxdepth: 1
 
+   problem_definition
    solution_access
+
+Problem Definition
+------------------
+
+Learn how to construct any optimal control problem using MAPTOR's complete API.
+The problem definition tutorial covers variables, constraints, dynamics, objectives,
+multiphase problems, and advanced solver configuration.
 
 Working with Solutions
 ----------------------
