@@ -180,6 +180,7 @@ def _print_mesh_configuration_data(solution: Solution) -> None:
         return
 
     total_intervals = 0
+    total_collocation_points = 0
 
     for phase_id in sorted(phases.keys()):
         phase_data = phases[phase_id]
@@ -197,8 +198,12 @@ def _print_mesh_configuration_data(solution: Solution) -> None:
 
         if polynomial_degrees:
             print(f"  Polynomial Degrees: {polynomial_degrees}")
+            phase_collocation_points = sum(polynomial_degrees)
+            total_collocation_points += phase_collocation_points
+            print(f"  Collocation Points: {phase_collocation_points}")
         else:
             print("  Polynomial Degrees: Not available")
+            print("  Collocation Points: Not available")
 
         if mesh_nodes is not None and len(mesh_nodes) > 0:
             mesh_str = "[" + ", ".join(f"{node:.6f}" for node in mesh_nodes) + "]"
@@ -207,6 +212,7 @@ def _print_mesh_configuration_data(solution: Solution) -> None:
             print("  Mesh Node Distribution: Not available")
 
     print(f"\nTotal Intervals Across All Phases: {total_intervals}")
+    print(f"Total Collocation Points Across All Phases: {total_collocation_points}")
 
     adaptive = solution.adaptive
     if adaptive is not None:
