@@ -22,7 +22,7 @@ Trajectory optimization finds the best path for a dynamic system to follow, cons
 MAPTOR implements the **Legendre-Gauss-Radau pseudospectral method** with:
 
 - **Spectral accuracy**: Exponential convergence for smooth solutions
-- **Adaptive mesh refinement**: Automatic error control through h/p-refinement
+- **Adaptive mesh refinement**: Automatic error control through phs-Adaptive refinement method
 - **Multiphase capability**: Complex missions with automatic phase linking
 - **Symbolic computation**: Built on CasADi for exact differentiation and optimization
 
@@ -56,15 +56,6 @@ if solution.status["success"]:
 ```
 
 ## Problem Classes
-
-MAPTOR specializes in trajectory optimization across multiple domains:
-
-| **Aerospace Trajectories** | **Robotics Motion** | **Vehicle Planning** |
-|----------------------------|---------------------|----------------------|
-| Spacecraft orbit transfers | Robot path planning | Autonomous navigation |
-| Launch vehicle ascent | Manipulator control | Racing line optimization |
-| Aircraft flight paths | Formation flying | Delivery routing |
-| Entry, descent, landing | Mobile robot motion | Emergency maneuvers |
 
 **Beyond Spatial Trajectories**: MAPTOR also handles abstract optimal control problems where "trajectory" refers to the evolution of any system state over time (chemical processes, financial optimization, resource allocation).
 
@@ -144,12 +135,7 @@ Optimization (IPOPT nonlinear programming solver)
 
 ## Contributing
 
-We welcome contributions from the trajectory optimization and optimal control community. Please see our [contribution guidelines](CONTRIBUTING.md) for:
-
-- Code standards and testing requirements
-- Documentation expectations
-- Issue reporting and feature requests
-- Development workflow
+We welcome contributions from the trajectory optimization and optimal control community.
 
 ## License
 
@@ -182,11 +168,10 @@ MAPTOR builds upon established methods in computational optimal control:
 **Symbolic Computation Framework**:
 - Andersson, J. A. E., Gillis, J., Horn, G., Rawlings, J. B., & Diehl, M. (2019). CasADi -- A software framework for nonlinear optimization and optimal control. *Mathematical Programming Computation*, 11(1), 1-36. https://doi.org/10.1007/s12532-018-0139-4
 
-## Support and Community
+## Support
 
 - **Documentation**: [https://maptor.readthedocs.io](https://maptor.readthedocs.io)
 - **Issues**: [GitHub Issues](https://github.com/maptor/maptor/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/maptor/maptor/discussions)
 
 ## Acknowledgments
 
