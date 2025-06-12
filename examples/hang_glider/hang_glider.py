@@ -23,7 +23,7 @@ RHO = 1.13
 # Scaling Factors
 # ============================================================================
 
-# Original scaling factors restored
+
 X_SCALE = 1000.0  # position scaling (km)
 V_SCALE = 10.0  # velocity scaling (10 m/s)
 
@@ -32,7 +32,7 @@ V_SCALE = 10.0  # velocity scaling (10 m/s)
 # Initial and Target Conditions
 # ============================================================================
 
-# Scaled values with original scaling
+# Scaled values
 X0_SCALED = 0.0 / X_SCALE
 Y0_SCALED = 1000.0 / X_SCALE
 YF_SCALED = 900.0 / X_SCALE
@@ -41,7 +41,7 @@ VY0_SCALED = -1.28750052 / V_SCALE
 VXF_SCALED = 13.2275675 / V_SCALE
 VYF_SCALED = -1.28750052 / V_SCALE
 
-# Scaled bounds with original scaling
+# Scaled bounds
 X_MAX_SCALED = 1500.0 / X_SCALE
 Y_MAX_SCALED = 1100.0 / X_SCALE
 VX_MAX_SCALED = 15.0 / V_SCALE
@@ -53,7 +53,7 @@ VY_MAX_SCALED = 4.0 / V_SCALE
 # Problem Setup
 # ============================================================================
 
-problem = mtor.Problem("Hang Glider - Original Scaling")
+problem = mtor.Problem("Hang Glider")
 phase = problem.set_phase(1)
 
 
@@ -72,7 +72,7 @@ CL = phase.control("CL", boundary=(0.0, 1.4))
 
 
 # ============================================================================
-# Dynamics with Original Scaling
+# Dynamics
 # ============================================================================
 
 
@@ -138,13 +138,12 @@ problem.minimize(-x_s.final)
 # Mesh Configuration and Initial Guess
 # ============================================================================
 
-# The key insight: Fine mesh with low polynomial degrees eliminates oscillations
 phase.mesh(
     [3, 3, 3, 3, 3, 3, 3, 3, 3, 3],  # Low degree polynomials
     np.linspace(-1.0, 1.0, 11),  # Fine, uniform spacing
 )
 
-# Initial guess with original scaling
+# Initial guess
 states_guess = []
 controls_guess = []
 for N in [3, 3, 3, 3, 3, 3, 3, 3, 3, 3]:
@@ -170,7 +169,6 @@ problem.guess(
 # Solve
 # ============================================================================
 
-# Solve with the proven mesh strategy
 solution = mtor.solve_adaptive(
     problem,
     error_tolerance=1e-6,
@@ -194,10 +192,9 @@ solution = mtor.solve_adaptive(
 # Results Analysis
 # ============================================================================
 
-# Results with original scaling factors
 if solution.status["success"]:
     final_x_scaled = solution[(1, "x_scaled")][-1]
-    final_x_physical = final_x_scaled * X_SCALE  # Original scaling
+    final_x_physical = final_x_scaled * X_SCALE  #
     flight_time = solution.phases[1]["times"]["final"]
 
     print(f"MAPTOR result: {final_x_physical:.2f} m in {flight_time:.2f} s")
@@ -205,7 +202,7 @@ if solution.status["success"]:
     print(f"Range error: {abs(final_x_physical - 1248.26):.2f} m")
     print(f"Time error: {abs(flight_time - 98.47):.2f} s")
 
-    # Final state verification in physical units with original scaling
+    # Final state verification in physical units
     x_final = solution[(1, "x_scaled")][-1] * X_SCALE
     y_final = solution[(1, "y_scaled")][-1] * X_SCALE
     vx_final = solution[(1, "vx_scaled")][-1] * V_SCALE
