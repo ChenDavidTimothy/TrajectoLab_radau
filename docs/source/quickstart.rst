@@ -184,22 +184,3 @@ Learning Path
 2. **Solution Analysis**: Learn :doc:`tutorials/solution_access` for working with optimization results
 3. **Real Examples**: Explore :doc:`examples/index` for complete problems with mathematical formulations
 4. **API Reference**: Use :doc:`api/index` for detailed function documentation
-
-**Recommended Progression**:
-- Start with single-phase minimum-time problems
-- Add path constraints and bounded controls
-- Try fuel-optimal and tracking problems
-- Build multiphase missions
-- Combine trajectory and design optimization
-
-Ready to Solve Real Problems
------------------------------
-
-MAPTOR provides everything needed for professional optimal control:
-
-- **Research-grade accuracy** with adaptive mesh refinement
-- **Industrial robustness** with comprehensive constraint handling
-- **Multiphase capabilities** for complex mission design
-- **Design optimization** combining trajectory and parameter optimization
-
-The minimum-time example above contains all core concepts. Once you understand this workflow, you can solve any optimal control problem by following the same pattern with your specific dynamics and constraints.
