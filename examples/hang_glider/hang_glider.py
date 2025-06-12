@@ -115,8 +115,7 @@ for N in [3, 3, 3, 3, 3, 3, 3, 3, 3, 3]:
     tau = np.linspace(-1, 1, N + 1)
     t_norm = (tau + 1) / 2
 
-    # Target Princeton solution: 1248.26m with original scaling
-    x_vals = (0.0 + 1248.26 * t_norm) / X_SCALE
+    x_vals = (0.0 + 1500 * t_norm) / X_SCALE
     y_vals = (1000.0 + (900.0 - 1000.0) * t_norm) / X_SCALE
     vx_vals = (13.23 * np.ones(N + 1)) / V_SCALE
     vy_vals = (-1.288 * np.ones(N + 1)) / V_SCALE
@@ -127,7 +126,7 @@ for N in [3, 3, 3, 3, 3, 3, 3, 3, 3, 3]:
 problem.guess(
     phase_states={1: states_guess},
     phase_controls={1: controls_guess},
-    phase_terminal_times={1: 98.47},
+    phase_terminal_times={1: 105},
 )
 
 # Solve with the proven mesh strategy
@@ -137,14 +136,15 @@ solution = mtor.solve_adaptive(
     max_iterations=30,
     min_polynomial_degree=3,
     max_polynomial_degree=8,
-    ode_method="BDF",
+    ode_solver_tolerance=1e-5,
+    ode_method="DOP853",
     nlp_options={
         "ipopt.max_iter": 2000,
         "ipopt.tol": 1e-6,
         "ipopt.constr_viol_tol": 1e-6,
         "ipopt.acceptable_tol": 1e-3,
         "ipopt.linear_solver": "mumps",
-        "ipopt.print_level": 5,
+        "ipopt.print_level": 0,
     },
 )
 

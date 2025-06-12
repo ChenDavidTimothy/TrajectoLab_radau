@@ -434,19 +434,19 @@ problem.guess(
 # Solve with settings appropriate for this complex problem
 solution = mtor.solve_adaptive(
     problem,
-    error_tolerance=1e-5,
-    max_iterations=20,
-    min_polynomial_degree=4,
-    max_polynomial_degree=10,
+    error_tolerance=1e-6,
+    max_iterations=30,
+    min_polynomial_degree=3,
+    max_polynomial_degree=8,
+    # ode_solver_tolerance=1e-5,
+    ode_method="DOP853",
     nlp_options={
-        "ipopt.print_level": 5,
-        "ipopt.max_iter": 3000,
+        "ipopt.max_iter": 2000,
         "ipopt.tol": 1e-6,
         "ipopt.constr_viol_tol": 1e-6,
-        "ipopt.acceptable_tol": 1e-4,
-        "ipopt.mu_strategy": "adaptive",
+        "ipopt.acceptable_tol": 1e-3,
         "ipopt.linear_solver": "mumps",
-        "ipopt.hessian_approximation": "limited-memory",
+        "ipopt.print_level": 0,
     },
 )
 

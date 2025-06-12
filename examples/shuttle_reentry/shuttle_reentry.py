@@ -4,7 +4,11 @@ import numpy as np
 import maptor as mtor
 
 
-# Constants
+# ============================================================================
+# Constants and Scaling
+# ============================================================================
+
+# Physical constants
 DEG2RAD = np.pi / 180.0
 MU_EARTH = 0.14076539e17
 R_EARTH = 20902900.0
@@ -14,14 +18,22 @@ H_R = 23800.0
 MASS = 203000.0 / 32.174
 A0, A1 = -0.20704, 0.029244
 B0, B1, B2 = 0.07854, -0.61592e-2, 0.621408e-3
-H_SCALE = 1e5
-V_SCALE = 1e4
 
-# Problem setup
+# Scaling factors for numerical conditioning
+H_SCALE = 1e5  # Altitude scaling
+V_SCALE = 1e4  # Velocity scaling
+
+# ============================================================================
+# Problem Setup
+# ============================================================================
+
 problem = mtor.Problem("Shuttle Reentry")
 phase = problem.set_phase(1)
 
+# ============================================================================
 # Variables
+# ============================================================================
+
 t = phase.time(initial=0.0)
 h_s = phase.state("altitude_scaled", initial=2.6, final=0.8, boundary=(0, None))
 phi = phase.state("longitude", initial=0.0)
@@ -37,7 +49,11 @@ psi = phase.state("heading_angle", initial=90 * DEG2RAD)
 alpha = phase.control("angle_of_attack", boundary=(-90 * DEG2RAD, 90 * DEG2RAD))
 beta = phase.control("bank_angle", boundary=(-90 * DEG2RAD, 1 * DEG2RAD))
 
-# Physics
+# ============================================================================
+# Dynamics
+# ============================================================================
+
+# Physics calculations inline for exact numerical behavior
 h = h_s * H_SCALE
 v = v_s * V_SCALE
 r = R_EARTH + h
@@ -51,7 +67,7 @@ L = q * CL * S_REF
 D = q * CD * S_REF
 eps = 1e-10
 
-# Dynamics
+# Dynamics with manual scaling
 phase.dynamics(
     {
         h_s: (v * ca.sin(gamma)) / H_SCALE,
@@ -64,12 +80,20 @@ phase.dynamics(
     }
 )
 
+# ============================================================================
 # Objective
+# ============================================================================
+
+# Maximize crossrange (final latitude)
 problem.minimize(-theta.final)
 
-# Mesh and guess
+# ============================================================================
+# Mesh and Guess
+# ============================================================================
+
 phase.mesh([8] * 3, np.linspace(-1.0, 1.0, 4))
 
+# Initial guess
 states_guess = []
 controls_guess = []
 for N in [8] * 3:
@@ -80,6 +104,8 @@ for N in [8] * 3:
     v_traj = 2.56 + (0.25 - 2.56) * t_norm
     gamma_traj = -1 * DEG2RAD + (-5 * DEG2RAD - (-1 * DEG2RAD)) * t_norm
     psi_traj = 90 * DEG2RAD * np.ones(N + 1)
+
+    # State order MUST match variable declaration: h_s, phi, theta, v_s, gamma, psi
     states_guess.append(np.vstack([h_traj, phi_traj, theta_traj, v_traj, gamma_traj, psi_traj]))
     controls_guess.append(np.vstack([np.zeros(N), -45 * DEG2RAD * np.ones(N)]))
 
@@ -89,14 +115,30 @@ problem.guess(
     phase_terminal_times={1: 2000.0},
 )
 
+# ============================================================================
 # Solve
+# ============================================================================
+
 solution = mtor.solve_adaptive(
     problem,
-    error_tolerance=1e-7,
-    nlp_options={"ipopt.print_level": 0, "ipopt.max_iter": 2000, "ipopt.tol": 1e-7},
+    error_tolerance=1e-6,
+    max_iterations=30,
+    min_polynomial_degree=3,
+    max_polynomial_degree=8,
+    nlp_options={
+        "ipopt.max_iter": 2000,
+        "ipopt.tol": 1e-6,
+        "ipopt.constr_viol_tol": 1e-6,
+        "ipopt.acceptable_tol": 1e-3,
+        "ipopt.linear_solver": "mumps",
+        "ipopt.print_level": 0,
+    },
 )
 
+# ============================================================================
 # Results
+# ============================================================================
+
 if solution.status["success"]:
     crossrange_deg = -solution.status["objective"] * 180.0 / np.pi
     print(f"Final time: {solution.phases[1]['times']['final']:.1f} seconds")

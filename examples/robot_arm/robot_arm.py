@@ -68,8 +68,6 @@ problem.guess(
 # Solve
 solution = mtor.solve_adaptive(
     problem,
-    error_tolerance=1e-6,
-    max_iterations=25,
     min_polynomial_degree=3,
     max_polynomial_degree=12,
     nlp_options={

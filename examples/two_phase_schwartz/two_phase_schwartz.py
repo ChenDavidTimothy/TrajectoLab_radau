@@ -84,11 +84,18 @@ problem.guess(
 # Solve
 solution = mtor.solve_adaptive(
     problem,
-    error_tolerance=1e-6,
-    max_iterations=25,
     min_polynomial_degree=3,
-    max_polynomial_degree=12,
-    nlp_options={"ipopt.print_level": 0, "ipopt.max_iter": 3000, "ipopt.tol": 1e-8},
+    max_polynomial_degree=8,
+    ode_solver_tolerance=1e-5,
+    ode_method="DOP853",
+    nlp_options={
+        "ipopt.max_iter": 2000,
+        "ipopt.tol": 1e-6,
+        "ipopt.constr_viol_tol": 1e-6,
+        "ipopt.acceptable_tol": 1e-3,
+        "ipopt.linear_solver": "mumps",
+        "ipopt.print_level": 0,
+    },
 )
 
 # Results

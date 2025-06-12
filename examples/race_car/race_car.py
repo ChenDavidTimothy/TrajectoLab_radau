@@ -31,8 +31,6 @@ problem.guess(phase_terminal_times={1: 2.0})
 # Solve
 solution = mtor.solve_adaptive(
     problem,
-    error_tolerance=1e-6,
-    max_iterations=20,
     min_polynomial_degree=4,
     max_polynomial_degree=8,
     nlp_options={"ipopt.print_level": 0},

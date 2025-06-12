@@ -233,8 +233,9 @@ solution = mtor.solve_adaptive(
     max_iterations=20,
     min_polynomial_degree=3,
     max_polynomial_degree=8,
+    ode_method="DOP853",
     nlp_options={
-        "ipopt.print_level": 5,
+        "ipopt.print_level": 0,
         "ipopt.max_iter": 500,
         "ipopt.tol": 1e-4,
         "ipopt.constr_viol_tol": 1e-4,

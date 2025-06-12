@@ -72,23 +72,18 @@ problem.guess(
 
 solution = mtor.solve_adaptive(
     problem,
-    error_tolerance=4e-3,
-    max_iterations=20,
+    error_tolerance=1e-6,
+    max_iterations=30,
     min_polynomial_degree=3,
-    max_polynomial_degree=12,
+    max_polynomial_degree=8,
     ode_method="LSODA",
     nlp_options={
-        "ipopt.max_iter": 3000,
-        "ipopt.mumps_pivtol": 5e-7,
-        "ipopt.mumps_mem_percent": 50000,
+        "ipopt.max_iter": 2000,
+        "ipopt.tol": 1e-6,
+        "ipopt.constr_viol_tol": 1e-6,
+        "ipopt.acceptable_tol": 1e-3,
         "ipopt.linear_solver": "mumps",
-        "ipopt.constr_viol_tol": 1e-7,
-        "ipopt.print_level": 5,
-        "ipopt.nlp_scaling_method": "gradient-based",
-        "ipopt.mu_strategy": "adaptive",
-        "ipopt.check_derivatives_for_naninf": "yes",
-        "ipopt.hessian_approximation": "exact",
-        "ipopt.tol": 1e-8,
+        "ipopt.print_level": 0,
     },
 )
 
