@@ -324,6 +324,7 @@ solution = mtor.solve_adaptive(
     max_iterations=30,
     min_polynomial_degree=3,
     max_polynomial_degree=8,
+    ode_solver_tolerance=1e-4,
     nlp_options={
         "ipopt.print_level": 0,
         "ipopt.max_iter": 500,
