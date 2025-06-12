@@ -177,7 +177,7 @@ def solve_adaptive(
             - 20+: Very smooth solutions only
 
         ode_solver_tolerance: ODE integration tolerance for error estimation:
-            - 1e-7: Standard (default)
+            - 1e-6: Standard (default)
             - 1e-9: High accuracy error estimation
             - 1e-5: Faster, less accurate
 
