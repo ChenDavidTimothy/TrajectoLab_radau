@@ -6,7 +6,7 @@
 
 Find the optimal thrust direction vectors $\mathbf{u}_i(t) = [u_{i,1}, u_{i,2}, u_{i,3}]^T$ for each phase that maximize the final payload mass:
 
-$$J = -m_4(t_f)$$ (maximizing mass by minimizing negative mass)
+$$J = -m_4(t_f)$$ (maximizing final payload mass by minimizing negative mass)
 
 Subject to the atmospheric flight dynamics with Earth rotation:
 
