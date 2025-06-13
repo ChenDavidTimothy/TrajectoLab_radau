@@ -30,29 +30,29 @@ $$\frac{dI_2}{dt} = k_2 L_2 - (\mu + d_2) I_2$$
 
 ### Physical Parameters
 
-- Population recruitment rate: $\Lambda = 429$ per year
-- Transmission rates: $\beta_1 = 13$, $\beta_2 = 13$, $\beta^* = 0.029$ per year
-- Natural death rate: $\mu = 0.0143$ per year
-- Disease-induced death rates: $d_1 = 0$, $d_2 = 0$ per year
-- Progression rates: $k_1 = 0.5$, $k_2 = 1$ per year
-- Recovery rates: $r_1 = 2$, $r_2 = 1$ per year
-- Treatment parameters: $p = 0.4$, $q = 0.1$
-- Total population: $N = 30000$
-- Control costs: $B_1 = 50$, $B_2 = 500$
+- $\Lambda = 429$ per year
+- $\beta_1 = 13$, $\beta_2 = 13$, $\beta^* = 0.029$ per year
+- $\mu = 0.0143$ per year
+- $d_1 = 0$, $d_2 = 0$ per year
+- $k_1 = 0.5$, $k_2 = 1$ per year
+- $r_1 = 2$, $r_2 = 1$ per year
+- $p = 0.4$, $q = 0.1$
+- $N = 30000$
+- $B_1 = 50$, $B_2 = 500$
 
 ### State Variables
 
-- $S(t)$: Susceptible population
-- $T(t)$: Population under treatment
-- $L_1(t)$: Latent population with drug-sensitive TB
-- $I_1(t)$: Infectious population with drug-sensitive TB
-- $L_2(t)$: Latent population with drug-resistant TB
-- $I_2(t)$: Infectious population with drug-resistant TB
+- $S(t)$
+- $T(t)$
+- $L_1(t)$
+- $I_1(t)$
+- $L_2(t)$
+- $I_2(t)$
 
 ### Control Variables
 
-- $u_1(t)$: Treatment rate for latent drug-sensitive TB (fraction)
-- $u_2(t)$: Treatment rate for infectious drug-sensitive TB (fraction)
+- $u_1(t)$
+- $u_2(t)$
 
 ### Notes
 

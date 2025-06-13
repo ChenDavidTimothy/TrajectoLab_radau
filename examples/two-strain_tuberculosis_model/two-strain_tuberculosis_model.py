@@ -76,13 +76,13 @@ for N_interval in [6, 6, 6]:
     tau = np.linspace(-1, 1, N_interval + 1)
     t_norm = (tau + 1) / 2
 
-    # Linear interpolation for states (maintaining epidemiological balance)
-    S_vals = 19000.0 - 1000.0 * t_norm  # Slight decrease
-    T_vals = 250.0 + 50.0 * t_norm  # Slight increase due to treatment
-    L1_vals = 9000.0 - 500.0 * t_norm  # Decrease due to control
-    I1_vals = 1000.0 - 200.0 * t_norm  # Decrease due to treatment
-    L2_vals = 500.0 - 100.0 * t_norm  # Decrease due to control
-    I2_vals = 250.0 - 50.0 * t_norm  # Decrease due to treatment
+    # Linear interpolation for states
+    S_vals = 19000.0 - 1000.0 * t_norm
+    T_vals = 250.0 + 50.0 * t_norm
+    L1_vals = 9000.0 - 500.0 * t_norm
+    I1_vals = 1000.0 - 200.0 * t_norm
+    L2_vals = 500.0 - 100.0 * t_norm
+    I2_vals = 250.0 - 50.0 * t_norm
 
     states_guess.append(np.vstack([S_vals, T_vals, L1_vals, I1_vals, L2_vals, I2_vals]))
 
@@ -125,7 +125,7 @@ if solution.status["success"]:
     L2_final = solution[(1, "L2")][-1]
     I2_final = solution[(1, "I2")][-1]
 
-    print("Final populations:")
+    print("Result:")
     print(f"S: {S_final:.1f}")
     print(f"T: {T_final:.1f}")
     print(f"L1: {L1_final:.1f}")
