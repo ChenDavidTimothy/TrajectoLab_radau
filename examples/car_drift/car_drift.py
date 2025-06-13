@@ -52,7 +52,7 @@ P_rr_max = 180000.0  # max power rear right motor (W)
 # STATE VARIABLES (Properly Ordered: Positions → Velocities → Wheels)
 # ============================================================================
 
-t = phase.time(initial=0.0, final=8.0)
+t = phase.time(initial=0.0)
 
 # Global position states (positions first)
 X = phase.state("global_x", initial=0.0, final=10.0, boundary=(-50.0, 50.0))
@@ -314,7 +314,7 @@ phase.path_constraints(
 # ============================================================================
 
 control_effort = phase.add_integral(T_t**2 + T_b**2 + 200.0 * delta**2)
-problem.minimize(control_effort)
+problem.minimize(t.final + control_effort)
 
 # ============================================================================
 # SOLUTION SETUP
