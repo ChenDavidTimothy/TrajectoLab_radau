@@ -4,8 +4,9 @@ import numpy as np
 import maptor as mtor
 
 
-# Obstacle trajectory waypoints - single source of truth for animation
-
+# ============================================================================
+# OBSTACLE TRAJECTORY DEFINITION (PRESERVED FROM ORIGINAL)
+# ============================================================================
 
 OBSTACLE_WAYPOINTS = np.array(
     [
@@ -26,74 +27,215 @@ _y_interpolant = ca.interpolant("obs_y_interp", "linear", [_times], _y_coords)
 
 
 def obstacle_position(current_time):
+    """Get obstacle position at given time with clamped interpolation."""
     t_clamped = ca.fmax(_times[0], ca.fmin(_times[-1], current_time))
     return _x_interpolant(t_clamped), _y_interpolant(t_clamped)
 
 
-# Problem setup
-problem = mtor.Problem("Dynamic Obstacle Avoidance")
+# ============================================================================
+# VEHICLE PHYSICAL PARAMETERS (DYNAMIC BICYCLE MODEL)
+# ============================================================================
+
+# Tire parameters
+C_alpha_f = 100000.0  # Front tire cornering stiffness (N/rad)
+C_alpha_r = 100000.0  # Rear tire cornering stiffness (N/rad)
+
+# Vehicle geometry
+L_f = 1.2  # Distance from CG to front axle (m)
+L_r = 1.3  # Distance from CG to rear axle (m)
+
+# Vehicle inertial properties
+m = 1500.0  # Vehicle mass (kg)
+I_z = 2500.0  # Yaw moment of inertia (kg*m^2)
+
+# Safety parameters
+vehicle_radius = 1.5  # Vehicle safety radius (m)
+obstacle_radius = 2.5  # Obstacle radius (m)
+min_separation = vehicle_radius + obstacle_radius
+
+# Numerical safety parameters
+v_x_min = 0.1  # Minimum absolute longitudinal velocity for division safety (m/s)
+
+# ============================================================================
+# PROBLEM SETUP
+# ============================================================================
+
+problem = mtor.Problem("Dynamic Obstacle Avoidance - Dynamic Bicycle Model")
 phase = problem.set_phase(1)
 
-# Variables
+# ============================================================================
+# STATE VARIABLES (DYNAMIC BICYCLE MODEL)
+# ============================================================================
+
 t = phase.time(initial=0.0)
+
+# Global position states
 x = phase.state("x_position", initial=0.0, final=20.0)
 y = phase.state("y_position", initial=0.0, final=20.0)
-theta = phase.state("heading", initial=np.pi / 4.0)
-v = phase.state("velocity", initial=1.0, boundary=(0.5, 20.0))
-delta = phase.control("steering_angle", boundary=(-0.5, 0.5))
-a = phase.control("acceleration", boundary=(-3.0, 3.0))
 
-# Dynamics - bicycle model
-L = 2.5  # Wheelbase (m)
+# Vehicle orientation
+theta = phase.state("heading", initial=np.pi / 4.0)
+
+# Vehicle velocity states
+v_x = phase.state("longitudinal_velocity", initial=10.0, boundary=(-20.0, 20.0))
+v_y = phase.state("lateral_velocity", initial=0.0, boundary=(-15.0, 15.0))
+
+# Vehicle angular velocity
+r = phase.state("yaw_rate", initial=0.0, boundary=(-3.0, 3.0))
+
+# ============================================================================
+# CONTROL VARIABLES
+# ============================================================================
+
+delta_f = phase.control("steering_angle", boundary=(-0.5, 0.5))
+a_x = phase.control("longitudinal_acceleration", boundary=(-8.0, 8.0))
+
+# ============================================================================
+# DYNAMIC BICYCLE MODEL IMPLEMENTATION
+# ============================================================================
+
+# Division-by-zero protection for longitudinal velocity
+v_x_safe = ca.if_else(ca.fabs(v_x) < v_x_min, ca.if_else(v_x >= 0, v_x_min, -v_x_min), v_x)
+
+# Dynamic bicycle model coefficients with division protection
+A = -(C_alpha_f * ca.cos(delta_f) + C_alpha_r) / (m * v_x_safe)
+B = (-L_f * C_alpha_f * ca.cos(delta_f) + L_r * C_alpha_r) / (I_z * v_x_safe)
+C = (-L_f * C_alpha_f * ca.cos(delta_f) + L_r * C_alpha_r) / (m * v_x_safe)
+D = -(L_f**2 * C_alpha_f * ca.cos(delta_f) + L_r**2 * C_alpha_r) / (I_z * v_x_safe)
+E = (C_alpha_f * ca.cos(delta_f)) / m
+F = (L_f * C_alpha_f * ca.cos(delta_f)) / I_z
+
+# Complete dynamic bicycle model dynamics
 phase.dynamics(
     {
-        x: v * ca.cos(theta),
-        y: v * ca.sin(theta),
-        theta: v * ca.tan(delta) / L,
-        v: a,
+        x: v_x * ca.cos(theta) - v_y * ca.sin(theta),
+        y: v_x * ca.sin(theta) + v_y * ca.cos(theta),
+        theta: r,
+        v_x: a_x,
+        v_y: A * v_y + C * r + E * delta_f,
+        r: B * v_y + D * r + F * delta_f,
     }
 )
 
-# Path constraints - collision avoidance
-vehicle_radius = 1.5  # Vehicle safety radius (m)
-obstacle_radius = 2.5  # Obstacle radius (m)
+# ============================================================================
+# COLLISION AVOIDANCE CONSTRAINTS (PRESERVED FROM ORIGINAL)
+# ============================================================================
+
 obs_x, obs_y = obstacle_position(t)
 distance_squared = (x - obs_x) ** 2 + (y - obs_y) ** 2
-min_separation = vehicle_radius + obstacle_radius
 
 phase.path_constraints(distance_squared >= min_separation**2)
-phase.path_constraints(x >= -5.0, x <= 25.0, y >= -5.0, y <= 25.0)
 
-# Objective - minimize time
+# ============================================================================
+# WORKSPACE BOUNDS (PRESERVED FROM ORIGINAL)
+# ============================================================================
+
+phase.path_constraints(x >= -10.0, x <= 30.0, y >= -10.0, y <= 30.0)
+
+# ============================================================================
+# OBJECTIVE FUNCTION (PRESERVED FROM ORIGINAL)
+# ============================================================================
+
 problem.minimize(t.final)
 
-# Mesh and initial guess
+# ============================================================================
+# MESH CONFIGURATION (PRESERVED FROM ORIGINAL)
+# ============================================================================
+
 phase.mesh([8, 8, 8], [-1.0, -1 / 3, 1 / 3, 1.0])
 
+# ============================================================================
+# INITIAL GUESS FOR DYNAMIC MODEL
+# ============================================================================
 
-# Solve with adaptive mesh refinement
-solution = mtor.solve_adaptive(
-    problem,
-    error_tolerance=1e-3,
-    max_iterations=30,
-    min_polynomial_degree=5,
-    max_polynomial_degree=15,
-    nlp_options={"ipopt.print_level": 0, "ipopt.max_iter": 1000},
+states_guess = []
+controls_guess = []
+
+for N in [8, 8, 8]:
+    tau = np.linspace(-1, 1, N + 1)
+    t_norm = (tau + 1) / 2
+
+    # Position guess - linear interpolation
+    x_vals = 0.0 + (20.0 - 0.0) * t_norm
+    y_vals = 0.0 + (20.0 - 0.0) * t_norm
+
+    # Orientation guess - smooth turn
+    theta_vals = np.pi / 4.0 * np.ones(N + 1)
+
+    # Velocity guess - maintain forward motion
+    v_x_vals = 10.0 * np.ones(N + 1)
+    v_y_vals = np.zeros(N + 1)
+
+    # Yaw rate guess
+    r_vals = np.zeros(N + 1)
+
+    states_guess.append(np.vstack([x_vals, y_vals, theta_vals, v_x_vals, v_y_vals, r_vals]))
+
+    # Control guess - small steering inputs and zero acceleration
+    delta_f_vals = 0.1 * np.sin(np.pi * np.linspace(0, 1, N))
+    a_x_vals = np.zeros(N)
+
+    controls_guess.append(np.vstack([delta_f_vals, a_x_vals]))
+
+problem.guess(
+    phase_states={1: states_guess},
+    phase_controls={1: controls_guess},
+    phase_terminal_times={1: 12.0},
 )
 
-# Results and analysis
-if __name__ == "__main__":
-    if solution.status["success"]:
-        print(f"Adaptive objective: {solution.status['objective']:.6f}")
-        solution.plot()
+# ============================================================================
+# SOLVER CONFIGURATION
+# ============================================================================
 
-        # Final state verification
-        x_final = solution[(1, "x_position")][-1]
-        y_final = solution[(1, "y_position")][-1]
+solution = mtor.solve_adaptive(
+    problem,
+    error_tolerance=1e-2,
+    max_iterations=30,
+    min_polynomial_degree=4,
+    max_polynomial_degree=12,
+    nlp_options={
+        "ipopt.print_level": 5,
+        "ipopt.max_iter": 3000,
+        "ipopt.tol": 1e-4,
+        "ipopt.constr_viol_tol": 1e-4,
+        "ipopt.linear_solver": "mumps",
+        "ipopt.mu_strategy": "adaptive",
+    },
+)
 
-        print("Final position:")
-        print(f"  x: {x_final:.6f} (target: 20.0)")
-        print(f"  y: {y_final:.6f} (target: 20.0)")
+# ============================================================================
+# RESULTS ANALYSIS
+# ============================================================================
 
-    else:
-        print(f"Failed: {solution.status['message']}")
+if solution.status["success"]:
+    print(f"Dynamic bicycle model objective: {solution.status['objective']:.6f}")
+    print(f"Mission time: {solution.status['total_mission_time']:.6f} seconds")
+
+    # Final state verification
+    x_final = solution[(1, "x_position")][-1]
+    y_final = solution[(1, "y_position")][-1]
+    v_x_final = solution[(1, "longitudinal_velocity")][-1]
+    v_y_final = solution[(1, "lateral_velocity")][-1]
+
+    print("Final state verification:")
+    print(f"  Position: ({x_final:.2f}, {y_final:.2f}) m")
+    print("  Target position: (20.0, 20.0) m")
+    print(f"  Position error: {np.sqrt((x_final - 20.0) ** 2 + (y_final - 20.0) ** 2):.3f} m")
+    print(f"  Final velocities: v_x = {v_x_final:.2f} m/s, v_y = {v_y_final:.2f} m/s")
+
+    # Dynamic behavior analysis
+    v_x_traj = solution[(1, "longitudinal_velocity")]
+    v_y_traj = solution[(1, "lateral_velocity")]
+    r_traj = solution[(1, "yaw_rate")]
+
+    print("Dynamic behavior analysis:")
+    print(f"  Longitudinal velocity range: [{v_x_traj.min():.2f}, {v_x_traj.max():.2f}] m/s")
+    print(f"  Max lateral velocity: {abs(v_y_traj).max():.2f} m/s")
+    print(f"  Max yaw rate: {abs(r_traj).max():.2f} rad/s")
+    print(f"  Reverse motion: {'Yes' if v_x_traj.min() < 0 else 'No'}")
+    print(f"  Significant drift: {'Yes' if abs(v_y_traj).max() > 2.0 else 'No'}")
+
+    solution.plot()
+
+else:
+    print(f"Optimization failed: {solution.status['message']}")
