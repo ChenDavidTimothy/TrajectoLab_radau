@@ -74,7 +74,7 @@ x = phase.state("x_position", initial=0.0, final=20.0)
 y = phase.state("y_position", initial=0.0, final=20.0)
 
 # Vehicle orientation
-theta = phase.state("heading", initial=np.pi / 4.0)
+theta = phase.state("heading", initial=np.pi / 4.0, final=np.pi / 9.0)
 
 # Vehicle velocity states
 v_x = phase.state("longitudinal_velocity", initial=10.0, boundary=(-20.0, 20.0))
@@ -130,7 +130,7 @@ phase.path_constraints(distance_squared >= min_separation**2)
 # WORKSPACE BOUNDS (PRESERVED FROM ORIGINAL)
 # ============================================================================
 
-phase.path_constraints(x >= -10.0, x <= 30.0, y >= -10.0, y <= 30.0)
+# phase.path_constraints(x >= -10.0, x <= 30.0, y >= -10.0, y <= 30.0)
 
 # ============================================================================
 # OBJECTIVE FUNCTION (PRESERVED FROM ORIGINAL)
@@ -148,40 +148,6 @@ phase.mesh([8, 8, 8], [-1.0, -1 / 3, 1 / 3, 1.0])
 # INITIAL GUESS FOR DYNAMIC MODEL
 # ============================================================================
 
-states_guess = []
-controls_guess = []
-
-for N in [8, 8, 8]:
-    tau = np.linspace(-1, 1, N + 1)
-    t_norm = (tau + 1) / 2
-
-    # Position guess - linear interpolation
-    x_vals = 0.0 + (20.0 - 0.0) * t_norm
-    y_vals = 0.0 + (20.0 - 0.0) * t_norm
-
-    # Orientation guess - smooth turn
-    theta_vals = np.pi / 4.0 * np.ones(N + 1)
-
-    # Velocity guess - maintain forward motion
-    v_x_vals = 10.0 * np.ones(N + 1)
-    v_y_vals = np.zeros(N + 1)
-
-    # Yaw rate guess
-    r_vals = np.zeros(N + 1)
-
-    states_guess.append(np.vstack([x_vals, y_vals, theta_vals, v_x_vals, v_y_vals, r_vals]))
-
-    # Control guess - small steering inputs and zero acceleration
-    delta_f_vals = 0.1 * np.sin(np.pi * np.linspace(0, 1, N))
-    a_x_vals = np.zeros(N)
-
-    controls_guess.append(np.vstack([delta_f_vals, a_x_vals]))
-
-problem.guess(
-    phase_states={1: states_guess},
-    phase_controls={1: controls_guess},
-    phase_terminal_times={1: 12.0},
-)
 
 # ============================================================================
 # SOLVER CONFIGURATION
@@ -193,6 +159,7 @@ solution = mtor.solve_adaptive(
     max_iterations=30,
     min_polynomial_degree=4,
     max_polynomial_degree=12,
+    ode_solver_tolerance=1e-4,
     nlp_options={
         "ipopt.print_level": 5,
         "ipopt.max_iter": 3000,
