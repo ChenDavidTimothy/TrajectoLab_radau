@@ -29,12 +29,12 @@ def create_vehicle_triangle(x, y, theta, size=0.5):
 
 
 def animate_car_drift(solution, save_filename="car_drift.mp4"):
-    """Create animation of complex vehicle dynamics solution."""
+    """Create animation of direct force control vehicle dynamics solution."""
 
     if not solution.status["success"]:
         raise ValueError("Cannot animate a failed solution.")
 
-    # Extract solution data
+    # Extract solution data - updated variable names for new control scheme
     time_states = solution["time_states"]
     x_vehicle = solution["x_position"]
     y_vehicle = solution["y_position"]
@@ -42,6 +42,11 @@ def animate_car_drift(solution, save_filename="car_drift.mp4"):
     velocity = solution["velocity"]
     sideslip = solution["sideslip_angle"]
     yaw_rate = solution["yaw_rate"]
+
+    # New control variables for direct force control
+    front_steering = solution["front_steering"]
+    front_force = solution["front_long_force"]
+    rear_force = solution["rear_long_force"]
 
     # Remove duplicate time points for smooth animation
     unique_indices = np.unique(time_states, return_index=True)[1]
@@ -52,6 +57,14 @@ def animate_car_drift(solution, save_filename="car_drift.mp4"):
     v_sol = velocity[unique_indices]
     beta_sol = sideslip[unique_indices]
     gamma_sol = yaw_rate[unique_indices]
+
+    # Extract control data
+    time_controls = solution["time_controls"]
+    unique_control_indices = np.unique(time_controls, return_index=True)[1]
+    time_controls_sol = time_controls[unique_control_indices]
+    steering_sol = front_steering[unique_control_indices]
+    f_front_sol = front_force[unique_control_indices]
+    f_rear_sol = rear_force[unique_control_indices]
 
     # Create smooth animation timeline
     final_time = time_sol[-1]
@@ -67,6 +80,11 @@ def animate_car_drift(solution, save_filename="car_drift.mp4"):
     beta_anim = np.interp(animation_time, time_sol, beta_sol)
     gamma_anim = np.interp(animation_time, time_sol, gamma_sol)
 
+    # Interpolate control data
+    steering_anim = np.interp(animation_time, time_controls_sol, steering_sol)
+    f_front_anim = np.interp(animation_time, time_controls_sol, f_front_sol)
+    f_rear_anim = np.interp(animation_time, time_controls_sol, f_rear_sol)
+
     # Set up the plot
     fig, (ax_main, ax_states) = plt.subplots(1, 2, figsize=(16, 8))
 
@@ -75,7 +93,7 @@ def animate_car_drift(solution, save_filename="car_drift.mp4"):
     ax_main.set_ylim(-1, 11)
     ax_main.set_aspect("equal")
     ax_main.grid(True, alpha=0.3)
-    ax_main.set_title("Complex Vehicle Dynamics - Trajectory")
+    ax_main.set_title("Direct Force Control Vehicle Dynamics - Trajectory")
     ax_main.set_xlabel("X Position (m)")
     ax_main.set_ylabel("Y Position (m)")
 
@@ -84,18 +102,20 @@ def animate_car_drift(solution, save_filename="car_drift.mp4"):
     ax_main.scatter(10, 10, c="r", s=150, marker="*", label="Goal", zorder=5)
     ax_main.plot(x_sol, y_sol, "b-", alpha=0.4, linewidth=2, label="Planned Path")
 
-    # Vehicle states plot
+    # Vehicle states and controls plot
     ax_states.set_xlim(0, final_time)
-    ax_states.set_ylim(-2, 20)
+    ax_states.set_ylim(-3000, 3000)  # Adjusted for force display
     ax_states.grid(True, alpha=0.3)
-    ax_states.set_title("Vehicle States")
+    ax_states.set_title("Vehicle States & Controls")
     ax_states.set_xlabel("Time (s)")
     ax_states.set_ylabel("Value")
 
-    # Plot state trajectories
-    ax_states.plot(time_sol, v_sol, "b-", label="Velocity (m/s)", alpha=0.7)
-    ax_states.plot(time_sol, beta_sol * 10, "r-", label="Sideslip (×10 rad)", alpha=0.7)
-    ax_states.plot(time_sol, gamma_sol * 5, "g-", label="Yaw Rate (×5 rad/s)", alpha=0.7)
+    # Plot state and control trajectories
+    ax_states.plot(time_sol, v_sol * 100, "b-", label="Velocity (×100 m/s)", alpha=0.7)
+    ax_states.plot(time_sol, beta_sol * 1000, "r-", label="Sideslip (×1000 rad)", alpha=0.7)
+    ax_states.plot(time_sol, gamma_sol * 500, "g-", label="Yaw Rate (×500 rad/s)", alpha=0.7)
+    ax_states.plot(time_controls_sol, f_front_sol, "m-", label="Front Force (N)", alpha=0.7)
+    ax_states.plot(time_controls_sol, f_rear_sol, "c-", label="Rear Force (N)", alpha=0.7)
     ax_states.legend()
 
     # Initialize animated elements
@@ -110,14 +130,14 @@ def animate_car_drift(solution, save_filename="car_drift.mp4"):
     # State indicator lines
     v_line = ax_states.axvline(0, color="blue", linestyle="--", alpha=0.8)
 
-    # Info text
+    # Info text - updated for direct force control
     info_text = ax_main.text(
         0.02,
         0.98,
         "",
         transform=ax_main.transAxes,
         verticalalignment="top",
-        fontsize=10,
+        fontsize=9,
         bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8),
     )
 
@@ -138,14 +158,17 @@ def animate_car_drift(solution, save_filename="car_drift.mp4"):
         # Update state indicator line
         v_line.set_xdata([animation_time[frame], animation_time[frame]])
 
-        # Update info text
+        # Update info text with direct force control information
         info_text.set_text(
             f"Time: {animation_time[frame]:.2f}s\n"
             f"Position: ({x_anim[frame]:.1f}, {y_anim[frame]:.1f})\n"
             f"Velocity: {v_anim[frame]:.1f} m/s\n"
             f"Heading: {theta_anim[frame] * 180 / np.pi:.1f}°\n"
             f"Sideslip: {beta_anim[frame] * 180 / np.pi:.1f}°\n"
-            f"Yaw Rate: {gamma_anim[frame]:.2f} rad/s"
+            f"Yaw Rate: {gamma_anim[frame]:.2f} rad/s\n"
+            f"Steering: {steering_anim[frame] * 180 / np.pi:.1f}°\n"
+            f"Front Force: {f_front_anim[frame]:.0f} N\n"
+            f"Rear Force: {f_rear_anim[frame]:.0f} N"
         )
 
         return vehicle_triangle, current_pos, v_line, info_text
@@ -170,7 +193,7 @@ if __name__ == "__main__":
     solution = car_drift.solution
 
     if solution.status["success"]:
-        print("Creating car drift animation...")
+        print("Creating direct force control animation...")
 
         # Save mp4 in the same directory as this script
         script_dir = Path(__file__).parent
