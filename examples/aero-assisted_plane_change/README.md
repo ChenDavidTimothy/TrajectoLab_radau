@@ -22,6 +22,14 @@ $$\frac{d\psi}{dt} = \frac{a_0 \rho v C_L \sin\beta}{\cos\gamma} - \frac{v \cos\
 
 Where:
 
+$$r = R_e + h$$
+
+$$\rho = \rho_0 e^{-(h-h_0)/h_r}$$
+
+$$v_s = \sqrt{\frac{\mu}{R_e}}$$
+
+$$\rho_s = \rho_0 e^{h_0/h_r}$$
+
 $$M = \frac{1}{a_0 \rho r}\left(1 - \frac{\mu}{rv^2}\right)$$
 
 $$\dot{q} = 17600 \sqrt{\frac{\rho}{\rho_s}} \left(\frac{v}{v_s}\right)^{3.15}$$

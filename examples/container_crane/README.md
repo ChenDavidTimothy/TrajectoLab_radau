@@ -37,17 +37,17 @@ $$\frac{dx_6}{dt} = -\frac{u_1 + c_5 x_3 + 2 x_5 x_6}{x_2}$$
 
 ### State Variables
 
-- $x_1(t)$: Trolley position (m)
-- $x_2(t)$: Cable length (m)
-- $x_3(t)$: Swing angle (rad)
-- $x_4(t)$: Trolley velocity (m/s)
-- $x_5(t)$: Cable length rate (m/s)
-- $x_6(t)$: Swing angular velocity (rad/s)
+- $x_1(t)$
+- $x_2(t)$
+- $x_3(t)$
+- $x_4(t)$
+- $x_5(t)$
+- $x_6(t)$
 
 ### Control Variables
 
-- $u_1(t)$: Trolley drive force
-- $u_2(t)$: Cable length control
+- $u_1(t)$
+- $u_2(t)$
 
 ### Notes
 
