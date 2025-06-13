@@ -22,7 +22,6 @@ $$\frac{dx}{dt} = 0.5 x + u$$
 
 - Time horizon: $t_f = 1.0$ s
 - System parameter: $a = 0.5$
-- Cost weights: $Q = 0.625$, $R = 0.5$, $N = 0.5$
 
 ### State Variables
 
