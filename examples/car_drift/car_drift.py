@@ -32,9 +32,16 @@ phase.dynamics(
 problem.minimize(t.final)
 
 # Mesh and solve - using their proven configuration
-phase.mesh([8, 8], [-1.0, 0, 1.0])
+phase.mesh([8, 8, 8], [-1.0, -1 / 3, 1 / 3, 1.0])
 
-solution = mtor.solve_adaptive(problem)
+solution = mtor.solve_adaptive(
+    problem,
+    error_tolerance=1e-3,
+    max_iterations=30,
+    min_polynomial_degree=5,
+    max_polynomial_degree=15,
+    nlp_options={"ipopt.print_level": 0, "ipopt.max_iter": 1000},
+)
 
 # Results
 if solution.status["success"]:
