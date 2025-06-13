@@ -9,14 +9,14 @@ phase = problem.set_phase(1)
 
 # States: position + complex vehicle dynamics
 t = phase.time(initial=0.0)
-x = phase.state("x_position", initial=0.0, final=20.0)
-y = phase.state("y_position", initial=0.0, final=20.0)
+x = phase.state("x_position", initial=0.0, final=10.0)
+y = phase.state("y_position", initial=0.0, final=10.0)
 theta = phase.state("heading", initial=0)
-v = phase.state("velocity", initial=0.0, boundary=(0, 25.0))
-beta = phase.state("sideslip_angle", initial=0.0)
-gamma = phase.state("yaw_rate", initial=0.0)
-psi = phase.state("roll_angle", initial=0.0)
-p = phase.state("roll_rate", initial=0.0)
+v = phase.state("velocity", initial=0.0, boundary=(-8.0, 25.0))
+beta = phase.state("sideslip_angle", initial=0.0, boundary=(-0.2, 0.2))
+gamma = phase.state("yaw_rate", initial=0.0, boundary=(-3.0, 3.0))  # ±3 rad/s
+psi = phase.state("roll_angle", initial=0.0, boundary=(-0.3, 0.3))  # ±17°
+p = phase.state("roll_rate", initial=0.0, boundary=(-5.0, 5.0))  # ±5 rad/s
 
 # Controls: steering angle + wheel speeds
 delta_f = phase.control("front_steering", boundary=(-0.3, 0.3))
@@ -154,7 +154,7 @@ phase.dynamics(
 problem.minimize(t.final)
 
 # Mesh configuration
-phase.mesh([8, 8], [-1.0, 0, 1.0])
+phase.mesh([3, 3, 3], [-1.000000, -0.60000, 0.600000, 1.000000])
 
 # Initial guess for better convergence
 problem.guess(phase_terminal_times={1: 5.0})
@@ -176,7 +176,7 @@ solution = mtor.solve_adaptive(
         "ipopt.mu_strategy": "adaptive",
         "ipopt.check_derivatives_for_naninf": "yes",
         "ipopt.hessian_approximation": "exact",
-        "ipopt.tol": 1e-4,
+        "ipopt.tol": 1e-2,
     },
 )
 
