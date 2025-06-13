@@ -32,7 +32,7 @@ phase.dynamics(
 problem.minimize(t.final)
 
 # Mesh and solve - using their proven configuration
-phase.mesh([11], [-1.0, 1.0])
+phase.mesh([8, 8], [-1.0, 0, 1.0])
 
 solution = mtor.solve_adaptive(problem)
 
