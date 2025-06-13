@@ -36,9 +36,9 @@ $$\sin\eta = \frac{V_y}{v_r}, \quad \cos\eta = \frac{v_x}{v_r}$$
 
 ### Thermal Updraft Model
 
-$$u_a(x) = U_m \left(1 - X^2\right) e^{-X^2}$$
+$$u_a(x) = U_m \left(1 - X\right) e^{-X}$$
 
-where $X = \frac{x}{R} - 2.5$
+where $X = (\frac{x}{R} - 2.5)^2$
 
 ### Boundary Conditions
 
