@@ -21,7 +21,6 @@ $$\frac{dx}{dt} = -x^3 + u$$
 ### Physical Parameters
 
 - Time horizon: $t_f = 40$ s
-- Cost weights: $Q = 0.5$, $R = 0.5$
 
 ### State Variables
 
