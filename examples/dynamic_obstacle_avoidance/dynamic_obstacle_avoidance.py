@@ -76,12 +76,12 @@ x = phase.state("x_position", initial=0.0, final=20.0)
 y = phase.state("y_position", initial=0.0, final=20.0)
 
 # Vehicle orientation (heading angle φ)
-phi = phase.state("heading", initial=np.pi / 3.0)
+phi = phase.state("heading", initial=np.pi / 3)
 
 # Vehicle velocity states (body frame - u, v, ω)
 # --- FIX 1: CONSTRAIN STATE TO BE FORWARD-ONLY ---
 # This guides the solver to the correct region of the solution space.
-u = phase.state("longitudinal_velocity", initial=10.0, boundary=(u_min, 20.0))
+u = phase.state("longitudinal_velocity", initial=5.0, boundary=(u_min, 20.0))
 v = phase.state("lateral_velocity", initial=0.0, boundary=(-15.0, 15.0))
 omega = phase.state("yaw_rate", initial=0.0, boundary=(-3.0, 3.0))
 
@@ -166,7 +166,6 @@ phase.mesh([8, 8, 8], [-1.0, -1 / 3, 1 / 3, 1.0])
 # ============================================================================
 # SOLVER CONFIGURATION
 # ============================================================================
-
 solution = mtor.solve_adaptive(
     problem,
     error_tolerance=1e-1,
@@ -176,13 +175,12 @@ solution = mtor.solve_adaptive(
     ode_solver_tolerance=1e-1,
     nlp_options={
         "ipopt.max_iter": 2000,
-        "ipopt.tol": 1e-6,
+        "ipopt.tol": 1e-8,
         "ipopt.constr_viol_tol": 1e-4,
         "ipopt.linear_solver": "mumps",
         "ipopt.print_level": 5,
     },
 )
-
 
 # ============================================================================
 # RESULTS ANALYSIS
