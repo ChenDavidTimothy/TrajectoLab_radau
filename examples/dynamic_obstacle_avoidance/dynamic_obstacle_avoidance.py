@@ -10,10 +10,10 @@ import maptor as mtor
 
 OBSTACLE_WAYPOINTS = np.array(
     [
-        [8.0, 8.0, 0.0],
+        [5.0, 5.0, 0.0],
         [12.0, 12.0, 3.0],
         [15.0, 15.0, 6.0],
-        [18.0, 18.0, 12.0],
+        [20.0, 20.0, 12.0],
     ]
 )
 
@@ -169,15 +169,15 @@ phase.mesh([8, 8, 8], [-1.0, -1 / 3, 1 / 3, 1.0])
 
 solution = mtor.solve_adaptive(
     problem,
-    error_tolerance=5e-1,
+    error_tolerance=1e-1,
     max_iterations=30,
     min_polynomial_degree=3,
     max_polynomial_degree=10,
-    ode_solver_tolerance=5e-1,
+    ode_solver_tolerance=1e-1,
     nlp_options={
         "ipopt.max_iter": 2000,
-        "ipopt.tol": 1e-8,
-        "ipopt.constr_viol_tol": 1e-6,
+        "ipopt.tol": 1e-6,
+        "ipopt.constr_viol_tol": 1e-4,
         "ipopt.linear_solver": "mumps",
         "ipopt.print_level": 5,
     },
