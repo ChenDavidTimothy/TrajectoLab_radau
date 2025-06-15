@@ -7,6 +7,27 @@ import numpy as np
 from matplotlib.patches import Polygon
 
 
+# ============================================================================
+# MAPTOR BRAND COLOR PALETTE
+# ============================================================================
+
+BRAND_COLORS = {
+    # Primary brand colors
+    "primary_red": "#991b1b",  # Main brand red
+    "primary_red_dark": "#7f1d1d",  # Darker red for hover/accent
+    "primary_red_light": "#f87171",  # Light red for dark theme
+    "background_dark": "#2d2d2d",  # Dark background
+    "text_light": "#e5e7eb",  # Light text
+    # Contrasting vehicle colors (high visibility against brand palette)
+    "agent_blue": "#3b82f6",  # Bright blue - excellent contrast
+    "obstacle_green": "#10b981",  # Emerald green - high visibility
+    "obstacle_orange": "#f59e0b",  # Amber orange - warm contrast
+    # Infrastructure colors
+    "road_markings": "#e5e7eb",  # Light gray for road markings
+    "lane_guides": "#6b7280",  # Medium gray for subtle guides
+}
+
+
 def create_vehicle_rectangle(x, y, theta, length=3.0, width=1.5):
     """Create rectangle representing vehicle with proper orientation."""
     corners_local = np.array(
@@ -60,8 +81,8 @@ def create_obstacle_trajectories_numpy(time_array):
     return obs_x_1, obs_y_1, obs_x_2, obs_y_2
 
 
-def animate_highway_overtaking_professional(solution, save_filename="highway_overtaking_clean.mp4"):
-    """Animate highway overtaking with clean professional scene for LinkedIn."""
+def animate_highway_overtaking_branded(solution, save_filename="highway_overtaking_branded.mp4"):
+    """Animate highway overtaking with MAPTOR brand color scheme."""
     if not solution.status["success"]:
         raise ValueError("Cannot animate a failed solution.")
 
@@ -98,110 +119,170 @@ def animate_highway_overtaking_professional(solution, save_filename="highway_ove
         animation_time
     )
 
-    # Clean professional highway scene - single plot only
-    fig, ax = plt.subplots(figsize=(12, 16))
+    # MAPTOR branded highway scene with dark background
+    plt.style.use("dark_background")
+    fig, ax = plt.subplots(figsize=(12, 16), facecolor=BRAND_COLORS["background_dark"])
+    ax.set_facecolor(BRAND_COLORS["background_dark"])
+
     ax.set_xlim(
         highway_overtaking.HIGHWAY_LEFT_BOUNDARY - 1, highway_overtaking.HIGHWAY_RIGHT_BOUNDARY + 1
     )
     ax.set_ylim(highway_overtaking.HIGHWAY_BOTTOM - 2, highway_overtaking.HIGHWAY_TOP + 2)
     ax.set_aspect("equal")
-    ax.grid(True, alpha=0.2)
-    ax.set_xlabel("Lateral Position (m)", fontsize=12)
-    ax.set_ylabel("Longitudinal Position (m)", fontsize=12)
-    ax.tick_params(labelbottom=False, labelleft=False)
 
-    # Draw highway infrastructure
+    # Branded grid and labels
+    ax.grid(True, alpha=0.2, color=BRAND_COLORS["text_light"])
+    ax.set_xlabel("Lateral Position (m)", fontsize=12, color=BRAND_COLORS["text_light"])
+    ax.set_ylabel("Longitudinal Position (m)", fontsize=12, color=BRAND_COLORS["text_light"])
+    ax.tick_params(colors=BRAND_COLORS["text_light"], labelbottom=False, labelleft=False)
+
+    # Set spine colors to brand
+    for spine in ax.spines.values():
+        spine.set_color(BRAND_COLORS["primary_red"])
+        spine.set_linewidth(2)
+
+    # Draw branded highway infrastructure
     center_line = highway_overtaking.HIGHWAY_CENTER
 
-    # Highway boundaries
+    # Highway boundaries with brand red
     ax.axvline(
         x=highway_overtaking.HIGHWAY_LEFT_BOUNDARY,
-        color="yellow",
+        color=BRAND_COLORS["primary_red"],
         linewidth=4,
     )
-    ax.axvline(x=center_line, color="white", linestyle="--", linewidth=2)
-    ax.axvline(x=highway_overtaking.HIGHWAY_RIGHT_BOUNDARY, color="yellow", linewidth=4)
-
-    # Lane center guidelines (faint)
     ax.axvline(
-        x=highway_overtaking.RIGHT_LANE_CENTER, color="gray", linestyle=":", alpha=0.5, linewidth=1
-    )
-    ax.axvline(
-        x=highway_overtaking.LEFT_LANE_CENTER, color="gray", linestyle=":", alpha=0.5, linewidth=1
+        x=highway_overtaking.HIGHWAY_RIGHT_BOUNDARY, color=BRAND_COLORS["primary_red"], linewidth=4
     )
 
-    # Lane markings (dashed center line segments)
+    # Lane center guidelines with subtle brand colors
+    ax.axvline(
+        x=highway_overtaking.RIGHT_LANE_CENTER,
+        color=BRAND_COLORS["lane_guides"],
+        linestyle=":",
+        alpha=0.6,
+        linewidth=1,
+    )
+    ax.axvline(
+        x=highway_overtaking.LEFT_LANE_CENTER,
+        color=BRAND_COLORS["lane_guides"],
+        linestyle=":",
+        alpha=0.6,
+        linewidth=1,
+    )
+
+    # Realistic lane markings (dashed segments with gaps)
     y_range = np.arange(highway_overtaking.HIGHWAY_BOTTOM, highway_overtaking.HIGHWAY_TOP, 6)
     for y_mark in y_range:
-        ax.plot([center_line, center_line], [y_mark, y_mark + 3], "w--", linewidth=2, alpha=0.8)
+        ax.plot(
+            [center_line, center_line],
+            [y_mark, y_mark + 3],
+            color=BRAND_COLORS["road_markings"],
+            linewidth=2,
+            alpha=0.3,
+        )
 
-    # Plot static elements - clean without labels
+    # Branded start/end markers
     ax.scatter(
         *highway_overtaking.AGENT_START,
-        c="green",
+        c=BRAND_COLORS["obstacle_green"],
         s=200,
         marker="s",
         zorder=10,
-        edgecolor="black",
+        edgecolor=BRAND_COLORS["text_light"],
+        linewidth=2,
     )
     ax.scatter(
         *highway_overtaking.AGENT_END,
-        c="blue",
+        c=BRAND_COLORS["agent_blue"],
         s=250,
         marker="*",
         zorder=10,
-        edgecolor="black",
+        edgecolor=BRAND_COLORS["text_light"],
+        linewidth=2,
     )
 
-    # Dynamic trailing trajectory (will be updated in animate function)
-    trail_length_seconds = 3.0  # Show last 3 seconds of movement
+    # Dynamic trailing trajectories with brand colors
+    trail_length_seconds = 3.0
     trail_frames = int(trail_length_seconds * fps)
-    (agent_trail,) = ax.plot([], [], "b-", alpha=0.6, linewidth=3, zorder=5)
 
-    # Plot obstacle paths
-    obs1_x_full, obs1_y_full, obs2_x_full, obs2_y_full = create_obstacle_trajectories_numpy(
-        time_sol
+    # Agent trail
+    (agent_trail,) = ax.plot(
+        [], [], color=BRAND_COLORS["agent_blue"], alpha=0.7, linewidth=3, zorder=5
     )
-    ax.plot(obs1_x_full, obs1_y_full, "r--", alpha=0.5, linewidth=2)
-    ax.plot(obs2_x_full, obs2_y_full, "orange", linestyle="--", alpha=0.5, linewidth=2)
 
-    # Initialize animated elements
+    # Obstacle trailing trajectories
+    (obstacle_1_trail,) = ax.plot(
+        [],
+        [],
+        color=BRAND_COLORS["obstacle_green"],
+        alpha=0.6,
+        linewidth=2,
+        linestyle="--",
+        zorder=4,
+    )
+    (obstacle_2_trail,) = ax.plot(
+        [],
+        [],
+        color=BRAND_COLORS["obstacle_orange"],
+        alpha=0.6,
+        linewidth=2,
+        linestyle="--",
+        zorder=4,
+    )
+
+    # Initialize animated elements with brand colors
     agent_vehicle = Polygon(
-        [[0, 0], [0, 0], [0, 0], [0, 0]], facecolor="blue", edgecolor="navy", alpha=0.9, linewidth=2
+        [[0, 0], [0, 0], [0, 0], [0, 0]],
+        facecolor=BRAND_COLORS["agent_blue"],
+        edgecolor=BRAND_COLORS["text_light"],
+        alpha=0.9,
+        linewidth=2,
     )
     ax.add_patch(agent_vehicle)
 
     obstacle_1 = Polygon(
         [[0, 0], [0, 0], [0, 0], [0, 0]],
-        facecolor="red",
-        edgecolor="darkred",
-        alpha=0.8,
+        facecolor=BRAND_COLORS["obstacle_green"],
+        edgecolor=BRAND_COLORS["text_light"],
+        alpha=1,
         linewidth=2,
     )
     ax.add_patch(obstacle_1)
 
     obstacle_2 = Polygon(
         [[0, 0], [0, 0], [0, 0], [0, 0]],
-        facecolor="orange",
-        edgecolor="darkorange",
-        alpha=0.8,
+        facecolor=BRAND_COLORS["obstacle_orange"],
+        edgecolor=BRAND_COLORS["text_light"],
+        alpha=1,
         linewidth=2,
     )
     ax.add_patch(obstacle_2)
 
     def animate(frame):
-        """Animation function - clean scene with dynamic trailing trajectory."""
+        """Animation function with branded visual elements and dynamic obstacle trails."""
         # Update agent vehicle
         agent_corners = create_vehicle_rectangle(
             x_anim[frame], y_anim[frame], theta_anim[frame], 4.0, 2.0
         )
         agent_vehicle.set_xy(agent_corners)
 
-        # Update dynamic trailing trajectory
+        # Update dynamic trailing trajectories
         trail_start = max(0, frame - trail_frames)
+
+        # Agent trail
         trail_x = x_anim[trail_start : frame + 1]
         trail_y = y_anim[trail_start : frame + 1]
         agent_trail.set_data(trail_x, trail_y)
+
+        # Obstacle 1 trail
+        obs1_trail_x = obs_x_1_anim[trail_start : frame + 1]
+        obs1_trail_y = obs_y_1_anim[trail_start : frame + 1]
+        obstacle_1_trail.set_data(obs1_trail_x, obs1_trail_y)
+
+        # Obstacle 2 trail
+        obs2_trail_x = obs_x_2_anim[trail_start : frame + 1]
+        obs2_trail_y = obs_y_2_anim[trail_start : frame + 1]
+        obstacle_2_trail.set_data(obs2_trail_x, obs2_trail_y)
 
         # Update obstacles
         obs1_corners = create_vehicle_rectangle(
@@ -214,7 +295,14 @@ def animate_highway_overtaking_professional(solution, save_filename="highway_ove
         )
         obstacle_2.set_xy(obs2_corners)
 
-        return agent_vehicle, agent_trail, obstacle_1, obstacle_2
+        return (
+            agent_vehicle,
+            agent_trail,
+            obstacle_1_trail,
+            obstacle_2_trail,
+            obstacle_1,
+            obstacle_2,
+        )
 
     # Create animation
     anim = animation.FuncAnimation(
@@ -225,7 +313,7 @@ def animate_highway_overtaking_professional(solution, save_filename="highway_ove
 
     try:
         anim.save(save_filename, writer="ffmpeg", fps=fps, bitrate=2000)
-        print(f"Professional highway animation saved to {Path(save_filename).resolve()}")
+        print(f"MAPTOR branded animation saved to {Path(save_filename).resolve()}")
     except Exception as e:
         print(f"Could not save video file ({e}). Displaying animation instead.")
 
@@ -236,12 +324,12 @@ if __name__ == "__main__":
     solution = highway_overtaking.solution
 
     if solution.status["success"]:
-        print("Creating professional highway animation for LinkedIn...")
+        print("Creating MAPTOR branded highway animation...")
 
         script_dir = Path(__file__).parent
-        output_file = script_dir / "highway_overtaking_professional.mp4"
+        output_file = script_dir / "highway_overtaking_maptor_branded.mp4"
 
-        anim = animate_highway_overtaking_professional(solution, str(output_file))
+        anim = animate_highway_overtaking_branded(solution, str(output_file))
         plt.show()
     else:
         print("Cannot animate: solution failed")
