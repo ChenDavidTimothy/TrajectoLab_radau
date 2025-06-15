@@ -169,7 +169,7 @@ def _setup_and_run_animation(
     ax.set_ylim(highway_overtaking.HIGHWAY_BOTTOM - 2, highway_overtaking.HIGHWAY_TOP + 2)
     ax.set_aspect("equal")
 
-    ax.grid(True, alpha=0.2, color=COLORS["text_light"])
+    ax.grid(False)
     ax.set_xlabel("Lateral Position (m)", fontsize=12, color=COLORS["text_light"])
     ax.set_ylabel("Longitudinal Position (m)", fontsize=12, color=COLORS["text_light"])
     ax.tick_params(colors=COLORS["text_light"], labelbottom=False, labelleft=False)
@@ -190,22 +190,6 @@ def _setup_and_run_animation(
     )
     ax.axvline(
         x=highway_overtaking.HIGHWAY_RIGHT_BOUNDARY, color=COLORS["primary_red"], linewidth=4
-    )
-
-    # Lane center guidelines
-    ax.axvline(
-        x=highway_overtaking.RIGHT_LANE_CENTER,
-        color=COLORS["lane_guides"],
-        linestyle=":",
-        alpha=0.6,
-        linewidth=1,
-    )
-    ax.axvline(
-        x=highway_overtaking.LEFT_LANE_CENTER,
-        color=COLORS["lane_guides"],
-        linestyle=":",
-        alpha=0.6,
-        linewidth=1,
     )
 
     # Lane markings
