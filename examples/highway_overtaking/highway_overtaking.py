@@ -6,46 +6,42 @@ import maptor as mtor
 
 
 # ============================================================================
-# ROBUST HIGHWAY GEOMETRY - WIDER AND MORE FORGIVING
+# Highway Geometry
 # ============================================================================
 
-HIGHWAY_LEFT_BOUNDARY = -2.0  # Extended left boundary
-HIGHWAY_RIGHT_BOUNDARY = 20.0  # Extended right boundary
-HIGHWAY_BOTTOM = -10.0  # Extended approach zone
-HIGHWAY_TOP = 50.0  # Extended exit zone
+HIGHWAY_LEFT_BOUNDARY = -2.0
+HIGHWAY_RIGHT_BOUNDARY = 20.0
+HIGHWAY_BOTTOM = -10.0
+HIGHWAY_TOP = 50.0
 
-# 4-lane highway with wider, more realistic geometry
-LANE_WIDTH = 3.6  # Wider lanes for easier maneuvering
-HIGHWAY_CENTER = (HIGHWAY_LEFT_BOUNDARY + HIGHWAY_RIGHT_BOUNDARY) / 2  # x = 10.0
-RIGHT_LANE_CENTER = HIGHWAY_CENTER + LANE_WIDTH / 2  # x = 12.75
-LEFT_LANE_CENTER = HIGHWAY_CENTER - LANE_WIDTH / 2  # x = 7.25
+LANE_WIDTH = 3.6
+HIGHWAY_CENTER = (HIGHWAY_LEFT_BOUNDARY + HIGHWAY_RIGHT_BOUNDARY) / 2
+RIGHT_LANE_CENTER = HIGHWAY_CENTER + LANE_WIDTH / 2
+LEFT_LANE_CENTER = HIGHWAY_CENTER - LANE_WIDTH / 2
 
 
 # ============================================================================
-# IMPROVED OBSTACLE SCENARIO - GENEROUS OVERTAKING WINDOWS
+# Obstacle Trajectories
 # ============================================================================
 
-# Agent trajectory: Extended for more natural approach/exit
 AGENT_START = (RIGHT_LANE_CENTER, 0.0)
-AGENT_END = (RIGHT_LANE_CENTER, 50.0)  # Match HIGHWAY_TOP
+AGENT_END = (RIGHT_LANE_CENTER, 50.0)
 
-# Obstacle 1: Slower vehicle with predictable behavior across full range
 OBSTACLE_1_WAYPOINTS = np.array(
     [
-        [RIGHT_LANE_CENTER, 15.0, 0.0],  # Start ahead of agent
-        [RIGHT_LANE_CENTER, 40.0, 5.0],  # Covers extended highway range
+        [RIGHT_LANE_CENTER, 15.0, 0.0],
+        [RIGHT_LANE_CENTER, 40.0, 5.0],
     ]
 )
 
-# Obstacle 2: Oncoming with generous separation timing across full range
 OBSTACLE_2_WAYPOINTS = np.array(
     [
-        [LEFT_LANE_CENTER, 55.0, 0.0],  # Start beyond HIGHWAY_TOP
-        [LEFT_LANE_CENTER, 0.0, 15.0],  # Extends beyond HIGHWAY_BOTTOM
+        [LEFT_LANE_CENTER, 55.0, 0.0],
+        [LEFT_LANE_CENTER, 0.0, 15.0],
     ]
 )
 
-# Create robust interpolants
+# Create interpolants for obstacle motion
 _times_1 = OBSTACLE_1_WAYPOINTS[:, 2]
 _x_coords_1 = OBSTACLE_1_WAYPOINTS[:, 0]
 _y_coords_1 = OBSTACLE_1_WAYPOINTS[:, 1]
@@ -73,7 +69,7 @@ def obstacle_2_position(current_time):
 
 
 # ============================================================================
-# ROBUST VEHICLE PARAMETERS - PRESERVE COMPUTATIONAL LOGIC
+# Vehicle Parameters
 # ============================================================================
 
 m = 1412.0
@@ -83,15 +79,14 @@ l_r = 1.85
 k_f = 128916.0
 k_r = 85944.0
 
-# More conservative safety parameters for robustness
-vehicle_radius = 1.5  # Slightly larger safety margin
-obstacle_radius = 1.5  # More realistic vehicle size
-min_separation = vehicle_radius + obstacle_radius + 0.5  # 5.0m total
-u_min = 0.5  # Higher minimum for numerical stability
+vehicle_radius = 1.5
+obstacle_radius = 1.5
+min_separation = vehicle_radius + obstacle_radius + 0.5
+u_min = 0.5
 
 
 # ============================================================================
-# PROBLEM SETUP
+# Problem Setup
 # ============================================================================
 
 problem = mtor.Problem("Robust Highway Overtaking")
@@ -99,7 +94,7 @@ phase = problem.set_phase(1)
 
 
 # ============================================================================
-# ROBUST STATE VARIABLE BOUNDS
+# Variables
 # ============================================================================
 
 t = phase.time(initial=0.0)
@@ -108,22 +103,16 @@ x = phase.state("x_position", initial=AGENT_START[0], final=AGENT_END[0])
 y = phase.state("y_position", initial=AGENT_START[1], final=AGENT_END[1])
 phi = phase.state("heading", initial=np.pi / 2, final=np.pi / 2)
 
-# More permissive velocity bounds for robustness
 u = phase.state("longitudinal_velocity", initial=12.0, boundary=(u_min, 30.0))
 v = phase.state("lateral_velocity", initial=0.0, boundary=(-5.0, 5.0))
 omega = phase.state("yaw_rate", initial=0.0, boundary=(-2.5, 2.5))
 
-
-# ============================================================================
-# ROBUST CONTROL BOUNDS
-# ============================================================================
-
-a = phase.control("acceleration", boundary=(-6.0, 6.0))  # More conservative
-delta = phase.control("steering_angle", boundary=(-0.4, 0.4))  # More conservative
+a = phase.control("acceleration", boundary=(-6.0, 6.0))
+delta = phase.control("steering_angle", boundary=(-0.4, 0.4))
 
 
 # ============================================================================
-# PRESERVE EXACT DYNAMIC BICYCLE MODEL - NO CHANGES
+# Dynamics
 # ============================================================================
 
 u_safe = ca.if_else(u < u_min, u_min, u)
@@ -147,27 +136,22 @@ phase.dynamics(
 
 
 # ============================================================================
-# ROBUST COLLISION AVOIDANCE WITH SMOOTH CONSTRAINTS
+# Constraints
 # ============================================================================
 
+# Collision avoidance
 obs_x_1, obs_y_1 = obstacle_1_position(t)
 obs_x_2, obs_y_2 = obstacle_2_position(t)
 
-# Use smooth collision avoidance formulation
 distance_squared_1 = (x - obs_x_1) ** 2 + (y - obs_y_1) ** 2
 distance_squared_2 = (x - obs_x_2) ** 2 + (y - obs_y_2) ** 2
 
-# Relaxed constraints for better conditioning
 phase.path_constraints(
-    distance_squared_1 >= min_separation**2 - 1.0,  # Small relaxation
+    distance_squared_1 >= min_separation**2 - 1.0,
     distance_squared_2 >= min_separation**2 - 1.0,
 )
 
-
-# ============================================================================
-# GENEROUS WORKSPACE BOUNDS
-# ============================================================================
-
+# Workspace bounds
 phase.path_constraints(
     x >= HIGHWAY_LEFT_BOUNDARY,
     x <= HIGHWAY_RIGHT_BOUNDARY,
@@ -177,65 +161,38 @@ phase.path_constraints(
 
 
 # ============================================================================
-# ROBUST OBJECTIVE FUNCTION - WEIGHT-INSENSITIVE
+# Objective
 # ============================================================================
 
-# Use normalized objective for robustness
-time_scale = 5.0  # Expected mission time (updated to match realistic expectation)
-control_scale = 10.0  # Expected control magnitude
+time_scale = 5.0
+control_scale = 10.0
 
 normalized_time = t.final / time_scale
 normalized_control = phase.add_integral((a / control_scale) ** 2 + (delta / 0.3) ** 2)
 
-# Balanced objective that works across weight ranges
 problem.minimize(normalized_time + 0.02 * normalized_control)
 
 
 # ============================================================================
-# ENGINEERED MESH BASED ON ADAPTIVE CONVERGENCE PATTERN
+# Mesh Configuration
 # ============================================================================
-
-# Clean mesh mimicking the adaptive refinement pattern:
-# - Fine resolution around overtaking maneuver (τ ≈ -0.2 to +0.4)
-# - Higher polynomial degrees where dynamics are complex
-# - Coarser intervals for approach and exit phases
 
 POLYNOMIAL_DEGREES = [4, 4, 4, 6, 7, 8, 6, 5, 4, 4, 4]
 
-MESH_NODES = [
-    -1.0,  # Start
-    -0.7,  # Approach
-    -0.4,
-    -0.2,  # Pre-overtaking
-    -0.1,
-    0.0,
-    0.2,
-    0.4,  # Critical overtaking region (fine spacing)
-    0.6,
-    0.8,  # Post-overtaking
-    0.9,
-    1.0,  # Exit
-]
-
-# ============================================================================
-# APPLY ENGINEERED MESH
-# ============================================================================
+MESH_NODES = [-1.0, -0.7, -0.4, -0.2, -0.1, 0.0, 0.2, 0.4, 0.6, 0.8, 0.9, 1.0]
 
 phase.mesh(POLYNOMIAL_DEGREES, MESH_NODES)
 
 
 # ============================================================================
-# ROBUST INITIAL GUESS GENERATION
+# Initial Guess Generation
 # ============================================================================
 
 
 def _generate_robust_initial_guess():
     """Generate weight-insensitive initial guess with conservative timing."""
-
-    # Conservative overtaking phases with generous timing
     waypoints_t = np.array([0.0, 0.2, 0.35, 0.5, 0.65, 0.8, 1.0])
 
-    # Smooth lane changes with wider geometry
     waypoints_x = np.array(
         [
             RIGHT_LANE_CENTER,
@@ -248,18 +205,12 @@ def _generate_robust_initial_guess():
         ]
     )
 
-    # Extended longitudinal progression to match HIGHWAY_TOP = 50.0
     waypoints_y = np.array([0.0, 10.0, 20.0, 30.0, 40.0, 45.0, 50.0])
-
-    # Gentle heading changes
     waypoints_phi = np.array(
         [np.pi / 2, np.pi / 2, np.pi / 2 + 0.1, np.pi / 2, np.pi / 2 - 0.1, np.pi / 2, np.pi / 2]
     )
-
-    # Conservative velocity profile
     waypoints_u = np.array([12.0, 14.0, 16.0, 18.0, 16.0, 14.0, 12.0])
 
-    # Create smooth, well-conditioned splines
     spline_x = CubicSpline(waypoints_t, waypoints_x, bc_type="natural")
     spline_y = CubicSpline(waypoints_t, waypoints_y, bc_type="natural")
     spline_phi = CubicSpline(waypoints_t, waypoints_phi, bc_type="natural")
@@ -268,7 +219,6 @@ def _generate_robust_initial_guess():
     states_guess = []
     controls_guess = []
 
-    # Match the engineered mesh polynomial degrees
     for N in POLYNOMIAL_DEGREES:
         tau = np.linspace(-1, 1, N + 1)
         t_norm = (tau + 1) / 2
@@ -278,21 +228,17 @@ def _generate_robust_initial_guess():
         phi_vals = spline_phi(t_norm)
         u_vals = spline_u(t_norm)
 
-        # Conservative lateral and yaw rate estimates
         v_vals = np.gradient(x_vals) * 1.5
         omega_vals = np.gradient(phi_vals) * 1.0
 
-        # Ensure bounds compliance
         v_vals = np.clip(v_vals, -10.0, 10.0)
         omega_vals = np.clip(omega_vals, -2.0, 2.0)
 
         states_guess.append(np.vstack([x_vals, y_vals, phi_vals, u_vals, v_vals, omega_vals]))
 
-        # Conservative control estimates
         a_vals = np.gradient(u_vals)[:N] * 1.0
         delta_vals = np.gradient(phi_vals)[:N] * 2.0
 
-        # Ensure control bounds compliance
         a_vals = np.clip(a_vals, -4.0, 4.0)
         delta_vals = np.clip(delta_vals, -0.3, 0.3)
 
@@ -302,7 +248,7 @@ def _generate_robust_initial_guess():
 
 
 # ============================================================================
-# APPLY ROBUST INITIAL GUESS
+# Initial Guess and Solve
 # ============================================================================
 
 states_guess, controls_guess = _generate_robust_initial_guess()
@@ -310,17 +256,12 @@ states_guess, controls_guess = _generate_robust_initial_guess()
 problem.guess(
     phase_states={1: states_guess},
     phase_controls={1: controls_guess},
-    phase_terminal_times={1: 5.0},  # More realistic time estimate for 50m at ~15-20 m/s
+    phase_terminal_times={1: 5.0},
 )
-
-
-# ============================================================================
-# ROBUST SOLVER CONFIGURATION
-# ============================================================================
 
 solution = mtor.solve_adaptive(
     problem,
-    error_tolerance=1e-3,  # Relaxed for robustness
+    error_tolerance=1e-3,
     max_iterations=15,
     min_polynomial_degree=3,
     max_polynomial_degree=8,
@@ -330,16 +271,16 @@ solution = mtor.solve_adaptive(
         "ipopt.tol": 1e-6,
         "ipopt.constr_viol_tol": 1e-4,
         "ipopt.linear_solver": "mumps",
-        "ipopt.print_level": 3,  # Reduced output
+        "ipopt.print_level": 3,
         "ipopt.mu_strategy": "adaptive",
-        "ipopt.acceptable_tol": 1e-4,  # Fallback tolerance
+        "ipopt.acceptable_tol": 1e-4,
         "ipopt.acceptable_iter": 5,
     },
 )
 
 
 # ============================================================================
-# COMPREHENSIVE RESULTS ANALYSIS
+# Results
 # ============================================================================
 
 if solution.status["success"]:
@@ -347,7 +288,6 @@ if solution.status["success"]:
     print(f"  Objective: {solution.status['objective']:.6f}")
     print(f"  Mission time: {solution.status['total_mission_time']:.3f} seconds")
 
-    # Verify robustness metrics
     x_traj = solution["x_position"]
     y_traj = solution["y_position"]
     u_traj = solution["longitudinal_velocity"]
@@ -363,7 +303,6 @@ if solution.status["success"]:
     print(f"  Max lateral velocity: {max_lateral_velocity:.2f} m/s")
     print(f"  Successful overtaking: {'✓' if max_lateral_deviation > 3.0 else '✗'}")
 
-    # Final position verification
     x_final = solution[(1, "x_position")][-1]
     y_final = solution[(1, "y_position")][-1]
     position_error = np.sqrt((x_final - AGENT_END[0]) ** 2 + (y_final - AGENT_END[1]) ** 2)
@@ -384,7 +323,7 @@ else:
 
 
 # ============================================================================
-# EXPORT FOR ANIMATION COMPATIBILITY
+# Export for Animation
 # ============================================================================
 
 __all__ = [
