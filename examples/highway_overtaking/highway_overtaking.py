@@ -280,6 +280,28 @@ def _generate_realistic_overtaking_guess():
     return states_guess, controls_guess
 
 
+def _validate_initial_guess_bounds():
+    """Validate initial guess stays within path constraints."""
+    states_guess, _ = _generate_realistic_overtaking_guess()
+
+    for interval_states in states_guess:
+        x_vals = interval_states[0, :]  # X position row
+        y_vals = interval_states[1, :]  # Y position row
+
+        x_violations = np.logical_or(
+            x_vals < HIGHWAY_LEFT_BOUNDARY, x_vals > HIGHWAY_RIGHT_BOUNDARY
+        )
+        y_violations = np.logical_or(y_vals < HIGHWAY_BOTTOM, y_vals > HIGHWAY_TOP)
+
+        if np.any(x_violations) or np.any(y_violations):
+            print("⚠ Initial guess violates bounds:")
+            print(f"  X range: [{x_vals.min():.2f}, {x_vals.max():.2f}]")
+            print(f"  Y range: [{y_vals.min():.2f}, {y_vals.max():.2f}]")
+            return False
+
+    return True
+
+
 # ============================================================================
 # APPLY IMPROVED INITIAL GUESS
 # ============================================================================
@@ -291,6 +313,10 @@ problem.guess(
     phase_controls={1: controls_guess},
     phase_terminal_times={1: 18.0},  # More realistic time for longer road
 )
+
+# Validate initial guess before solving
+if not _validate_initial_guess_bounds():
+    print("Initial guess validation failed - may cause solver issues")
 
 
 # ============================================================================

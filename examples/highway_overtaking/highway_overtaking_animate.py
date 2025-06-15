@@ -5,6 +5,41 @@ import matplotlib.animation as animation
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.patches import Polygon
+from scipy.interpolate import CubicSpline
+
+
+def _extract_initial_guess_trajectory():
+    """Extract initial guess trajectory for visualization."""
+    right_lane = highway_overtaking.RIGHT_LANE_CENTER
+    left_lane = highway_overtaking.LEFT_LANE_CENTER
+
+    waypoints_t = np.array([0.0, 0.15, 0.25, 0.4, 0.6, 0.75, 0.85, 1.0])
+    waypoints_x = np.array(
+        [
+            right_lane,
+            right_lane,
+            (right_lane + left_lane) / 2,
+            left_lane,
+            left_lane,
+            (right_lane + left_lane) / 2,
+            right_lane,
+            right_lane,
+        ]
+    )
+    waypoints_y = np.array([0.0, 5.0, 10.0, 15.0, 25.0, 30.0, 33.0, 35.0])
+
+    spline_x = CubicSpline(waypoints_t, waypoints_x, bc_type="clamped")
+    spline_y = CubicSpline(waypoints_t, waypoints_y, bc_type="clamped")
+
+    t_eval = np.linspace(0, 1, 100)
+    x_guess = spline_x(t_eval)
+    y_guess = spline_y(t_eval)
+
+    # Scale to actual time
+    final_time = 18.0  # From problem.guess terminal time
+    t_scaled = t_eval * final_time
+
+    return t_scaled, x_guess, y_guess
 
 
 def create_vehicle_rectangle(x, y, theta, length=3.0, width=1.5):
@@ -121,9 +156,8 @@ def animate_highway_overtaking(solution, save_filename="highway_overtaking.mp4")
         x=highway_overtaking.HIGHWAY_LEFT_BOUNDARY,
         color="yellow",
         linewidth=4,
-        label="Highway Edge",
     )
-    ax.axvline(x=center_line, color="white", linestyle="--", linewidth=2, label="Lane Divider")
+    ax.axvline(x=center_line, color="white", linestyle="--", linewidth=2)
     ax.axvline(x=highway_overtaking.HIGHWAY_RIGHT_BOUNDARY, color="yellow", linewidth=4)
 
     # Lane center guidelines (faint)
@@ -145,7 +179,6 @@ def animate_highway_overtaking(solution, save_filename="highway_overtaking.mp4")
         c="green",
         s=200,
         marker="s",
-        label="Start",
         zorder=10,
         edgecolor="black",
     )
@@ -154,28 +187,30 @@ def animate_highway_overtaking(solution, save_filename="highway_overtaking.mp4")
         c="blue",
         s=250,
         marker="*",
-        label="Goal",
         zorder=10,
         edgecolor="black",
     )
 
     # Plot trajectories
-    ax.plot(x_sol, y_sol, "b-", alpha=0.4, label="Agent Path", linewidth=3)
+    ax.plot(x_sol, y_sol, "b-", alpha=0.4, linewidth=3)
 
     # Plot obstacle paths
     obs1_x_full, obs1_y_full, obs2_x_full, obs2_y_full = create_obstacle_trajectories_numpy(
         time_sol
     )
-    ax.plot(obs1_x_full, obs1_y_full, "r--", alpha=0.5, label="Obstacle 1 Path", linewidth=2)
+    ax.plot(obs1_x_full, obs1_y_full, "r--", alpha=0.5, linewidth=2)
     ax.plot(
         obs2_x_full,
         obs2_y_full,
         "orange",
         linestyle="--",
         alpha=0.5,
-        label="Obstacle 2 Path",
         linewidth=2,
     )
+
+    # Plot initial guess trajectory
+    guess_times, guess_x, guess_y = _extract_initial_guess_trajectory()
+    ax.plot(guess_x, guess_y, "g:", alpha=0.7, linewidth=2)
 
     # Initialize animated elements
     agent_vehicle = Polygon(
@@ -212,8 +247,6 @@ def animate_highway_overtaking(solution, save_filename="highway_overtaking.mp4")
         bbox=dict(boxstyle="round,pad=0.5", facecolor="white", alpha=0.9),
         verticalalignment="top",
     )
-
-    ax.legend(loc="lower right", fontsize=10)
 
     def animate(frame):
         """Animation function called for each frame."""
