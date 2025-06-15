@@ -100,8 +100,6 @@ def animate_highway_overtaking(solution, save_filename="highway_overtaking.mp4")
     x_vehicle = solution["x_position"]
     y_vehicle = solution["y_position"]
     theta_vehicle = solution["heading"]
-    u_vehicle = solution["longitudinal_velocity"]
-    v_vehicle = solution["lateral_velocity"]
 
     # Remove duplicate time points
     unique_indices = np.unique(time_states, return_index=True)[1]
@@ -109,8 +107,6 @@ def animate_highway_overtaking(solution, save_filename="highway_overtaking.mp4")
     x_sol = x_vehicle[unique_indices]
     y_sol = y_vehicle[unique_indices]
     theta_sol = theta_vehicle[unique_indices]
-    u_sol = u_vehicle[unique_indices]
-    v_sol = v_vehicle[unique_indices]
 
     # Create animation grid using actual solution timing
     final_time = solution.status["total_mission_time"]
