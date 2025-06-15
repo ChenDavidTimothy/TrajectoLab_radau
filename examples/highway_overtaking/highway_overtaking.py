@@ -284,7 +284,6 @@ solution = mtor.solve_adaptive(
 # ============================================================================
 
 if solution.status["success"]:
-    print("✓ ROBUST Highway overtaking succeeded!")
     print(f"  Objective: {solution.status['objective']:.6f}")
     print(f"  Mission time: {solution.status['total_mission_time']:.3f} seconds")
 
@@ -297,7 +296,6 @@ if solution.status["success"]:
     max_speed = u_traj.max()
     max_lateral_velocity = abs(v_traj).max()
 
-    print("\nRobustness Metrics:")
     print(f"  Max lateral deviation: {max_lateral_deviation:.2f} m")
     print(f"  Max speed: {max_speed:.1f} m/s")
     print(f"  Max lateral velocity: {max_lateral_velocity:.2f} m/s")
@@ -316,10 +314,6 @@ if solution.status["success"]:
 
 else:
     print(f"✗ Optimization failed: {solution.status['message']}")
-    print("\nDiagnostic Information:")
-    print("  - Check IPOPT output above for specific failure mode")
-    print("  - Verify initial guess satisfies all constraints")
-    print("  - Consider further relaxing tolerances if needed")
 
 
 # ============================================================================
