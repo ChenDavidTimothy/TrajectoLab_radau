@@ -15,7 +15,7 @@ HIGHWAY_BOTTOM = -10.0  # Extended approach zone
 HIGHWAY_TOP = 50.0  # Extended exit zone
 
 # 4-lane highway with wider, more realistic geometry
-LANE_WIDTH = 5.5  # Wider lanes for easier maneuvering
+LANE_WIDTH = 3.6  # Wider lanes for easier maneuvering
 HIGHWAY_CENTER = (HIGHWAY_LEFT_BOUNDARY + HIGHWAY_RIGHT_BOUNDARY) / 2  # x = 10.0
 RIGHT_LANE_CENTER = HIGHWAY_CENTER + LANE_WIDTH / 2  # x = 12.75
 LEFT_LANE_CENTER = HIGHWAY_CENTER - LANE_WIDTH / 2  # x = 7.25
@@ -84,9 +84,9 @@ k_f = 128916.0
 k_r = 85944.0
 
 # More conservative safety parameters for robustness
-vehicle_radius = 2.0  # Slightly larger safety margin
-obstacle_radius = 2.0  # More realistic vehicle size
-min_separation = vehicle_radius + obstacle_radius + 1.0  # 5.0m total
+vehicle_radius = 1.5  # Slightly larger safety margin
+obstacle_radius = 1.5  # More realistic vehicle size
+min_separation = vehicle_radius + obstacle_radius + 0.5  # 5.0m total
 u_min = 0.5  # Higher minimum for numerical stability
 
 
@@ -110,7 +110,7 @@ phi = phase.state("heading", initial=np.pi / 2, final=np.pi / 2)
 
 # More permissive velocity bounds for robustness
 u = phase.state("longitudinal_velocity", initial=12.0, boundary=(u_min, 30.0))
-v = phase.state("lateral_velocity", initial=0.0, boundary=(-12.0, 12.0))
+v = phase.state("lateral_velocity", initial=0.0, boundary=(-5.0, 5.0))
 omega = phase.state("yaw_rate", initial=0.0, boundary=(-2.5, 2.5))
 
 
