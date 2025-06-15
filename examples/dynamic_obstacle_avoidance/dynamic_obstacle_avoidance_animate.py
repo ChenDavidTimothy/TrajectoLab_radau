@@ -9,8 +9,6 @@ from matplotlib.patches import Circle, Polygon
 
 
 def create_obstacle_trajectory_numpy(time_array):
-    """Create obstacle trajectory using waypoints from main problem file."""
-    # Use waypoints from main problem file - single source of truth
     waypoints = dynamic_obstacle_avoidance.OBSTACLE_WAYPOINTS
 
     obs_x = np.zeros_like(time_array)
@@ -37,8 +35,6 @@ def create_obstacle_trajectory_numpy(time_array):
 
 
 def create_vehicle_triangle(x, y, theta, size=1.0):
-    """Create triangle representing vehicle pointing in heading direction."""
-    # Triangle pointing in heading direction
     front = np.array([x + size * np.cos(theta), y + size * np.sin(theta)])
     left_rear = np.array(
         [
@@ -57,7 +53,6 @@ def create_vehicle_triangle(x, y, theta, size=1.0):
 
 
 def animate_dynamic_obstacle_avoidance(solution, save_filename="dynamic_obstacle_avoidance.mp4"):
-    """Animate dynamic bicycle model obstacle avoidance with enhanced visualization."""
     if not solution.status["success"]:
         raise ValueError("Cannot animate a failed solution.")
 
@@ -188,7 +183,6 @@ def animate_dynamic_obstacle_avoidance(solution, save_filename="dynamic_obstacle
     ax_main.legend(loc="upper right")
 
     def animate(frame):
-        """Animation function called for each frame."""
         current_time = animation_time[frame]
 
         # Update vehicle position and orientation

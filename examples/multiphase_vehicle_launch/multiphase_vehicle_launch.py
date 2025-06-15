@@ -73,7 +73,6 @@ OMEGA_MATRIX[2, 2] = 0.0
 # Initial and Target Conditions
 # ============================================================================
 
-# Launch site: Cape Canaveral
 LAT_LAUNCH = 28.5 * np.pi / 180.0
 X_LAUNCH = RE_EARTH * np.cos(LAT_LAUNCH)
 Y_LAUNCH = 0.0
@@ -121,7 +120,7 @@ V_MAX = 10000.0 / V_SCALE
 
 
 def _oe2rv(oe, mu):
-    """Convert orbital elements to position and velocity vectors."""
+    # Convert orbital elements to position and velocity vectors.
     a, e, i, Om, om, nu = oe
     p = a * (1 - e * e)
     r = p / (1 + e * np.cos(nu))
@@ -152,24 +151,22 @@ def _oe2rv(oe, mu):
 
 
 def _cross_product(a, b):
-    """Cross product of two 3D vectors."""
+    # Cross product of two 3D vectors
     return ca.vertcat(
         a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]
     )
 
 
 def _dot_product(a, b):
-    """Dot product of two 3D vectors."""
     return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 
 
 def _smooth_heaviside(x, a_eps=0.1):
-    """Smooth Heaviside function using tanh."""
     return 0.5 * (1 + ca.tanh(x / a_eps))
 
 
 def _rv2oe(rv, vv, mu):
-    """Convert position and velocity to orbital elements with smooth transitions."""
+    # Convert position and velocity to orbital elements with smooth transitions
     eps = 1e-12
 
     K = ca.vertcat(0.0, 0.0, 1.0)
@@ -221,7 +218,6 @@ def _rv2oe(rv, vv, mu):
 
 
 def _define_phase_dynamics(phase, r_vars_s, v_vars_s, m_var_s, u_vars, phase_num):
-    """Define dynamics for a launch phase with atmospheric and gravitational effects."""
     # Convert scaled variables to physical units
     r_vec_s = ca.vertcat(*r_vars_s)
     v_vec_s = ca.vertcat(*v_vars_s)
@@ -289,7 +285,6 @@ def _define_phase_dynamics(phase, r_vars_s, v_vars_s, m_var_s, u_vars, phase_num
 
 
 def _generate_phase_guess(N_list, r_init_s, v_init_s, m_init_s, m_final_s):
-    """Generate initial guess for a launch phase."""
     states_guess = []
     controls_guess = []
 

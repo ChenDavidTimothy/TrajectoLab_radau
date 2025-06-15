@@ -51,7 +51,7 @@ The final state must satisfy the target orbital elements:
 
 ### Boundary Conditions
 
-**Initial Conditions** (Cape Canaveral):
+**Initial Conditions**:
 - Position: $\mathbf{r}(0) = [5505524, 0, 3050952]^T$ m
 - Velocity: $\mathbf{v}(0) = [0, 403.2, 0]^T$ m/s (Earth rotation)
 - Mass: $m(0) = 631464$ kg (total vehicle)

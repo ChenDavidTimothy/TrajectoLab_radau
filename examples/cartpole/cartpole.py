@@ -16,10 +16,6 @@ x_dot = phase.state("x_dot", initial=0.0, final=0.0)  # Cart velocity
 theta_dot = phase.state("theta_dot", initial=0.0, final=0.0)  # Pendulum angular velocity
 f_x = phase.control("f_x", boundary=(-20.0, 20.0))  # Horizontal force on cart
 
-# Dynamics (from simplified equations 18-19)
-# 2ẍ + θ̈ cos θ - θ̇² sin θ = f_x
-# ẍ cos θ + θ̈ + sin θ = 0
-# Solving for accelerations:
 denominator = 2 - ca.cos(theta) ** 2
 x_ddot = (f_x + ca.sin(theta) * ca.cos(theta) + theta_dot**2 * ca.sin(theta)) / denominator
 theta_ddot = (
@@ -43,7 +39,7 @@ problem.minimize(t.final + integral_var)
 # Mesh and guess
 phase.mesh([8, 8, 8], [-1.0, -1 / 3, 1 / 3, 1.0])
 
-# INITIAL GUESS SHOWCASE
+# INITIAL GUESS
 # Simple initial guess: linear swing from down (0) to up (π)
 states_guess = [
     # Interval 1: 9 state points, 8 control points
