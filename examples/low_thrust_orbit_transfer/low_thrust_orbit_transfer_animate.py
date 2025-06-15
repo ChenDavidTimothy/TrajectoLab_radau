@@ -118,7 +118,7 @@ def animate_low_thrust_orbit_transfer(solution, save_filename="orbit_transfer.mp
         solution_data["k"][-1],
     )
 
-    # Setup plot
+    # Setup plot - MODIFIED: Larger scale by tighter bounds
     plt.style.use("dark_background")
     fig = plt.figure(figsize=(12, 12), facecolor=COLORS["background_dark"])
     ax = fig.add_subplot(111, projection="3d", facecolor=COLORS["background_dark"])
@@ -128,12 +128,14 @@ def animate_low_thrust_orbit_transfer(solution, save_filename="orbit_transfer.mp
             np.max(np.linalg.norm(initial_orbit, axis=1)),
             np.max(np.linalg.norm(final_orbit, axis=1)),
         )
-        * 1.1
+        * 0.75
     )
+
     ax.set_xlim([-max_radius, max_radius])
     ax.set_ylim([-max_radius, max_radius])
     ax.set_zlim([-max_radius, max_radius])
 
+    # REMOVE GUI elements completely
     ax.set_xticks([])
     ax.set_yticks([])
     ax.set_zticks([])
@@ -201,8 +203,9 @@ def animate_low_thrust_orbit_transfer(solution, save_filename="orbit_transfer.mp
         anim.save(save_filename, writer="ffmpeg", fps=fps, bitrate=3000)
         print(f"Animation saved to {Path(save_filename).resolve()}")
     except Exception as e:
-        print(f"Could not save video file ({e}). Displaying animation instead.")
+        print(f"Could not save video file: {e}")
 
+    plt.close(fig)  # Close figure to prevent GUI display
     return anim
 
 
