@@ -5,41 +5,6 @@ import matplotlib.animation as animation
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.patches import Polygon
-from scipy.interpolate import CubicSpline
-
-
-def _extract_initial_guess_trajectory():
-    """Extract initial guess trajectory for visualization."""
-    right_lane = highway_overtaking.RIGHT_LANE_CENTER
-    left_lane = highway_overtaking.LEFT_LANE_CENTER
-
-    waypoints_t = np.array([0.0, 0.15, 0.25, 0.4, 0.6, 0.75, 0.85, 1.0])
-    waypoints_x = np.array(
-        [
-            right_lane,
-            right_lane,
-            (right_lane + left_lane) / 2,
-            left_lane,
-            left_lane,
-            (right_lane + left_lane) / 2,
-            right_lane,
-            right_lane,
-        ]
-    )
-    waypoints_y = np.array([0.0, 5.0, 10.0, 15.0, 25.0, 30.0, 33.0, 35.0])
-
-    spline_x = CubicSpline(waypoints_t, waypoints_x, bc_type="clamped")
-    spline_y = CubicSpline(waypoints_t, waypoints_y, bc_type="clamped")
-
-    t_eval = np.linspace(0, 1, 100)
-    x_guess = spline_x(t_eval)
-    y_guess = spline_y(t_eval)
-
-    # Scale to actual time
-    final_time = 18.0  # From problem.guess terminal time
-    t_scaled = t_eval * final_time
-
-    return t_scaled, x_guess, y_guess
 
 
 def create_vehicle_rectangle(x, y, theta, length=3.0, width=1.5):
@@ -63,6 +28,7 @@ def create_vehicle_rectangle(x, y, theta, length=3.0, width=1.5):
 
 def create_obstacle_trajectories_numpy(time_array):
     """Create obstacle trajectories using waypoints from main problem file."""
+    # Use actual waypoints from main module - single source of truth
     waypoints_1 = highway_overtaking.OBSTACLE_1_WAYPOINTS
     waypoints_2 = highway_overtaking.OBSTACLE_2_WAYPOINTS
 
@@ -117,8 +83,8 @@ def animate_highway_overtaking(solution, save_filename="highway_overtaking.mp4")
     u_sol = u_vehicle[unique_indices]
     v_sol = v_vehicle[unique_indices]
 
-    # Create animation grid
-    final_time = time_sol[-1]
+    # Create animation grid using actual solution timing
+    final_time = solution.status["total_mission_time"]  # Use actual mission time
     fps = 30
     total_frames = int(final_time * fps)
     animation_time = np.linspace(0, final_time, total_frames)
@@ -135,7 +101,7 @@ def animate_highway_overtaking(solution, save_filename="highway_overtaking.mp4")
         animation_time
     )
 
-    # Set up figure - highway view only
+    # Set up figure - highway view only, using constants from main module
     fig, ax = plt.subplots(figsize=(12, 16))
     ax.set_xlim(
         highway_overtaking.HIGHWAY_LEFT_BOUNDARY - 1, highway_overtaking.HIGHWAY_RIGHT_BOUNDARY + 1
@@ -143,13 +109,11 @@ def animate_highway_overtaking(solution, save_filename="highway_overtaking.mp4")
     ax.set_ylim(highway_overtaking.HIGHWAY_BOTTOM - 2, highway_overtaking.HIGHWAY_TOP + 2)
     ax.set_aspect("equal")
     ax.grid(True, alpha=0.2)
-    ax.set_title("Highway Overtaking", fontsize=16, fontweight="bold")
     ax.set_xlabel("Lateral Position (m)", fontsize=12)
     ax.set_ylabel("Longitudinal Position (m)", fontsize=12)
 
-    # Draw highway infrastructure
+    # Draw highway infrastructure using constants from main module
     center_line = highway_overtaking.HIGHWAY_CENTER
-    lane_width = highway_overtaking.LANE_WIDTH
 
     # Highway boundaries
     ax.axvline(
@@ -173,7 +137,7 @@ def animate_highway_overtaking(solution, save_filename="highway_overtaking.mp4")
     for y_mark in y_range:
         ax.plot([center_line, center_line], [y_mark, y_mark + 3], "w--", linewidth=2, alpha=0.8)
 
-    # Plot static elements
+    # Plot static elements using constants from main module
     ax.scatter(
         *highway_overtaking.AGENT_START,
         c="green",
@@ -181,6 +145,7 @@ def animate_highway_overtaking(solution, save_filename="highway_overtaking.mp4")
         marker="s",
         zorder=10,
         edgecolor="black",
+        label="Start",
     )
     ax.scatter(
         *highway_overtaking.AGENT_END,
@@ -189,16 +154,17 @@ def animate_highway_overtaking(solution, save_filename="highway_overtaking.mp4")
         marker="*",
         zorder=10,
         edgecolor="black",
+        label="Goal",
     )
 
-    # Plot trajectories
-    ax.plot(x_sol, y_sol, "b-", alpha=0.4, linewidth=3)
+    # Plot actual solution trajectory
+    ax.plot(x_sol, y_sol, "b-", alpha=0.4, linewidth=3, label="Actual Path")
 
-    # Plot obstacle paths
+    # Plot obstacle paths using actual solution timing
     obs1_x_full, obs1_y_full, obs2_x_full, obs2_y_full = create_obstacle_trajectories_numpy(
         time_sol
     )
-    ax.plot(obs1_x_full, obs1_y_full, "r--", alpha=0.5, linewidth=2)
+    ax.plot(obs1_x_full, obs1_y_full, "r--", alpha=0.5, linewidth=2, label="Obstacle 1")
     ax.plot(
         obs2_x_full,
         obs2_y_full,
@@ -206,11 +172,8 @@ def animate_highway_overtaking(solution, save_filename="highway_overtaking.mp4")
         linestyle="--",
         alpha=0.5,
         linewidth=2,
+        label="Obstacle 2",
     )
-
-    # Plot initial guess trajectory
-    guess_times, guess_x, guess_y = _extract_initial_guess_trajectory()
-    ax.plot(guess_x, guess_y, "g:", alpha=0.7, linewidth=2)
 
     # Initialize animated elements
     agent_vehicle = Polygon(
@@ -272,7 +235,7 @@ def animate_highway_overtaking(solution, save_filename="highway_overtaking.mp4")
         # Update information display
         speed = np.sqrt(u_anim[frame] ** 2 + v_anim[frame] ** 2)
 
-        # Determine current lane
+        # Determine current lane using constants from main module
         if abs(x_anim[frame] - highway_overtaking.RIGHT_LANE_CENTER) < abs(
             x_anim[frame] - highway_overtaking.LEFT_LANE_CENTER
         ):
@@ -295,6 +258,7 @@ def animate_highway_overtaking(solution, save_filename="highway_overtaking.mp4")
         fig, animate, frames=total_frames, interval=1000 / fps, blit=True
     )
 
+    ax.legend(loc="upper right")
     plt.tight_layout()
 
     try:
@@ -317,7 +281,7 @@ if __name__ == "__main__":
 
         anim = animate_highway_overtaking(solution, str(output_file))
 
-        # Print summary
+        # Print summary using constants from main module
         x_traj = solution["x_position"]
         print("\nOvertaking Summary:")
         print(f"  Mission time: {solution.status['total_mission_time']:.1f}s")
