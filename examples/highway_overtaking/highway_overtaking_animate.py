@@ -228,7 +228,7 @@ def _setup_and_run_animation(
     trail_frames = int(trail_length_seconds * fps)
 
     # Agent trail
-    (agent_trail,) = ax.plot([], [], color=COLORS["agent_blue"], alpha=0.7, linewidth=3, zorder=5)
+    (agent_trail,) = ax.plot([], [], color=COLORS["agent_blue"], alpha=1, linewidth=3, zorder=5)
 
     # Obstacle trails
     (obstacle_1_trail,) = ax.plot(
@@ -255,7 +255,7 @@ def _setup_and_run_animation(
         [[0, 0], [0, 0], [0, 0], [0, 0]],
         facecolor=COLORS["agent_blue"],
         edgecolor=COLORS["text_light"],
-        alpha=0.9,
+        alpha=1,
         linewidth=2,
     )
     ax.add_patch(agent_vehicle)
