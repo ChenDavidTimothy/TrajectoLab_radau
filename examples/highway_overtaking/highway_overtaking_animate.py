@@ -28,7 +28,6 @@ def create_vehicle_rectangle(x, y, theta, length=3.0, width=1.5):
 
 def create_obstacle_trajectories_numpy(time_array):
     """Create obstacle trajectories using waypoints from main problem file."""
-    # Use actual waypoints from main module - single source of truth
     waypoints_1 = highway_overtaking.OBSTACLE_1_WAYPOINTS
     waypoints_2 = highway_overtaking.OBSTACLE_2_WAYPOINTS
 
@@ -61,8 +60,8 @@ def create_obstacle_trajectories_numpy(time_array):
     return obs_x_1, obs_y_1, obs_x_2, obs_y_2
 
 
-def animate_highway_overtaking(solution, save_filename="highway_overtaking.mp4"):
-    """Animate highway overtaking scenario - highway view only."""
+def animate_highway_overtaking_professional(solution, save_filename="highway_overtaking_clean.mp4"):
+    """Animate highway overtaking with clean professional scene for LinkedIn."""
     if not solution.status["success"]:
         raise ValueError("Cannot animate a failed solution.")
 
@@ -84,7 +83,7 @@ def animate_highway_overtaking(solution, save_filename="highway_overtaking.mp4")
     v_sol = v_vehicle[unique_indices]
 
     # Create animation grid using actual solution timing
-    final_time = solution.status["total_mission_time"]  # Use actual mission time
+    final_time = solution.status["total_mission_time"]
     fps = 30
     total_frames = int(final_time * fps)
     animation_time = np.linspace(0, final_time, total_frames)
@@ -93,15 +92,13 @@ def animate_highway_overtaking(solution, save_filename="highway_overtaking.mp4")
     x_anim = np.interp(animation_time, time_sol, x_sol)
     y_anim = np.interp(animation_time, time_sol, y_sol)
     theta_anim = np.interp(animation_time, time_sol, theta_sol)
-    u_anim = np.interp(animation_time, time_sol, u_sol)
-    v_anim = np.interp(animation_time, time_sol, v_sol)
 
     # Create obstacle trajectories
     obs_x_1_anim, obs_y_1_anim, obs_x_2_anim, obs_y_2_anim = create_obstacle_trajectories_numpy(
         animation_time
     )
 
-    # Set up figure - highway view only, using constants from main module
+    # Clean professional highway scene - single plot only
     fig, ax = plt.subplots(figsize=(12, 16))
     ax.set_xlim(
         highway_overtaking.HIGHWAY_LEFT_BOUNDARY - 1, highway_overtaking.HIGHWAY_RIGHT_BOUNDARY + 1
@@ -111,8 +108,9 @@ def animate_highway_overtaking(solution, save_filename="highway_overtaking.mp4")
     ax.grid(True, alpha=0.2)
     ax.set_xlabel("Lateral Position (m)", fontsize=12)
     ax.set_ylabel("Longitudinal Position (m)", fontsize=12)
+    ax.tick_params(labelbottom=False, labelleft=False)
 
-    # Draw highway infrastructure using constants from main module
+    # Draw highway infrastructure
     center_line = highway_overtaking.HIGHWAY_CENTER
 
     # Highway boundaries
@@ -137,7 +135,7 @@ def animate_highway_overtaking(solution, save_filename="highway_overtaking.mp4")
     for y_mark in y_range:
         ax.plot([center_line, center_line], [y_mark, y_mark + 3], "w--", linewidth=2, alpha=0.8)
 
-    # Plot static elements using constants from main module
+    # Plot static elements - clean without labels
     ax.scatter(
         *highway_overtaking.AGENT_START,
         c="green",
@@ -145,7 +143,6 @@ def animate_highway_overtaking(solution, save_filename="highway_overtaking.mp4")
         marker="s",
         zorder=10,
         edgecolor="black",
-        label="Start",
     )
     ax.scatter(
         *highway_overtaking.AGENT_END,
@@ -154,26 +151,19 @@ def animate_highway_overtaking(solution, save_filename="highway_overtaking.mp4")
         marker="*",
         zorder=10,
         edgecolor="black",
-        label="Goal",
     )
 
-    # Plot actual solution trajectory
-    ax.plot(x_sol, y_sol, "b-", alpha=0.4, linewidth=3, label="Actual Path")
+    # Dynamic trailing trajectory (will be updated in animate function)
+    trail_length_seconds = 3.0  # Show last 3 seconds of movement
+    trail_frames = int(trail_length_seconds * fps)
+    (agent_trail,) = ax.plot([], [], "b-", alpha=0.6, linewidth=3, zorder=5)
 
-    # Plot obstacle paths using actual solution timing
+    # Plot obstacle paths
     obs1_x_full, obs1_y_full, obs2_x_full, obs2_y_full = create_obstacle_trajectories_numpy(
         time_sol
     )
-    ax.plot(obs1_x_full, obs1_y_full, "r--", alpha=0.5, linewidth=2, label="Obstacle 1")
-    ax.plot(
-        obs2_x_full,
-        obs2_y_full,
-        "orange",
-        linestyle="--",
-        alpha=0.5,
-        linewidth=2,
-        label="Obstacle 2",
-    )
+    ax.plot(obs1_x_full, obs1_y_full, "r--", alpha=0.5, linewidth=2)
+    ax.plot(obs2_x_full, obs2_y_full, "orange", linestyle="--", alpha=0.5, linewidth=2)
 
     # Initialize animated elements
     agent_vehicle = Polygon(
@@ -199,27 +189,19 @@ def animate_highway_overtaking(solution, save_filename="highway_overtaking.mp4")
     )
     ax.add_patch(obstacle_2)
 
-    # Information display
-    info_text = ax.text(
-        0.02,
-        0.98,
-        "",
-        transform=ax.transAxes,
-        fontsize=12,
-        fontweight="bold",
-        bbox=dict(boxstyle="round,pad=0.5", facecolor="white", alpha=0.9),
-        verticalalignment="top",
-    )
-
     def animate(frame):
-        """Animation function called for each frame."""
-        current_time = animation_time[frame]
-
+        """Animation function - clean scene with dynamic trailing trajectory."""
         # Update agent vehicle
         agent_corners = create_vehicle_rectangle(
             x_anim[frame], y_anim[frame], theta_anim[frame], 4.0, 2.0
         )
         agent_vehicle.set_xy(agent_corners)
+
+        # Update dynamic trailing trajectory
+        trail_start = max(0, frame - trail_frames)
+        trail_x = x_anim[trail_start : frame + 1]
+        trail_y = y_anim[trail_start : frame + 1]
+        agent_trail.set_data(trail_x, trail_y)
 
         # Update obstacles
         obs1_corners = create_vehicle_rectangle(
@@ -232,38 +214,18 @@ def animate_highway_overtaking(solution, save_filename="highway_overtaking.mp4")
         )
         obstacle_2.set_xy(obs2_corners)
 
-        # Update information display
-        speed = np.sqrt(u_anim[frame] ** 2 + v_anim[frame] ** 2)
-
-        # Determine current lane using constants from main module
-        if abs(x_anim[frame] - highway_overtaking.RIGHT_LANE_CENTER) < abs(
-            x_anim[frame] - highway_overtaking.LEFT_LANE_CENTER
-        ):
-            current_lane = "Right"
-        else:
-            current_lane = "Left"
-
-        info_display = (
-            f"Time: {current_time:.1f}s\n"
-            f"Lane: {current_lane}\n"
-            f"Speed: {speed:.1f} m/s\n"
-            f"Position: ({x_anim[frame]:.1f}, {y_anim[frame]:.1f})"
-        )
-        info_text.set_text(info_display)
-
-        return agent_vehicle, obstacle_1, obstacle_2, info_text
+        return agent_vehicle, agent_trail, obstacle_1, obstacle_2
 
     # Create animation
     anim = animation.FuncAnimation(
         fig, animate, frames=total_frames, interval=1000 / fps, blit=True
     )
 
-    ax.legend(loc="upper right")
     plt.tight_layout()
 
     try:
         anim.save(save_filename, writer="ffmpeg", fps=fps, bitrate=2000)
-        print(f"Highway overtaking animation saved to {Path(save_filename).resolve()}")
+        print(f"Professional highway animation saved to {Path(save_filename).resolve()}")
     except Exception as e:
         print(f"Could not save video file ({e}). Displaying animation instead.")
 
@@ -274,22 +236,12 @@ if __name__ == "__main__":
     solution = highway_overtaking.solution
 
     if solution.status["success"]:
-        print("Creating highway overtaking animation...")
+        print("Creating professional highway animation for LinkedIn...")
 
         script_dir = Path(__file__).parent
-        output_file = script_dir / "highway_overtaking.mp4"
+        output_file = script_dir / "highway_overtaking_professional.mp4"
 
-        anim = animate_highway_overtaking(solution, str(output_file))
-
-        # Print summary using constants from main module
-        x_traj = solution["x_position"]
-        print("\nOvertaking Summary:")
-        print(f"  Mission time: {solution.status['total_mission_time']:.1f}s")
-        print(
-            f"  Max lateral deviation: {abs(x_traj - highway_overtaking.RIGHT_LANE_CENTER).max():.1f}m"
-        )
-        print(f"  Final position: ({x_traj[-1]:.1f}, {solution['y_position'][-1]:.1f})")
-
+        anim = animate_highway_overtaking_professional(solution, str(output_file))
         plt.show()
     else:
         print("Cannot animate: solution failed")
