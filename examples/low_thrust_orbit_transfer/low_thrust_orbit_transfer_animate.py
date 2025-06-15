@@ -151,7 +151,7 @@ def animate_low_thrust_orbit_transfer(solution, save_filename="orbit_transfer.mp
     earth_x = RE * np.outer(np.cos(u), np.sin(v))
     earth_y = RE * np.outer(np.sin(u), np.sin(v))
     earth_z = RE * np.outer(np.ones(np.size(u)), np.cos(v))
-    ax.plot_surface(earth_x, earth_y, earth_z, color=COLORS["agent_blue"], alpha=0.9)
+    ax.plot_surface(earth_x, earth_y, earth_z, color=COLORS["agent_blue"], alpha=0.8, zorder=1)
     ax.set_box_aspect([1, 1, 1])
 
     # Draw orbits
@@ -174,8 +174,12 @@ def animate_low_thrust_orbit_transfer(solution, save_filename="orbit_transfer.mp
     )
 
     # Animated elements
-    (trajectory_line,) = ax.plot([], [], [], color=COLORS["primary_red"], linewidth=2, alpha=0.9)
-    (spacecraft_point,) = ax.plot([], [], [], "o", color=COLORS["primary_red"], markersize=8)
+    (trajectory_line,) = ax.plot(
+        [], [], [], color=COLORS["primary_red"], linewidth=1, alpha=0.9, zorder=10
+    )
+    (spacecraft_point,) = ax.plot(
+        [], [], [], "o", color=COLORS["primary_red"], markersize=8, zorder=10
+    )
 
     def animate(frame):
         trail_points = trajectory_points[: frame + 1]
