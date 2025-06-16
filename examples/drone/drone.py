@@ -16,7 +16,7 @@ l_arm = 0.19  # Arm length (m) - calculated from 380.1mm diagonal
 # Inertia parameters (kg⋅m²) - scaled from original based on DJI Mavic 3 mass/size
 Jx = 0.0123  # Scaled: 0.0347563 × 0.353
 Jy = 0.0123  # Scaled: 0.0347563 × 0.353
-Jz = 0.0345  # Scaled: 0.0977 × 0.353
+Jz = 0.0246  # Scaled: 0.0977 × 0.353
 Jr = 0.000030  # Rotor inertia - scaled: 0.000084 × 0.353
 
 # Aerodynamic coefficients (adjusted for DJI Mavic 3 size/performance)
