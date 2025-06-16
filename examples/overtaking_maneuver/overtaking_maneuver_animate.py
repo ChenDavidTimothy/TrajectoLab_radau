@@ -1,9 +1,9 @@
 from pathlib import Path
 
-import highway_overtaking
 import matplotlib.animation as animation
 import matplotlib.pyplot as plt
 import numpy as np
+import overtaking_maneuver
 from matplotlib.patches import Polygon
 
 
@@ -54,8 +54,8 @@ def create_vehicle_rectangle(x, y, theta, length=3.0, width=1.5):
 
 
 def create_obstacle_trajectories_numpy(time_array):
-    waypoints_1 = highway_overtaking.OBSTACLE_1_WAYPOINTS
-    waypoints_2 = highway_overtaking.OBSTACLE_2_WAYPOINTS
+    waypoints_1 = overtaking_maneuver.OBSTACLE_1_WAYPOINTS
+    waypoints_2 = overtaking_maneuver.OBSTACLE_2_WAYPOINTS
 
     obs_x_1 = np.zeros_like(time_array)
     obs_y_1 = np.zeros_like(time_array)
@@ -91,7 +91,7 @@ def create_obstacle_trajectories_numpy(time_array):
 # ============================================================================
 
 
-def animate_highway_overtaking(solution, save_filename="highway_overtaking.mp4"):
+def animate_overtaking_maneuver(solution, save_filename="overtaking_maneuver.mp4"):
     if not solution.status["success"]:
         raise ValueError("Cannot animate a failed solution.")
 
@@ -160,9 +160,10 @@ def _setup_and_run_animation(
     ax.set_facecolor(COLORS["background_dark"])
 
     ax.set_xlim(
-        highway_overtaking.HIGHWAY_LEFT_BOUNDARY - 1, highway_overtaking.HIGHWAY_RIGHT_BOUNDARY + 1
+        overtaking_maneuver.HIGHWAY_LEFT_BOUNDARY - 1,
+        overtaking_maneuver.HIGHWAY_RIGHT_BOUNDARY + 1,
     )
-    ax.set_ylim(highway_overtaking.HIGHWAY_BOTTOM - 2, highway_overtaking.HIGHWAY_TOP + 2)
+    ax.set_ylim(overtaking_maneuver.HIGHWAY_BOTTOM - 2, overtaking_maneuver.HIGHWAY_TOP + 2)
     ax.set_aspect("equal")
 
     ax.grid(False)
@@ -176,20 +177,20 @@ def _setup_and_run_animation(
         spine.set_linewidth(2)
 
     # Draw highway infrastructure
-    center_line = highway_overtaking.HIGHWAY_CENTER
+    center_line = overtaking_maneuver.HIGHWAY_CENTER
 
     # Highway boundaries
     ax.axvline(
-        x=highway_overtaking.HIGHWAY_LEFT_BOUNDARY,
+        x=overtaking_maneuver.HIGHWAY_LEFT_BOUNDARY,
         color=COLORS["primary_red"],
         linewidth=4,
     )
     ax.axvline(
-        x=highway_overtaking.HIGHWAY_RIGHT_BOUNDARY, color=COLORS["primary_red"], linewidth=4
+        x=overtaking_maneuver.HIGHWAY_RIGHT_BOUNDARY, color=COLORS["primary_red"], linewidth=4
     )
 
     # Lane markings
-    y_range = np.arange(highway_overtaking.HIGHWAY_BOTTOM, highway_overtaking.HIGHWAY_TOP, 6)
+    y_range = np.arange(overtaking_maneuver.HIGHWAY_BOTTOM, overtaking_maneuver.HIGHWAY_TOP, 6)
     for y_mark in y_range:
         ax.plot(
             [center_line, center_line],
@@ -201,7 +202,7 @@ def _setup_and_run_animation(
 
     # Start/end markers
     ax.scatter(
-        *highway_overtaking.AGENT_START,
+        *overtaking_maneuver.AGENT_START,
         c=COLORS["obstacle_green"],
         s=200,
         marker="s",
@@ -210,7 +211,7 @@ def _setup_and_run_animation(
         linewidth=2,
     )
     ax.scatter(
-        *highway_overtaking.AGENT_END,
+        *overtaking_maneuver.AGENT_END,
         c=COLORS["agent_blue"],
         s=250,
         marker="*",
@@ -339,15 +340,15 @@ def _setup_and_run_animation(
 # ============================================================================
 
 if __name__ == "__main__":
-    solution = highway_overtaking.solution
+    solution = overtaking_maneuver.solution
 
     if solution.status["success"]:
         print("Creating MAPTOR highway animation...")
 
         script_dir = Path(__file__).parent
-        output_file = script_dir / "highway_overtaking.mp4"
+        output_file = script_dir / "overtaking_maneuver.mp4"
 
-        anim = animate_highway_overtaking(solution, str(output_file))
+        anim = animate_overtaking_maneuver(solution, str(output_file))
         plt.show()
     else:
         print("Cannot animate: solution failed")
