@@ -1,11 +1,15 @@
 from pathlib import Path
 
-import drone
 import matplotlib.animation as animation
 import matplotlib.pyplot as plt
 import numpy as np
+import quadcopter
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
+
+# ============================================================================
+# Colors
+# ============================================================================
 
 COLORS = {
     "primary_red": "#991b1b",
@@ -18,9 +22,13 @@ COLORS = {
 }
 
 
+# ============================================================================
+# Geometry Creation Functions
+# ============================================================================
+
+
 def _create_rotation_matrix(phi, theta, psi):
     """Create rotation matrix exactly matching source material: R_b^g = R(φ)R(θ)R(ψ)"""
-    # Individual rotation matrices with correct source material sign conventions
     R_phi = np.array([[1, 0, 0], [0, np.cos(phi), np.sin(phi)], [0, -np.sin(phi), np.cos(phi)]])
 
     R_theta = np.array(
@@ -29,13 +37,11 @@ def _create_rotation_matrix(phi, theta, psi):
 
     R_psi = np.array([[np.cos(psi), np.sin(psi), 0], [-np.sin(psi), np.cos(psi), 0], [0, 0, 1]])
 
-    # Correct multiplication order: R(φ)R(θ)R(ψ)
     return R_phi @ R_theta @ R_psi
 
 
 def _create_detailed_drone_geometry(x, y, z, phi, theta, psi):
-    """Create detailed eVTOL-style drone geometry using drone.py parameters."""
-    evtol_size = 2 * drone.l_arm
+    evtol_size = 2 * quadcopter.l_arm
     arm_length = evtol_size / 2
     rotor_radius = arm_length / 3
     body_radius = arm_length / 2
@@ -61,14 +67,12 @@ def _create_detailed_drone_geometry(x, y, z, phi, theta, psi):
     arm_width = arm_length / 10
     arm_height = arm_width / 2
 
-    # Start building complete geometry
     all_vertices = []
     all_vertices.extend(body_points_top)
     all_vertices.extend(body_points_bottom)
     faces = []
 
     def create_arm_vertices(start_point, end_point, width, height):
-        """Create detailed arm geometry."""
         direction = np.array(end_point) - np.array(start_point)
         length = np.linalg.norm(direction)
         direction = direction / length
@@ -92,24 +96,24 @@ def _create_detailed_drone_geometry(x, y, z, phi, theta, psi):
 
         return vertices
 
-    # X-configuration arm positions (matching drone.py motor layout)
+    # X-configuration arm positions (matching quadcopter.py motor layout)
     arm_positions = [
         (
             [0, 0, 0],
             [arm_length * np.cos(np.pi / 4), arm_length * np.sin(np.pi / 4), 0],
-        ),  # Front-right
+        ),
         (
             [0, 0, 0],
             [arm_length * np.cos(3 * np.pi / 4), arm_length * np.sin(3 * np.pi / 4), 0],
-        ),  # Front-left
+        ),
         (
             [0, 0, 0],
             [arm_length * np.cos(-np.pi / 4), arm_length * np.sin(-np.pi / 4), 0],
-        ),  # Rear-right
+        ),
         (
             [0, 0, 0],
             [arm_length * np.cos(-3 * np.pi / 4), arm_length * np.sin(-3 * np.pi / 4), 0],
-        ),  # Rear-left
+        ),
     ]
 
     # Create arms
@@ -120,14 +124,13 @@ def _create_detailed_drone_geometry(x, y, z, phi, theta, psi):
 
         idx = arm_vertex_offset + i * 8
 
-        # Define arm faces
         arm_faces = [
-            [idx, idx + 1, idx + 2, idx + 3],  # Bottom
-            [idx + 4, idx + 5, idx + 6, idx + 7],  # Top
-            [idx, idx + 1, idx + 5, idx + 4],  # Front
-            [idx + 2, idx + 3, idx + 7, idx + 6],  # Back
-            [idx, idx + 3, idx + 7, idx + 4],  # Left
-            [idx + 1, idx + 2, idx + 6, idx + 5],  # Right
+            [idx, idx + 1, idx + 2, idx + 3],
+            [idx + 4, idx + 5, idx + 6, idx + 7],
+            [idx, idx + 1, idx + 5, idx + 4],
+            [idx + 2, idx + 3, idx + 7, idx + 6],
+            [idx, idx + 3, idx + 7, idx + 4],
+            [idx + 1, idx + 2, idx + 6, idx + 5],
         ]
         faces.extend(arm_faces)
 
@@ -144,7 +147,6 @@ def _create_detailed_drone_geometry(x, y, z, phi, theta, psi):
             rotor_angle = j * 2 * np.pi / n_rotor_points
             rotors.extend(
                 [
-                    # Rotor disc points
                     [
                         x_center + rotor_radius * np.cos(rotor_angle),
                         y_center + rotor_radius * np.sin(rotor_angle),
@@ -155,7 +157,6 @@ def _create_detailed_drone_geometry(x, y, z, phi, theta, psi):
                         y_center + rotor_radius * np.sin(rotor_angle),
                         -rotor_height,
                     ],
-                    # Hub points
                     [
                         x_center + hub_radius * np.cos(rotor_angle),
                         y_center + hub_radius * np.sin(rotor_angle),
@@ -172,8 +173,8 @@ def _create_detailed_drone_geometry(x, y, z, phi, theta, psi):
     all_vertices.extend(rotors)
 
     # Body faces
-    faces.append(list(range(n_sides, 2 * n_sides)))  # Top face
-    faces.append(list(range(n_sides)))  # Bottom face
+    faces.append(list(range(n_sides, 2 * n_sides)))
+    faces.append(list(range(n_sides)))
 
     # Body side faces
     for i in range(n_sides):
@@ -188,7 +189,6 @@ def _create_detailed_drone_geometry(x, y, z, phi, theta, psi):
 
         for j in range(n_rotor_points):
             next_j = (j + 1) % n_rotor_points
-            # Rotor disc faces
             faces.append(
                 [
                     current_rotor_idx + j * 2,
@@ -197,7 +197,6 @@ def _create_detailed_drone_geometry(x, y, z, phi, theta, psi):
                     current_rotor_idx + j * 2 + 1,
                 ]
             )
-            # Hub faces
             hub_start = current_rotor_idx + n_rotor_points * 2
             faces.append(
                 [
@@ -208,12 +207,11 @@ def _create_detailed_drone_geometry(x, y, z, phi, theta, psi):
                 ]
             )
 
-    # Transform all vertices using CORRECTED rotation matrix
+    # Transform all vertices using rotation matrix
     all_vertices = np.array(all_vertices)
-    R = _create_rotation_matrix(phi, theta, psi)  # Now uses correct source material convention
+    R = _create_rotation_matrix(phi, theta, psi)
     transformed_points = (R @ all_vertices.T).T + np.array([x, y, z])
 
-    # Create final face list
     transformed_faces = [[transformed_points[idx] for idx in face] for face in faces]
 
     # Create front direction indicator
@@ -228,7 +226,6 @@ def _create_detailed_drone_geometry(x, y, z, phi, theta, psi):
 def _create_danger_zone_cylinder(
     center_x, center_y, radius, height_bottom, height_top, n_points=32
 ):
-    """Create cylindrical danger zone geometry for visualization."""
     theta = np.linspace(0, 2 * np.pi, n_points, endpoint=False)
 
     # Bottom circle
@@ -253,35 +250,39 @@ def _create_danger_zone_cylinder(
     faces = []
     for i in range(n_points):
         next_i = (i + 1) % n_points
-        # Quadrilateral face connecting bottom and top circles
         face = [bottom_circle[i], bottom_circle[next_i], top_circle[next_i], top_circle[i]]
         faces.append(face)
 
     return faces
 
 
+# ============================================================================
+# Animation Function
+# ============================================================================
+
+
 def animate_drone_flight(solution, save_filename="drone_flight.mp4"):
-    """Create detailed drone flight animation with progressive trail build-up."""
+    """Create detailed quadcopter flight animation with progressive trail build-up."""
     if not solution.status["success"]:
         raise ValueError("Cannot animate failed solution")
 
-    # Extract and clean data - updated for smooth interpolation
+    # Extract and clean data
     time_states = solution["time_states"]
     unique_indices = np.unique(time_states, return_index=True)[1]
     time_sol = time_states[unique_indices]
 
     # Convert scaled solution data to physical (raw data points)
-    X_sol = solution["X_scaled"][unique_indices] * drone.POS_SCALE
-    Y_sol = solution["Y_scaled"][unique_indices] * drone.POS_SCALE
-    Z_sol = solution["Z_scaled"][unique_indices] * drone.POS_SCALE
-    phi_sol = solution["phi_scaled"][unique_indices] * drone.ANG_SCALE
-    theta_sol = solution["theta_scaled"][unique_indices] * drone.ANG_SCALE
-    psi_sol = solution["psi_scaled"][unique_indices] * drone.ANG_SCALE
+    X_sol = solution["X_scaled"][unique_indices] * quadcopter.POS_SCALE
+    Y_sol = solution["Y_scaled"][unique_indices] * quadcopter.POS_SCALE
+    Z_sol = solution["Z_scaled"][unique_indices] * quadcopter.POS_SCALE
+    phi_sol = solution["phi_scaled"][unique_indices] * quadcopter.ANG_SCALE
+    theta_sol = solution["theta_scaled"][unique_indices] * quadcopter.ANG_SCALE
+    psi_sol = solution["psi_scaled"][unique_indices] * quadcopter.ANG_SCALE
 
-    # Animation parameters (fixed viewing duration like low-thrust orbit)
-    animation_duration_seconds = 3  # Fixed viewing time for better visualization
+    # Animation parameters (fixed viewing duration)
+    animation_duration_seconds = 3
     final_time = solution.status["total_mission_time"]
-    total_frames = 200  # Fixed frame count for smooth animation
+    total_frames = 200
     fps = total_frames / animation_duration_seconds
     animation_time = np.linspace(0, final_time, total_frames)
 
@@ -293,7 +294,7 @@ def animate_drone_flight(solution, save_filename="drone_flight.mp4"):
     theta_phys = np.interp(animation_time, time_sol, theta_sol)
     psi_phys = np.interp(animation_time, time_sol, psi_sol)
 
-    # Setup minimal 3D plot (low-thrust orbit style)
+    # Setup minimal 3D plot
     plt.style.use("dark_background")
     fig = plt.figure(figsize=(12, 12), facecolor=COLORS["background_dark"])
     ax = fig.add_subplot(111, projection="3d", facecolor=COLORS["background_dark"])
@@ -304,7 +305,7 @@ def animate_drone_flight(solution, save_filename="drone_flight.mp4"):
     ax.set_ylim([bound_min, bound_max])
     ax.set_zlim([bound_min, bound_max])
 
-    # Remove GUI elements completely (low-thrust style)
+    # Remove GUI elements completely
     ax.set_xticks([])
     ax.set_yticks([])
     ax.set_zticks([])
@@ -322,9 +323,9 @@ def animate_drone_flight(solution, save_filename="drone_flight.mp4"):
 
     # Create and add danger zone visualization
     danger_zone_faces = _create_danger_zone_cylinder(
-        drone.DANGER_ZONE_CENTER_X,
-        drone.DANGER_ZONE_CENTER_Y,
-        drone.DANGER_ZONE_RADIUS,
+        quadcopter.DANGER_ZONE_CENTER_X,
+        quadcopter.DANGER_ZONE_CENTER_Y,
+        quadcopter.DANGER_ZONE_RADIUS,
         height_bottom=bound_min,
         height_top=bound_max,
         n_points=24,
@@ -341,12 +342,16 @@ def animate_drone_flight(solution, save_filename="drone_flight.mp4"):
 
     # Add danger zone boundary circle at ground level for clarity
     theta_circle = np.linspace(0, 2 * np.pi, 50)
-    circle_x = drone.DANGER_ZONE_CENTER_X + drone.DANGER_ZONE_RADIUS * np.cos(theta_circle)
-    circle_y = drone.DANGER_ZONE_CENTER_Y + drone.DANGER_ZONE_RADIUS * np.sin(theta_circle)
+    circle_x = quadcopter.DANGER_ZONE_CENTER_X + quadcopter.DANGER_ZONE_RADIUS * np.cos(
+        theta_circle
+    )
+    circle_y = quadcopter.DANGER_ZONE_CENTER_Y + quadcopter.DANGER_ZONE_RADIUS * np.sin(
+        theta_circle
+    )
     circle_z = np.full_like(circle_x, bound_min)
     ax.plot(circle_x, circle_y, circle_z, color=COLORS["danger_red"], linewidth=3, alpha=0.1)
 
-    # Animated detailed drone
+    # Animated detailed quadcopter
     drone_mesh = Poly3DCollection(
         [], facecolor=COLORS["agent_blue"], alpha=0.9, edgecolor=COLORS["text_light"], linewidth=0.5
     )
@@ -355,11 +360,11 @@ def animate_drone_flight(solution, save_filename="drone_flight.mp4"):
     # Front direction indicator
     (front_line,) = ax.plot([], [], [], color="yellow", linewidth=3, alpha=0.9)
 
-    # Progressive trail (builds up as drone moves)
+    # Progressive trail (builds up as quadcopter moves)
     (trail_line,) = ax.plot([], [], [], color=COLORS["agent_blue"], linewidth=3, alpha=0.9)
 
     def animate(frame):
-        # Update detailed drone geometry
+        # Update detailed quadcopter geometry
         faces, front_nose_line = _create_detailed_drone_geometry(
             X_phys[frame],
             Y_phys[frame],
@@ -397,24 +402,28 @@ def animate_drone_flight(solution, save_filename="drone_flight.mp4"):
     return anim
 
 
+# ============================================================================
+# Main Execution
+# ============================================================================
+
 if __name__ == "__main__":
-    solution = drone.solution
+    solution = quadcopter.solution
     if solution.status["success"]:
         script_dir = Path(__file__).parent
         output_file = script_dir / "drone_flight.mp4"
         anim = animate_drone_flight(solution, str(output_file))
 
         # Print danger zone avoidance verification (using original solution data)
-        X_traj_phys = solution["X_scaled"] * drone.POS_SCALE
-        Y_traj_phys = solution["Y_scaled"] * drone.POS_SCALE
+        X_traj_phys = solution["X_scaled"] * quadcopter.POS_SCALE
+        Y_traj_phys = solution["Y_scaled"] * quadcopter.POS_SCALE
         distances_to_danger = np.sqrt(
-            (X_traj_phys - drone.DANGER_ZONE_CENTER_X) ** 2
-            + (Y_traj_phys - drone.DANGER_ZONE_CENTER_Y) ** 2
+            (X_traj_phys - quadcopter.DANGER_ZONE_CENTER_X) ** 2
+            + (Y_traj_phys - quadcopter.DANGER_ZONE_CENTER_Y) ** 2
         )
         min_distance = np.min(distances_to_danger)
         print(f"Minimum distance to danger zone: {min_distance:.3f} m")
-        print(f"Required clearance: {drone.DANGER_ZONE_RADIUS:.1f} m")
-        print(f"Safety margin: {min_distance - drone.DANGER_ZONE_RADIUS:.3f} m")
+        print(f"Required clearance: {quadcopter.DANGER_ZONE_RADIUS:.1f} m")
+        print(f"Safety margin: {min_distance - quadcopter.DANGER_ZONE_RADIUS:.3f} m")
 
         plt.show()
     else:

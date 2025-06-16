@@ -5,41 +5,41 @@ import maptor as mtor
 
 
 # ============================================================================
-# Physical Parameters and Constants - DJI Mavic 3 Specifications
+# Physical Constants and Parameters
 # ============================================================================
 
 # Vehicle parameters (DJI Mavic 3 specifications)
-m = 0.92  # Mass (kg) - average of Mavic 3E (915g) and 3T (920g)
-g = 9.81  # Gravitational acceleration (m/s²)
-l_arm = 0.19  # Arm length (m) - calculated from 380.1mm diagonal
+m = 0.92
+g = 9.81
+l_arm = 0.19
 
-# Inertia parameters (kg⋅m²) - scaled from original based on DJI Mavic 3 mass/size
-Jx = 0.0123  # Scaled: 0.0347563 × 0.353
-Jy = 0.0123  # Scaled: 0.0347563 × 0.353
-Jz = 0.0246  # Scaled: 0.0977 × 0.353
-Jr = 0.000030  # Rotor inertia - scaled: 0.000084 × 0.353
+# Inertia parameters (kg⋅m²)
+Jx = 0.0123
+Jy = 0.0123
+Jz = 0.0246
+Jr = 0.000030
 
-# Aerodynamic coefficients (adjusted for DJI Mavic 3 size/performance)
-K_T = 2.5e-6  # Thrust coefficient - reduced for smaller/more efficient motors
-K_d = 6.3e-8  # Drag coefficient - scaled proportionally
+# Aerodynamic coefficients
+K_T = 2.5e-6
+K_d = 6.3e-8
 
-# Drag coefficients (linear damping) - reduced for more streamlined design
+# Drag coefficients (linear damping)
 K_dx = 0.15
 K_dy = 0.15
 K_dz = 0.20
 
-# Motor constraints (based on DJI Mavic 3 performance: 200°/s max angular velocity)
+# Motor constraints
 omega_max = 1500.0
 omega_min = 0.0
 
 # Danger zone parameters (infinite height cylinder)
-DANGER_ZONE_CENTER_X = 3.0  # Center X coordinate (m) - in diagonal path
-DANGER_ZONE_CENTER_Y = 3.0  # Center Y coordinate (m) - in diagonal path
-DANGER_ZONE_RADIUS = 0.4  # Exclusion radius (m) - forces clear evasion
+DANGER_ZONE_CENTER_X = 3.0
+DANGER_ZONE_CENTER_Y = 3.0
+DANGER_ZONE_RADIUS = 0.4
 
 
 # ============================================================================
-# Scaling Factors for Numerical Conditioning
+# Scaling Factors
 # ============================================================================
 
 POS_SCALE = 10.0
@@ -59,10 +59,9 @@ phase = problem.set_phase(1)
 
 
 # ============================================================================
-# Variables Definition - Scaled
+# Variables
 # ============================================================================
 
-# Time variable (free final time for minimum time problem)
 t = phase.time(initial=0.0)
 
 # Position states (scaled)
@@ -111,7 +110,7 @@ omega4_s = phase.control(
 
 
 # ============================================================================
-# Dynamics Implementation - Scaled
+# Dynamics
 # ============================================================================
 
 # Convert scaled variables to physical units
@@ -180,7 +179,6 @@ r_dynamics_phys = (1 / Jz) * (
     + K_d * (omega1_phys**2 - omega2_phys**2 + omega3_phys**2 - omega4_phys**2)
 )
 
-# Scale derivatives back for dynamics
 phase.dynamics(
     {
         X_s: X_dynamics_phys / POS_SCALE,
@@ -200,7 +198,7 @@ phase.dynamics(
 
 
 # ============================================================================
-# Path Constraints - Danger Zone Avoidance
+# Constraints
 # ============================================================================
 
 # Cylindrical danger zone constraint (scaled coordinates)
@@ -220,7 +218,7 @@ phase.path_constraints(
 
 
 # ============================================================================
-# Objective Function - Scaled
+# Objective
 # ============================================================================
 
 omega_reg_scaled = omega1_s**2 + omega2_s**2 + omega3_s**2 + omega4_s**2
@@ -232,10 +230,8 @@ problem.minimize(t.final + omega_integral_scaled)
 # Mesh Configuration and Initial Guess
 # ============================================================================
 
-# Configure mesh for complex dynamics
 phase.mesh([8, 8, 8], [-1.0, -1 / 3, 1 / 3, 1.0])
 
-# Generate initial guess with scaled values
 states_guess = []
 controls_guess = []
 
@@ -298,7 +294,7 @@ problem.guess(
 
 
 # ============================================================================
-# Solve the Problem
+# Solve
 # ============================================================================
 
 solution = mtor.solve_adaptive(
@@ -322,7 +318,7 @@ solution = mtor.solve_adaptive(
 
 
 # ============================================================================
-# Results Analysis
+# Results
 # ============================================================================
 
 if solution.status["success"]:
