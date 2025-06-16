@@ -29,7 +29,7 @@ K_dy = 0.15
 K_dz = 0.20
 
 # Motor constraints (based on DJI Mavic 3 performance: 200°/s max angular velocity)
-omega_max = 8000.0  # Maximum motor speed (rad/s) - reduced for smaller drone
+omega_max = 1500.0  # Maximum motor speed (rad/s) - reduced for smaller drone
 omega_min = 0.0  # Minimum motor speed (rad/s)
 
 
@@ -282,7 +282,7 @@ solution = mtor.solve_adaptive(
     max_iterations=30,
     min_polynomial_degree=3,
     max_polynomial_degree=8,
-    ode_solver_tolerance=1e-2,
+    ode_solver_tolerance=1e-3,
     nlp_options={
         "ipopt.max_iter": 1000,
         "ipopt.tol": 1e-6,
