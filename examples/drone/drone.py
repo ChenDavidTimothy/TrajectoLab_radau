@@ -49,14 +49,14 @@ phase = problem.set_phase(1)
 t = phase.time(initial=0.0)
 
 # Position states (global frame)
-X = phase.state("X", initial=0.0, final=20.0)
-Y = phase.state("Y", initial=0.0, final=20.0)
-Z = phase.state("Z", initial=0.0, final=20.0)
+X = phase.state("X", initial=5.0, final=20.0)
+Y = phase.state("Y", initial=5.0, final=20.0)
+Z = phase.state("Z", initial=5.0, final=20.0, boundary=(0.0, None))
 
 # Velocity states (global frame)
-X_dot = phase.state("X_dot", initial=0.0, final=0.0)
-Y_dot = phase.state("Y_dot", initial=0.0, final=0.0)
-Z_dot = phase.state("Z_dot", initial=0.0, final=0.0)
+X_dot = phase.state("X_dot", initial=0.0, final=0)
+Y_dot = phase.state("Y_dot", initial=0.0, final=0)
+Z_dot = phase.state("Z_dot", initial=0.0, final=0)
 
 # Attitude states (Euler angles)
 phi = phase.state("phi", initial=0.0, final=0.0, boundary=(-np.pi / 3, np.pi / 3))
@@ -156,14 +156,6 @@ phase.dynamics(
     }
 )
 
-
-# ============================================================================
-# Physical Constraints
-# ============================================================================
-
-# Altitude constraint (stay above ground)
-phase.path_constraints(Z >= 0.0)
-
 # ============================================================================
 # Objective Function
 # ============================================================================
@@ -247,7 +239,7 @@ problem.guess(
 
 solution = mtor.solve_adaptive(
     problem,
-    error_tolerance=1e-1,
+    error_tolerance=1e-2,
     max_iterations=15,
     min_polynomial_degree=3,
     max_polynomial_degree=8,
