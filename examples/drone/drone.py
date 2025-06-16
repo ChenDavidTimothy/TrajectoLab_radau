@@ -327,7 +327,7 @@ solution = mtor.solve_adaptive(
 
 if solution.status["success"]:
     flight_time = solution.status["objective"]
-    print(f"Minimum flight time: {flight_time:.3f} seconds")
+    print(f"Objective: {flight_time:.3f} seconds")
 
     # Convert scaled final state to physical for verification
     X_final = solution["X_scaled"][-1] * POS_SCALE

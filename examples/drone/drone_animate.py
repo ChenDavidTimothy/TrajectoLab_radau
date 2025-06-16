@@ -261,27 +261,37 @@ def _create_danger_zone_cylinder(
 
 
 def animate_drone_flight(solution, save_filename="drone_flight.mp4"):
-    """Create detailed drone flight animation with eVTOL-style geometry and danger zone."""
+    """Create detailed drone flight animation with progressive trail build-up."""
     if not solution.status["success"]:
         raise ValueError("Cannot animate failed solution")
 
-    # Extract and convert solution data
+    # Extract and clean data - updated for smooth interpolation
     time_states = solution["time_states"]
     unique_indices = np.unique(time_states, return_index=True)[1]
     time_sol = time_states[unique_indices]
 
-    # Convert scaled to physical using drone.py scaling factors
-    X_phys = solution["X_scaled"][unique_indices] * drone.POS_SCALE
-    Y_phys = solution["Y_scaled"][unique_indices] * drone.POS_SCALE
-    Z_phys = solution["Z_scaled"][unique_indices] * drone.POS_SCALE
-    phi_phys = solution["phi_scaled"][unique_indices] * drone.ANG_SCALE
-    theta_phys = solution["theta_scaled"][unique_indices] * drone.ANG_SCALE
-    psi_phys = solution["psi_scaled"][unique_indices] * drone.ANG_SCALE
+    # Convert scaled solution data to physical (raw data points)
+    X_sol = solution["X_scaled"][unique_indices] * drone.POS_SCALE
+    Y_sol = solution["Y_scaled"][unique_indices] * drone.POS_SCALE
+    Z_sol = solution["Z_scaled"][unique_indices] * drone.POS_SCALE
+    phi_sol = solution["phi_scaled"][unique_indices] * drone.ANG_SCALE
+    theta_sol = solution["theta_scaled"][unique_indices] * drone.ANG_SCALE
+    psi_sol = solution["psi_scaled"][unique_indices] * drone.ANG_SCALE
 
-    # Animation parameters
-    animation_duration = 4
-    total_frames = len(time_sol)
-    fps = total_frames / animation_duration
+    # Animation parameters (fixed viewing duration like low-thrust orbit)
+    animation_duration_seconds = 3  # Fixed viewing time for better visualization
+    final_time = solution.status["total_mission_time"]
+    total_frames = 200  # Fixed frame count for smooth animation
+    fps = total_frames / animation_duration_seconds
+    animation_time = np.linspace(0, final_time, total_frames)
+
+    # Interpolate trajectories onto regular time grid for smooth animation
+    X_phys = np.interp(animation_time, time_sol, X_sol)
+    Y_phys = np.interp(animation_time, time_sol, Y_sol)
+    Z_phys = np.interp(animation_time, time_sol, Z_sol)
+    phi_phys = np.interp(animation_time, time_sol, phi_sol)
+    theta_phys = np.interp(animation_time, time_sol, theta_sol)
+    psi_phys = np.interp(animation_time, time_sol, psi_sol)
 
     # Setup minimal 3D plot (low-thrust orbit style)
     plt.style.use("dark_background")
@@ -305,9 +315,6 @@ def animate_drone_flight(solution, save_filename="drone_flight.mp4"):
     ax.xaxis.pane.set_edgecolor("none")
     ax.yaxis.pane.set_edgecolor("none")
     ax.zaxis.pane.set_edgecolor("none")
-
-    # Flight path
-    ax.plot(X_phys, Y_phys, Z_phys, color=COLORS["agent_blue"], linewidth=2, alpha=0.6)
 
     # Start/end markers
     ax.scatter(X_phys[0], Y_phys[0], Z_phys[0], c=COLORS["obstacle_green"], s=200, marker="s")
@@ -348,8 +355,7 @@ def animate_drone_flight(solution, save_filename="drone_flight.mp4"):
     # Front direction indicator
     (front_line,) = ax.plot([], [], [], color="yellow", linewidth=3, alpha=0.9)
 
-    # Trail
-    trail_length = min(50, total_frames // 3)
+    # Progressive trail (builds up as drone moves)
     (trail_line,) = ax.plot([], [], [], color=COLORS["agent_blue"], linewidth=3, alpha=0.9)
 
     def animate(frame):
@@ -365,17 +371,16 @@ def animate_drone_flight(solution, save_filename="drone_flight.mp4"):
         drone_mesh.set_verts(faces)
         front_line.set_data_3d(front_nose_line[:, 0], front_nose_line[:, 1], front_nose_line[:, 2])
 
-        # Update trail
-        trail_start = max(0, frame - trail_length)
-        trail_x = X_phys[trail_start : frame + 1]
-        trail_y = Y_phys[trail_start : frame + 1]
-        trail_z = Z_phys[trail_start : frame + 1]
+        # Update progressive trail (from start to current frame)
+        trail_x = X_phys[0 : frame + 1]
+        trail_y = Y_phys[0 : frame + 1]
+        trail_z = Z_phys[0 : frame + 1]
         trail_line.set_data_3d(trail_x, trail_y, trail_z)
 
         return drone_mesh, front_line, trail_line
 
-    # Optimal diagonal view angle for clear visualization
-    ax.view_init(elev=20, azim=60)
+    # Custom view angle for optimal visualization
+    ax.view_init(elev=22, azim=-140)
     ax.set_box_aspect([1, 1, 1])
 
     anim = animation.FuncAnimation(
@@ -399,7 +404,7 @@ if __name__ == "__main__":
         output_file = script_dir / "drone_flight.mp4"
         anim = animate_drone_flight(solution, str(output_file))
 
-        # Print danger zone avoidance verification
+        # Print danger zone avoidance verification (using original solution data)
         X_traj_phys = solution["X_scaled"] * drone.POS_SCALE
         Y_traj_phys = solution["Y_scaled"] * drone.POS_SCALE
         distances_to_danger = np.sqrt(
