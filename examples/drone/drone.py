@@ -240,7 +240,7 @@ problem.guess(
 solution = mtor.solve_adaptive(
     problem,
     error_tolerance=1e-2,
-    max_iterations=15,
+    max_iterations=30,
     min_polynomial_degree=3,
     max_polynomial_degree=8,
     ode_solver_tolerance=1e-2,
