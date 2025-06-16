@@ -32,6 +32,11 @@ K_dz = 0.20
 omega_max = 1500.0
 omega_min = 0.0
 
+# Danger zone parameters (infinite height cylinder)
+DANGER_ZONE_CENTER_X = 3.0  # Center X coordinate (m) - in diagonal path
+DANGER_ZONE_CENTER_Y = 3.0  # Center Y coordinate (m) - in diagonal path
+DANGER_ZONE_RADIUS = 0.75  # Exclusion radius (m) - forces clear evasion
+
 
 # ============================================================================
 # Scaling Factors for Numerical Conditioning
@@ -195,6 +200,22 @@ phase.dynamics(
 
 
 # ============================================================================
+# Path Constraints - Danger Zone Avoidance
+# ============================================================================
+
+# Cylindrical danger zone constraint (scaled coordinates)
+danger_zone_center_x_scaled = DANGER_ZONE_CENTER_X / POS_SCALE
+danger_zone_center_y_scaled = DANGER_ZONE_CENTER_Y / POS_SCALE
+danger_zone_radius_scaled = DANGER_ZONE_RADIUS / POS_SCALE
+
+distance_squared_to_danger = (X_s - danger_zone_center_x_scaled) ** 2 + (
+    Y_s - danger_zone_center_y_scaled
+) ** 2
+
+phase.path_constraints(distance_squared_to_danger >= danger_zone_radius_scaled**2)
+
+
+# ============================================================================
 # Objective Function - Scaled
 # ============================================================================
 
@@ -218,15 +239,15 @@ for N in [8, 8, 8]:
     tau = np.linspace(-1, 1, N + 1)
     t_norm = (tau + 1) / 2
 
-    # Linear trajectory guess (scaled)
-    X_vals_scaled = (5.0 + 15.0 * t_norm) / POS_SCALE
-    Y_vals_scaled = (5.0 + 15.0 * t_norm) / POS_SCALE
-    Z_vals_scaled = (5.0 + 15.0 * t_norm) / POS_SCALE
+    # Linear trajectory guess (scaled) - avoiding danger zone
+    X_vals_scaled = (1.0 + 4.0 * t_norm) / POS_SCALE
+    Y_vals_scaled = (1.0 + 4.0 * t_norm) / POS_SCALE
+    Z_vals_scaled = (1.0 + 4.0 * t_norm) / POS_SCALE
 
     # Smooth velocity profile (scaled)
-    X_dot_vals_scaled = (10.0 * np.sin(np.pi * t_norm)) / VEL_SCALE
-    Y_dot_vals_scaled = (10.0 * np.sin(np.pi * t_norm)) / VEL_SCALE
-    Z_dot_vals_scaled = (5.0 * np.sin(np.pi * t_norm)) / VEL_SCALE
+    X_dot_vals_scaled = (5.0 * np.sin(np.pi * t_norm)) / VEL_SCALE
+    Y_dot_vals_scaled = (5.0 * np.sin(np.pi * t_norm)) / VEL_SCALE
+    Z_dot_vals_scaled = (3.0 * np.sin(np.pi * t_norm)) / VEL_SCALE
 
     # Small attitude variations (scaled)
     phi_vals_scaled = (0.1 * np.sin(2 * np.pi * t_norm)) / ANG_SCALE
@@ -308,7 +329,7 @@ if solution.status["success"]:
     X_final = solution["X_scaled"][-1] * POS_SCALE
     Y_final = solution["Y_scaled"][-1] * POS_SCALE
     Z_final = solution["Z_scaled"][-1] * POS_SCALE
-    position_error = np.sqrt((X_final - 20.0) ** 2 + (Y_final - 20.0) ** 2 + (Z_final - 20.0) ** 2)
+    position_error = np.sqrt((X_final - 5.0) ** 2 + (Y_final - 5.0) ** 2 + (Z_final - 5.0) ** 2)
 
     print(f"Final position: ({X_final:.3f}, {Y_final:.3f}, {Z_final:.3f}) m")
     print(f"Position error: {position_error:.3f} m")
@@ -340,6 +361,18 @@ if solution.status["success"]:
     print(f"Average motor speed: {np.mean(avg_motor_speed):.1f} rad/s")
     print(f"Maximum motor speed: {max_motor_speed:.1f} rad/s")
     print(f"Motor utilization: {max_motor_speed / omega_max * 100:.1f}%")
+
+    # Danger zone verification
+    X_traj_phys = solution["X_scaled"] * POS_SCALE
+    Y_traj_phys = solution["Y_scaled"] * POS_SCALE
+    min_distance_to_danger = min(
+        np.sqrt(
+            (X_traj_phys - DANGER_ZONE_CENTER_X) ** 2 + (Y_traj_phys - DANGER_ZONE_CENTER_Y) ** 2
+        )
+    )
+    print(
+        f"Minimum distance to danger zone: {min_distance_to_danger:.3f} m (required: {DANGER_ZONE_RADIUS:.1f} m)"
+    )
 
     solution.plot()
 

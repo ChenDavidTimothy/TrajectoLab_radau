@@ -13,6 +13,8 @@ COLORS = {
     "text_light": "#e5e7eb",
     "agent_blue": "#3b82f6",
     "obstacle_green": "#10b981",
+    "danger_red": "#dc2626",
+    "danger_red_alpha": "#dc262640",
 }
 
 
@@ -219,8 +221,43 @@ def _create_detailed_drone_geometry(x, y, z, phi, theta, psi):
     return transformed_faces, transformed_front
 
 
+def _create_danger_zone_cylinder(
+    center_x, center_y, radius, height_bottom, height_top, n_points=32
+):
+    """Create cylindrical danger zone geometry for visualization."""
+    theta = np.linspace(0, 2 * np.pi, n_points, endpoint=False)
+
+    # Bottom circle
+    bottom_circle = np.column_stack(
+        [
+            center_x + radius * np.cos(theta),
+            center_y + radius * np.sin(theta),
+            np.full(n_points, height_bottom),
+        ]
+    )
+
+    # Top circle
+    top_circle = np.column_stack(
+        [
+            center_x + radius * np.cos(theta),
+            center_y + radius * np.sin(theta),
+            np.full(n_points, height_top),
+        ]
+    )
+
+    # Create cylindrical surface faces
+    faces = []
+    for i in range(n_points):
+        next_i = (i + 1) % n_points
+        # Quadrilateral face connecting bottom and top circles
+        face = [bottom_circle[i], bottom_circle[next_i], top_circle[next_i], top_circle[i]]
+        faces.append(face)
+
+    return faces
+
+
 def animate_drone_flight(solution, save_filename="drone_flight.mp4"):
-    """Create detailed drone flight animation with eVTOL-style geometry."""
+    """Create detailed drone flight animation with eVTOL-style geometry and danger zone."""
     if not solution.status["success"]:
         raise ValueError("Cannot animate failed solution")
 
@@ -247,13 +284,11 @@ def animate_drone_flight(solution, save_filename="drone_flight.mp4"):
     fig = plt.figure(figsize=(12, 12), facecolor=COLORS["background_dark"])
     ax = fig.add_subplot(111, projection="3d", facecolor=COLORS["background_dark"])
 
-    # Set bounds with padding
-    max_coord = max(np.max(X_phys), np.max(Y_phys), np.max(Z_phys)) * 1.1
-    min_coord = min(np.min(X_phys), np.min(Y_phys), np.min(Z_phys)) * 0.9
-
-    ax.set_xlim([min_coord, max_coord])
-    ax.set_ylim([min_coord, max_coord])
-    ax.set_zlim([min_coord, max_coord])
+    # Set bounds with padding for 10m x 10m visualization
+    bound_min, bound_max = 0.0, 6.0
+    ax.set_xlim([bound_min, bound_max])
+    ax.set_ylim([bound_min, bound_max])
+    ax.set_zlim([bound_min, bound_max])
 
     # Remove GUI elements completely (low-thrust style)
     ax.set_xticks([])
@@ -268,11 +303,37 @@ def animate_drone_flight(solution, save_filename="drone_flight.mp4"):
     ax.zaxis.pane.set_edgecolor("none")
 
     # Flight path
-    ax.plot(X_phys, Y_phys, Z_phys, color=COLORS["primary_red"], linewidth=2, alpha=0.6)
+    ax.plot(X_phys, Y_phys, Z_phys, color=COLORS["agent_blue"], linewidth=2, alpha=0.6)
 
     # Start/end markers
     ax.scatter(X_phys[0], Y_phys[0], Z_phys[0], c=COLORS["obstacle_green"], s=200, marker="s")
     ax.scatter(X_phys[-1], Y_phys[-1], Z_phys[-1], c=COLORS["agent_blue"], s=300, marker="*")
+
+    # Create and add danger zone visualization
+    danger_zone_faces = _create_danger_zone_cylinder(
+        drone.DANGER_ZONE_CENTER_X,
+        drone.DANGER_ZONE_CENTER_Y,
+        drone.DANGER_ZONE_RADIUS,
+        height_bottom=bound_min,
+        height_top=bound_max,
+        n_points=24,
+    )
+
+    danger_zone_mesh = Poly3DCollection(
+        danger_zone_faces,
+        facecolor=COLORS["danger_red_alpha"],
+        alpha=0.3,
+        edgecolor=COLORS["danger_red"],
+        linewidth=1.5,
+    )
+    ax.add_collection3d(danger_zone_mesh)
+
+    # Add danger zone boundary circle at ground level for clarity
+    theta_circle = np.linspace(0, 2 * np.pi, 50)
+    circle_x = drone.DANGER_ZONE_CENTER_X + drone.DANGER_ZONE_RADIUS * np.cos(theta_circle)
+    circle_y = drone.DANGER_ZONE_CENTER_Y + drone.DANGER_ZONE_RADIUS * np.sin(theta_circle)
+    circle_z = np.full_like(circle_x, bound_min)
+    ax.plot(circle_x, circle_y, circle_z, color=COLORS["danger_red"], linewidth=3, alpha=0.8)
 
     # Animated detailed drone
     drone_mesh = Poly3DCollection(
@@ -323,7 +384,7 @@ def animate_drone_flight(solution, save_filename="drone_flight.mp4"):
     except Exception as e:
         print(f"Could not save video: {e}")
 
-    plt.close(fig)
+    plt.show()
     return anim
 
 
@@ -333,4 +394,20 @@ if __name__ == "__main__":
         script_dir = Path(__file__).parent
         output_file = script_dir / "drone_flight.mp4"
         anim = animate_drone_flight(solution, str(output_file))
+
+        # Print danger zone avoidance verification
+        X_traj_phys = solution["X_scaled"] * drone.POS_SCALE
+        Y_traj_phys = solution["Y_scaled"] * drone.POS_SCALE
+        distances_to_danger = np.sqrt(
+            (X_traj_phys - drone.DANGER_ZONE_CENTER_X) ** 2
+            + (Y_traj_phys - drone.DANGER_ZONE_CENTER_Y) ** 2
+        )
+        min_distance = np.min(distances_to_danger)
+        print(f"Minimum distance to danger zone: {min_distance:.3f} m")
+        print(f"Required clearance: {drone.DANGER_ZONE_RADIUS:.1f} m")
+        print(f"Safety margin: {min_distance - drone.DANGER_ZONE_RADIUS:.3f} m")
+
         plt.show()
+    else:
+        print("Cannot animate: solution failed")
+        print(f"Failure message: {solution.status['message']}")
