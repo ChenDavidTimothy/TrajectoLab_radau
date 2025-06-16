@@ -164,18 +164,6 @@ phase.dynamics(
 # Altitude constraint (stay above ground)
 phase.path_constraints(Z >= 0.0)
 
-# Velocity limits for safety
-phase.path_constraints(
-    X_dot**2 + Y_dot**2 + Z_dot**2 <= 15.0**2,  # Max speed 15 m/s
-)
-
-# Attitude angle limits for stable flight
-phase.path_constraints(
-    ca.fabs(phi) <= np.pi / 4,
-    ca.fabs(theta) <= np.pi / 4,
-)
-
-
 # ============================================================================
 # Objective Function
 # ============================================================================
@@ -259,7 +247,7 @@ problem.guess(
 
 solution = mtor.solve_adaptive(
     problem,
-    error_tolerance=1e-3,
+    error_tolerance=1e-1,
     max_iterations=15,
     min_polynomial_degree=3,
     max_polynomial_degree=8,
