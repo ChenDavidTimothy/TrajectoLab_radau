@@ -61,9 +61,9 @@ phase = problem.set_phase(1)
 t = phase.time(initial=0.0)
 
 # Position states (scaled)
-X_s = phase.state("X_scaled", initial=5.0 / POS_SCALE, final=20.0 / POS_SCALE)
-Y_s = phase.state("Y_scaled", initial=5.0 / POS_SCALE, final=20.0 / POS_SCALE)
-Z_s = phase.state("Z_scaled", initial=5.0 / POS_SCALE, final=20.0 / POS_SCALE, boundary=(0.0, None))
+X_s = phase.state("X_scaled", initial=1.0 / POS_SCALE, final=5.0 / POS_SCALE)
+Y_s = phase.state("Y_scaled", initial=1.0 / POS_SCALE, final=5.0 / POS_SCALE)
+Z_s = phase.state("Z_scaled", initial=1.0 / POS_SCALE, final=5.0 / POS_SCALE, boundary=(0.0, None))
 
 # Velocity states (scaled)
 X_dot_s = phase.state("X_dot_scaled", initial=0.0, final=0.0)
