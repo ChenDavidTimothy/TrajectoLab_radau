@@ -111,7 +111,7 @@ This provides higher resolution during critical overtaking phases.
 
 ### Notes
 
-This problem demonstrates complex highway overtaking with two moving obstacles in opposing directions. The vehicle must coordinate lane changes while avoiding both a forward-moving obstacle in the right lane and a backward-moving obstacle in the left lane. The formulation includes realistic vehicle dynamics, highway constraints, and collision avoidance with safety margins.
+This problem demonstrates complex street overtaking with two moving obstacles in opposing directions. The vehicle must coordinate lane changes while avoiding both a forward-moving obstacle in the right lane and a backward-moving obstacle in the left lane. The formulation includes realistic vehicle dynamics, street constraints, and collision avoidance with safety margins.
 
 ## Running This Example
 

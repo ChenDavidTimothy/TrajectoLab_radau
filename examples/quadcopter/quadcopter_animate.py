@@ -39,7 +39,7 @@ def _create_rotation_matrix(phi, theta, psi):
     return R_phi @ R_theta @ R_psi
 
 
-def _create_detailed_drone_geometry(x, y, z, phi, theta, psi):
+def _create_detailed_quadcopter_geometry(x, y, z, phi, theta, psi):
     evtol_size = 2 * quadcopter.l_arm
     arm_length = evtol_size / 2
     rotor_radius = arm_length / 3
@@ -260,7 +260,7 @@ def _create_danger_zone_cylinder(
 # ============================================================================
 
 
-def animate_drone_flight(solution, save_filename="drone_flight.mp4"):
+def animate_quadcopter_flight(solution, save_filename="quadcopter_flight.mp4"):
     if not solution.status["success"]:
         raise ValueError("Cannot animate failed solution")
 
@@ -350,10 +350,10 @@ def animate_drone_flight(solution, save_filename="drone_flight.mp4"):
     ax.plot(circle_x, circle_y, circle_z, color=COLORS["danger_red"], linewidth=3, alpha=0.1)
 
     # Animated detailed quadcopter
-    drone_mesh = Poly3DCollection(
+    quadcopter_mesh = Poly3DCollection(
         [], facecolor=COLORS["agent_blue"], alpha=0.9, edgecolor=COLORS["text_light"], linewidth=0.5
     )
-    ax.add_collection3d(drone_mesh)
+    ax.add_collection3d(quadcopter_mesh)
 
     # Front direction indicator
     (front_line,) = ax.plot([], [], [], color="yellow", linewidth=3, alpha=0.9)
@@ -363,7 +363,7 @@ def animate_drone_flight(solution, save_filename="drone_flight.mp4"):
 
     def animate(frame):
         # Update detailed quadcopter geometry
-        faces, front_nose_line = _create_detailed_drone_geometry(
+        faces, front_nose_line = _create_detailed_quadcopter_geometry(
             X_phys[frame],
             Y_phys[frame],
             Z_phys[frame],
@@ -371,7 +371,7 @@ def animate_drone_flight(solution, save_filename="drone_flight.mp4"):
             theta_phys[frame],
             psi_phys[frame],
         )
-        drone_mesh.set_verts(faces)
+        quadcopter_mesh.set_verts(faces)
         front_line.set_data_3d(front_nose_line[:, 0], front_nose_line[:, 1], front_nose_line[:, 2])
 
         # Update progressive trail (from start to current frame)
@@ -380,7 +380,7 @@ def animate_drone_flight(solution, save_filename="drone_flight.mp4"):
         trail_z = Z_phys[0 : frame + 1]
         trail_line.set_data_3d(trail_x, trail_y, trail_z)
 
-        return drone_mesh, front_line, trail_line
+        return quadcopter_mesh, front_line, trail_line
 
     # Custom view angle for optimal visualization
     ax.view_init(elev=22, azim=-140)
@@ -408,8 +408,8 @@ if __name__ == "__main__":
     solution = quadcopter.solution
     if solution.status["success"]:
         script_dir = Path(__file__).parent
-        output_file = script_dir / "drone_flight.mp4"
-        anim = animate_drone_flight(solution, str(output_file))
+        output_file = script_dir / "quadcopter_flight.mp4"
+        anim = animate_quadcopter_flight(solution, str(output_file))
 
         # Print danger zone avoidance verification (using original solution data)
         X_traj_phys = solution["X_scaled"] * quadcopter.POS_SCALE
