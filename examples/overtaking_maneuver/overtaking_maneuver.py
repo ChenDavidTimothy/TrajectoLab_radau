@@ -6,18 +6,18 @@ import maptor as mtor
 
 
 # ============================================================================
-# Highway Geometry
+# Street Geometry
 # ============================================================================
 
-HIGHWAY_LEFT_BOUNDARY = -2.0
-HIGHWAY_RIGHT_BOUNDARY = 20.0
-HIGHWAY_BOTTOM = -10.0
-HIGHWAY_TOP = 50.0
+STREET_LEFT_BOUNDARY = -2.0
+STREET_RIGHT_BOUNDARY = 20.0
+STREET_BOTTOM = -10.0
+STREET_TOP = 50.0
 
 LANE_WIDTH = 3.6
-HIGHWAY_CENTER = (HIGHWAY_LEFT_BOUNDARY + HIGHWAY_RIGHT_BOUNDARY) / 2
-RIGHT_LANE_CENTER = HIGHWAY_CENTER + LANE_WIDTH / 2
-LEFT_LANE_CENTER = HIGHWAY_CENTER - LANE_WIDTH / 2
+STREET_CENTER = (STREET_LEFT_BOUNDARY + STREET_RIGHT_BOUNDARY) / 2
+RIGHT_LANE_CENTER = STREET_CENTER + LANE_WIDTH / 2
+LEFT_LANE_CENTER = STREET_CENTER - LANE_WIDTH / 2
 
 
 # ============================================================================
@@ -89,7 +89,7 @@ u_min = 0.5
 # Problem Setup
 # ============================================================================
 
-problem = mtor.Problem("Robust Highway Overtaking")
+problem = mtor.Problem("Robust Street Overtaking")
 phase = problem.set_phase(1)
 
 
@@ -153,10 +153,10 @@ phase.path_constraints(
 
 # Workspace bounds
 phase.path_constraints(
-    x >= HIGHWAY_LEFT_BOUNDARY,
-    x <= HIGHWAY_RIGHT_BOUNDARY,
-    y >= HIGHWAY_BOTTOM,
-    y <= HIGHWAY_TOP,
+    x >= STREET_LEFT_BOUNDARY,
+    x <= STREET_RIGHT_BOUNDARY,
+    y >= STREET_BOTTOM,
+    y <= STREET_TOP,
 )
 
 
@@ -323,15 +323,15 @@ else:
 __all__ = [
     "AGENT_END",
     "AGENT_START",
-    "HIGHWAY_BOTTOM",
-    "HIGHWAY_CENTER",
-    "HIGHWAY_LEFT_BOUNDARY",
-    "HIGHWAY_RIGHT_BOUNDARY",
-    "HIGHWAY_TOP",
     "LANE_WIDTH",
     "LEFT_LANE_CENTER",
     "OBSTACLE_1_WAYPOINTS",
     "OBSTACLE_2_WAYPOINTS",
     "RIGHT_LANE_CENTER",
+    "STREET_BOTTOM",
+    "STREET_CENTER",
+    "STREET_LEFT_BOUNDARY",
+    "STREET_RIGHT_BOUNDARY",
+    "STREET_TOP",
     "solution",
 ]

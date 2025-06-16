@@ -160,10 +160,10 @@ def _setup_and_run_animation(
     ax.set_facecolor(COLORS["background_dark"])
 
     ax.set_xlim(
-        overtaking_maneuver.HIGHWAY_LEFT_BOUNDARY - 1,
-        overtaking_maneuver.HIGHWAY_RIGHT_BOUNDARY + 1,
+        overtaking_maneuver.STREET_LEFT_BOUNDARY - 1,
+        overtaking_maneuver.STREET_RIGHT_BOUNDARY + 1,
     )
-    ax.set_ylim(overtaking_maneuver.HIGHWAY_BOTTOM - 2, overtaking_maneuver.HIGHWAY_TOP + 2)
+    ax.set_ylim(overtaking_maneuver.STREET_BOTTOM - 2, overtaking_maneuver.STREET_TOP + 2)
     ax.set_aspect("equal")
 
     ax.grid(False)
@@ -176,21 +176,21 @@ def _setup_and_run_animation(
         spine.set_color(COLORS["primary_red"])
         spine.set_linewidth(2)
 
-    # Draw highway infrastructure
-    center_line = overtaking_maneuver.HIGHWAY_CENTER
+    # Draw street infrastructure
+    center_line = overtaking_maneuver.STREET_CENTER
 
-    # Highway boundaries
+    # Street boundaries
     ax.axvline(
-        x=overtaking_maneuver.HIGHWAY_LEFT_BOUNDARY,
+        x=overtaking_maneuver.STREET_LEFT_BOUNDARY,
         color=COLORS["primary_red"],
         linewidth=4,
     )
     ax.axvline(
-        x=overtaking_maneuver.HIGHWAY_RIGHT_BOUNDARY, color=COLORS["primary_red"], linewidth=4
+        x=overtaking_maneuver.STREET_RIGHT_BOUNDARY, color=COLORS["primary_red"], linewidth=4
     )
 
     # Lane markings
-    y_range = np.arange(overtaking_maneuver.HIGHWAY_BOTTOM, overtaking_maneuver.HIGHWAY_TOP, 6)
+    y_range = np.arange(overtaking_maneuver.STREET_BOTTOM, overtaking_maneuver.STREET_TOP, 6)
     for y_mark in y_range:
         ax.plot(
             [center_line, center_line],
@@ -343,7 +343,7 @@ if __name__ == "__main__":
     solution = overtaking_maneuver.solution
 
     if solution.status["success"]:
-        print("Creating MAPTOR highway animation...")
+        print("Creating MAPTOR street animation...")
 
         script_dir = Path(__file__).parent
         output_file = script_dir / "overtaking_maneuver.mp4"
