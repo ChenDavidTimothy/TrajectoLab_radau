@@ -5,31 +5,31 @@ import maptor as mtor
 
 
 # ============================================================================
-# Physical Parameters and Constants
+# Physical Parameters and Constants - DJI Mavic 3 Specifications
 # ============================================================================
 
-# Vehicle parameters (educated estimates for typical quadrotor)
-m = 1.5  # Mass (kg)
+# Vehicle parameters (DJI Mavic 3 specifications)
+m = 0.92  # Mass (kg) - average of Mavic 3E (915g) and 3T (920g)
 g = 9.81  # Gravitational acceleration (m/s²)
-l_arm = 0.25  # Arm length (m)
+l_arm = 0.19  # Arm length (m) - calculated from 380.1mm diagonal
 
-# Inertia parameters (kg⋅m²)
-Jx = 0.0347563
-Jy = 0.0347563
-Jz = 0.0977
-Jr = 0.000084  # Rotor inertia
+# Inertia parameters (kg⋅m²) - scaled from original based on DJI Mavic 3 mass/size
+Jx = 0.0123  # Scaled: 0.0347563 × 0.353
+Jy = 0.0123  # Scaled: 0.0347563 × 0.353
+Jz = 0.0345  # Scaled: 0.0977 × 0.353
+Jr = 0.000030  # Rotor inertia - scaled: 0.000084 × 0.353
 
-# Aerodynamic coefficients
-K_T = 3.16e-6  # Instead of 3.16e-10
-K_d = 7.94e-8  # Scale proportionally
+# Aerodynamic coefficients (adjusted for DJI Mavic 3 size/performance)
+K_T = 2.5e-6  # Thrust coefficient - reduced for smaller/more efficient motors
+K_d = 6.3e-8  # Drag coefficient - scaled proportionally
 
-# Drag coefficients (linear damping)
-K_dx = 0.25
-K_dy = 0.25
-K_dz = 0.25
+# Drag coefficients (linear damping) - reduced for more streamlined design
+K_dx = 0.15
+K_dy = 0.15
+K_dz = 0.20
 
-# Motor constraints
-omega_max = 10000.0  # Maximum motor speed (rad/s)
+# Motor constraints (based on DJI Mavic 3 performance: 200°/s max angular velocity)
+omega_max = 8000.0  # Maximum motor speed (rad/s) - reduced for smaller drone
 omega_min = 0.0  # Minimum motor speed (rad/s)
 
 
@@ -171,7 +171,7 @@ phase.path_constraints(Z >= 0.0)
 omega_reg = omega1**2 + omega2**2 + omega3**2 + omega4**2
 omega_integral = phase.add_integral(omega_reg)
 # Minimize flight time
-problem.minimize(t.final + 0.02 * omega_integral)
+problem.minimize(t.final + 0.2 * omega_integral)
 
 
 # ============================================================================
@@ -251,7 +251,7 @@ solution = mtor.solve_adaptive(
     max_iterations=15,
     min_polynomial_degree=3,
     max_polynomial_degree=8,
-    ode_solver_tolerance=1e-1,
+    ode_solver_tolerance=1e-2,
     nlp_options={
         "ipopt.max_iter": 1000,
         "ipopt.tol": 1e-6,
