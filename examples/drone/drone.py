@@ -29,20 +29,20 @@ K_dy = 0.15
 K_dz = 0.20
 
 # Motor constraints (based on DJI Mavic 3 performance: 200°/s max angular velocity)
-omega_max = 1500.0  # Maximum motor speed (rad/s) - reduced for smaller drone
-omega_min = 0.0  # Minimum motor speed (rad/s)
+omega_max = 1500.0
+omega_min = 0.0
 
 
 # ============================================================================
 # Scaling Factors for Numerical Conditioning
 # ============================================================================
 
-POS_SCALE = 10.0  # Position: 5-20m → 0.5-2.0 scaled
-VEL_SCALE = 10.0  # Velocity: 0-17m/s → 0-1.7 scaled
-ANG_SCALE = 1.0  # Angles: ±π/3 → ±π/3 scaled (natural)
-OMEGA_B_SCALE = 10.0  # Body rates: ±10 rad/s → ±1.0 scaled
-OMEGA_M_SCALE = 1000.0  # Motor speeds: 0-8000 → 0-8.0 scaled
-TIME_SCALE = 1.0  # Keep time natural for objective
+POS_SCALE = 10.0
+VEL_SCALE = 10.0
+ANG_SCALE = 1.0
+OMEGA_B_SCALE = 10.0
+OMEGA_M_SCALE = 1000.0
+TIME_SCALE = 1.0
 
 
 # ============================================================================
