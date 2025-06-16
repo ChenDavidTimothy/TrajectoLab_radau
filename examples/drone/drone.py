@@ -34,6 +34,18 @@ omega_min = 0.0  # Minimum motor speed (rad/s)
 
 
 # ============================================================================
+# Scaling Factors for Numerical Conditioning
+# ============================================================================
+
+POS_SCALE = 10.0  # Position: 5-20m → 0.5-2.0 scaled
+VEL_SCALE = 10.0  # Velocity: 0-17m/s → 0-1.7 scaled
+ANG_SCALE = 1.0  # Angles: ±π/3 → ±π/3 scaled (natural)
+OMEGA_B_SCALE = 10.0  # Body rates: ±10 rad/s → ±1.0 scaled
+OMEGA_M_SCALE = 1000.0  # Motor speeds: 0-8000 → 0-8.0 scaled
+TIME_SCALE = 1.0  # Keep time natural for objective
+
+
+# ============================================================================
 # Problem Setup
 # ============================================================================
 
@@ -42,128 +54,153 @@ phase = problem.set_phase(1)
 
 
 # ============================================================================
-# Variables Definition
+# Variables Definition - Scaled
 # ============================================================================
 
 # Time variable (free final time for minimum time problem)
 t = phase.time(initial=0.0)
 
-# Position states (global frame)
-X = phase.state("X", initial=5.0, final=20.0)
-Y = phase.state("Y", initial=5.0, final=20.0)
-Z = phase.state("Z", initial=5.0, final=20.0, boundary=(0.0, None))
+# Position states (scaled)
+X_s = phase.state("X_scaled", initial=5.0 / POS_SCALE, final=20.0 / POS_SCALE)
+Y_s = phase.state("Y_scaled", initial=5.0 / POS_SCALE, final=20.0 / POS_SCALE)
+Z_s = phase.state("Z_scaled", initial=5.0 / POS_SCALE, final=20.0 / POS_SCALE, boundary=(0.0, None))
 
-# Velocity states (global frame)
-X_dot = phase.state("X_dot", initial=0.0, final=0)
-Y_dot = phase.state("Y_dot", initial=0.0, final=0)
-Z_dot = phase.state("Z_dot", initial=0.0, final=0)
+# Velocity states (scaled)
+X_dot_s = phase.state("X_dot_scaled", initial=0.0, final=0.0)
+Y_dot_s = phase.state("Y_dot_scaled", initial=0.0, final=0.0)
+Z_dot_s = phase.state("Z_dot_scaled", initial=0.0, final=0.0)
 
-# Attitude states (Euler angles)
-phi = phase.state("phi", initial=0.0, final=0.0, boundary=(-np.pi / 3, np.pi / 3))
-theta = phase.state("theta", initial=0.0, final=0.0, boundary=(-np.pi / 3, np.pi / 3))
-psi = phase.state("psi", initial=0.0, boundary=(-np.pi, np.pi))
+# Attitude states (scaled Euler angles)
+phi_s = phase.state(
+    "phi_scaled", initial=0.0, final=0.0, boundary=(-np.pi / 3 / ANG_SCALE, np.pi / 3 / ANG_SCALE)
+)
+theta_s = phase.state(
+    "theta_scaled", initial=0.0, final=0.0, boundary=(-np.pi / 3 / ANG_SCALE, np.pi / 3 / ANG_SCALE)
+)
+psi_s = phase.state("psi_scaled", initial=0.0, boundary=(-np.pi / ANG_SCALE, np.pi / ANG_SCALE))
 
-# Angular rate states (body frame)
-p = phase.state("p", initial=0.0, final=0.0, boundary=(-10.0, 10.0))
-q = phase.state("q", initial=0.0, final=0.0, boundary=(-10.0, 10.0))
-r = phase.state("r", initial=0.0, final=0.0, boundary=(-5.0, 5.0))
+# Angular rate states (scaled)
+p_s = phase.state(
+    "p_scaled", initial=0.0, final=0.0, boundary=(-10.0 / OMEGA_B_SCALE, 10.0 / OMEGA_B_SCALE)
+)
+q_s = phase.state(
+    "q_scaled", initial=0.0, final=0.0, boundary=(-10.0 / OMEGA_B_SCALE, 10.0 / OMEGA_B_SCALE)
+)
+r_s = phase.state(
+    "r_scaled", initial=0.0, final=0.0, boundary=(-5.0 / OMEGA_B_SCALE, 5.0 / OMEGA_B_SCALE)
+)
 
-# Control inputs (motor speeds)
-omega1 = phase.control("omega1", boundary=(omega_min, omega_max))
-omega2 = phase.control("omega2", boundary=(omega_min, omega_max))
-omega3 = phase.control("omega3", boundary=(omega_min, omega_max))
-omega4 = phase.control("omega4", boundary=(omega_min, omega_max))
+# Control inputs (scaled motor speeds)
+omega1_s = phase.control(
+    "omega1_scaled", boundary=(omega_min / OMEGA_M_SCALE, omega_max / OMEGA_M_SCALE)
+)
+omega2_s = phase.control(
+    "omega2_scaled", boundary=(omega_min / OMEGA_M_SCALE, omega_max / OMEGA_M_SCALE)
+)
+omega3_s = phase.control(
+    "omega3_scaled", boundary=(omega_min / OMEGA_M_SCALE, omega_max / OMEGA_M_SCALE)
+)
+omega4_s = phase.control(
+    "omega4_scaled", boundary=(omega_min / OMEGA_M_SCALE, omega_max / OMEGA_M_SCALE)
+)
 
 
 # ============================================================================
-# Dynamics Implementation
+# Dynamics Implementation - Scaled
 # ============================================================================
 
-# Note: The first equation in the provided image shows the rotation matrix
-# relationship between body frame and global frame velocities. In this
-# implementation, we use global frame velocities (X_dot, Y_dot, Z_dot)
-# directly as states, which is the standard approach for quadrotor control.
+# Convert scaled variables to physical units
+X_phys = X_s * POS_SCALE
+Y_phys = Y_s * POS_SCALE
+Z_phys = Z_s * POS_SCALE
+X_dot_phys = X_dot_s * VEL_SCALE
+Y_dot_phys = Y_dot_s * VEL_SCALE
+Z_dot_phys = Z_dot_s * VEL_SCALE
+phi_phys = phi_s * ANG_SCALE
+theta_phys = theta_s * ANG_SCALE
+psi_phys = psi_s * ANG_SCALE
+p_phys = p_s * OMEGA_B_SCALE
+q_phys = q_s * OMEGA_B_SCALE
+r_phys = r_s * OMEGA_B_SCALE
+omega1_phys = omega1_s * OMEGA_M_SCALE
+omega2_phys = omega2_s * OMEGA_M_SCALE
+omega3_phys = omega3_s * OMEGA_M_SCALE
+omega4_phys = omega4_s * OMEGA_M_SCALE
 
 # Total thrust and gyroscopic effect from motor speeds
-F_T = K_T * (omega1**2 + omega2**2 + omega3**2 + omega4**2)
-omega_prop = omega1 - omega2 + omega3 - omega4
+F_T = K_T * (omega1_phys**2 + omega2_phys**2 + omega3_phys**2 + omega4_phys**2)
+omega_prop = omega1_phys - omega2_phys + omega3_phys - omega4_phys
 
 # Trigonometric functions for rotation matrices
-cos_phi, sin_phi = ca.cos(phi), ca.sin(phi)
-cos_theta, sin_theta = ca.cos(theta), ca.sin(theta)
-cos_psi, sin_psi = ca.cos(psi), ca.sin(psi)
-tan_theta = ca.tan(theta)
+cos_phi, sin_phi = ca.cos(phi_phys), ca.sin(phi_phys)
+cos_theta, sin_theta = ca.cos(theta_phys), ca.sin(theta_phys)
+cos_psi, sin_psi = ca.cos(psi_phys), ca.sin(psi_phys)
+tan_theta = ca.tan(theta_phys)
 
 # Position dynamics (simple integration of global velocities)
-X_dynamics = X_dot
-Y_dynamics = Y_dot
-Z_dynamics = Z_dot
+X_dynamics_phys = X_dot_phys
+Y_dynamics_phys = Y_dot_phys
+Z_dynamics_phys = Z_dot_phys
 
 # Translational dynamics (global frame accelerations)
-# Exact implementation from image equations:
-# [Ẍ^G]   [1/m (- [cos(φ)cos(ψ)sin(θ) + sin(φ)sin(ψ)] F_T^b - K_dx Ẋ^G)]
-# [Ÿ^G] = [1/m (- [cos(φ)sin(ψ)sin(θ) - cos(ψ)sin(φ)] F_T^b - K_dy Ÿ^G)]
-# [Z̈^G]   [1/m (- [cos(φ)cos(θ)] F_T^b - K_dz Ż^G) + g                ]
-
-X_dot_dynamics = (1 / m) * (
-    -(cos_phi * cos_psi * sin_theta + sin_phi * sin_psi) * F_T - K_dx * X_dot
+X_dot_dynamics_phys = (1 / m) * (
+    -(cos_phi * cos_psi * sin_theta + sin_phi * sin_psi) * F_T - K_dx * X_dot_phys
 )
-Y_dot_dynamics = (1 / m) * (
-    -(cos_phi * sin_psi * sin_theta - cos_psi * sin_phi) * F_T - K_dy * Y_dot
+Y_dot_dynamics_phys = (1 / m) * (
+    -(cos_phi * sin_psi * sin_theta - cos_psi * sin_phi) * F_T - K_dy * Y_dot_phys
 )
-Z_dot_dynamics = (1 / m) * (-cos_phi * cos_theta * F_T - K_dz * Z_dot) + g
+Z_dot_dynamics_phys = (1 / m) * (-cos_phi * cos_theta * F_T - K_dz * Z_dot_phys) + g
 
-# Attitude dynamics (exact implementation from image)
-# [φ̇]   [1  sin(φ)tan(θ)  cos(φ)tan(θ)] [p]
-# [θ̇] = [0  cos(φ)        -sin(φ)     ] [q]
-# [ψ̇]   [0  sin(φ)/cos(θ) cos(φ)/cos(θ)] [r]
-
+# Attitude dynamics
 cos_theta_safe = ca.fmax(ca.fabs(cos_theta), 1e-6)
 sec_theta = 1.0 / cos_theta_safe
 
-phi_dynamics = p + sin_phi * tan_theta * q + cos_phi * tan_theta * r
-theta_dynamics = cos_phi * q - sin_phi * r
-psi_dynamics = (sin_phi * q + cos_phi * r) * sec_theta
+phi_dynamics_phys = p_phys + sin_phi * tan_theta * q_phys + cos_phi * tan_theta * r_phys
+theta_dynamics_phys = cos_phi * q_phys - sin_phi * r_phys
+psi_dynamics_phys = (sin_phi * q_phys + cos_phi * r_phys) * sec_theta
 
-# Angular acceleration dynamics (exact implementation from image)
-# [ṗ]   [1/Jx [(Jy - Jz)qr - Jr q(ω1 - ω2 + ω3 - ω4) + ℓKT(ω1² - ω3²)]]
-# [q̇] = [1/Jy [(Jz - Jx)pr + Jr p(ω1 - ω2 + ω3 - ω4) + ℓKT(ω2² - ω4²)]]
-# [ṙ]   [1/Jz [(Jx - Jy)pq + Kd(ω1² - ω2² + ω3² - ω4²)              ]]
-
-p_dynamics = (1 / Jx) * (
-    (Jy - Jz) * q * r - Jr * q * omega_prop + l_arm * K_T * (omega1**2 - omega3**2)
+# Angular acceleration dynamics
+p_dynamics_phys = (1 / Jx) * (
+    (Jy - Jz) * q_phys * r_phys
+    - Jr * q_phys * omega_prop
+    + l_arm * K_T * (omega1_phys**2 - omega3_phys**2)
 )
-q_dynamics = (1 / Jy) * (
-    (Jz - Jx) * p * r + Jr * p * omega_prop + l_arm * K_T * (omega2**2 - omega4**2)
+q_dynamics_phys = (1 / Jy) * (
+    (Jz - Jx) * p_phys * r_phys
+    + Jr * p_phys * omega_prop
+    + l_arm * K_T * (omega2_phys**2 - omega4_phys**2)
 )
-r_dynamics = (1 / Jz) * ((Jx - Jy) * p * q + K_d * (omega1**2 - omega2**2 + omega3**2 - omega4**2))
+r_dynamics_phys = (1 / Jz) * (
+    (Jx - Jy) * p_phys * q_phys
+    + K_d * (omega1_phys**2 - omega2_phys**2 + omega3_phys**2 - omega4_phys**2)
+)
 
-# Define complete dynamics
+# Scale derivatives back for dynamics
 phase.dynamics(
     {
-        X: X_dynamics,
-        Y: Y_dynamics,
-        Z: Z_dynamics,
-        X_dot: X_dot_dynamics,
-        Y_dot: Y_dot_dynamics,
-        Z_dot: Z_dot_dynamics,
-        phi: phi_dynamics,
-        theta: theta_dynamics,
-        psi: psi_dynamics,
-        p: p_dynamics,
-        q: q_dynamics,
-        r: r_dynamics,
+        X_s: X_dynamics_phys / POS_SCALE,
+        Y_s: Y_dynamics_phys / POS_SCALE,
+        Z_s: Z_dynamics_phys / POS_SCALE,
+        X_dot_s: X_dot_dynamics_phys / VEL_SCALE,
+        Y_dot_s: Y_dot_dynamics_phys / VEL_SCALE,
+        Z_dot_s: Z_dot_dynamics_phys / VEL_SCALE,
+        phi_s: phi_dynamics_phys / ANG_SCALE,
+        theta_s: theta_dynamics_phys / ANG_SCALE,
+        psi_s: psi_dynamics_phys / ANG_SCALE,
+        p_s: p_dynamics_phys / OMEGA_B_SCALE,
+        q_s: q_dynamics_phys / OMEGA_B_SCALE,
+        r_s: r_dynamics_phys / OMEGA_B_SCALE,
     }
 )
 
+
 # ============================================================================
-# Objective Function
+# Objective Function - Scaled
 # ============================================================================
 
-omega_reg = omega1**2 + omega2**2 + omega3**2 + omega4**2
-omega_integral = phase.add_integral(omega_reg)
-# Minimize flight time
-problem.minimize(t.final + 0.2 * omega_integral)
+omega_reg_scaled = omega1_s**2 + omega2_s**2 + omega3_s**2 + omega4_s**2
+omega_integral_scaled = phase.add_integral(omega_reg_scaled)
+problem.minimize(t.final + omega_integral_scaled)
 
 
 # ============================================================================
@@ -173,7 +210,7 @@ problem.minimize(t.final + 0.2 * omega_integral)
 # Configure mesh for complex dynamics
 phase.mesh([8, 8, 8], [-1.0, -1 / 3, 1 / 3, 1.0])
 
-# Generate initial guess
+# Generate initial guess with scaled values
 states_guess = []
 controls_guess = []
 
@@ -181,50 +218,52 @@ for N in [8, 8, 8]:
     tau = np.linspace(-1, 1, N + 1)
     t_norm = (tau + 1) / 2
 
-    # Linear trajectory guess
-    X_vals = 0.0 + 20.0 * t_norm
-    Y_vals = 0.0 + 20.0 * t_norm
-    Z_vals = 0.0 + 20.0 * t_norm
+    # Linear trajectory guess (scaled)
+    X_vals_scaled = (5.0 + 15.0 * t_norm) / POS_SCALE
+    Y_vals_scaled = (5.0 + 15.0 * t_norm) / POS_SCALE
+    Z_vals_scaled = (5.0 + 15.0 * t_norm) / POS_SCALE
 
-    # Smooth velocity profile
-    X_dot_vals = 10.0 * np.sin(np.pi * t_norm)
-    Y_dot_vals = 10.0 * np.sin(np.pi * t_norm)
-    Z_dot_vals = 5.0 * np.sin(np.pi * t_norm)
+    # Smooth velocity profile (scaled)
+    X_dot_vals_scaled = (10.0 * np.sin(np.pi * t_norm)) / VEL_SCALE
+    Y_dot_vals_scaled = (10.0 * np.sin(np.pi * t_norm)) / VEL_SCALE
+    Z_dot_vals_scaled = (5.0 * np.sin(np.pi * t_norm)) / VEL_SCALE
 
-    # Small attitude variations
-    phi_vals = 0.1 * np.sin(2 * np.pi * t_norm)
-    theta_vals = 0.1 * np.cos(2 * np.pi * t_norm)
-    psi_vals = 0.2 * t_norm
+    # Small attitude variations (scaled)
+    phi_vals_scaled = (0.1 * np.sin(2 * np.pi * t_norm)) / ANG_SCALE
+    theta_vals_scaled = (0.1 * np.cos(2 * np.pi * t_norm)) / ANG_SCALE
+    psi_vals_scaled = (0.2 * t_norm) / ANG_SCALE
 
-    # Angular rates near zero
-    p_vals = np.zeros(N + 1)
-    q_vals = np.zeros(N + 1)
-    r_vals = np.zeros(N + 1)
+    # Angular rates near zero (scaled)
+    p_vals_scaled = np.zeros(N + 1)
+    q_vals_scaled = np.zeros(N + 1)
+    r_vals_scaled = np.zeros(N + 1)
 
     states_guess.append(
         np.vstack(
             [
-                X_vals,
-                Y_vals,
-                Z_vals,
-                X_dot_vals,
-                Y_dot_vals,
-                Z_dot_vals,
-                phi_vals,
-                theta_vals,
-                psi_vals,
-                p_vals,
-                q_vals,
-                r_vals,
+                X_vals_scaled,
+                Y_vals_scaled,
+                Z_vals_scaled,
+                X_dot_vals_scaled,
+                Y_dot_vals_scaled,
+                Z_dot_vals_scaled,
+                phi_vals_scaled,
+                theta_vals_scaled,
+                psi_vals_scaled,
+                p_vals_scaled,
+                q_vals_scaled,
+                r_vals_scaled,
             ]
         )
     )
 
-    # Hover motor speed baseline
+    # Hover motor speed baseline (scaled)
     hover_speed = np.sqrt(m * g / (4 * K_T))
-    omega_vals = np.full(N, hover_speed)
+    omega_vals_scaled = np.full(N, hover_speed / OMEGA_M_SCALE)
 
-    controls_guess.append(np.vstack([omega_vals, omega_vals, omega_vals, omega_vals]))
+    controls_guess.append(
+        np.vstack([omega_vals_scaled, omega_vals_scaled, omega_vals_scaled, omega_vals_scaled])
+    )
 
 problem.guess(
     phase_states={1: states_guess},
@@ -265,35 +304,38 @@ if solution.status["success"]:
     flight_time = solution.status["objective"]
     print(f"Minimum flight time: {flight_time:.3f} seconds")
 
-    # Final state verification
-    X_final = solution["X"][-1]
-    Y_final = solution["Y"][-1]
-    Z_final = solution["Z"][-1]
+    # Convert scaled final state to physical for verification
+    X_final = solution["X_scaled"][-1] * POS_SCALE
+    Y_final = solution["Y_scaled"][-1] * POS_SCALE
+    Z_final = solution["Z_scaled"][-1] * POS_SCALE
     position_error = np.sqrt((X_final - 20.0) ** 2 + (Y_final - 20.0) ** 2 + (Z_final - 20.0) ** 2)
 
     print(f"Final position: ({X_final:.3f}, {Y_final:.3f}, {Z_final:.3f}) m")
     print(f"Position error: {position_error:.3f} m")
 
-    # Flight envelope analysis
-    max_speed = max(
-        np.sqrt(solution["X_dot"] ** 2 + solution["Y_dot"] ** 2 + solution["Z_dot"] ** 2)
-    )
-    max_phi = max(np.abs(solution["phi"])) * 180 / np.pi
-    max_theta = max(np.abs(solution["theta"])) * 180 / np.pi
+    # Flight envelope analysis (convert scaled to physical)
+    X_dot_phys = solution["X_dot_scaled"] * VEL_SCALE
+    Y_dot_phys = solution["Y_dot_scaled"] * VEL_SCALE
+    Z_dot_phys = solution["Z_dot_scaled"] * VEL_SCALE
+    max_speed = max(np.sqrt(X_dot_phys**2 + Y_dot_phys**2 + Z_dot_phys**2))
+
+    phi_phys = solution["phi_scaled"] * ANG_SCALE
+    theta_phys = solution["theta_scaled"] * ANG_SCALE
+    max_phi = max(np.abs(phi_phys)) * 180 / np.pi
+    max_theta = max(np.abs(theta_phys)) * 180 / np.pi
 
     print(f"Maximum speed: {max_speed:.2f} m/s")
     print(f"Maximum roll angle: {max_phi:.1f}°")
     print(f"Maximum pitch angle: {max_theta:.1f}°")
 
-    # Motor usage analysis
-    avg_motor_speed = (
-        solution["omega1"] + solution["omega2"] + solution["omega3"] + solution["omega4"]
-    ) / 4
-    max_motor_speed = max(
-        np.maximum.reduce(
-            [solution["omega1"], solution["omega2"], solution["omega3"], solution["omega4"]]
-        )
-    )
+    # Motor usage analysis (convert scaled to physical)
+    omega1_phys = solution["omega1_scaled"] * OMEGA_M_SCALE
+    omega2_phys = solution["omega2_scaled"] * OMEGA_M_SCALE
+    omega3_phys = solution["omega3_scaled"] * OMEGA_M_SCALE
+    omega4_phys = solution["omega4_scaled"] * OMEGA_M_SCALE
+
+    avg_motor_speed = (omega1_phys + omega2_phys + omega3_phys + omega4_phys) / 4
+    max_motor_speed = max(np.maximum.reduce([omega1_phys, omega2_phys, omega3_phys, omega4_phys]))
 
     print(f"Average motor speed: {np.mean(avg_motor_speed):.1f} rad/s")
     print(f"Maximum motor speed: {max_motor_speed:.1f} rad/s")
