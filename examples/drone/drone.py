@@ -35,7 +35,7 @@ omega_min = 0.0
 # Danger zone parameters (infinite height cylinder)
 DANGER_ZONE_CENTER_X = 3.0  # Center X coordinate (m) - in diagonal path
 DANGER_ZONE_CENTER_Y = 3.0  # Center Y coordinate (m) - in diagonal path
-DANGER_ZONE_RADIUS = 0.75  # Exclusion radius (m) - forces clear evasion
+DANGER_ZONE_RADIUS = 0.4  # Exclusion radius (m) - forces clear evasion
 
 
 # ============================================================================
@@ -208,11 +208,15 @@ danger_zone_center_x_scaled = DANGER_ZONE_CENTER_X / POS_SCALE
 danger_zone_center_y_scaled = DANGER_ZONE_CENTER_Y / POS_SCALE
 danger_zone_radius_scaled = DANGER_ZONE_RADIUS / POS_SCALE
 
+safety_distance_scaled = 0.5 / POS_SCALE
+
 distance_squared_to_danger = (X_s - danger_zone_center_x_scaled) ** 2 + (
     Y_s - danger_zone_center_y_scaled
 ) ** 2
 
-phase.path_constraints(distance_squared_to_danger >= danger_zone_radius_scaled**2)
+phase.path_constraints(
+    distance_squared_to_danger >= danger_zone_radius_scaled**2 + safety_distance_scaled**2
+)
 
 
 # ============================================================================

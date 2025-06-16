@@ -19,19 +19,23 @@ COLORS = {
 
 
 def _create_rotation_matrix(phi, theta, psi):
-    """Create rotation matrix matching drone.py convention."""
-    R_x = np.array([[1, 0, 0], [0, np.cos(phi), -np.sin(phi)], [0, np.sin(phi), np.cos(phi)]])
-    R_y = np.array(
-        [[np.cos(theta), 0, np.sin(theta)], [0, 1, 0], [-np.sin(theta), 0, np.cos(theta)]]
+    """Create rotation matrix exactly matching source material: R_b^g = R(φ)R(θ)R(ψ)"""
+    # Individual rotation matrices with correct source material sign conventions
+    R_phi = np.array([[1, 0, 0], [0, np.cos(phi), np.sin(phi)], [0, -np.sin(phi), np.cos(phi)]])
+
+    R_theta = np.array(
+        [[np.cos(theta), 0, -np.sin(theta)], [0, 1, 0], [np.sin(theta), 0, np.cos(theta)]]
     )
-    R_z = np.array([[np.cos(psi), -np.sin(psi), 0], [np.sin(psi), np.cos(psi), 0], [0, 0, 1]])
-    return R_z @ R_y @ R_x
+
+    R_psi = np.array([[np.cos(psi), np.sin(psi), 0], [-np.sin(psi), np.cos(psi), 0], [0, 0, 1]])
+
+    # Correct multiplication order: R(φ)R(θ)R(ψ)
+    return R_phi @ R_theta @ R_psi
 
 
 def _create_detailed_drone_geometry(x, y, z, phi, theta, psi):
     """Create detailed eVTOL-style drone geometry using drone.py parameters."""
-    # Use drone.py parameters as single source of truth
-    evtol_size = 2 * drone.l_arm  # Use arm length as size reference
+    evtol_size = 2 * drone.l_arm
     arm_length = evtol_size / 2
     rotor_radius = arm_length / 3
     body_radius = arm_length / 2
@@ -204,9 +208,9 @@ def _create_detailed_drone_geometry(x, y, z, phi, theta, psi):
                 ]
             )
 
-    # Transform all vertices
+    # Transform all vertices using CORRECTED rotation matrix
     all_vertices = np.array(all_vertices)
-    R = _create_rotation_matrix(phi, theta, psi)
+    R = _create_rotation_matrix(phi, theta, psi)  # Now uses correct source material convention
     transformed_points = (R @ all_vertices.T).T + np.array([x, y, z])
 
     # Create final face list
@@ -322,7 +326,7 @@ def animate_drone_flight(solution, save_filename="drone_flight.mp4"):
     danger_zone_mesh = Poly3DCollection(
         danger_zone_faces,
         facecolor=COLORS["danger_red_alpha"],
-        alpha=0.3,
+        alpha=0.1,
         edgecolor=COLORS["danger_red"],
         linewidth=1.5,
     )
@@ -333,7 +337,7 @@ def animate_drone_flight(solution, save_filename="drone_flight.mp4"):
     circle_x = drone.DANGER_ZONE_CENTER_X + drone.DANGER_ZONE_RADIUS * np.cos(theta_circle)
     circle_y = drone.DANGER_ZONE_CENTER_Y + drone.DANGER_ZONE_RADIUS * np.sin(theta_circle)
     circle_z = np.full_like(circle_x, bound_min)
-    ax.plot(circle_x, circle_y, circle_z, color=COLORS["danger_red"], linewidth=3, alpha=0.8)
+    ax.plot(circle_x, circle_y, circle_z, color=COLORS["danger_red"], linewidth=3, alpha=0.1)
 
     # Animated detailed drone
     drone_mesh = Poly3DCollection(
@@ -346,7 +350,7 @@ def animate_drone_flight(solution, save_filename="drone_flight.mp4"):
 
     # Trail
     trail_length = min(50, total_frames // 3)
-    (trail_line,) = ax.plot([], [], [], color=COLORS["primary_red"], linewidth=3, alpha=0.9)
+    (trail_line,) = ax.plot([], [], [], color=COLORS["agent_blue"], linewidth=3, alpha=0.9)
 
     def animate(frame):
         # Update detailed drone geometry
