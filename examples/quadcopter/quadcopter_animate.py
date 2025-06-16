@@ -28,7 +28,6 @@ COLORS = {
 
 
 def _create_rotation_matrix(phi, theta, psi):
-    """Create rotation matrix exactly matching source material: R_b^g = R(φ)R(θ)R(ψ)"""
     R_phi = np.array([[1, 0, 0], [0, np.cos(phi), np.sin(phi)], [0, -np.sin(phi), np.cos(phi)]])
 
     R_theta = np.array(
@@ -262,7 +261,6 @@ def _create_danger_zone_cylinder(
 
 
 def animate_drone_flight(solution, save_filename="drone_flight.mp4"):
-    """Create detailed quadcopter flight animation with progressive trail build-up."""
     if not solution.status["success"]:
         raise ValueError("Cannot animate failed solution")
 

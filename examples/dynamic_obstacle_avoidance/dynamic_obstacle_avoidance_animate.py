@@ -65,7 +65,6 @@ def animate_dynamic_obstacle_avoidance(solution, save_filename="dynamic_obstacle
     v_y_vehicle = solution["lateral_velocity"]
     r_vehicle = solution["yaw_rate"]
 
-    # Remove duplicate time points
     unique_indices = np.unique(time_states, return_index=True)[1]
     time_sol = time_states[unique_indices]
     x_sol = x_vehicle[unique_indices]
@@ -75,7 +74,6 @@ def animate_dynamic_obstacle_avoidance(solution, save_filename="dynamic_obstacle
     v_y_sol = v_y_vehicle[unique_indices]
     r_sol = r_vehicle[unique_indices]
 
-    # Create animation grid and interpolate
     final_time = time_sol[-1]
     fps = 30
     total_frames = int(final_time * fps)
@@ -90,10 +88,8 @@ def animate_dynamic_obstacle_avoidance(solution, save_filename="dynamic_obstacle
 
     obs_x_anim, obs_y_anim = create_obstacle_trajectory_numpy(animation_time)
 
-    # Set up the plot with subplots for enhanced visualization
     fig = plt.figure(figsize=(16, 10))
 
-    # Main trajectory plot
     ax_main = plt.subplot(2, 2, (1, 3))
     ax_main.set_xlim(-5, 25)
     ax_main.set_ylim(-5, 25)
@@ -103,7 +99,6 @@ def animate_dynamic_obstacle_avoidance(solution, save_filename="dynamic_obstacle
     ax_main.set_xlabel("X Position (m)")
     ax_main.set_ylabel("Y Position (m)")
 
-    # Velocity plot
     ax_vel = plt.subplot(2, 2, 2)
     ax_vel.set_xlim(0, final_time)
     ax_vel.set_ylim(min(v_x_sol.min(), v_y_sol.min()) - 2, max(v_x_sol.max(), v_y_sol.max()) + 2)
@@ -112,7 +107,6 @@ def animate_dynamic_obstacle_avoidance(solution, save_filename="dynamic_obstacle
     ax_vel.set_xlabel("Time (s)")
     ax_vel.set_ylabel("Velocity (m/s)")
 
-    # Yaw rate plot
     ax_yaw = plt.subplot(2, 2, 4)
     ax_yaw.set_xlim(0, final_time)
     ax_yaw.set_ylim(r_sol.min() - 0.5, r_sol.max() + 0.5)
@@ -121,7 +115,6 @@ def animate_dynamic_obstacle_avoidance(solution, save_filename="dynamic_obstacle
     ax_yaw.set_xlabel("Time (s)")
     ax_yaw.set_ylabel("Yaw Rate (rad/s)")
 
-    # Plot static elements on main plot
     ax_main.scatter(0, 0, c="g", s=100, marker="s", label="Start", zorder=5)
     ax_main.scatter(20, 20, c="b", s=150, marker="*", label="Goal", zorder=5)
     ax_main.plot(x_sol, y_sol, "b-", alpha=0.3, label="Vehicle Path", linewidth=2)
@@ -185,22 +178,17 @@ def animate_dynamic_obstacle_avoidance(solution, save_filename="dynamic_obstacle
     def animate(frame):
         current_time = animation_time[frame]
 
-        # Update vehicle position and orientation
         triangle_verts = create_vehicle_triangle(
             x_anim[frame], y_anim[frame], theta_anim[frame], size=1.8
         )
         vehicle_triangle.set_xy(triangle_verts)
 
-        # Update safety circle position
         safety_circle.center = (x_anim[frame], y_anim[frame])
 
-        # Update obstacle position
         obstacle_circle.center = (obs_x_anim[frame], obs_y_anim[frame])
 
-        # Update time display
         time_text.set_text(f"Time: {current_time:.2f}s")
 
-        # Update vehicle state display
         v_total = np.sqrt(v_x_anim[frame] ** 2 + v_y_anim[frame] ** 2)
         slip_angle = np.arctan2(v_y_anim[frame], max(abs(v_x_anim[frame]), 0.1))
 
@@ -213,7 +201,6 @@ def animate_dynamic_obstacle_avoidance(solution, save_filename="dynamic_obstacle
         )
         state_text.set_text(state_info)
 
-        # Update time markers on plots
         time_marker_vel.set_data([current_time], [np.interp(current_time, time_sol, v_x_sol)])
         time_marker_yaw.set_data([current_time], [np.interp(current_time, time_sol, r_sol)])
 
@@ -227,7 +214,6 @@ def animate_dynamic_obstacle_avoidance(solution, save_filename="dynamic_obstacle
             time_marker_yaw,
         )
 
-    # Create animation
     anim = animation.FuncAnimation(
         fig,
         animate,
@@ -248,7 +234,6 @@ def animate_dynamic_obstacle_avoidance(solution, save_filename="dynamic_obstacle
 
 
 if __name__ == "__main__":
-    # Use the solution from the imported module
     solution = dynamic_obstacle_avoidance.solution
 
     if solution.status["success"]:

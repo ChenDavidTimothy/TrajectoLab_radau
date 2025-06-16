@@ -218,7 +218,7 @@ delta3 = DELTA_g3 + DELTA_T3
 
 
 # ============================================================================
-# Dynamics (Gauss Variational Equations)
+# Dynamics
 # ============================================================================
 
 # Gauss variational equations for modified equinoctial elements
