@@ -20,8 +20,8 @@ Jz = 0.0977
 Jr = 0.000084  # Rotor inertia
 
 # Aerodynamic coefficients
-K_T = 3.16e-10  # Thrust coefficient (N⋅s²/rad²)
-K_d = 7.94e-12  # Drag coefficient (N⋅m⋅s²/rad²)
+K_T = 3.16e-6  # Instead of 3.16e-10
+K_d = 7.94e-8  # Scale proportionally
 
 # Drag coefficients (linear damping)
 K_dx = 0.25
@@ -29,7 +29,7 @@ K_dy = 0.25
 K_dz = 0.25
 
 # Motor constraints
-omega_max = 838.0  # Maximum motor speed (rad/s)
+omega_max = 10000.0  # Maximum motor speed (rad/s)
 omega_min = 0.0  # Minimum motor speed (rad/s)
 
 
@@ -171,8 +171,8 @@ phase.path_constraints(
 
 # Attitude angle limits for stable flight
 phase.path_constraints(
-    ca.fabs(phi) <= np.pi / 4,  # ±45° roll limit
-    ca.fabs(theta) <= np.pi / 4,  # ±45° pitch limit
+    ca.fabs(phi) <= np.pi / 4,
+    ca.fabs(theta) <= np.pi / 4,
 )
 
 
@@ -180,8 +180,10 @@ phase.path_constraints(
 # Objective Function
 # ============================================================================
 
+omega_reg = omega1**2 + omega2**2 + omega3**2 + omega4**2
+omega_integral = phase.add_integral(omega_reg)
 # Minimize flight time
-problem.minimize(t.final)
+problem.minimize(t.final + 0.02 * omega_integral)
 
 
 # ============================================================================
@@ -257,17 +259,20 @@ problem.guess(
 
 solution = mtor.solve_adaptive(
     problem,
-    error_tolerance=1e-5,
-    max_iterations=25,
-    min_polynomial_degree=4,
-    max_polynomial_degree=10,
+    error_tolerance=1e-3,
+    max_iterations=15,
+    min_polynomial_degree=3,
+    max_polynomial_degree=8,
+    ode_solver_tolerance=1e-1,
     nlp_options={
-        "ipopt.print_level": 5,
-        "ipopt.max_iter": 2000,
+        "ipopt.max_iter": 1000,
         "ipopt.tol": 1e-6,
-        "ipopt.constr_viol_tol": 1e-6,
-        "ipopt.mu_strategy": "adaptive",
+        "ipopt.constr_viol_tol": 1e-4,
         "ipopt.linear_solver": "mumps",
+        "ipopt.print_level": 3,
+        "ipopt.mu_strategy": "adaptive",
+        "ipopt.acceptable_tol": 1e-4,
+        "ipopt.acceptable_iter": 5,
     },
 )
 
