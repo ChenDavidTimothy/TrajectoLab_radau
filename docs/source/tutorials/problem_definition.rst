@@ -683,11 +683,6 @@ For multiphase problems, provide guesses for each phase individually:
         terminal_time=10.0
     )
 
-    # Problem-level parameter guess (if using static parameters)
-    vehicle_mass = problem.parameter("mass")
-    engine_power = problem.parameter("power")
-    problem.guess(static_parameters=np.array([1000.0, 2500.0]))
-
 **When to Use Detailed Guesses**
 
 * **Simple problems**: Just guess terminal times
