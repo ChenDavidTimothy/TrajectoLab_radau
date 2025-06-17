@@ -513,6 +513,58 @@ Optimize design parameters that remain constant throughout the mission:
         0.1 * (t.final - target_time)**2    # Minimize time deviation
     )
 
+**Parameter Initial Guesses:**
+
+For complex optimization problems with static parameters, providing good initial guesses significantly improves solver convergence and solution quality:
+
+.. code-block:: python
+
+    # Define parameters with bounds
+    vehicle_mass = problem.parameter("mass", boundary=(100, 500))
+    drag_coefficient = problem.parameter("drag", boundary=(0, 0.1))
+    wing_area = problem.parameter("wing_area", boundary=(10, 50))
+
+    # Set initial guesses using parameter names
+    problem.parameter_guess(
+        mass=300.0,        # Start optimization near middle of range
+        drag=0.05,         # Reasonable aerodynamic estimate
+        wing_area=25.0     # Initial design point
+    )
+
+**Advanced Parameter Guess Strategies:**
+
+.. code-block:: python
+
+    # Physics-based guess selection
+    thrust_to_weight = 1.2  # Desired T/W ratio
+    estimated_mass = 1000.0
+    required_thrust = thrust_to_weight * estimated_mass * 9.81
+
+    max_thrust = problem.parameter("max_thrust", boundary=(5000, 15000))
+    problem.parameter_guess(max_thrust=required_thrust)
+
+    # Engineering constraint-based guesses
+    max_heat_rate = problem.parameter("max_q_dot", boundary=(500, 1000))
+    safety_margin = 0.8  # Conservative initial design
+    problem.parameter_guess(max_q_dot=1000 * safety_margin)
+
+**Parameter Guess Validation:**
+
+.. code-block:: python
+
+    # The system validates parameter names exist
+    mass = problem.parameter("vehicle_mass", boundary=(100, 1000))
+
+    # This works - parameter exists
+    problem.parameter_guess(vehicle_mass=500.0)
+
+    # This raises ConfigurationError - parameter name doesn't exist
+    # problem.parameter_guess(mass=500.0)  # Wrong name
+
+    # Parameters without explicit guesses default to 0.0
+    wing_span = problem.parameter("wing_span", boundary=(5, 15))
+    # No guess provided - solver starts with 0.0
+
 Objective Function Specification
 --------------------------------
 

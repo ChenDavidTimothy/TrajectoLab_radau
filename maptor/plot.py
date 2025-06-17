@@ -293,7 +293,7 @@ def _plot_single_variable_with_intervals(
     interval_boundaries = _get_phase_mesh_intervals(solution, phase_id)
 
     if interval_colors is None or len(interval_boundaries) == 0:
-        _plot_state_linear_simple(ax, time_data, var_data, f"Phase {phase_id}")
+        _plot_state_linear_simple(ax, time_data, var_data)
     else:
         _plot_state_linear_intervals(
             ax, time_data, var_data, interval_boundaries, interval_colors, phase_id
