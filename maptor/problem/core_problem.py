@@ -1,5 +1,5 @@
 import logging
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from typing import Any
 
 import casadi as ca
@@ -11,7 +11,7 @@ from ..input_validation import (
     _validate_constraint_input_format,
     _validate_string_not_empty,
 )
-from ..tl_types import FloatArray, NumericArrayLike, PhaseID
+from ..tl_types import NumericArrayLike, PhaseID
 from . import constraints_problem, initial_guess_problem, mesh, solver_interface, variables_problem
 from .constraints_problem import (
     _get_cross_phase_event_constraints_function,
@@ -693,7 +693,6 @@ class Phase:
         logger.info("Setting initial guess for phase %d: %s", self.phase_id, ", ".join(components))
 
         # Reuse existing validation logic
-        from . import initial_guess_problem
         initial_guess_problem._set_phase_initial_guess(
             self._phase_def,
             states=states,

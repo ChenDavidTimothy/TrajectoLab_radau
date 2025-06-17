@@ -103,10 +103,16 @@ states_p1, controls_p1 = _generate_phase_guess([6, 6], 0.0, 1.0, x_initial, x_mi
 x_final = [0.5, 0.5, 0.0, 0.5]
 states_p2, controls_p2 = _generate_phase_guess([6, 6], 1.0, 2.0, x_midpoint, x_final)
 
-problem.guess(
-    phase_states={1: states_p1, 2: states_p2},
-    phase_controls={1: controls_p1, 2: controls_p2},
-    phase_integrals={1: 10.0, 2: 10.0},
+phase1.guess(
+    states=states_p1,
+    controls=controls_p1,
+    integrals=10.0,
+)
+
+phase2.guess(
+    states=states_p2,
+    controls=controls_p2,
+    integrals=10.0,
 )
 
 # Solve

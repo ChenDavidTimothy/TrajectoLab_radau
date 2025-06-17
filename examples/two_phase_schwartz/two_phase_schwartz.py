@@ -74,11 +74,18 @@ for N in [20]:
     u_vals = -1.0 + 0.5 * t_norm_controls
     controls_p2.append(np.array([u_vals]))
 
-problem.guess(
-    phase_states={1: states_p1, 2: states_p2},
-    phase_controls={1: controls_p1, 2: controls_p2},
-    phase_initial_times={1: 0.0, 2: 1.0},
-    phase_terminal_times={1: 1.0, 2: 2.9},
+phase1.guess(
+    states=states_p1,
+    controls=controls_p1,
+    initial_time=0.0,
+    terminal_time=1.0,
+)
+
+phase2.guess(
+    states=states_p2,
+    controls=controls_p2,
+    initial_time=1.0,
+    terminal_time=2.9,
 )
 
 # Solve

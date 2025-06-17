@@ -302,12 +302,12 @@ class TestInitialGuessApplication:
             np.array([[-1.0, -1.0, -1.0, -1.0]]),
         ]
 
-        problem.guess(
-            phase_states={1: states_guess},
-            phase_controls={1: controls_guess},
-            phase_initial_times={1: 0.0},
-            phase_terminal_times={1: 2.0},
-            phase_integrals={1: 1.5},
+        phase.guess(
+            states=states_guess,
+            controls=controls_guess,
+            initial_time=0.0,
+            terminal_time=2.0,
+            integrals=1.5,
         )
 
         opti = ca.Opti()
@@ -332,36 +332,12 @@ class TestInitialGuessApplication:
         phase.mesh([3], [-1, 1])
 
         # Only provide terminal time guess (partial)
-        problem.guess(phase_terminal_times={1: 5.0})
+        phase.guess(terminal_time=5.0)
 
         opti = ca.Opti()
         variables = _setup_multiphase_optimization_variables(opti, problem)  # type: ignore[arg-type]
 
         # Should handle partial guess without errors
-        _apply_multiphase_initial_guess(opti, variables, problem)  # type: ignore[arg-type]
-
-    def test_static_parameter_guess_application(self):
-        problem = mtor.Problem("Parameter Guess")
-
-        mass = problem.parameter("mass", boundary=(100, 1000))
-        drag = problem.parameter("drag_coeff", boundary=(0.1, 1.0))
-
-        phase = problem.set_phase(1)
-        v = phase.state("velocity", initial=10)
-        u = phase.control("thrust")
-
-        phase.dynamics({v: u / mass - drag * v**2})
-        problem.minimize(v.final)
-
-        phase.mesh([3], [-1, 1])
-
-        # Provide parameter guess
-        problem.guess(static_parameters=np.array([500.0, 0.3]))
-
-        opti = ca.Opti()
-        variables = _setup_multiphase_optimization_variables(opti, problem)  # type: ignore[arg-type]
-
-        # Should apply parameter guess correctly
         _apply_multiphase_initial_guess(opti, variables, problem)  # type: ignore[arg-type]
 
 

@@ -253,10 +253,10 @@ def _generate_robust_initial_guess():
 
 states_guess, controls_guess = _generate_robust_initial_guess()
 
-problem.guess(
-    phase_states={1: states_guess},
-    phase_controls={1: controls_guess},
-    phase_terminal_times={1: 5.0},
+phase.guess(
+    states=states_guess,
+    controls=controls_guess,
+    terminal_time=5.0,
 )
 
 solution = mtor.solve_adaptive(

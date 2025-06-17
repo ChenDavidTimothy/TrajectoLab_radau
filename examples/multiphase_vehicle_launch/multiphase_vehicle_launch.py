@@ -455,10 +455,10 @@ states_p4, controls_p4 = _generate_phase_guess(
     [4, 4], rout_scaled, vout_scaled, M_INITIAL_P4, M_FINAL_P4
 )
 
-problem.guess(
-    phase_states={1: states_p1, 2: states_p2, 3: states_p3, 4: states_p4},
-    phase_controls={1: controls_p1, 2: controls_p2, 3: controls_p3, 4: controls_p4},
-)
+phase1.guess(states=states_p1, controls=controls_p1)
+phase2.guess(states=states_p2, controls=controls_p2)
+phase3.guess(states=states_p3, controls=controls_p3)
+phase4.guess(states=states_p4, controls=controls_p4)
 
 
 # ============================================================================

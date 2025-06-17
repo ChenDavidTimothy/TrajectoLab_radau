@@ -138,7 +138,7 @@ def _create_detailed_quadcopter_geometry(x, y, z, phi, theta, psi):
     n_rotor_points = 16
     rotor_height = arm_height / 2
 
-    for start, end in arm_positions:
+    for _start, end in arm_positions:
         x_center, y_center = end[0], end[1]
 
         hub_radius = rotor_radius * 0.2

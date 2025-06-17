@@ -35,12 +35,12 @@ controls_guess.append([[-0.5, -0.4, -0.3, -0.2]])
 states_guess.append([[0.2, 0.15, 0.1, 0.05, 0.0]])
 controls_guess.append([[-0.1, -0.05, 0.0, 0.05]])
 
-problem.guess(
-    phase_states={1: states_guess},
-    phase_controls={1: controls_guess},
-    phase_initial_times={1: 0.0},
-    phase_terminal_times={1: 1.0},
-    phase_integrals={1: 0.5},
+phase.guess(
+    states=states_guess,
+    controls=controls_guess,
+    initial_time=0.0,
+    terminal_time=1.0,
+    integrals=0.5,
 )
 
 # Solve with adaptive mesh
@@ -83,12 +83,12 @@ if solution.status["success"]:
     u_vals_2 = np.linspace(-0.1, 0.05, 8)
     controls_guess_fixed.append(u_vals_2.reshape(1, -1))
 
-    problem.guess(
-        phase_states={1: states_guess_fixed},
-        phase_controls={1: controls_guess_fixed},
-        phase_initial_times={1: 0.0},
-        phase_terminal_times={1: 1.0},
-        phase_integrals={1: 0.5},
+    phase.guess(
+        states=states_guess_fixed,
+        controls=controls_guess_fixed,
+        initial_time=0.0,
+        terminal_time=1.0,
+        integrals=0.5,
     )
 
     fixed_solution = mtor.solve_fixed_mesh(

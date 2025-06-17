@@ -253,7 +253,7 @@ class TestOrderIndependence:
         states_guess = [np.array([[1.0, 0.5, 0.25, 0.0]]), np.array([[0.0, -0.25, -0.5, -1.0]])]
         controls_guess = [np.array([[-1, -1, -1]]), np.array([[-1, -1, -1]])]
 
-        problem.guess(phase_states={1: states_guess}, phase_controls={1: controls_guess})
+        phase.guess(states=states_guess, controls=controls_guess)
 
         # Should not raise any errors
         problem.validate_multiphase_configuration()
@@ -272,7 +272,7 @@ class TestOrderIndependence:
         states_guess = [np.array([[0.0, 0.5, 1.0]])]
         controls_guess = [np.array([[1, 1]])]
 
-        problem.guess(phase_states={1: states_guess}, phase_controls={1: controls_guess})
+        phase.guess(states=states_guess, controls=controls_guess)
 
         # Then set mesh
         phase.mesh([2], [-1, 1])

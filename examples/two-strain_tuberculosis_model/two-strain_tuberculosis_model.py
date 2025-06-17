@@ -91,9 +91,7 @@ for N_interval in [6, 6, 6]:
     u2_vals = np.full(N_interval, 0.5)
     controls_guess.append(np.vstack([u1_vals, u2_vals]))
 
-problem.guess(
-    phase_states={1: states_guess}, phase_controls={1: controls_guess}, phase_integrals={1: 5000.0}
-)
+phase.guess(states=states_guess, controls=controls_guess, integrals=5000.0)
 
 # Solve
 solution = mtor.solve_adaptive(

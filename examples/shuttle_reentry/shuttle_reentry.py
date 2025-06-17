@@ -109,10 +109,10 @@ for N in [8] * 3:
     states_guess.append(np.vstack([h_traj, phi_traj, theta_traj, v_traj, gamma_traj, psi_traj]))
     controls_guess.append(np.vstack([np.zeros(N), -45 * DEG2RAD * np.ones(N)]))
 
-problem.guess(
-    phase_states={1: states_guess},
-    phase_controls={1: controls_guess},
-    phase_terminal_times={1: 2000.0},
+phase.guess(
+    states=states_guess,
+    controls=controls_guess,
+    terminal_time=2000.0,
 )
 
 # ============================================================================

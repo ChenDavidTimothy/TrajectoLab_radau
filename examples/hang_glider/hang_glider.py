@@ -79,7 +79,7 @@ CL = phase.control("CL", boundary=(0.0, 1.4))
 def _define_scaled_dynamics():
     # Convert scaled variables to physical units
     x_phys = x_s * X_SCALE
-    y_phys = y_s * X_SCALE
+    y_s * X_SCALE
     vx_phys = vx_s * V_SCALE
     vy_phys = vy_s * V_SCALE
 
@@ -158,10 +158,10 @@ for N in [3, 3, 3, 3, 3, 3, 3, 3, 3, 3]:
     states_guess.append(np.vstack([x_vals, y_vals, vx_vals, vy_vals]))
     controls_guess.append(np.ones((1, N)) * 0.7)
 
-problem.guess(
-    phase_states={1: states_guess},
-    phase_controls={1: controls_guess},
-    phase_terminal_times={1: 105},
+phase.guess(
+    states=states_guess,
+    controls=controls_guess,
+    terminal_time=105,
 )
 
 

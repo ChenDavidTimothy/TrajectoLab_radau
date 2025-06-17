@@ -33,10 +33,10 @@ class TestProvenExamples:
             np.array([[-0.1, -0.05, 0.0, 0.05]]),
         ]
 
-        problem.guess(
-            phase_states={1: states_guess},
-            phase_controls={1: controls_guess},
-            phase_integrals={1: 0.5},
+        phase.guess(
+            states=states_guess,
+            controls=controls_guess,
+            integrals=0.5,
         )
 
         # Use public API
@@ -96,10 +96,10 @@ class TestProvenExamples:
             u_vals = np.ones(N) * 0.5
             controls_guess.append(np.array([u_vals]))
 
-        problem.guess(
-            phase_states={1: states_guess},
-            phase_controls={1: controls_guess},
-            phase_terminal_times={1: 0.4},
+        phase.guess(
+            states=states_guess,
+            controls=controls_guess,
+            terminal_time=0.4,
         )
 
         solution = mtor.solve_fixed_mesh(
@@ -142,10 +142,10 @@ class TestProvenExamples:
             states_guess.append(x_vals.reshape(1, -1))
             controls_guess.append(np.zeros((1, N)))
 
-        problem.guess(
-            phase_states={1: states_guess},
-            phase_controls={1: controls_guess},
-            phase_integrals={1: 0.1},
+        phase.guess(
+            states=states_guess,
+            controls=controls_guess,
+            integrals=0.1,
         )
 
         solution = mtor.solve_fixed_mesh(
@@ -226,9 +226,13 @@ class TestProvenExamples:
             u_vals = -1.0 + 0.5 * t_norm_controls
             controls_p2.append(np.array([u_vals]))
 
-        problem.guess(
-            phase_states={1: states_p1, 2: states_p2},
-            phase_controls={1: controls_p1, 2: controls_p2},
+        phase1.guess(
+            states=states_p1,
+            controls=controls_p1,
+        )
+        phase2.guess(
+            states=states_p2,
+            controls=controls_p2,
         )
 
         solution = mtor.solve_fixed_mesh(
@@ -406,8 +410,6 @@ class TestSolutionInterfaceStructure:
         problem.minimize(v.final)
 
         phase.mesh([3], [-1, 1])
-
-        problem.guess(static_parameters=np.array([500.0, 1500.0]))
 
         solution = mtor.solve_fixed_mesh(problem, nlp_options={"ipopt.print_level": 0})
 
@@ -626,8 +628,6 @@ class TestObjectiveFunctionTypes:
         problem.minimize(cost)
 
         phase.mesh([3], [-1, 1])
-
-        problem.guess(static_parameters=np.array([1.0]))
 
         solution = mtor.solve_fixed_mesh(problem, nlp_options={"ipopt.print_level": 0})
 

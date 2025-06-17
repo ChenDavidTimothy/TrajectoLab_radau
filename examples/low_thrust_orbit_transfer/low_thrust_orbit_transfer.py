@@ -306,11 +306,10 @@ phase.mesh(
 # Generate initial guess from external module
 states_guess, controls_guess, final_time_guess = generate_initial_guess()
 
-problem.guess(
-    phase_states={1: states_guess},
-    phase_controls={1: controls_guess},
-    phase_terminal_times={1: final_time_guess},
-    static_parameters=np.array([-25.0]),
+phase.guess(
+    states=states_guess,
+    controls=controls_guess,
+    terminal_time=final_time_guess,
 )
 
 

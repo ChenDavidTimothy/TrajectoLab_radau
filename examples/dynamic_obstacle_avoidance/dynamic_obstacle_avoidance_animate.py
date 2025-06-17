@@ -166,7 +166,7 @@ def animate_dynamic_obstacle_avoidance(solution, save_filename="dynamic_obstacle
         "",
         transform=ax_main.transAxes,
         fontsize=10,
-        bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8),
+        bbox={"boxstyle": "round,pad=0.3", "facecolor": "white", "alpha": 0.8},
     )
 
     # Time markers on velocity plots

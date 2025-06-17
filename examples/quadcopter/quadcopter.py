@@ -286,10 +286,10 @@ for N in [8, 8, 8]:
         np.vstack([omega_vals_scaled, omega_vals_scaled, omega_vals_scaled, omega_vals_scaled])
     )
 
-problem.guess(
-    phase_states={1: states_guess},
-    phase_controls={1: controls_guess},
-    phase_terminal_times={1: 8.0},
+phase.guess(
+    states=states_guess,
+    controls=controls_guess,
+    terminal_time=8.0,
 )
 
 

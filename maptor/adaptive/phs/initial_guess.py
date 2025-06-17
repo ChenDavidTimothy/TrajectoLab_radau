@@ -344,6 +344,7 @@ def _apply_interpolated_guesses_to_phases(
         # Apply directly to phase definition using existing validation
         phase_def = problem._phases[phase_id]
         from maptor.problem import initial_guess_problem
+
         initial_guess_problem._set_phase_initial_guess(
             phase_def,
             states=phase_states,
