@@ -330,7 +330,7 @@ def _plot_state_linear_intervals(
 
 
 def _plot_state_linear_simple(
-    ax: MplAxes, time_array: FloatArray, values_array: FloatArray, label: str
+    ax: MplAxes, time_array: FloatArray, values_array: FloatArray
 ) -> None:
     ax.plot(time_array, values_array, ".-", linewidth=1.5, markersize=3)
 
