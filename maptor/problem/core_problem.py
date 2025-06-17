@@ -915,10 +915,10 @@ class Problem:
         return param_var
 
     def parameter_guess(self, **parameter_guesses: float) -> None:
-        """Set initial guesses for static parameters.
+        r"""Set initial guesses for static parameters.
 
         Args:
-            **parameter_guesses: Parameter names mapped to guess values
+            \*\*parameter_guesses: Parameter names mapped to guess values
 
         Examples:
             >>> mass = problem.parameter("mass", boundary=(100, 500))
