@@ -81,36 +81,6 @@ MAPTOR: Multiphase Adaptive Trajectory Optimizer
 
             API Docs
 
-Quick Example
--------------
-
-.. code-block:: python
-
-    import maptor as mtor
-    import numpy as np
-
-    # Create problem
-    problem = mtor.Problem("Car Race")
-    phase = problem.set_phase(1)
-
-    # Define variables
-    t = phase.time(initial=0.0)
-    pos = phase.state("position", initial=0.0, final=1.0)
-    speed = phase.state("speed", initial=0.0)
-    throttle = phase.control("throttle", boundary=(0.0, 1.0))
-
-    # Dynamics and objective
-    phase.dynamics({pos: speed, speed: throttle - speed})
-    problem.minimize(t.final)
-
-    # Solve
-    phase.mesh([8, 8], np.linspace(-1, 1, 3))
-    solution = mtor.solve_adaptive(problem)
-
-    if solution.status["success"]:
-        print(f"Optimal time: {solution.status['objective']:.3f}")
-        solution.plot()
-
 Key Features
 ------------
 
