@@ -67,7 +67,7 @@ $$(X - X_{\text{danger}})^2 + (Y - Y_{\text{danger}})^2 \geq (R_{\text{danger}} 
 
 ### Notes
 
-This problem demonstrates minimum-time quadcopter trajectory optimization with obstacle avoidance using a complete 12-state Newton-Euler dynamics model. The X-configuration motor layout and gyroscopic effects are included for realistic flight dynamics. Numerical scaling is applied for improved conditioning.
+This problem demonstrates minimum-time quadcopter trajectory optimization with obstacle avoidance. Numerical scaling is applied for improved conditioning.
 
 ## Running This Example
 

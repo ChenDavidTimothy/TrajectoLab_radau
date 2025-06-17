@@ -98,8 +98,8 @@ The examples gallery demonstrates trajectory optimization across multiple domain
 - **[Aero-Assisted Plane Change](https://maptor.github.io/maptor/examples/aero-assisted_plane_change.html)**: Atmospheric maneuvers for orbital inclination change
 
 ### Advanced Robotics and Control
-- **[Quadcopter Flight](https://maptor.github.io/maptor/examples/quadcopter.html)**: 12-state Newton-Euler dynamics with obstacle avoidance
-- **[Dynamic Obstacle Avoidance](https://maptor.github.io/maptor/examples/dynamic_obstacle_avoidance.html)**: Real-time bicycle model path planning with moving obstacles
+- **[Quadcopter Flight](https://maptor.github.io/maptor/examples/quadcopter.html)**: Quadcopter dynamics with obstacle avoidance
+- **[Dynamic Obstacle Avoidance](https://maptor.github.io/maptor/examples/dynamic_obstacle_avoidance.html)**: Dynamic bicycle model  moving obstacles
 - **[Overtaking Maneuver](https://maptor.github.io/maptor/examples/overtaking_maneuver.html)**: Complex street scenario with dual moving obstacles
 - **[Container Crane Control](https://maptor.github.io/maptor/examples/container_crane.html)**: Advanced control with swing suppression
 
