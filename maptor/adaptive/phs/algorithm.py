@@ -30,7 +30,6 @@ from maptor.radau import (
 from maptor.tl_types import (
     AdaptiveAlgorithmData,
     FloatArray,
-    MultiPhaseInitialGuess,
     OptimalControlSolution,
     PhaseID,
     ProblemProtocol,
@@ -612,30 +611,18 @@ def _initialize_adaptive_state(
     return adaptive_state
 
 
-def _configure_initial_guess(
-    iteration: int,
-    problem: ProblemProtocol,
-    initial_guess: MultiPhaseInitialGuess | None,
-    adaptive_state: MultiphaseAdaptiveState,
+def _configure_initial_guess_for_subsequent_iteration(
+    adaptive_state: MultiphaseAdaptiveState, problem: ProblemProtocol
 ) -> None:
-    if iteration == 0:
-        if problem.initial_guess is not None:
-            pass
-        elif initial_guess is not None:
-            problem.initial_guess = initial_guess
-        else:
-            problem.initial_guess = None
-    else:
-        if adaptive_state.most_recent_unified_solution is None:
-            raise ValueError("No previous unified solution available for propagation")
+    if adaptive_state.most_recent_unified_solution is None:
+        raise ValueError("No previous unified solution available for propagation")
 
-        propagated_guess = _propagate_multiphase_solution_to_new_meshes(
-            adaptive_state.most_recent_unified_solution,
-            problem,
-            adaptive_state.phase_polynomial_degrees,
-            adaptive_state.phase_mesh_points,
-        )
-        problem.initial_guess = propagated_guess
+    _propagate_multiphase_solution_to_new_meshes(
+        adaptive_state.most_recent_unified_solution,
+        problem,
+        adaptive_state.phase_polynomial_degrees,
+        adaptive_state.phase_mesh_points,
+    )
 
 
 def _store_mesh_information(solution: OptimalControlSolution, problem: ProblemProtocol) -> None:
@@ -840,7 +827,6 @@ def solve_multiphase_phs_adaptive_internal(
     ode_atol_factor: float,
     ode_solver,
     num_error_sim_points: int,
-    initial_guess: MultiPhaseInitialGuess | None = None,
 ) -> OptimalControlSolution:
     logger.info(
         "Starting multiphase adaptive mesh refinement: tolerance=%.1e, max_iter=%d",
@@ -876,7 +862,8 @@ def solve_multiphase_phs_adaptive_internal(
 
         problem.validate_multiphase_configuration()
 
-        _configure_initial_guess(iteration, problem, initial_guess, adaptive_state)
+        if iteration > 0:
+            _configure_initial_guess_for_subsequent_iteration(adaptive_state, problem)
 
         solution = _solve_multiphase_radau_collocation(problem)
 
