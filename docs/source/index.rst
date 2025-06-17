@@ -91,23 +91,24 @@ Quick Example
 
     # Create problem
     problem = mtor.Problem("Car Race")
+    phase = problem.set_phase(1)
 
     # Define variables
-    t = problem.time(initial=0.0)
-    pos = problem.state("position", initial=0.0, final=1.0)
-    speed = problem.state("speed", initial=0.0)
-    throttle = problem.control("throttle", boundary=(0.0, 1.0))
+    t = phase.time(initial=0.0)
+    pos = phase.state("position", initial=0.0, final=1.0)
+    speed = phase.state("speed", initial=0.0)
+    throttle = phase.control("throttle", boundary=(0.0, 1.0))
 
     # Dynamics and objective
-    problem.dynamics({pos: speed, speed: throttle - speed})
+    phase.dynamics({pos: speed, speed: throttle - speed})
     problem.minimize(t.final)
 
     # Solve
-    problem.mesh([8, 8], np.linspace(-1, 1, 3))
+    phase.mesh([8, 8], np.linspace(-1, 1, 3))
     solution = mtor.solve_adaptive(problem)
 
     if solution.status["success"]:
-        print(f"Optimal time: {solution.final_time:.3f}")
+        print(f"Optimal time: {solution.status['objective']:.3f}")
         solution.plot()
 
 Key Features

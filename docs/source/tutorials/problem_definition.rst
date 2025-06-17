@@ -570,30 +570,32 @@ Define scalar optimization objectives with complete expression flexibility:
 Providing Initial Guesses
 --------------------------
 
-For complex problems, providing good initial guesses helps the solver converge. The simplest approach is to guess final times and parameters:
+For complex problems, providing good initial guesses helps the solver converge. MAPTOR provides a phase-specific guess system through the ``phase.guess()`` method.
+
+**Simple Time Guesses**
+
+For most problems, guessing final times is sufficient:
 
 .. code-block:: python
 
-    # Simple guesses (recommended for most problems)
-    problem.guess(
-        phase_terminal_times={1: 10.0},
-        static_parameters=np.array([200.0, 3000.0])
-    )
+    # Simple time guess
+    phase.guess(terminal_time=10.0)
 
-**Detailed Trajectory Guesses**
 
-For challenging problems, you can provide complete trajectory guesses. The arrays must match your mesh configuration exactly:
+**Complete Trajectory Guesses**
+
+For challenging problems, provide complete trajectory guesses. Arrays must match your mesh configuration exactly:
 
 .. code-block:: python
 
     # First, set up your mesh
     phase.mesh([4, 6], [-1.0, 0.0, 1.0])  # Two intervals: degree 4 and degree 6
 
-This creates two mesh intervals. The array requirements are:
+This creates two mesh intervals with specific array requirements:
 
-- **State arrays**: For polynomial degree N, you need **N+1 points**
-- **Control arrays**: For polynomial degree N, you need **N points**
-- **Array structure**: ``[num_variables, num_points_per_interval]``
+* **State arrays**: For polynomial degree N, you need **N+1 points**
+* **Control arrays**: For polynomial degree N, you need **N points**
+* **Array structure**: ``[num_variables, num_points_per_interval]``
 
 .. code-block:: python
 
@@ -626,11 +628,11 @@ This creates two mesh intervals. The array requirements are:
     controls_guess = [controls_interval_1, controls_interval_2]
 
     # Provide complete guess
-    problem.guess(
-        phase_states={1: states_guess},
-        phase_controls={1: controls_guess},
-        phase_terminal_times={1: 12.0},
-        phase_integrals={1: 5.0}  # If you have integral terms
+    phase.guess(
+        states=states_guess,
+        controls=controls_guess,
+        terminal_time=12.0,
+        integrals=5.0  # If you have integral terms
     )
 
 **Easy Guess Generation**
@@ -659,26 +661,39 @@ For simple trajectories, use linear interpolation:
         initial_values=[0.0, 0.0],  # [position, velocity]
         final_values=[1.0, 0.0]     # [position, velocity]
     )
+    phase.guess(states=states_guess, terminal_time=8.0)
 
 **Multiphase Guesses**
 
-For multiphase problems, provide guesses for each phase:
+For multiphase problems, provide guesses for each phase individually:
 
 .. code-block:: python
 
-    # Two-phase problem
-    problem.guess(
-        phase_states={1: states_guess_phase1, 2: states_guess_phase2},
-        phase_controls={1: controls_guess_phase1, 2: controls_guess_phase2},
-        phase_terminal_times={1: 5.0, 2: 10.0}
+    # Phase 1 guess
+    phase1.guess(
+        states=states_guess_phase1,
+        controls=controls_guess_phase1,
+        terminal_time=5.0
     )
+
+    # Phase 2 guess
+    phase2.guess(
+        states=states_guess_phase2,
+        controls=controls_guess_phase2,
+        terminal_time=10.0
+    )
+
+    # Problem-level parameter guess (if using static parameters)
+    vehicle_mass = problem.parameter("mass")
+    engine_power = problem.parameter("power")
+    problem.guess(static_parameters=np.array([1000.0, 2500.0]))
 
 **When to Use Detailed Guesses**
 
-- **Simple problems**: Just guess final times and parameters
-- **Complex dynamics**: Provide trajectory guesses that roughly follow expected behavior
-- **Multiple local minima**: Good guesses help find the right solution
-- **Convergence issues**: Detailed guesses often resolve solver failures
+* **Simple problems**: Just guess terminal times
+* **Complex dynamics**: Provide trajectory guesses that roughly follow expected behavior
+* **Multiple local minima**: Good guesses help find the right solution
+* **Convergence issues**: Detailed guesses often resolve solver failures
 
 Multiphase Problems
 -------------------
