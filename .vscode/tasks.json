@@ -61,7 +61,7 @@
             "label": "MyPy: Type Check",
             "type": "shell",
             "command": "python",
-            "args": ["-m", "mypy", "--exclude", "build", "trajectolab"],
+            "args": ["-m", "mypy", "--exclude", "build", "maptor"],
             "group": "build",
             "presentation": {
                 "echo": true,
