@@ -9,7 +9,7 @@ from maptor.input_validation import (
     _validate_array_numerical_integrity,
     _validate_integral_values,
 )
-from maptor.tl_types import NumericArrayLike
+from maptor.mtor_types import NumericArrayLike
 
 
 def _validate_and_convert_arrays(arrays: Sequence[Any]) -> list[np.ndarray]:

@@ -6,13 +6,13 @@ from maptor.input_validation import (
     _validate_adaptive_solver_parameters,
     _validate_multiphase_problem_ready_for_solving,
 )
-from maptor.problem import Problem
-from maptor.solution import Solution
-from maptor.tl_types import (
+from maptor.mtor_types import (
     ODESolverCallable,
     OptimalControlSolution,
     ProblemProtocol,
 )
+from maptor.problem import Problem
+from maptor.solution import Solution
 from maptor.utils.constants import (
     DEFAULT_ADAPTIVE_ERROR_TOLERANCE,
     DEFAULT_ADAPTIVE_MAX_ITERATIONS,

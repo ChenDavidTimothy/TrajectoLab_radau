@@ -1,6 +1,6 @@
 import casadi as ca
 
-from ..tl_types import FloatArray
+from ..mtor_types import FloatArray
 
 
 def _tau_to_time(

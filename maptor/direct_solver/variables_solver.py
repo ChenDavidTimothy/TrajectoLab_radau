@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 import casadi as ca
 
-from ..tl_types import PhaseID, ProblemProtocol
+from ..mtor_types import PhaseID, ProblemProtocol
 from ..utils.constants import LARGE_VALUE, TIME_PRECISION
 from .types_solver import (
     _MultiPhaseVariable,

@@ -6,7 +6,7 @@ from typing import cast
 import casadi as ca
 import numpy as np
 
-from ..tl_types import FloatArray, PhaseID
+from ..mtor_types import FloatArray, PhaseID
 from .casadi_build import (
     _build_static_parameter_substitution_map,
     _build_unified_casadi_function_inputs,

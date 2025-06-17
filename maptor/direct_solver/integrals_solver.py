@@ -2,11 +2,11 @@ from collections.abc import Callable
 
 import casadi as ca
 
-from ..radau import RadauBasisComponents
-from ..tl_types import (
+from ..mtor_types import (
     FloatArray,
     PhaseID,
 )
+from ..radau import RadauBasisComponents
 from ..utils.coordinates import _tau_to_time
 
 

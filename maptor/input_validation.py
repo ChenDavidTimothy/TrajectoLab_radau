@@ -7,7 +7,7 @@ import casadi as ca
 import numpy as np
 
 from .exceptions import ConfigurationError, DataIntegrityError
-from .tl_types import FloatArray, NumericArrayLike, PhaseID, ProblemProtocol
+from .mtor_types import FloatArray, NumericArrayLike, PhaseID, ProblemProtocol
 from .utils.constants import COORDINATE_PRECISION, NUMERICAL_ZERO
 
 

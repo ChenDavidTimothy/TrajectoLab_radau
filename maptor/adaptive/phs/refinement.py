@@ -16,7 +16,7 @@ from maptor.adaptive.phs.numerical import (
     _map_local_tau_from_interval_k_plus_1_to_equivalent_in_interval_k,
     _map_local_tau_from_interval_k_to_equivalent_in_interval_k_plus_1,
 )
-from maptor.tl_types import (
+from maptor.mtor_types import (
     FloatArray,
     OptimalControlSolution,
     PhaseID,

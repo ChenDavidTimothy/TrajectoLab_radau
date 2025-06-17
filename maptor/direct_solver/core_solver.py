@@ -5,16 +5,16 @@ from dataclasses import dataclass
 import casadi as ca
 
 from ..exceptions import DataIntegrityError, SolutionExtractionError
-from ..problem.state import PhaseDefinition
-from ..radau import RadauBasisComponents, _compute_radau_collocation_components
-from ..solution_extraction import _extract_and_format_multiphase_solution
-from ..tl_types import (
+from ..mtor_types import (
     Constraint,
     FloatArray,
     OptimalControlSolution,
     PhaseID,
     ProblemProtocol,
 )
+from ..problem.state import PhaseDefinition
+from ..radau import RadauBasisComponents, _compute_radau_collocation_components
+from ..solution_extraction import _extract_and_format_multiphase_solution
 from .constraints_solver import (
     _apply_multiphase_cross_phase_event_constraints,
     _apply_phase_collocation_constraints,

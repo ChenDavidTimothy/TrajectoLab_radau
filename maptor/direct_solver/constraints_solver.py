@@ -2,8 +2,8 @@ from collections.abc import Callable
 
 import casadi as ca
 
+from maptor.mtor_types import Constraint, FloatArray, PhaseID, ProblemProtocol
 from maptor.radau import RadauBasisComponents
-from maptor.tl_types import Constraint, FloatArray, PhaseID, ProblemProtocol
 
 
 def _apply_constraint(opti: ca.Opti, constraint: Constraint) -> None:

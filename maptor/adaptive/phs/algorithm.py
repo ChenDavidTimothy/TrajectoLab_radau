@@ -23,16 +23,16 @@ from maptor.adaptive.phs.refinement import (
     _p_reduce_interval,
     _p_refine_interval,
 )
-from maptor.radau import (
-    _compute_radau_collocation_components,
-    _evaluate_lagrange_interpolation_at_points,
-)
-from maptor.tl_types import (
+from maptor.mtor_types import (
     AdaptiveAlgorithmData,
     FloatArray,
     OptimalControlSolution,
     PhaseID,
     ProblemProtocol,
+)
+from maptor.radau import (
+    _compute_radau_collocation_components,
+    _evaluate_lagrange_interpolation_at_points,
 )
 
 

@@ -5,7 +5,7 @@ from typing import Any
 import numpy as np
 from scipy.integrate import solve_ivp
 
-from maptor.tl_types import FloatArray, ODESolverCallable, PhaseID
+from maptor.mtor_types import FloatArray, ODESolverCallable, PhaseID
 from maptor.utils.constants import (
     DEFAULT_ERROR_SIM_POINTS,
     DEFAULT_ODE_ATOL_FACTOR,

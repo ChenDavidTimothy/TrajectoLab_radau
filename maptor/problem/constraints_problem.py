@@ -4,7 +4,7 @@ from collections.abc import Callable
 
 import casadi as ca
 
-from ..tl_types import Constraint, PhaseID
+from ..mtor_types import Constraint, PhaseID
 from .state import MultiPhaseVariableState, PhaseDefinition, _BoundaryConstraint
 
 

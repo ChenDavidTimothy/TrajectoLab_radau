@@ -9,7 +9,7 @@ import casadi as ca
 
 from ..exceptions import DataIntegrityError
 from ..input_validation import _validate_constraint_input_format, _validate_string_not_empty
-from ..tl_types import FloatArray, PhaseID
+from ..mtor_types import FloatArray, PhaseID
 from ..utils.constants import LARGE_VALUE
 
 

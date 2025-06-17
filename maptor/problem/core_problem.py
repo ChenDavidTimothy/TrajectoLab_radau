@@ -11,7 +11,7 @@ from ..input_validation import (
     _validate_constraint_input_format,
     _validate_string_not_empty,
 )
-from ..tl_types import NumericArrayLike, PhaseID
+from ..mtor_types import NumericArrayLike, PhaseID
 from . import constraints_problem, initial_guess_problem, mesh, solver_interface, variables_problem
 from .constraints_problem import (
     _get_cross_phase_event_constraints_function,

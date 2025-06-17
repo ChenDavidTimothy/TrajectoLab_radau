@@ -5,7 +5,7 @@ import numpy as np
 
 from .exceptions import DataIntegrityError, SolutionExtractionError
 from .input_validation import _validate_array_numerical_integrity
-from .tl_types import FloatArray, OptimalControlSolution, PhaseID, ProblemProtocol
+from .mtor_types import FloatArray, OptimalControlSolution, PhaseID, ProblemProtocol
 from .utils.coordinates import _tau_to_time
 
 

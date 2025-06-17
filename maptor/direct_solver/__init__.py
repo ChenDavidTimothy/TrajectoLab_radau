@@ -1,4 +1,4 @@
-from ..tl_types import OptimalControlSolution
+from ..mtor_types import OptimalControlSolution
 from .core_solver import _solve_multiphase_radau_collocation
 
 

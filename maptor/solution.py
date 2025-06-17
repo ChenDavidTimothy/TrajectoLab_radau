@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from .tl_types import FloatArray, OptimalControlSolution, PhaseID, ProblemProtocol
+from .mtor_types import FloatArray, OptimalControlSolution, PhaseID, ProblemProtocol
 
 
 if TYPE_CHECKING:

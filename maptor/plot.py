@@ -6,7 +6,7 @@ import numpy as np
 from matplotlib.axes import Axes as MplAxes
 from matplotlib.figure import Figure as MplFigure
 
-from .tl_types import FloatArray, PhaseID
+from .mtor_types import FloatArray, PhaseID
 from .utils.constants import (
     DEFAULT_FIGURE_SIZE,
     DEFAULT_GRID_ALPHA,

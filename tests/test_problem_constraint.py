@@ -3,7 +3,7 @@ import pytest
 
 import maptor as mtor
 from maptor.exceptions import ConfigurationError
-from maptor.tl_types import Constraint
+from maptor.mtor_types import Constraint
 
 
 class TestPathConstraints:

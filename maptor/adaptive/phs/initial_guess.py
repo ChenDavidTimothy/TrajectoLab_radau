@@ -6,15 +6,15 @@ from maptor.adaptive.phs.numerical import (
     _map_global_normalized_tau_to_local_interval_tau,
 )
 from maptor.exceptions import ConfigurationError, DataIntegrityError, InterpolationError
-from maptor.radau import (
-    _compute_radau_collocation_components,
-    _evaluate_lagrange_interpolation_at_points,
-)
-from maptor.tl_types import (
+from maptor.mtor_types import (
     FloatArray,
     OptimalControlSolution,
     PhaseID,
     ProblemProtocol,
+)
+from maptor.radau import (
+    _compute_radau_collocation_components,
+    _evaluate_lagrange_interpolation_at_points,
 )
 from maptor.utils.constants import COORDINATE_PRECISION
 

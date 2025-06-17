@@ -6,7 +6,7 @@ import numpy as np
 from scipy.special import roots_jacobi as _scipy_roots_jacobi
 
 from .input_validation import _validate_positive_integer
-from .tl_types import FloatArray
+from .mtor_types import FloatArray
 from .utils.constants import NUMERICAL_ZERO
 
 

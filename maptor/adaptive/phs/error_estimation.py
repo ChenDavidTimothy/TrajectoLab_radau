@@ -4,7 +4,7 @@ from typing import cast
 
 import numpy as np
 
-from maptor.tl_types import (
+from maptor.mtor_types import (
     FloatArray,
     ODESolverCallable,
     OptimalControlSolution,

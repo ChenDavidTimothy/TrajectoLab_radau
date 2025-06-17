@@ -6,7 +6,7 @@ import casadi as ca
 import numpy as np
 
 from ..input_validation import _set_integral_guess_values
-from ..tl_types import FloatArray, PhaseID, ProblemProtocol
+from ..mtor_types import FloatArray, PhaseID, ProblemProtocol
 from .types_solver import _MultiPhaseVariable, _PhaseVariable
 
 

@@ -3,7 +3,7 @@ import logging
 import numpy as np
 
 from ..input_validation import _validate_mesh_configuration
-from ..tl_types import NumericArrayLike
+from ..mtor_types import NumericArrayLike
 from .state import PhaseDefinition
 
 
