@@ -42,10 +42,10 @@ controls_guess = (
 )
 
 
-problem.guess(
-    phase_states={1: states_guess},
-    phase_controls={1: controls_guess},
-    phase_terminal_times={1: 1.0},
+phase.guess(
+    states=states_guess,
+    controls=controls_guess,
+    terminal_time=1.0,
 )
 # Solve with adaptive mesh
 solution = mtor.solve_adaptive(
@@ -81,10 +81,10 @@ if solution.status["success"]:
         ],
     )
 
-    problem.guess(
-        phase_states={1: states_guess},
-        phase_controls={1: controls_guess},
-        phase_terminal_times={1: 1.0},
+    phase.guess(
+        states=states_guess,
+        controls=controls_guess,
+        terminal_time=1.0,
     )
 
     fixed_solution = mtor.solve_fixed_mesh(
