@@ -203,10 +203,6 @@ def solve_adaptive(
 
         nlp_options: IPOPT options for each NLP solve (same as solve_fixed_mesh)
 
-        initial_guess: Override problem initial guess:
-            - None: Use problem.guess() (default)
-            - MultiPhaseInitialGuess: Custom guess
-
         show_summary: Display solution summary (default: True)
 
     Returns:
