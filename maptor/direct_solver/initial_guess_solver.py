@@ -15,8 +15,6 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class _PhaseGuessContext:
-    """context for phase guess application."""
-
     opti: ca.Opti
     phase_vars: _PhaseVariable
     phase_id: PhaseID
@@ -29,8 +27,6 @@ class _PhaseGuessContext:
 
 @dataclass
 class _GuessApplicator:
-    """Unified guess application strategy."""
-
     data_getter: Callable[[Any, PhaseID], Any]  # Gets data from initial_guess
     existence_checker: Callable[[Any, PhaseID], bool]  # Checks if data exists
     applicator: Callable[[_PhaseGuessContext, Any], None]  # Applies the guess
@@ -117,7 +113,6 @@ def _apply_integral_guesses(
     context: _PhaseGuessContext, phase_integrals: float | FloatArray
 ) -> None:
     if context.num_integrals > 0 and context.phase_vars.integral_variables is not None:
-        # Use centralized validation function - already validated, just set values
         _set_integral_guess_values(
             context.opti,
             context.phase_vars.integral_variables,
@@ -205,6 +200,67 @@ def _apply_phase_guesses(
         _apply_single_guess_type(context, applicator)
 
 
+def _apply_phase_guesses_from_phase_definition(
+    opti: ca.Opti,
+    phase_vars: _PhaseVariable,
+    phase_def: Any,  # PhaseDefinition
+    problem: ProblemProtocol,
+    phase_id: PhaseID,
+) -> None:
+    num_states, num_controls = problem._get_phase_variable_counts(phase_id)
+    num_mesh_intervals = len(phase_def.collocation_points_per_interval)
+    num_integrals = phase_def.num_integrals
+
+    # Apply time guesses using existing logic
+    if phase_def.guess_initial_time is not None:
+        opti.set_initial(phase_vars.initial_time, phase_def.guess_initial_time)
+
+    if phase_def.guess_terminal_time is not None:
+        opti.set_initial(phase_vars.terminal_time, phase_def.guess_terminal_time)
+
+    # Apply state guesses using existing logic
+    if phase_def.guess_states is not None:
+        context = _PhaseGuessContext(
+            opti=opti,
+            phase_vars=phase_vars,
+            phase_id=phase_id,
+            num_states=num_states,
+            num_controls=num_controls,
+            num_mesh_intervals=num_mesh_intervals,
+            num_integrals=num_integrals,
+            initial_guess=None,
+        )
+        _apply_state_guesses(context, phase_def.guess_states)
+
+    # Apply control guesses using existing logic
+    if phase_def.guess_controls is not None:
+        context = _PhaseGuessContext(
+            opti=opti,
+            phase_vars=phase_vars,
+            phase_id=phase_id,
+            num_states=num_states,
+            num_controls=num_controls,
+            num_mesh_intervals=num_mesh_intervals,
+            num_integrals=num_integrals,
+            initial_guess=None,
+        )
+        _apply_control_guesses(context, phase_def.guess_controls)
+
+    # Apply integral guesses using existing logic
+    if phase_def.guess_integrals is not None:
+        context = _PhaseGuessContext(
+            opti=opti,
+            phase_vars=phase_vars,
+            phase_id=phase_id,
+            num_states=num_states,
+            num_controls=num_controls,
+            num_mesh_intervals=num_mesh_intervals,
+            num_integrals=num_integrals,
+            initial_guess=None,
+        )
+        _apply_integral_guesses(context, phase_def.guess_integrals)
+
+
 def _apply_static_parameters_guess(
     opti: ca.Opti,
     variables: _MultiPhaseVariable,
@@ -223,15 +279,13 @@ def _apply_multiphase_initial_guess(
     variables: _MultiPhaseVariable,
     problem: ProblemProtocol,
 ) -> None:
-    if problem.initial_guess is None:
-        return
-
-    initial_guess = problem.initial_guess
-
-    # Apply initial guess for each phase using flattened processing
+    # Collect guesses from individual phases (NEW APPROACH)
     for phase_id in problem._get_phase_ids():
         if phase_id in variables.phase_variables:
             phase_vars = variables.phase_variables[phase_id]
-            _apply_phase_guesses(opti, phase_vars, initial_guess, problem, phase_id)
+            phase_def = problem._phases[phase_id]
 
-    _apply_static_parameters_guess(opti, variables, initial_guess, problem)
+            # Apply phase-level guesses
+            _apply_phase_guesses_from_phase_definition(
+                opti, phase_vars, phase_def, problem, phase_id
+            )

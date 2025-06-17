@@ -9,7 +9,6 @@ from maptor.input_validation import (
 from maptor.problem import Problem
 from maptor.solution import Solution
 from maptor.tl_types import (
-    MultiPhaseInitialGuess,
     ODESolverCallable,
     OptimalControlSolution,
     ProblemProtocol,
@@ -143,7 +142,6 @@ def solve_adaptive(
     num_error_sim_points: int = DEFAULT_ERROR_SIM_POINTS,
     ode_solver: ODESolverCallable | None = None,
     nlp_options: dict[str, object] | None = None,
-    initial_guess: MultiPhaseInitialGuess | None = None,
     show_summary: bool = True,
 ) -> Solution:
     """
@@ -326,9 +324,6 @@ def solve_adaptive(
     problem.solver_options = nlp_options or {}
     protocol_problem = cast(ProblemProtocol, problem)
 
-    if initial_guess is not None:
-        protocol_problem.initial_guess = initial_guess
-
     if logger.isEnabledFor(logging.DEBUG):
         for phase_id in problem._get_phase_ids():
             phase_def = problem._phases[phase_id]
@@ -356,7 +351,6 @@ def solve_adaptive(
         ode_atol_factor=ode_atol_factor,
         ode_solver=ode_solver,
         num_error_sim_points=num_error_sim_points,
-        initial_guess=initial_guess,
     )
 
     if solution_data.success:

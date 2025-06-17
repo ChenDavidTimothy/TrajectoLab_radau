@@ -12,7 +12,6 @@ from maptor.radau import (
 )
 from maptor.tl_types import (
     FloatArray,
-    MultiPhaseInitialGuess,
     OptimalControlSolution,
     PhaseID,
     ProblemProtocol,
@@ -313,43 +312,12 @@ def _interpolate_phase_data(
     return phase_states, phase_controls
 
 
-def _extract_preserved_variables(
-    prev_solution: OptimalControlSolution,
-) -> tuple[dict, dict, dict, FloatArray | None]:
-    return (
-        prev_solution.phase_initial_times.copy(),
-        prev_solution.phase_terminal_times.copy(),
-        prev_solution.phase_integrals.copy(),
-        prev_solution.static_parameters,
-    )
-
-
-def _validate_final_guess(initial_guess: MultiPhaseInitialGuess, problem: ProblemProtocol) -> None:
-    for phase_id in problem._get_phase_ids():
-        if (
-            phase_id not in initial_guess.phase_states
-            or phase_id not in initial_guess.phase_controls
-        ):
-            raise InterpolationError(f"Missing interpolated data for phase {phase_id}")
-
-
-def _propagate_multiphase_solution_to_new_meshes(
-    prev_solution: OptimalControlSolution,
+def _apply_interpolated_guesses_to_phases(
     problem: ProblemProtocol,
+    prev_solution: OptimalControlSolution,
     target_phase_polynomial_degrees: dict[PhaseID, list[int]],
     target_phase_mesh_points: dict[PhaseID, FloatArray],
-) -> MultiPhaseInitialGuess:
-    _validate_propagation_preconditions(prev_solution)
-
-    (
-        phase_initial_times,
-        phase_terminal_times,
-        phase_integrals,
-        static_parameters,
-    ) = _extract_preserved_variables(prev_solution)
-
-    phase_states, phase_controls = {}, {}
-
+) -> None:
     for phase_id in problem._get_phase_ids():
         target_degrees, target_mesh = _validate_target_configuration(
             phase_id, target_phase_polynomial_degrees, target_phase_mesh_points
@@ -361,7 +329,7 @@ def _propagate_multiphase_solution_to_new_meshes(
 
         num_states, num_controls = problem._get_phase_variable_counts(phase_id)
 
-        phase_states[phase_id], phase_controls[phase_id] = _interpolate_phase_data(
+        phase_states, phase_controls = _interpolate_phase_data(
             prev_states,
             prev_controls,
             prev_mesh,
@@ -373,14 +341,32 @@ def _propagate_multiphase_solution_to_new_meshes(
             phase_id,
         )
 
-    initial_guess = MultiPhaseInitialGuess(
-        phase_states=phase_states,
-        phase_controls=phase_controls,
-        phase_initial_times=phase_initial_times,
-        phase_terminal_times=phase_terminal_times,
-        phase_integrals=phase_integrals,
-        static_parameters=static_parameters,
-    )
+        # Apply directly to phase definition using existing validation
+        phase_def = problem._phases[phase_id]
+        from maptor.problem import initial_guess_problem
+        initial_guess_problem._set_phase_initial_guess(
+            phase_def,
+            states=phase_states,
+            controls=phase_controls,
+            initial_time=prev_solution.phase_initial_times.get(phase_id),
+            terminal_time=prev_solution.phase_terminal_times.get(phase_id),
+            integrals=prev_solution.phase_integrals.get(phase_id),
+        )
 
-    _validate_final_guess(initial_guess, problem)
-    return initial_guess
+
+def _propagate_multiphase_solution_to_new_meshes(
+    prev_solution: OptimalControlSolution,
+    problem: ProblemProtocol,
+    target_phase_polynomial_degrees: dict[PhaseID, list[int]],
+    target_phase_mesh_points: dict[PhaseID, FloatArray],
+) -> None:
+    """Propagate previous solution to new mesh configurations using phase-level guesses.
+
+    Directly applies interpolated guesses to phase definitions instead of returning
+    a legacy MultiPhaseInitialGuess object.
+    """
+    _validate_propagation_preconditions(prev_solution)
+
+    _apply_interpolated_guesses_to_phases(
+        problem, prev_solution, target_phase_polynomial_degrees, target_phase_mesh_points
+    )

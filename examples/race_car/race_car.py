@@ -26,7 +26,7 @@ problem.minimize(t.final)
 
 # Mesh and guess
 phase.mesh([8, 8, 8], np.array([-1.0, -0.3, 0.3, 1.0]))
-problem.guess(phase_terminal_times={1: 2.0})
+phase.guess(terminal_time=2.0)  # MUCH CLEANER!
 
 # Solve
 solution = mtor.solve_adaptive(

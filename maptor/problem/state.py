@@ -175,6 +175,13 @@ class PhaseDefinition:
     global_normalized_mesh_nodes: FloatArray | None = None
     mesh_configured: bool = False
 
+    # Phase-level initial guess storage
+    guess_states: list[FloatArray] | None = None
+    guess_controls: list[FloatArray] | None = None
+    guess_initial_time: float | None = None
+    guess_terminal_time: float | None = None
+    guess_integrals: float | FloatArray | None = None
+
     _ordering_lock: threading.Lock = field(default_factory=threading.Lock)
 
     symbolic_boundary_constraints: list[tuple[str, str, ca.MX]] = field(default_factory=list)

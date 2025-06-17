@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Protocol, TypeAlias
 
@@ -59,7 +59,6 @@ class ProblemProtocol(Protocol):
     _multiphase_state: Any
 
     # Required attributes for solver interface
-    initial_guess: MultiPhaseInitialGuess | None
     solver_options: dict[str, object]
 
     # Essential solver methods
@@ -159,27 +158,6 @@ class AdaptiveAlgorithmData:
     phase_converged: dict[PhaseID, bool]
     final_phase_error_estimates: dict[PhaseID, list[float]]
     phase_gamma_factors: dict[PhaseID, FloatArray | None] = field(default_factory=dict)
-
-
-# MULTIPHASE DATA CONTAINERS
-class MultiPhaseInitialGuess:
-    """Initial guess for multiphase optimal control problems."""
-
-    def __init__(
-        self,
-        phase_states: Mapping[PhaseID, list[FloatArray]] | None = None,
-        phase_controls: Mapping[PhaseID, list[FloatArray]] | None = None,
-        phase_initial_times: Mapping[PhaseID, float] | None = None,
-        phase_terminal_times: Mapping[PhaseID, float] | None = None,
-        phase_integrals: Mapping[PhaseID, float | FloatArray] | None = None,
-        static_parameters: FloatArray | None = None,
-    ) -> None:
-        self.phase_states = phase_states or {}
-        self.phase_controls = phase_controls or {}
-        self.phase_initial_times = phase_initial_times or {}
-        self.phase_terminal_times = phase_terminal_times or {}
-        self.phase_integrals = phase_integrals or {}
-        self.static_parameters = static_parameters
 
 
 class OptimalControlSolution:

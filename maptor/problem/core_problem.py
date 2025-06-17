@@ -636,6 +636,73 @@ class Phase:
         )
         mesh._configure_phase_mesh(self._phase_def, polynomial_degrees, mesh_points)
 
+    def guess(
+        self,
+        states: Sequence[NumericArrayLike] | None = None,
+        controls: Sequence[NumericArrayLike] | None = None,
+        initial_time: float | None = None,
+        terminal_time: float | None = None,
+        integrals: float | NumericArrayLike | None = None,
+    ) -> None:
+        """
+        Provide initial guess for this phase's optimization variables.
+
+        Supplies starting values for NLP solver with phase-specific variable coverage.
+        Arrays must match this phase's mesh configuration exactly.
+
+        Args:
+            states: State trajectory guess per mesh interval.
+                Structure: [interval_arrays]
+                Each interval_array: shape (num_states, num_collocation_points)
+
+            controls: Control trajectory guess per mesh interval.
+                Structure: [interval_arrays]
+                Each interval_array: shape (num_controls, num_mesh_points)
+
+            initial_time: Initial time guess for this phase.
+
+            terminal_time: Final time guess for this phase.
+
+            integrals: Integral value guess for this phase.
+                - float: Single integral
+                - array: Multiple integrals
+
+        Examples:
+            Basic single phase:
+
+            >>> states_guess = [np.array([[0, 1, 2, 3, 4], [0, 0, 1, 2, 3]])]
+            >>> controls_guess = [np.array([[1, 1, 1, 1]])]
+            >>> phase.guess(states=states_guess, controls=controls_guess, terminal_time=10.0)
+
+            With integrals:
+
+            >>> phase.guess(states=states_guess, integrals=50.0)
+        """
+        components = []
+        if states is not None:
+            components.append("states")
+        if controls is not None:
+            components.append("controls")
+        if initial_time is not None:
+            components.append("initial_time")
+        if terminal_time is not None:
+            components.append("terminal_time")
+        if integrals is not None:
+            components.append("integrals")
+
+        logger.info("Setting initial guess for phase %d: %s", self.phase_id, ", ".join(components))
+
+        # Reuse existing validation logic
+        from . import initial_guess_problem
+        initial_guess_problem._set_phase_initial_guess(
+            self._phase_def,
+            states=states,
+            controls=controls,
+            initial_time=initial_time,
+            terminal_time=terminal_time,
+            integrals=integrals,
+        )
+
 
 class Problem:
     """
@@ -745,7 +812,6 @@ class Problem:
         logger.debug("Created multiphase problem: '%s'", name)
 
         self._multiphase_state = MultiPhaseVariableState()
-        self._initial_guess_container = [None]
         self.solver_options: dict[str, Any] = {}
 
     def set_phase(self, phase_id: PhaseID) -> Phase:
@@ -895,111 +961,6 @@ class Problem:
         variables_problem._set_multiphase_objective(self._multiphase_state, objective_expr)
         logger.info("Multiphase objective function defined")
 
-    def guess(
-        self,
-        phase_states: Mapping[PhaseID, Sequence[NumericArrayLike]] | None = None,
-        phase_controls: Mapping[PhaseID, Sequence[NumericArrayLike]] | None = None,
-        phase_initial_times: Mapping[PhaseID, float] | None = None,
-        phase_terminal_times: Mapping[PhaseID, float] | None = None,
-        phase_integrals: Mapping[PhaseID, float | NumericArrayLike] | None = None,
-        static_parameters: FloatArray | None = None,
-    ) -> None:
-        """
-        Provide comprehensive initial guess for all optimization variables.
-
-        Supplies starting values for NLP solver with exhaustive variable coverage.
-        Arrays must match mesh configuration exactly. Supports all variable types
-        with flexible guess specification strategies.
-
-        Args:
-            phase_states: State trajectory guesses per phase.
-                Structure: {phase_id: [interval_arrays]}
-                Each interval_array: shape (num_states, num_collocation_points)
-
-            phase_controls: Control trajectory guesses per phase.
-                Structure: {phase_id: [interval_arrays]}
-                Each interval_array: shape (num_controls, num_mesh_points)
-
-            phase_initial_times: Initial time guesses per phase.
-                Structure: {phase_id: initial_time_value}
-
-            phase_terminal_times: Final time guesses per phase.
-                Structure: {phase_id: final_time_value}
-
-            phase_integrals: Integral value guesses per phase.
-                Structure: {phase_id: integral_values}
-                - float: Single integral per phase
-                - array: Multiple integrals per phase
-
-            static_parameters: Static parameter guesses.
-                Array length must match number of parameters defined.
-
-        Examples:
-            Basic array format (mesh: [4, 4], 2 intervals, 2 states, 1 control):
-
-            >>> import numpy as np
-            >>> # States: shape (num_states, num_points_per_interval)
-            >>> states_guess = [
-            ...     np.array([[0, 1, 2, 3, 4],      # State 1, interval 1: 5 points
-            ...               [0, 0, 1, 2, 3]]),    # State 2, interval 1: 5 points
-            ...     np.array([[4, 5, 6, 7, 8],      # State 1, interval 2: 5 points
-            ...               [3, 4, 5, 6, 7]])     # State 2, interval 2: 5 points
-            ... ]
-            >>> # Controls: shape (num_controls, num_points_per_interval)
-            >>> controls_guess = [
-            ...     np.array([[1, 1, 1, 1]]),       # Control 1, interval 1: 4 points
-            ...     np.array([[2, 2, 2, 2]])        # Control 1, interval 2: 4 points
-            ... ]
-            >>> problem.guess(
-            ...     phase_states={1: states_guess},
-            ...     phase_controls={1: controls_guess}
-            ... )
-
-            With time and integrals:
-
-            >>> problem.guess(
-            ...     phase_states={1: states_guess},
-            ...     phase_controls={1: controls_guess},
-            ...     phase_terminal_times={1: 10.0},
-            ...     phase_integrals={1: 50.0}
-            ... )
-
-            Multiple phases:
-
-            >>> problem.guess(
-            ...     phase_states={1: states_p1, 2: states_p2},
-            ...     phase_controls={1: controls_p1, 2: controls_p2},
-            ...     phase_terminal_times={1: 10.0, 2: 20.0}
-            ... )
-
-            With static parameters:
-
-            >>> problem.guess(
-            ...     phase_states={1: states_guess},
-            ...     static_parameters=np.array([100.0, 1500.0])
-            ... )
-        """
-        components = []
-        if phase_states is not None:
-            components.append(f"states({len(phase_states)} phases)")
-        if phase_controls is not None:
-            components.append(f"controls({len(phase_controls)} phases)")
-        if static_parameters is not None:
-            components.append(f"parameters({len(static_parameters)})")
-
-        logger.info("Setting multiphase initial guess: %s", ", ".join(components))
-
-        initial_guess_problem._set_multiphase_initial_guess(
-            self._initial_guess_container,
-            self._multiphase_state,
-            phase_states=phase_states,
-            phase_controls=phase_controls,
-            phase_initial_times=phase_initial_times,
-            phase_terminal_times=phase_terminal_times,
-            phase_integrals=phase_integrals,
-            static_parameters=static_parameters,
-        )
-
     @property
     def _phases(self) -> dict[PhaseID, Any]:
         return self._multiphase_state.phases
@@ -1007,14 +968,6 @@ class Problem:
     @property
     def _static_parameters(self) -> Any:
         return self._multiphase_state.static_parameters
-
-    @property
-    def initial_guess(self):
-        return self._initial_guess_container[0]
-
-    @initial_guess.setter
-    def initial_guess(self, value) -> None:
-        self._initial_guess_container[0] = value
 
     def _get_phase_ids(self) -> list[PhaseID]:
         return self._multiphase_state._get_phase_ids()
