@@ -1,10 +1,12 @@
+<p align="center">
+  <img src="docs/source/_static/MAPTOR_banner.svg" alt="MAPTOR" width="600">
+</p>
+
 # MAPTOR: Multiphase Adaptive Trajectory Optimizer
 
 [![PyPI version](https://badge.fury.io/py/maptor.svg)](https://badge.fury.io/py/maptor)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: LGPL v3](https://img.shields.io/badge/License-LGPL_v3-blue.svg)](https://www.gnu.org/licenses/lgpl-3.0)
-[![Documentation Status](https://readthedocs.org/projects/maptor/badge/?version=latest)](https://maptor.readthedocs.io/en/latest/?badge=latest)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 A Python framework for **trajectory optimization** using optimal control theory. MAPTOR solves problems involving the motion of vehicles, robots, spacecraft, and other dynamic systems through space and time using the Legendre-Gauss-Radau pseudospectral method.
 
@@ -78,36 +80,38 @@ pip install -e .
 
 | Resource | Description |
 |----------|-------------|
-| **[Installation Guide](https://maptor.readthedocs.io/en/latest/installation.html)** | Setup and dependencies |
-| **[Quick Start](https://maptor.readthedocs.io/en/latest/quickstart.html)** | Basic workflow and first example |
-| **[Problem Definition Tutorial](https://maptor.readthedocs.io/en/latest/tutorials/problem_definition.html)** | Comprehensive problem construction guide |
-| **[Solution Analysis Tutorial](https://maptor.readthedocs.io/en/latest/tutorials/solution_access.html)** | Working with optimization results |
-| **[Examples Gallery](https://maptor.readthedocs.io/en/latest/examples/index.html)** | Complete problems with mathematical formulations |
-| **[API Reference](https://maptor.readthedocs.io/en/latest/api/index.html)** | Detailed function documentation |
+| **[Installation Guide](https://maptor.github.io/maptor/installation.html)** | Setup and dependencies |
+| **[Quick Start](https://maptor.github.io/maptor/quickstart.html)** | Basic workflow and first example |
+| **[Problem Definition Tutorial](https://maptor.github.io/maptor/tutorials/problem_definition.html)** | Comprehensive problem construction guide |
+| **[Solution Analysis Tutorial](https://maptor.github.io/maptor/tutorials/solution_access.html)** | Working with optimization results |
+| **[Examples Gallery](https://maptor.github.io/maptor/examples/index.html)** | Complete problems with mathematical formulations |
+| **[API Reference](https://maptor.github.io/maptor/api/index.html)** | Detailed function documentation |
 
 ## Example Trajectories
 
 The examples gallery demonstrates trajectory optimization across multiple domains:
 
-### Aerospace Applications
-- **[Spacecraft Orbit Transfer](https://maptor.readthedocs.io/en/latest/examples/low_thrust_orbit_transfer.html)**: Low-thrust trajectory optimization with orbital mechanics
-- **[Multiphase Launch Vehicle](https://maptor.readthedocs.io/en/latest/examples/multiphase_vehicle_launch.html)**: Complex mission with stage separations
-- **[Hang Glider Flight](https://maptor.readthedocs.io/en/latest/examples/hang_glider.html)**: Atmospheric flight with thermal updrafts
-- **[Shuttle Reentry](https://maptor.readthedocs.io/en/latest/examples/shuttle_reentry.html)**: Entry trajectory optimization
+### Advanced Aerospace Applications
+- **[Low-Thrust Orbit Transfer](https://maptor.github.io/maptor/examples/low_thrust_orbit_transfer.html)**: Orbital mechanics with J2/J3/J4 gravitational perturbations and modified equinoctial elements
+- **[Multiphase Vehicle Launch](https://maptor.github.io/maptor/examples/multiphase_vehicle_launch.html)**: Realistic rocket trajectory with stage separations and orbital insertion
+- **[Shuttle Reentry](https://maptor.github.io/maptor/examples/shuttle_reentry.html)**: Atmospheric entry with heat rate constraints and crossrange maximization
+- **[Aero-Assisted Plane Change](https://maptor.github.io/maptor/examples/aero-assisted_plane_change.html)**: Atmospheric maneuvers for orbital inclination change
 
-### Robotics and Control
-- **[Robot Arm Motion](https://maptor.readthedocs.io/en/latest/examples/robot_arm.html)**: Minimum-time manipulator trajectories
-- **[Cart-Pole Swing-Up](https://maptor.readthedocs.io/en/latest/examples/cartpole.html)**: Underactuated system control
-- **[Dynamic Obstacle Avoidance](https://maptor.readthedocs.io/en/latest/examples/dynamic_obstacle_avoidance.html)**: Real-time path planning
-- **[Two-Phase Robot Tracking](https://maptor.readthedocs.io/en/latest/examples/two_phase_robot.html)**: Multiphase trajectory following
+### Advanced Robotics and Control
+- **[Quadcopter Flight](https://maptor.github.io/maptor/examples/quadcopter.html)**: 12-state Newton-Euler dynamics with obstacle avoidance
+- **[Dynamic Obstacle Avoidance](https://maptor.github.io/maptor/examples/dynamic_obstacle_avoidance.html)**: Real-time bicycle model path planning with moving obstacles
+- **[Overtaking Maneuver](https://maptor.github.io/maptor/examples/overtaking_maneuver.html)**: Complex street scenario with dual moving obstacles
+- **[Container Crane Control](https://maptor.github.io/maptor/examples/container_crane.html)**: Advanced control with swing suppression
 
-### Vehicle and Racing
-- **[Race Car Optimization](https://maptor.readthedocs.io/en/latest/examples/race_car.html)**: Minimum-time racing line with speed constraints
+### Atmospheric and Environmental Systems
+- **[Hang Glider Flight](https://maptor.github.io/maptor/examples/hang_glider.html)**: Thermal soaring optimization with atmospheric updrafts
 
-### Classical Problems
-- **[Brachistochrone](https://maptor.readthedocs.io/en/latest/examples/brachistochrone.html)**: Fastest descent under gravity
-- **[LQR Control](https://maptor.readthedocs.io/en/latest/examples/lqr.html)**: Linear-quadratic regulator
-- **[Hypersensitive Problem](https://maptor.readthedocs.io/en/latest/examples/hypersensitive.html)**: Challenging optimal control benchmark
+### Interdisciplinary Applications
+- **[Two-Strain Tuberculosis Model](https://maptor.github.io/maptor/examples/two-strain_tuberculosis_model.html)**: Epidemiological optimal control with drug resistance dynamics
+
+### Benchmark and Classical Problems
+- **[Hypersensitive Problem](https://maptor.github.io/maptor/examples/hypersensitive.html)**: Challenging optimal control benchmark with sensitive dynamics
+- **[Brachistochrone](https://maptor.github.io/maptor/examples/brachistochrone.html)**: Classical fastest descent problem
 
 ## Architecture
 
@@ -131,11 +135,17 @@ Optimization (IPOPT nonlinear programming solver)
 - **Adaptive precision**: Mesh refinement ensures solution accuracy
 - **Multiphase support**: Complex missions with automatic phase transitions
 
-
-
 ## Contributing
 
-We welcome contributions from the trajectory optimization and optimal control community.
+We currently do not accept code submissions, but we welcome **issues and feedback reports** from the trajectory optimization and optimal control community. Please use [GitHub Issues](https://github.com/maptor/maptor/issues) to:
+
+- Report bugs or unexpected behavior
+- Request new features or enhancements
+- Ask questions about usage or implementation
+- Suggest improvements to documentation or examples
+- Share feedback on your experience with MAPTOR
+
+Your input helps improve MAPTOR for the entire community.
 
 ## License
 
@@ -159,6 +169,9 @@ If you use MAPTOR in academic research, please cite:
 
 MAPTOR builds upon established methods in computational optimal control:
 
+**Optimal Control Theory and Methods**:
+- Betts, J. T. (2020). *Practical Methods for Optimal Control Using Nonlinear Programming, Third Edition*. Society for Industrial and Applied Mathematics. https://doi.org/10.1137/1.9781611976199
+
 **Pseudospectral Methods**:
 - Agamawi, Y. M., & Rao, A. V. (2020). CGPOPS: A C++ Software for Solving Multiple-Phase Optimal Control Problems Using Adaptive Gaussian Quadrature Collocation and Sparse Nonlinear Programming. *ACM Transactions on Mathematical Software*, 46(3), Article 25. https://doi.org/10.1145/3390463
 
@@ -170,7 +183,7 @@ MAPTOR builds upon established methods in computational optimal control:
 
 ## Support
 
-- **Documentation**: [https://maptor.readthedocs.io](https://maptor.readthedocs.io)
+- **Documentation**: [https://maptor.github.io/maptor](https://maptor.github.io/maptor)
 - **Issues**: [GitHub Issues](https://github.com/maptor/maptor/issues)
 
 ## Acknowledgments
@@ -179,4 +192,4 @@ MAPTOR implements methods from the computational optimal control literature, par
 
 ---
 
-**Next Steps**: Begin with the [Quick Start Guide](https://maptor.readthedocs.io/en/latest/quickstart.html) or explore the [Examples Gallery](https://maptor.readthedocs.io/en/latest/examples/index.html) to see MAPTOR applied to trajectory optimization problems in your domain.
+**Next Steps**: Begin with the [Quick Start Guide](https://maptor.github.io/maptor/quickstart.html) or explore the [Examples Gallery](https://maptor.github.io/maptor/examples/index.html) to see MAPTOR applied to trajectory optimization problems in your domain.
