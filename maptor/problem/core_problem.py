@@ -960,6 +960,30 @@ class Problem:
         variables_problem._set_multiphase_objective(self._multiphase_state, objective_expr)
         logger.info("Multiphase objective function defined")
 
+    def parameter_guess(self, **parameter_guesses: float) -> None:
+        """Set initial guesses for static parameters.
+
+        Args:
+            **parameter_guesses: Parameter names mapped to guess values
+
+        Examples:
+            >>> mass = problem.parameter("mass", boundary=(100, 500))
+            >>> drag = problem.parameter("drag", boundary=(0, 0.1))
+            >>> problem.parameter_guess(mass=300.0, drag=0.05)
+        """
+        if not parameter_guesses:
+            return
+
+        for name in parameter_guesses:
+            if name not in self._multiphase_state.static_parameters.parameter_name_to_index:
+                raise ConfigurationError(
+                    f"Parameter '{name}' not defined. Call problem.parameter('{name}', ...) first.",
+                    "Parameter guess configuration error",
+                )
+
+        self._multiphase_state.guess_static_parameters = parameter_guesses
+        logger.debug("Static parameter guesses set: %s", list(parameter_guesses.keys()))
+
     @property
     def _phases(self) -> dict[PhaseID, Any]:
         return self._multiphase_state.phases

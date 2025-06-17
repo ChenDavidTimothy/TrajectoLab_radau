@@ -52,16 +52,6 @@ def _validate_array_numerical_integrity(
         )
 
 
-def _validate_array_shape(
-    array: FloatArray, expected_shape: tuple[int, ...], name: str, context: str = "validation"
-) -> None:
-    if array.shape != expected_shape:
-        raise DataIntegrityError(
-            f"{name} has shape {array.shape}, expected {expected_shape}",
-            f"Shape mismatch in {context}",
-        )
-
-
 # ======================
 # CONSTRAINT VALIDATION
 # ======================

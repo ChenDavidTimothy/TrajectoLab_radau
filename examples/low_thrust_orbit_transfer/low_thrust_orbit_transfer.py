@@ -312,6 +312,7 @@ phase.guess(
     terminal_time=final_time_guess,
 )
 
+problem.parameter_guess(tau=-25.0)
 
 # ============================================================================
 # Solve

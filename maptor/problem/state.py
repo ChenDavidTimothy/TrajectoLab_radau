@@ -397,12 +397,13 @@ class StaticParameterState:
 
 
 @dataclass
+@dataclass
 class MultiPhaseVariableState:
     phases: dict[PhaseID, PhaseDefinition] = field(default_factory=dict)
     static_parameters: StaticParameterState = field(default_factory=StaticParameterState)
     cross_phase_constraints: list[ca.MX] = field(default_factory=list)
     objective_expression: ca.MX | None = None
-
+    guess_static_parameters: dict[str, float] | None = None
     _objective_function: Callable[..., ca.MX] | None = None
     _cross_phase_constraints_function: Callable[..., list] | None = None
     _functions_built: bool = False
