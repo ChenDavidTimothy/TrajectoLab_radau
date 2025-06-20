@@ -1,10 +1,6 @@
 from __future__ import annotations
 
-import csv
-import json
 from typing import TYPE_CHECKING
-
-import numpy as np
 
 from .mtor_types import PhaseID
 
@@ -216,92 +212,3 @@ def plot_mesh_refinement_history(
 
     plt.tight_layout()
     plt.show()
-
-
-def export_benchmark_comparison(
-    solution: Solution,
-    filename: str,
-    phase_id: PhaseID | None = None,
-    format: str = "latex",
-) -> None:
-    """Export benchmarking data for research publication comparison."""
-    benchmark_data = get_benchmark_table(solution, phase_id=phase_id)
-
-    if format == "latex":
-        _export_latex_table(benchmark_data, filename, phase_id)
-    elif format == "csv":
-        _export_csv_table(benchmark_data, filename)
-    elif format == "json":
-        _export_json_table(benchmark_data, filename)
-    else:
-        raise ValueError(f"Unsupported format: {format}. Use 'latex', 'csv', or 'json'")
-
-
-def _export_latex_table(benchmark_data: dict, filename: str, phase_id: PhaseID | None) -> None:
-    """Export benchmark data as LaTeX table for research publications."""
-    phase_label = f"Phase {phase_id}" if phase_id is not None else "Multiphase"
-    latex_content = f"""% MAPTOR Benchmark Results - {phase_label}
-\\begin{{table}}[h]
-\\centering
-\\caption{{MAPTOR Performance on Example Problem Using hp-adaptive refinement}}
-\\label{{tab:maptor_performance}}
-\\begin{{tabular}}{{|c|c|c|}}
-\\hline
-Mesh State & Estimated Error & Number of Collocation Points \\\\
-\\hline
-"""
-    for i in range(len(benchmark_data["mesh_iteration"])):
-        iteration = benchmark_data["mesh_iteration"][i]
-        error = benchmark_data["estimated_error"][i]
-        points = benchmark_data["collocation_points"][i]
-
-        # Format iteration label for LaTeX
-        if iteration == 0:
-            iter_label = "Initial"
-        else:
-            iter_label = f"Iter {iteration}"
-
-        # Format error for LaTeX
-        if np.isnan(error):
-            error_str = "N/A"
-        else:
-            error_str = f"{error:.3e}"
-
-        latex_content += f"{iter_label} & {error_str} & {points} \\\\\n"
-    latex_content += """\\hline
-\\end{tabular}
-\\end{table}
-"""
-    with open(filename, "w") as f:
-        f.write(latex_content)
-
-
-def _export_csv_table(benchmark_data: dict, filename: str) -> None:
-    """Export benchmark data as CSV for data analysis."""
-    with open(filename, "w", newline="") as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(
-            ["mesh_iteration", "estimated_error", "collocation_points", "mesh_intervals"]
-        )
-        for i in range(len(benchmark_data["mesh_iteration"])):
-            writer.writerow(
-                [
-                    benchmark_data["mesh_iteration"][i],
-                    benchmark_data["estimated_error"][i],
-                    benchmark_data["collocation_points"][i],
-                    benchmark_data["mesh_intervals"][i],
-                ]
-            )
-
-
-def _export_json_table(benchmark_data: dict, filename: str) -> None:
-    """Export benchmark data as JSON for web applications."""
-    # Convert numpy arrays to lists for JSON serialization
-    json_data = {}
-    for key, value in benchmark_data.items():
-        if hasattr(value[0], "tolist"):  # numpy array
-            json_data[key] = [v.tolist() if hasattr(v, "tolist") else v for v in value]
-        else:
-            json_data[key] = value
-    with open(filename, "w") as f:
-        json.dump(json_data, f, indent=2)

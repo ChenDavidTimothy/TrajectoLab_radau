@@ -2,9 +2,8 @@
 Complete Example: MAPTOR Benchmarking for Research Comparison
 ============================================================
 
-This example demonstrates how to extract 100% honest benchmarking data
-from MAPTOR for direct comparison with CGPOPS, GPOPS-II, and other
-pseudospectral optimal control methods.
+This example demonstrates how to extract benchmarking data from MAPTOR
+for adaptive mesh refinement analysis and comparison.
 """
 
 import numpy as np
@@ -48,39 +47,24 @@ if not solution.status["success"]:
     exit(1)
 
 print("✓ Solution converged successfully")
-print(f"Total iterations: {solution.adaptive['iterations']}")
-print(f"Final objective: {solution.status['objective']:.6e}")
 
 # =============================================================================
-# RESEARCH BENCHMARKING DATA EXTRACTION
+# PROFESSIONAL BENCHMARK SUMMARY
+# =============================================================================
+
+# Display professional benchmark analysis
+solution.print_benchmark_summary()
+
+# =============================================================================
+# CUSTOM ANALYSIS WITH RAW DATA
 # =============================================================================
 
 print("\n" + "=" * 60)
-print("BENCHMARKING DATA FOR RESEARCH COMPARISON")
+print("CUSTOM ANALYSIS")
 print("=" * 60)
 
-# Extract complete benchmarking table
+# Extract raw benchmark data for custom analysis
 benchmark_data = solution.get_benchmark_table()
-
-print("\nTable: MAPTOR Performance on Example Problem")
-print("-" * 55)
-print(f"{'Iteration':>9} | {'Error':>12} | {'Collocation Points':>17}")
-print("-" * 55)
-
-for i in range(len(benchmark_data["mesh_iteration"])):
-    iteration = benchmark_data["mesh_iteration"][i]
-    error = benchmark_data["estimated_error"][i]
-    points = benchmark_data["collocation_points"][i]
-
-    # Format error properly for iteration 0
-    if np.isnan(error):
-        error_str = "N/A"
-    else:
-        error_str = f"{error:.3e}"
-
-    print(f"{iteration:9d} | {error_str:>12} | {points:17d}")
-
-print("-" * 55)
 
 # Phase-specific analysis
 if len(solution.phases) > 1:
@@ -91,38 +75,22 @@ if len(solution.phases) > 1:
         final_points = phase_benchmark["collocation_points"][-1]
         print(f"  Phase {phase_id}: Final error={final_error:.3e}, Points={final_points}")
 
-# =============================================================================
-# DETAILED ITERATION HISTORY ANALYSIS
-# =============================================================================
+# Custom calculations
+iterations = benchmark_data["mesh_iteration"]
+errors = benchmark_data["estimated_error"]
+points = benchmark_data["collocation_points"]
 
-print("\n" + "=" * 60)
-print("DETAILED ITERATION ANALYSIS")
-print("=" * 60)
-
-if "iteration_history" in solution.adaptive:
-    history = solution.adaptive["iteration_history"]
-
-    print("\nRefinement Strategy Analysis:")
-    for iteration, data in history.items():
-        total_h_refs = 0
-        total_p_refs = 0
-
-        for phase_id, strategies in data["refinement_strategy"].items():
-            h_count = sum(1 for s in strategies.values() if s == "h")
-            p_count = sum(1 for s in strategies.values() if s == "p")
-            total_h_refs += h_count
-            total_p_refs += p_count
-
-        print(
-            f"  Iteration {iteration}: {total_h_refs} h-refinements, {total_p_refs} p-refinements"
-        )
+valid_errors = [e for e in errors[1:] if not (np.isnan(e) or np.isinf(e))]
+if len(valid_errors) >= 2:
+    convergence_rate = np.log(valid_errors[0] / valid_errors[-1]) / (len(valid_errors) - 1)
+    print(f"\nCustom Metric - Convergence Rate: {convergence_rate:.2f} per iteration")
 
 # =============================================================================
-# VISUALIZATION FOR RESEARCH
+# VISUALIZATION
 # =============================================================================
 
 print("\n" + "=" * 60)
-print("RESEARCH VISUALIZATION")
+print("VISUALIZATION")
 print("=" * 60)
 
 try:
@@ -136,28 +104,29 @@ try:
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
 
     # Error convergence
-    iterations = benchmark_data["mesh_iteration"]
-    errors = benchmark_data["estimated_error"]
-    points = benchmark_data["collocation_points"]
+    valid_indices = [i for i, e in enumerate(errors) if not np.isnan(e)]
+    valid_iterations = [iterations[i] for i in valid_indices]
+    valid_errors_plot = [errors[i] for i in valid_indices]
 
-    ax1.semilogy(iterations, errors, "bo-", linewidth=2, markersize=8)
-    ax1.axhline(
-        y=solution.adaptive["target_tolerance"],
-        color="r",
-        linestyle="--",
-        label=f"Target tolerance: {solution.adaptive['target_tolerance']:.1e}",
-    )
-    ax1.set_xlabel("Mesh Iteration")
-    ax1.set_ylabel("Estimated Error")
-    ax1.set_title("MAPTOR Error Convergence")
-    ax1.grid(True, alpha=0.3)
-    ax1.legend()
+    if valid_errors_plot:
+        ax1.semilogy(valid_iterations, valid_errors_plot, "bo-", linewidth=2, markersize=8)
+        ax1.axhline(
+            y=solution.adaptive["target_tolerance"],
+            color="r",
+            linestyle="--",
+            label=f"Target tolerance: {solution.adaptive['target_tolerance']:.1e}",
+        )
+        ax1.set_xlabel("Mesh Iteration")
+        ax1.set_ylabel("Estimated Error")
+        ax1.set_title("Error Convergence")
+        ax1.grid(True, alpha=0.3)
+        ax1.legend()
 
     # Computational cost
     ax2.plot(iterations, points, "ro-", linewidth=2, markersize=8)
     ax2.set_xlabel("Mesh Iteration")
     ax2.set_ylabel("Collocation Points")
-    ax2.set_title("MAPTOR Computational Cost")
+    ax2.set_title("Computational Cost")
     ax2.grid(True, alpha=0.3)
 
     plt.tight_layout()
@@ -167,109 +136,24 @@ except ImportError:
     print("matplotlib not available for plotting")
 
 # =============================================================================
-# EXPORT FOR PUBLICATION
+# RAW DATA ACCESS FOR EXTERNAL TOOLS
 # =============================================================================
 
 print("\n" + "=" * 60)
-print("EXPORT FOR RESEARCH PUBLICATION")
+print("RAW DATA ACCESS")
 print("=" * 60)
 
-try:
-    # Export LaTeX table
-    solution.export_benchmark_comparison("maptor_benchmark_table.tex", phase_id=1, format="latex")
-    print("✓ LaTeX table exported to 'maptor_benchmark_table.tex'")
+print("Raw benchmark data available:")
+print(f"  Iterations: {len(benchmark_data['mesh_iteration'])}")
+print(f"  Data keys: {list(benchmark_data.keys())}")
 
-    # Export CSV data
-    solution.export_benchmark_comparison("maptor_benchmark_data.csv", format="csv")
-    print("✓ CSV data exported to 'maptor_benchmark_data.csv'")
-
-    # Export JSON for web apps
-    solution.export_benchmark_comparison("maptor_benchmark_data.json", format="json")
-    print("✓ JSON data exported to 'maptor_benchmark_data.json'")
-
-except Exception as e:
-    print(f"Export failed: {e}")
-
-# =============================================================================
-# RESEARCH INTEGRITY VERIFICATION
-# =============================================================================
-
-print("\n" + "=" * 60)
-print("RESEARCH INTEGRITY VERIFICATION")
-print("=" * 60)
-
-print("\nData integrity checks:")
-
-# Verify iteration count consistency
-if solution.adaptive:
-    expected_iterations = solution.adaptive["iterations"]
-    actual_data_points = len(benchmark_data["mesh_iteration"])
-    print(f"✓ Iteration count: {expected_iterations} == {actual_data_points}")
-
-    # Verify error estimates are realistic
-    final_error = benchmark_data["estimated_error"][-1]
-    target_tolerance = solution.adaptive["target_tolerance"]
-    print(
-        f"✓ Final error ({final_error:.3e}) <= tolerance ({target_tolerance:.3e}): {final_error <= target_tolerance}"
-    )
-
-    # Verify initial error is properly marked as N/A
-    initial_error = benchmark_data["estimated_error"][0]
-    print(f"✓ Initial error properly marked as N/A: {np.isnan(initial_error)}")
-
-    # Verify collocation points increase (generally)
-    points_increasing = all(
-        benchmark_data["collocation_points"][i] <= benchmark_data["collocation_points"][i + 1]
-        for i in range(len(benchmark_data["collocation_points"]) - 1)
-    )
-    print(
-        f"✓ Collocation points trend: {'Increasing' if points_increasing else 'Variable (includes coarsening)'}"
-    )
-
-print("\n✓ All benchmarking data validated for research integrity")
-
-# =============================================================================
-# SUMMARY FOR RESEARCH PAPER
-# =============================================================================
-
-print("\n" + "=" * 60)
-print("RESEARCH PAPER SUMMARY")
-print("=" * 60)
-
-total_iterations = solution.adaptive["iterations"]
-initial_points = benchmark_data["collocation_points"][0]
-final_points = benchmark_data["collocation_points"][-1]
-initial_error = benchmark_data["estimated_error"][0]
-final_error = benchmark_data["estimated_error"][-1]
-
-# Handle NaN initial error properly
-if np.isnan(initial_error):
-    # Find first valid error estimate
-    first_valid_error = None
-    for error in benchmark_data["estimated_error"][1:]:
-        if not np.isnan(error) and not np.isinf(error):
-            first_valid_error = error
-            break
-
-    if first_valid_error is not None:
-        error_reduction = first_valid_error / final_error
-        error_desc = f"from {first_valid_error:.3e} to {final_error:.3e}"
-    else:
-        error_reduction = float("nan")
-        error_desc = f"N/A to {final_error:.3e}"
-else:
-    error_reduction = initial_error / final_error
-    error_desc = f"from {initial_error:.3e} to {final_error:.3e}"
-
-print(f"""
-MAPTOR Adaptive Mesh Refinement Performance:
-- Converged in {total_iterations} iterations
-- Initial mesh: {initial_points} collocation points
-- Final mesh: {final_points} collocation points
-- Error reduction: {error_reduction:.1e}x ({error_desc})
-- Target tolerance: {solution.adaptive["target_tolerance"]:.1e}
-- Computational efficiency: {final_points / total_iterations:.1f} points per iteration
-
-This data provides complete transparency for research comparison
-with established methods in the optimal control literature.
-""")
+# Example: Export to CSV manually if needed
+print("\nExample: Manual CSV export")
+print("iteration,error,points,intervals")
+for i in range(len(benchmark_data["mesh_iteration"])):
+    iteration = benchmark_data["mesh_iteration"][i]
+    error = benchmark_data["estimated_error"][i]
+    points = benchmark_data["collocation_points"][i]
+    intervals = benchmark_data["mesh_intervals"][i]
+    error_str = "NaN" if np.isnan(error) else f"{error:.6e}"
+    print(f"{iteration},{error_str},{points},{intervals}")

@@ -789,47 +789,46 @@ class Solution:
             show_strategy=show_strategy,
         )
 
-    def export_benchmark_comparison(
-        self,
-        filename: str,
-        phase_id: PhaseID | None = None,
-        format: str = "latex",
-    ) -> None:
+    def print_benchmark_summary(self, comprehensive: bool = True) -> None:
         """
-        Export benchmarking data for research publication comparison.
+        Display professional adaptive mesh refinement benchmark analysis.
 
-        Creates formatted tables compatible with academic publications,
-        facilitating direct comparison with CGPOPS, GPOPS-II, and other
-        pseudospectral optimal control methods.
+        Provides comprehensive performance metrics, convergence analysis, refinement
+        strategies, and research integrity verification suitable for academic
+        comparison with established pseudospectral optimal control methods.
 
         Args:
-            filename: Output filename (extension determines format if not specified)
-            phase_id: Phase to export (None for multiphase analysis)
-            format: Export format ("latex", "csv", "json")
+            comprehensive: Detail level:
+                - True: Complete benchmark analysis (default)
+                - False: Reserved for future brief format
 
         Examples:
-            LaTeX table for publication:
+            Complete benchmark analysis:
 
-            >>> solution.export_benchmark_comparison(
-            ...     "maptor_vs_cgpops.tex",
-            ...     phase_id=1,
-            ...     format="latex"
-            ... )
+            >>> solution = mtor.solve_adaptive(problem)
+            >>> solution.print_benchmark_summary()
 
-            CSV data for analysis:
+            Access raw benchmark data:
 
-            >>> solution.export_benchmark_comparison(
-            ...     "refinement_data.csv",
-            ...     format="csv"
-            ... )
+            >>> benchmark_data = solution.get_benchmark_table()
+            >>> iterations = benchmark_data["mesh_iteration"]
+            >>> errors = benchmark_data["estimated_error"]
 
-            JSON for web visualization:
+            Phase-specific analysis:
 
-            >>> solution.export_benchmark_comparison(
-            ...     "adaptive_metrics.json",
-            ...     format="json"
-            ... )
+            >>> phase_data = solution.get_benchmark_table(phase_id=1)
+            >>> solution.plot_mesh_refinement_history(phase_id=1)
         """
-        from .iteration_solution import export_benchmark_comparison
+        if comprehensive:
+            from .summary_benchmark import print_comprehensive_benchmark_summary
 
-        export_benchmark_comparison(self, filename, phase_id=phase_id, format=format)
+            print_comprehensive_benchmark_summary(self)
+        else:
+            # Reserved for future brief benchmark summary
+            if self.adaptive:
+                print(
+                    f"Adaptive: {self.adaptive['iterations']} iterations, "
+                    f"{'converged' if self.adaptive['converged'] else 'not converged'}"
+                )
+            else:
+                print("No adaptive benchmark data available")
