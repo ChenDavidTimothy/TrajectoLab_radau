@@ -36,9 +36,8 @@ def print_comprehensive_benchmark_summary(solution: Solution) -> None:
 
 
 def _print_performance_table(solution: Solution) -> None:
-    try:
-        benchmark_data = solution.get_benchmark_table()
-    except ValueError:
+    benchmark_data = solution.adaptive.get("benchmark")
+    if benchmark_data is None:
         print("Benchmark data unavailable")
         return
 
@@ -89,9 +88,8 @@ def _print_refinement_strategy_summary(solution: Solution) -> None:
 
 
 def _print_efficiency_metrics(solution: Solution) -> None:
-    try:
-        benchmark_data = solution.get_benchmark_table()
-    except ValueError:
+    benchmark_data = solution.adaptive.get("benchmark")
+    if benchmark_data is None:
         return
 
     points = benchmark_data["collocation_points"]

@@ -64,13 +64,14 @@ print("CUSTOM ANALYSIS")
 print("=" * 60)
 
 # Extract raw benchmark data for custom analysis
-benchmark_data = solution.get_benchmark_table()
+benchmark_data = solution.adaptive["benchmark"]
 
 # Phase-specific analysis
 if len(solution.phases) > 1:
     print("\nPhase-specific analysis:")
+    phase_benchmarks = solution.adaptive["phase_benchmarks"]
     for phase_id in solution.phases.keys():
-        phase_benchmark = solution.get_benchmark_table(phase_id=phase_id)
+        phase_benchmark = phase_benchmarks[phase_id]
         final_error = phase_benchmark["estimated_error"][-1]
         final_points = phase_benchmark["collocation_points"][-1]
         print(f"  Phase {phase_id}: Final error={final_error:.3e}, Points={final_points}")
@@ -96,7 +97,7 @@ print("=" * 60)
 try:
     # Plot mesh refinement history
     print("\nGenerating mesh refinement history plot...")
-    solution.plot_mesh_refinement_history(phase_id=1, figsize=(12, 8), show_strategy=True)
+    solution.plot_mesh_refinement_history(phase_id=1, figsize=(12, 8))
 
     # Create convergence plot
     import matplotlib.pyplot as plt
