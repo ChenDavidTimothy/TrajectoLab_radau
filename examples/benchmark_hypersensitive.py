@@ -97,7 +97,7 @@ print("=" * 60)
 try:
     # Plot mesh refinement history
     print("\nGenerating mesh refinement history plot...")
-    solution.plot_mesh_refinement_history(phase_id=1, figsize=(12, 8))
+    solution.plot_refinement_history(phase_id=1, figsize=(12, 8))
 
     # Create convergence plot
     import matplotlib.pyplot as plt

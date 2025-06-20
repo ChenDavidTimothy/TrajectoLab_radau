@@ -204,7 +204,7 @@ class IterationData:
     """Per-iteration adaptive refinement metrics for research benchmarking.
 
     Captures exact algorithm state at each iteration for honest performance
-    comparison with other pseudospectral methods like CGPOPS and GPOPS-II.
+    comparison with other pseudospectral methods
     """
 
     iteration: int

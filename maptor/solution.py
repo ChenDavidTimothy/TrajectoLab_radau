@@ -777,7 +777,7 @@ class Solution:
             if self.adaptive:
                 print(f"Adaptive: Converged in {self.adaptive['iterations']} iterations")
 
-    def plot_mesh_refinement_history(
+    def plot_refinement_history(
         self,
         phase_id: PhaseID,
         figsize: tuple[float, float] = (12, 6),
@@ -810,8 +810,8 @@ class Solution:
             import matplotlib.pyplot as plt
 
             from maptor.radau import _compute_radau_collocation_components
-        except ImportError:
-            raise ImportError("matplotlib required for mesh refinement plotting")
+        except ImportError as e:
+            raise ImportError("matplotlib required for mesh refinement plotting") from e
 
         fig, ax = plt.subplots(figsize=figsize)
 
@@ -942,7 +942,7 @@ class Solution:
             Phase-specific analysis:
 
             >>> phase_data = solution.adaptive["phase_benchmarks"][1]
-            >>> solution.plot_mesh_refinement_history(phase_id=1)
+            >>> solution.plot_refinement_history(phase_id=1)
         """
         if comprehensive:
             from .summary_benchmark import print_comprehensive_benchmark_summary
