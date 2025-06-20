@@ -215,7 +215,6 @@ if solution.adaptive:
     )
 
 print("\n✓ All benchmarking data validated for research integrity")
-print("✓ Data ready for direct comparison with CGPOPS, GPOPS-II, and other methods")
 
 # =============================================================================
 # SUMMARY FOR RESEARCH PAPER
