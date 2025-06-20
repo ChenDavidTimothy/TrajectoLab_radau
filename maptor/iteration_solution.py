@@ -259,7 +259,13 @@ Mesh State & Estimated Error & Number of Collocation Points \\\\
         else:
             iter_label = f"Iter {iteration}"
 
-        latex_content += f"{iter_label} & {error:.3e} & {points} \\\\\n"
+        # Format error for LaTeX
+        if np.isnan(error):
+            error_str = "N/A"
+        else:
+            error_str = f"{error:.3e}"
+
+        latex_content += f"{iter_label} & {error_str} & {points} \\\\\n"
     latex_content += """\\hline
 \\end{tabular}
 \\end{table}

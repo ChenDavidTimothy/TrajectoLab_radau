@@ -42,7 +42,7 @@ def _capture_true_initial_mesh_state(problem: ProblemProtocol) -> IterationData:
     return IterationData(
         iteration=0,
         phase_error_estimates={
-            pid: [float("inf")] * len(phase_polynomial_degrees[pid])
+            pid: [float("nan")] * len(phase_polynomial_degrees[pid])
             for pid in problem._get_phase_ids()
         },
         phase_collocation_points=phase_colloc_points,
@@ -51,7 +51,7 @@ def _capture_true_initial_mesh_state(problem: ProblemProtocol) -> IterationData:
         phase_mesh_nodes=phase_mesh_nodes,
         refinement_strategy={pid: {} for pid in problem._get_phase_ids()},
         total_collocation_points=total_colloc,
-        max_error_all_phases=float("inf"),
+        max_error_all_phases=float("nan"),
         convergence_status=dict.fromkeys(problem._get_phase_ids(), False),
     )
 

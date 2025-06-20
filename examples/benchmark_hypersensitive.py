@@ -71,7 +71,14 @@ for i in range(len(benchmark_data["mesh_iteration"])):
     iteration = benchmark_data["mesh_iteration"][i]
     error = benchmark_data["estimated_error"][i]
     points = benchmark_data["collocation_points"][i]
-    print(f"{iteration:9d} | {error:12.3e} | {points:17d}")
+
+    # Format error properly for iteration 0
+    if np.isnan(error):
+        error_str = "N/A"
+    else:
+        error_str = f"{error:.3e}"
+
+    print(f"{iteration:9d} | {error_str:>12} | {points:17d}")
 
 print("-" * 55)
 
@@ -206,6 +213,10 @@ if solution.adaptive:
         f"✓ Final error ({final_error:.3e}) <= tolerance ({target_tolerance:.3e}): {final_error <= target_tolerance}"
     )
 
+    # Verify initial error is properly marked as N/A
+    initial_error = benchmark_data["estimated_error"][0]
+    print(f"✓ Initial error properly marked as N/A: {np.isnan(initial_error)}")
+
     # Verify collocation points increase (generally)
     points_increasing = all(
         benchmark_data["collocation_points"][i] <= benchmark_data["collocation_points"][i + 1]
@@ -230,14 +241,32 @@ initial_points = benchmark_data["collocation_points"][0]
 final_points = benchmark_data["collocation_points"][-1]
 initial_error = benchmark_data["estimated_error"][0]
 final_error = benchmark_data["estimated_error"][-1]
-error_reduction = initial_error / final_error
+
+# Handle NaN initial error properly
+if np.isnan(initial_error):
+    # Find first valid error estimate
+    first_valid_error = None
+    for error in benchmark_data["estimated_error"][1:]:
+        if not np.isnan(error) and not np.isinf(error):
+            first_valid_error = error
+            break
+
+    if first_valid_error is not None:
+        error_reduction = first_valid_error / final_error
+        error_desc = f"from {first_valid_error:.3e} to {final_error:.3e}"
+    else:
+        error_reduction = float("nan")
+        error_desc = f"N/A to {final_error:.3e}"
+else:
+    error_reduction = initial_error / final_error
+    error_desc = f"from {initial_error:.3e} to {final_error:.3e}"
 
 print(f"""
 MAPTOR Adaptive Mesh Refinement Performance:
 - Converged in {total_iterations} iterations
 - Initial mesh: {initial_points} collocation points
 - Final mesh: {final_points} collocation points
-- Error reduction: {error_reduction:.1e}x (from {initial_error:.3e} to {final_error:.3e})
+- Error reduction: {error_reduction:.1e}x ({error_desc})
 - Target tolerance: {solution.adaptive["target_tolerance"]:.1e}
 - Computational efficiency: {final_points / total_iterations:.1f} points per iteration
 
