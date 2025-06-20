@@ -10,6 +10,7 @@ from maptor.adaptive.phs.data_structures import (
     _ensure_2d_array,
 )
 from maptor.adaptive.phs.error_estimation import (
+    _calculate_gamma_normalizers_for_phase,
     _calculate_relative_error_estimate,
     _simulate_dynamics_for_phase_interval_error_estimation,
 )
@@ -662,25 +663,24 @@ def _process_single_phase_convergence(
     adaptive_params: AdaptiveParameters,
     adaptive_state: MultiphaseAdaptiveState,
     final_phase_errors: dict[PhaseID, list[float]],
-    global_gamma_factors: FloatArray,
+    final_gamma_factors: dict[PhaseID, FloatArray | None],
     numerical_dynamics_function: Callable[
         [FloatArray, FloatArray, float, FloatArray | None], FloatArray
     ],
 ) -> bool:
-    """Process single phase convergence using global gamma factors."""
+    gamma_factors = _calculate_gamma_normalizers_for_phase(solution, problem, phase_id)
     num_states, _ = problem._get_phase_variable_counts(phase_id)
 
-    # Use global gamma factors for all phases
-    if global_gamma_factors is None and num_states > 0:
-        solution.message = "Failed to calculate global gamma normalizers"
+    if gamma_factors is None and num_states > 0:
+        solution.message = f"Failed to calculate gamma normalizers for phase {phase_id}"
         solution.success = False
         raise ValueError(solution.message)
 
     safe_gamma = (
-        global_gamma_factors[:num_states, :]
-        if global_gamma_factors is not None and num_states > 0
-        else np.ones((max(1, num_states), 1), dtype=np.float64)
+        gamma_factors if gamma_factors is not None else np.ones((num_states, 1), dtype=np.float64)
     )
+
+    final_gamma_factors[phase_id] = gamma_factors
 
     state_evaluators, control_evaluators = _create_phase_evaluators(solution, problem, phase_id)
 
@@ -755,28 +755,11 @@ def _check_convergence_across_phases(
     ],
     iteration_history: dict[int, IterationData],
 ) -> tuple[bool, dict[PhaseID, dict[int, tuple[str, Any]]]]:
-    """Check convergence using GLOBAL gamma factors (equation 25)."""
-
-    # Calculate GLOBAL gamma factors ONCE for ALL phases
-    from maptor.adaptive.phs.error_estimation import _calculate_global_gamma_normalizers
-
-    global_gamma_factors = _calculate_global_gamma_normalizers(solution, problem)
-
     any_phase_needs_refinement = False
     all_refinement_actions: dict[PhaseID, dict[int, tuple[str, Any]]] = {}
 
     for phase_id in problem._get_phase_ids():
         numerical_dynamics_function = numerical_dynamics_functions[phase_id]
-
-        # Store the SAME global gamma factors for all phases
-        num_states, _ = problem._get_phase_variable_counts(phase_id)
-        if global_gamma_factors is not None and num_states > 0:
-            if global_gamma_factors.shape[0] >= num_states:
-                final_gamma_factors[phase_id] = global_gamma_factors[:num_states, :]
-            else:
-                final_gamma_factors[phase_id] = np.ones((num_states, 1), dtype=np.float64)
-        else:
-            final_gamma_factors[phase_id] = np.ones((max(1, num_states), 1), dtype=np.float64)
 
         phase_needs_refinement = _process_single_phase_convergence(
             phase_id,
@@ -785,7 +768,7 @@ def _check_convergence_across_phases(
             adaptive_params,
             adaptive_state,
             final_phase_errors,
-            global_gamma_factors,
+            final_gamma_factors,
             numerical_dynamics_function,
         )
 
@@ -801,7 +784,7 @@ def _check_convergence_across_phases(
             )
             all_refinement_actions[phase_id] = refinement_actions
 
-    # Record iteration data for benchmarking
+    # Record iteration data directly for benchmarking
     if adaptive_state.iteration > 0:
         iteration_history[adaptive_state.iteration] = _capture_iteration_metrics(
             adaptive_state.iteration,
