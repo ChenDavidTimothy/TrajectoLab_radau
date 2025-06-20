@@ -158,6 +158,7 @@ class AdaptiveAlgorithmData:
     phase_converged: dict[PhaseID, bool]
     final_phase_error_estimates: dict[PhaseID, list[float]]
     phase_gamma_factors: dict[PhaseID, FloatArray | None] = field(default_factory=dict)
+    iteration_history: dict[int, IterationData] = field(default_factory=dict)
 
 
 class OptimalControlSolution:
@@ -196,3 +197,23 @@ class OptimalControlSolution:
 
         # Adaptive algorithm data for convergence analysis
         self.adaptive_data: AdaptiveAlgorithmData | None = None
+
+
+@dataclass
+class IterationData:
+    """Per-iteration adaptive refinement metrics for research benchmarking.
+
+    Captures exact algorithm state at each iteration for honest performance
+    comparison with other pseudospectral methods like CGPOPS and GPOPS-II.
+    """
+
+    iteration: int
+    phase_error_estimates: dict[PhaseID, list[float]]
+    phase_collocation_points: dict[PhaseID, int]
+    phase_mesh_intervals: dict[PhaseID, int]
+    phase_polynomial_degrees: dict[PhaseID, list[int]]
+    phase_mesh_nodes: dict[PhaseID, FloatArray]
+    refinement_strategy: dict[PhaseID, dict[int, str]]
+    total_collocation_points: int
+    max_error_all_phases: float
+    convergence_status: dict[PhaseID, bool]
