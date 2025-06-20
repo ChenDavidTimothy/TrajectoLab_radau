@@ -4,6 +4,8 @@ import csv
 import json
 from typing import TYPE_CHECKING
 
+import numpy as np
+
 from .mtor_types import PhaseID
 
 

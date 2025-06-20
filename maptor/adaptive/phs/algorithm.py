@@ -878,11 +878,11 @@ def solve_multiphase_phs_adaptive_internal(
         )
 
         if not any_phase_needs_refinement:
-            logger.info("Multiphase adaptive refinement converged in %d iterations", iteration + 1)
+            logger.info("Multiphase adaptive refinement converged in %d iterations", iteration)
 
             solution.adaptive_data = AdaptiveAlgorithmData(
                 target_tolerance=error_tolerance,
-                total_iterations=iteration + 1,
+                total_iterations=iteration,
                 converged=True,
                 phase_converged=adaptive_state.phase_converged.copy(),
                 final_phase_error_estimates=final_phase_errors,
@@ -892,7 +892,7 @@ def solve_multiphase_phs_adaptive_internal(
 
             solution.message = (
                 f"Multiphase adaptive mesh converged to tolerance {error_tolerance:.1e} "
-                f"in {iteration + 1} iterations"
+                f"in {iteration} iterations"
             )
             return solution
 
