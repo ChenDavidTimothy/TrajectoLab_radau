@@ -403,7 +403,9 @@ class Solution:
             "count": len(self._raw_solution.static_parameters),
         }
 
-    def _process_benchmark_data(self, phase_id: PhaseID | None, history: dict) -> dict[str, list]:
+    def _process_benchmark_data(
+        self, phase_id: PhaseID | None, history: dict[int, dict[str, Any]]
+    ) -> dict[str, list]:
         mesh_iterations = []
         estimated_errors = []
         collocation_points = []
@@ -537,7 +539,7 @@ class Solution:
         # Add iteration history for benchmarking if available
         if hasattr(adaptive_data, "iteration_history") and adaptive_data.iteration_history:
             # Convert IterationData objects to dictionaries for API consistency
-            iteration_history = {}
+            iteration_history: dict[int, dict[str, Any]] = {}
             for iteration, data in adaptive_data.iteration_history.items():
                 iteration_history[iteration] = {
                     "iteration": data.iteration,
@@ -559,8 +561,8 @@ class Solution:
             # Add per-phase benchmark data
             phase_benchmarks = {}
             if iteration_history:
-                first_iteration = next(iter(iteration_history.values()))
-                available_phases = list(first_iteration["phase_error_estimates"].keys())
+                first_iteration_data = next(iter(iteration_history.values()))
+                available_phases = list(first_iteration_data["phase_error_estimates"].keys())
                 for phase_id in available_phases:
                     phase_benchmarks[phase_id] = self._process_benchmark_data(
                         phase_id, iteration_history

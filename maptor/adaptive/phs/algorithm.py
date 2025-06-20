@@ -1,6 +1,6 @@
 import logging
 from collections.abc import Callable, Sequence
-from typing import Any, cast
+from typing import Any
 
 import numpy as np
 
@@ -650,7 +650,7 @@ def _handle_solver_failure(
     if adaptive_state.most_recent_unified_solution is not None:
         adaptive_state.most_recent_unified_solution.message = f"Adaptive stopped due to solver failure in iteration {iteration + 1}: {solution.message}"
         adaptive_state.most_recent_unified_solution.success = False
-        return cast(OptimalControlSolution, adaptive_state.most_recent_unified_solution)
+        return adaptive_state.most_recent_unified_solution
     else:
         solution.message = f"Multiphase adaptive failed in first iteration: {solution.message}"
         return solution
@@ -903,7 +903,8 @@ def solve_multiphase_phs_adaptive_internal(
     )
 
     if adaptive_state.most_recent_unified_solution is not None:
-        adaptive_state.most_recent_unified_solution.adaptive_data = AdaptiveAlgorithmData(
+        final_solution = adaptive_state.most_recent_unified_solution
+        final_solution.adaptive_data = AdaptiveAlgorithmData(
             target_tolerance=error_tolerance,
             total_iterations=max_iterations,
             converged=False,
@@ -917,8 +918,8 @@ def solve_multiphase_phs_adaptive_internal(
             f"Reached maximum iterations ({max_iterations}) without full convergence "
             f"to tolerance {error_tolerance:.1e}"
         )
-        adaptive_state.most_recent_unified_solution.message = max_iter_msg
-        return adaptive_state.most_recent_unified_solution
+        final_solution.message = max_iter_msg
+        return final_solution
     else:
         failed_solution = OptimalControlSolution()
         failed_solution.success = False

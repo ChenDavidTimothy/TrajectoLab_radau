@@ -36,12 +36,15 @@ def print_comprehensive_benchmark_summary(solution: Solution) -> None:
 
 
 def _print_performance_table(solution: Solution) -> None:
-    benchmark_data = solution.adaptive.get("benchmark")
+    adaptive_info = solution.adaptive
+    if adaptive_info is None:
+        print("Adaptive data unavailable")
+        return
+
+    benchmark_data = adaptive_info.get("benchmark")
     if benchmark_data is None:
         print("Benchmark data unavailable")
         return
-
-    adaptive_info = solution.adaptive
 
     print(f"Status: {'CONVERGED' if adaptive_info['converged'] else 'NOT CONVERGED'}")
     print(f"Iterations: {adaptive_info['iterations']}")
@@ -67,7 +70,7 @@ def _print_performance_table(solution: Solution) -> None:
 
 def _print_refinement_strategy_summary(solution: Solution) -> None:
     adaptive_info = solution.adaptive
-    if "iteration_history" not in adaptive_info:
+    if adaptive_info is None or "iteration_history" not in adaptive_info:
         return
 
     history = adaptive_info["iteration_history"]
@@ -88,7 +91,11 @@ def _print_refinement_strategy_summary(solution: Solution) -> None:
 
 
 def _print_efficiency_metrics(solution: Solution) -> None:
-    benchmark_data = solution.adaptive.get("benchmark")
+    adaptive_info = solution.adaptive
+    if adaptive_info is None:
+        return
+
+    benchmark_data = adaptive_info.get("benchmark")
     if benchmark_data is None:
         return
 

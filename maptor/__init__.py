@@ -50,6 +50,7 @@ from maptor.exceptions import (
 from maptor.problem import Problem
 from maptor.solver import solve_adaptive, solve_fixed_mesh
 
+
 __version__ = "0.1.2"
 __author__ = "David Timothy"
 __description__ = "Multiphase Adaptive Trajectory Optimizer"

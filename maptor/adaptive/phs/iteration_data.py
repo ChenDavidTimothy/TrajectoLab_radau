@@ -88,7 +88,7 @@ def _capture_iteration_metrics(
             refinement_strategy[phase_id] = {}
 
     all_finite_errors = []
-    for phase_id, errors in phase_errors.items():
+    for _phase_id, errors in phase_errors.items():
         for error in errors:
             if not (np.isnan(error) or np.isinf(error)):
                 all_finite_errors.append(error)
