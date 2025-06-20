@@ -17,6 +17,10 @@ from maptor.adaptive.phs.error_estimation import (
 from maptor.adaptive.phs.initial_guess import (
     _propagate_multiphase_solution_to_new_meshes,
 )
+from maptor.adaptive.phs.iteration_data import (
+    _capture_iteration_metrics,
+    _capture_true_initial_mesh_state,
+)
 from maptor.adaptive.phs.refinement import (
     _h_reduce_intervals,
     _h_refine_params,
@@ -38,66 +42,6 @@ from maptor.radau import (
 
 
 logger = logging.getLogger(__name__)
-
-
-def _capture_iteration_metrics(
-    iteration: int,
-    solution: OptimalControlSolution,
-    problem: ProblemProtocol,
-    adaptive_state: MultiphaseAdaptiveState,
-    phase_errors: dict[PhaseID, list[float]],
-    refinement_actions: dict[PhaseID, dict[int, tuple[str, Any]]],
-) -> "IterationData":
-    """Capture exact iteration metrics for research benchmarking."""
-    from maptor.mtor_types import IterationData
-
-    phase_collocation_points = {}
-    phase_mesh_intervals = {}
-    refinement_strategy = {}
-    total_collocation_points = 0
-
-    for phase_id in problem._get_phase_ids():
-        current_degrees = adaptive_state.phase_polynomial_degrees[phase_id]
-        current_mesh_points = adaptive_state.phase_mesh_points[phase_id]
-
-        phase_colloc = sum(current_degrees)
-        phase_collocation_points[phase_id] = phase_colloc
-        total_collocation_points += phase_colloc
-
-        phase_mesh_intervals[phase_id] = len(current_degrees)
-
-        if phase_id in refinement_actions:
-            strategy = {}
-            for interval_idx, (strategy_type, _) in refinement_actions[phase_id].items():
-                strategy[interval_idx] = strategy_type
-            refinement_strategy[phase_id] = strategy
-        else:
-            refinement_strategy[phase_id] = {}
-
-    all_finite_errors = []
-    for phase_id, errors in phase_errors.items():
-        for error in errors:
-            if not (np.isnan(error) or np.isinf(error)):
-                all_finite_errors.append(error)
-
-    max_error = max(all_finite_errors) if all_finite_errors else float("inf")
-
-    return IterationData(
-        iteration=iteration,
-        phase_error_estimates={pid: errors.copy() for pid, errors in phase_errors.items()},
-        phase_collocation_points=phase_collocation_points,
-        phase_mesh_intervals=phase_mesh_intervals,
-        phase_polynomial_degrees={
-            pid: degrees.copy() for pid, degrees in adaptive_state.phase_polynomial_degrees.items()
-        },
-        phase_mesh_nodes={
-            pid: nodes.copy() for pid, nodes in adaptive_state.phase_mesh_points.items()
-        },
-        refinement_strategy=refinement_strategy,
-        total_collocation_points=total_collocation_points,
-        max_error_all_phases=max_error,
-        convergence_status=adaptive_state.phase_converged.copy(),
-    )
 
 
 def _extract_state_matrices_for_phase(
@@ -785,6 +729,20 @@ def _process_single_phase_convergence(
     return False
 
 
+def _get_phase_refinement_actions(
+    polynomial_degrees: list[int],
+    errors: list[float],
+    adaptive_params: AdaptiveParameters,
+) -> dict[int, tuple[str, Any]]:
+    intervals_needing_refinement, _ = _classify_intervals_by_error(
+        polynomial_degrees, errors, adaptive_params
+    )
+
+    return _process_refinement_intervals(
+        intervals_needing_refinement, polynomial_degrees, errors, adaptive_params
+    )
+
+
 def _check_convergence_across_phases(
     problem: ProblemProtocol,
     solution: OptimalControlSolution,
@@ -795,16 +753,14 @@ def _check_convergence_across_phases(
     numerical_dynamics_functions: dict[
         PhaseID, Callable[[FloatArray, FloatArray, float, FloatArray | None], FloatArray]
     ],
-    iteration_history: dict[int, "IterationData"],  # NEW parameter
-) -> tuple[bool, dict[PhaseID, dict[int, tuple[str, Any]]]]:  # NEW return type
-    """Check convergence and capture refinement decisions for benchmarking."""
+    iteration_history: dict[int, IterationData],
+) -> tuple[bool, dict[PhaseID, dict[int, tuple[str, Any]]]]:
     any_phase_needs_refinement = False
     all_refinement_actions: dict[PhaseID, dict[int, tuple[str, Any]]] = {}
 
     for phase_id in problem._get_phase_ids():
         numerical_dynamics_function = numerical_dynamics_functions[phase_id]
 
-        # Perform error estimation
         phase_needs_refinement = _process_single_phase_convergence(
             phase_id,
             solution,
@@ -819,21 +775,18 @@ def _check_convergence_across_phases(
         if phase_needs_refinement:
             any_phase_needs_refinement = True
 
-            # Capture refinement decisions for this phase
             phase_def = problem._phases[phase_id]
             polynomial_degrees = phase_def.collocation_points_per_interval
-            mesh_points = phase_def.global_normalized_mesh_nodes
             phase_errors = final_phase_errors[phase_id]
 
-            # Get refinement actions that will be applied
             refinement_actions = _get_phase_refinement_actions(
                 polynomial_degrees, phase_errors, adaptive_params
             )
             all_refinement_actions[phase_id] = refinement_actions
 
-    # Capture iteration metrics AFTER error estimation, BEFORE mesh modification
-    if hasattr(adaptive_state, "iteration"):
-        iteration_data = _capture_iteration_metrics(
+    # Record iteration data directly for benchmarking
+    if adaptive_state.iteration > 0:
+        iteration_history[adaptive_state.iteration] = _capture_iteration_metrics(
             adaptive_state.iteration,
             solution,
             problem,
@@ -841,88 +794,8 @@ def _check_convergence_across_phases(
             final_phase_errors,
             all_refinement_actions,
         )
-        iteration_history[adaptive_state.iteration] = iteration_data
 
     return any_phase_needs_refinement, all_refinement_actions
-
-
-def _get_phase_refinement_actions(
-    polynomial_degrees: list[int],
-    errors: list[float],
-    adaptive_params: AdaptiveParameters,
-) -> dict[int, tuple[str, Any]]:
-    """Extract refinement actions that will be applied to intervals."""
-    intervals_needing_refinement, _ = _classify_intervals_by_error(
-        polynomial_degrees, errors, adaptive_params
-    )
-
-    return _process_refinement_intervals(
-        intervals_needing_refinement, polynomial_degrees, errors, adaptive_params
-    )
-
-
-def _create_convergence_result(
-    solution: OptimalControlSolution,
-    iteration: int,
-    adaptive_params: AdaptiveParameters,
-    adaptive_state: MultiphaseAdaptiveState,
-    final_phase_errors: dict[PhaseID, list[float]],
-    final_gamma_factors: dict[PhaseID, FloatArray | None],
-    iteration_history: dict[int, "IterationData"],  # NEW parameter
-) -> OptimalControlSolution:
-    logger.info("Multiphase adaptive refinement converged in %d iterations", iteration + 1)
-
-    solution.adaptive_data = AdaptiveAlgorithmData(
-        target_tolerance=adaptive_params.error_tolerance,
-        total_iterations=iteration + 1,
-        converged=True,
-        phase_converged=adaptive_state.phase_converged.copy(),
-        final_phase_error_estimates=final_phase_errors,
-        phase_gamma_factors=final_gamma_factors,
-        iteration_history=iteration_history,  # NEW: Include complete history
-    )
-
-    solution.message = (
-        f"Multiphase adaptive mesh converged to tolerance {adaptive_params.error_tolerance:.1e} "
-        f"in {iteration + 1} iterations"
-    )
-    return solution
-
-
-def _create_max_iterations_result(
-    adaptive_params: AdaptiveParameters,
-    adaptive_state: MultiphaseAdaptiveState,
-    final_phase_errors: dict[PhaseID, list[float]],
-    final_gamma_factors: dict[PhaseID, FloatArray | None],
-    iteration_history: dict[int, "IterationData"],  # NEW parameter
-) -> OptimalControlSolution:
-    logger.warning(
-        "Multiphase adaptive refinement reached maximum iterations (%d) without convergence",
-        adaptive_params.max_iterations,
-    )
-
-    if adaptive_state.most_recent_unified_solution is not None:
-        adaptive_state.most_recent_unified_solution.adaptive_data = AdaptiveAlgorithmData(
-            target_tolerance=adaptive_params.error_tolerance,
-            total_iterations=adaptive_params.max_iterations,
-            converged=False,
-            phase_converged=adaptive_state.phase_converged.copy(),
-            final_phase_error_estimates=final_phase_errors,
-            phase_gamma_factors=final_gamma_factors,
-            iteration_history=iteration_history,  # NEW: Include partial history
-        )
-
-        max_iter_msg = (
-            f"Reached maximum iterations ({adaptive_params.max_iterations}) without full convergence "
-            f"to tolerance {adaptive_params.error_tolerance:.1e}"
-        )
-        adaptive_state.most_recent_unified_solution.message = max_iter_msg
-        return cast(OptimalControlSolution, adaptive_state.most_recent_unified_solution)
-    else:
-        failed_solution = OptimalControlSolution()
-        failed_solution.success = False
-        failed_solution.message = f"No successful unified solution obtained in {adaptive_params.max_iterations} iterations"
-        return failed_solution
 
 
 def solve_multiphase_phs_adaptive_internal(
@@ -944,50 +817,10 @@ def solve_multiphase_phs_adaptive_internal(
         max_iterations,
     )
 
-    # CAPTURE ITERATION 0 FIRST - before any algorithm processing
+    # Initialize benchmarking with TRUE user-specified initial mesh
     iteration_history: dict[int, IterationData] = {}
+    iteration_history[0] = _capture_true_initial_mesh_state(problem)
 
-    # Get TRUE initial mesh as specified by user
-    phase_colloc_points = {}
-    phase_mesh_intervals = {}
-    phase_polynomial_degrees = {}
-    phase_mesh_nodes = {}
-    total_colloc = 0
-
-    for phase_id in problem._get_phase_ids():
-        phase_def = problem._phases[phase_id]
-
-        # Get the ORIGINAL mesh configuration as specified by user
-        original_degrees = list(phase_def.collocation_points_per_interval)
-        original_mesh_nodes = phase_def.global_normalized_mesh_nodes.copy()
-
-        colloc = sum(original_degrees)
-        phase_colloc_points[phase_id] = colloc
-        phase_mesh_intervals[phase_id] = len(original_degrees)
-        phase_polynomial_degrees[phase_id] = original_degrees
-        phase_mesh_nodes[phase_id] = original_mesh_nodes
-        total_colloc += colloc
-
-    # Store TRUE iteration 0 (user's initial mesh)
-    iteration_history[0] = IterationData(
-        iteration=0,
-        phase_error_estimates={
-            pid: [float("inf")] * len(phase_polynomial_degrees[pid])
-            for pid in problem._get_phase_ids()
-        },
-        phase_collocation_points=phase_colloc_points,
-        phase_mesh_intervals=phase_mesh_intervals,
-        phase_polynomial_degrees=phase_polynomial_degrees,
-        phase_mesh_nodes=phase_mesh_nodes,
-        refinement_strategy={pid: {} for pid in problem._get_phase_ids()},
-        total_collocation_points=total_colloc,
-        max_error_all_phases=float("inf"),
-        convergence_status=dict.fromkeys(problem._get_phase_ids(), False),
-    )
-
-    logger.info("TRUE initial mesh captured: %d collocation points", total_colloc)
-
-    # NOW create adaptive parameters and state (this might modify the mesh)
     adaptive_params = AdaptiveParameters(
         error_tolerance=error_tolerance,
         max_iterations=max_iterations,
@@ -1008,7 +841,6 @@ def solve_multiphase_phs_adaptive_internal(
     final_phase_errors: dict[PhaseID, list[float]] = {}
     final_gamma_factors: dict[PhaseID, FloatArray | None] = {}
 
-    # Continue with the rest of the function exactly as before...
     for iteration in range(max_iterations):
         adaptive_state.iteration = iteration
         logger.info("Multiphase adaptive iteration %d/%d", iteration + 1, max_iterations)
@@ -1034,8 +866,7 @@ def solve_multiphase_phs_adaptive_internal(
                 phase_id
             )
 
-        # MODIFIED: Enhanced convergence check with benchmarking capture
-        any_phase_needs_refinement, refinement_actions = _check_convergence_across_phases(
+        any_phase_needs_refinement, _ = _check_convergence_across_phases(
             problem,
             solution,
             adaptive_params,
@@ -1043,20 +874,55 @@ def solve_multiphase_phs_adaptive_internal(
             final_phase_errors,
             final_gamma_factors,
             numerical_dynamics_functions,
-            iteration_history,  # NEW: Pass history for capture
+            iteration_history,
         )
 
         if not any_phase_needs_refinement:
-            return _create_convergence_result(
-                solution,
-                iteration,
-                adaptive_params,
-                adaptive_state,
-                final_phase_errors,
-                final_gamma_factors,
-                iteration_history,  # NEW: Include history
+            logger.info("Multiphase adaptive refinement converged in %d iterations", iteration + 1)
+
+            solution.adaptive_data = AdaptiveAlgorithmData(
+                target_tolerance=error_tolerance,
+                total_iterations=iteration + 1,
+                converged=True,
+                phase_converged=adaptive_state.phase_converged.copy(),
+                final_phase_error_estimates=final_phase_errors,
+                phase_gamma_factors=final_gamma_factors,
+                iteration_history=iteration_history,
             )
 
-    return _create_max_iterations_result(
-        adaptive_params, adaptive_state, final_phase_errors, final_gamma_factors, iteration_history
+            solution.message = (
+                f"Multiphase adaptive mesh converged to tolerance {error_tolerance:.1e} "
+                f"in {iteration + 1} iterations"
+            )
+            return solution
+
+    # Max iterations reached
+    logger.warning(
+        "Multiphase adaptive refinement reached maximum iterations (%d) without convergence",
+        max_iterations,
     )
+
+    if adaptive_state.most_recent_unified_solution is not None:
+        adaptive_state.most_recent_unified_solution.adaptive_data = AdaptiveAlgorithmData(
+            target_tolerance=error_tolerance,
+            total_iterations=max_iterations,
+            converged=False,
+            phase_converged=adaptive_state.phase_converged.copy(),
+            final_phase_error_estimates=final_phase_errors,
+            phase_gamma_factors=final_gamma_factors,
+            iteration_history=iteration_history,
+        )
+
+        max_iter_msg = (
+            f"Reached maximum iterations ({max_iterations}) without full convergence "
+            f"to tolerance {error_tolerance:.1e}"
+        )
+        adaptive_state.most_recent_unified_solution.message = max_iter_msg
+        return adaptive_state.most_recent_unified_solution
+    else:
+        failed_solution = OptimalControlSolution()
+        failed_solution.success = False
+        failed_solution.message = (
+            f"No successful unified solution obtained in {max_iterations} iterations"
+        )
+        return failed_solution

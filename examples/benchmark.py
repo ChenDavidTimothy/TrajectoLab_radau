@@ -106,7 +106,7 @@ if "iteration_history" in solution.adaptive:
             total_p_refs += p_count
 
         print(
-            f"  Iteration {iteration + 1}: {total_h_refs} h-refinements, {total_p_refs} p-refinements"
+            f"  Iteration {iteration}: {total_h_refs} h-refinements, {total_p_refs} p-refinements"
         )
 
 # =============================================================================

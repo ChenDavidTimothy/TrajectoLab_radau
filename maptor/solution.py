@@ -708,7 +708,7 @@ class Solution:
                 print(f"Adaptive: Converged in {self.adaptive['iterations']} iterations")
 
     # ============================================================================
-    # BENCHMARKING AND RESEARCH COMPARISON
+    # BENCHMARKING AND RESEARCH COMPARISON - Delegate to iteration_solution.py
     # ============================================================================
 
     def get_benchmark_table(self, phase_id: PhaseID | None = None) -> dict[str, list]:
@@ -726,7 +726,7 @@ class Solution:
 
         Returns:
             Benchmark metrics dictionary with keys:
-                - **mesh_iteration**: Iteration numbers [1, 2, 3, ...]
+                - **mesh_iteration**: Iteration numbers [0, 1, 2, ...]
                 - **estimated_error**: Maximum error estimates per iteration
                 - **collocation_points**: Total collocation points per iteration
                 - **mesh_intervals**: Number of mesh intervals per iteration
@@ -746,96 +746,19 @@ class Solution:
             ...     iter_num = benchmark["mesh_iteration"][i]
             ...     error = benchmark["estimated_error"][i]
             ...     points = benchmark["collocation_points"][i]
-            ...     print(f"{iter_num:9d} | {error:.3e} | {points:15d}")
+            ...     if iter_num == 0:
+            ...         print(f"{'Initial':>9} | {error:.3e} | {points:15d}")
+            ...     else:
+            ...         print(f"{iter_num:9d} | {error:.3e} | {points:15d}")
 
             Single phase analysis:
 
             >>> phase1_data = solution.get_benchmark_table(phase_id=1)
             >>> convergence_rate = phase1_data["estimated_error"]
-
-            Export to research paper table:
-
-            >>> import pandas as pd
-            >>> benchmark = solution.get_benchmark_table()
-            >>> df = pd.DataFrame(benchmark)
-            >>> df.to_latex("maptor_performance_table.tex")
-
-            Compare with literature:
-
-            >>> # CGPOPS benchmark comparison
-            >>> cgpops_errors = [2.463e-3, 9.891e-5, 3.559e-6, 3.287e-7, 8.706e-8]
-            >>> maptor_errors = benchmark["estimated_error"]
-            >>> performance_ratio = [m/c for m, c in zip(maptor_errors, cgpops_errors)]
         """
-        if not self.adaptive or "iteration_history" not in self.adaptive:
-            raise ValueError(
-                "No adaptive iteration history available for benchmarking. "
-                "Use solve_adaptive() to generate iteration data."
-            )
+        from .iteration_solution import get_benchmark_table
 
-        history = self.adaptive["iteration_history"]
-
-        if not history:
-            raise ValueError("Adaptive iteration history is empty")
-
-        if phase_id is not None and not isinstance(phase_id, int):
-            raise ValueError(f"phase_id must be integer or None, got {type(phase_id)}")
-
-        # Validate phase_id exists in data
-        if phase_id is not None:
-            first_iteration = next(iter(history.values()))
-            if phase_id not in first_iteration["phase_error_estimates"]:
-                available_phases = list(first_iteration["phase_error_estimates"].keys())
-                raise ValueError(
-                    f"Phase {phase_id} not found. Available phases: {available_phases}"
-                )
-
-        mesh_iterations = []
-        estimated_errors = []
-        collocation_points = []
-        mesh_intervals = []
-        polynomial_degrees = []
-        refinement_strategies = []
-
-        for iteration in sorted(history.keys()):
-            data = history[iteration]
-            mesh_iterations.append(iteration + 1)  # 1-indexed for research convention
-
-            if phase_id is not None:
-                # Single phase benchmarking
-                phase_errors = data["phase_error_estimates"][phase_id]
-                max_error = max(phase_errors) if phase_errors else float("inf")
-                colloc_points = data["phase_collocation_points"][phase_id]
-                intervals = data["phase_mesh_intervals"][phase_id]
-                degrees = data["phase_polynomial_degrees"][phase_id].copy()
-                strategy = data["refinement_strategy"].get(phase_id, {})
-            else:
-                # Multiphase combined benchmarking
-                max_error = data["max_error_all_phases"]
-                colloc_points = data["total_collocation_points"]
-                intervals = sum(data["phase_mesh_intervals"].values())
-                degrees = []
-                for phase_degrees in data["phase_polynomial_degrees"].values():
-                    degrees.extend(phase_degrees)
-                # Combine all phase strategies
-                strategy = {}
-                for phase_strategy in data["refinement_strategy"].values():
-                    strategy.update(phase_strategy)
-
-            estimated_errors.append(max_error)
-            collocation_points.append(colloc_points)
-            mesh_intervals.append(intervals)
-            polynomial_degrees.append(degrees)
-            refinement_strategies.append(strategy)
-
-        return {
-            "mesh_iteration": mesh_iterations,
-            "estimated_error": estimated_errors,
-            "collocation_points": collocation_points,
-            "mesh_intervals": mesh_intervals,
-            "polynomial_degrees": polynomial_degrees,
-            "refinement_strategy": refinement_strategies,
-        }
+        return get_benchmark_table(self, phase_id=phase_id)
 
     def plot_mesh_refinement_history(
         self,
@@ -856,126 +779,15 @@ class Solution:
             transform_domain: Transform from [-1,1] to physical domain (min, max)
             show_strategy: Display h/p refinement strategy annotations
         """
-        if not self.adaptive or "iteration_history" not in self.adaptive:
-            raise ValueError("No adaptive iteration history available for plotting")
+        from .iteration_solution import plot_mesh_refinement_history
 
-        history = self.adaptive["iteration_history"]
-        if not history:
-            raise ValueError("Adaptive iteration history is empty")
-
-        first_iteration = next(iter(history.values()))
-        if phase_id not in first_iteration["phase_mesh_nodes"]:
-            available_phases = list(first_iteration["phase_mesh_nodes"].keys())
-            raise ValueError(f"Phase {phase_id} not found. Available phases: {available_phases}")
-
-        try:
-            import matplotlib.pyplot as plt
-            import numpy as np
-
-            from maptor.radau import _compute_radau_collocation_components
-        except ImportError:
-            raise ImportError("matplotlib required for mesh refinement plotting")
-
-        fig, ax = plt.subplots(figsize=figsize)
-
-        # Strategy colors
-        strategy_colors = {"h": "red", "p": "blue", "none": "gray"}
-
-        for iteration in sorted(history.keys()):
-            data = history[iteration]
-            mesh_nodes = data["phase_mesh_nodes"][phase_id].copy()
-            polynomial_degrees = data["phase_polynomial_degrees"][phase_id]
-
-            # Transform domain if requested
-            if transform_domain is not None:
-                domain_min, domain_max = transform_domain
-                mesh_nodes = domain_min + (mesh_nodes + 1) * (domain_max - domain_min) / 2
-
-            y_position = iteration + 1
-
-            # Plot mesh interval boundaries (red circles)
-            ax.scatter(
-                mesh_nodes,
-                [y_position] * len(mesh_nodes),
-                s=60,
-                marker="o",
-                facecolors="none",
-                edgecolors="red",
-                linewidth=2,
-            )
-
-            # Plot interior collocation points (black dots)
-            collocation_points = []
-            for interval_idx in range(len(polynomial_degrees)):
-                degree = polynomial_degrees[interval_idx]
-                if degree > 0:
-                    radau_components = _compute_radau_collocation_components(degree)
-                    radau_points = radau_components.collocation_nodes
-
-                    # Transform to current interval
-                    interval_start = mesh_nodes[interval_idx]
-                    interval_end = mesh_nodes[interval_idx + 1]
-                    interval_colloc_points = (
-                        interval_start + (radau_points + 1) * (interval_end - interval_start) / 2
-                    )
-                    collocation_points.extend(interval_colloc_points)
-
-            if collocation_points:
-                ax.scatter(
-                    collocation_points,
-                    [y_position] * len(collocation_points),
-                    s=25,
-                    marker="o",
-                    color="black",
-                )
-
-        # Formatting
-        domain_label = "Mesh Point Location"
-        if transform_domain is not None:
-            domain_label += f" [{transform_domain[0]}, {transform_domain[1]}]"
-
-        ax.set_xlabel(domain_label)
-        ax.set_ylabel("Mesh Iteration")
-        ax.set_title(f"MAPTOR Mesh Refinement History - Phase {phase_id}")
-        ax.grid(True, alpha=0.3)
-        ax.set_ylim(0.5, len(history) + 0.5)
-
-        # FIX: Set proper y-tick labels to show iteration numbers
-        iterations = sorted(history.keys())
-        y_positions = [iter_num + 1 for iter_num in iterations]  # iter 0->y=1, iter 1->y=2, etc
-        y_labels = [f"Iter {iter_num}" for iter_num in iterations]
-        ax.set_yticks(y_positions)
-        ax.set_yticklabels(y_labels)
-
-        # Simple legend
-        from matplotlib.lines import Line2D
-
-        legend_elements = [
-            Line2D(
-                [0],
-                [0],
-                marker="o",
-                color="w",
-                markerfacecolor="none",
-                markeredgecolor="red",
-                markersize=8,
-                linewidth=2,
-                label="Mesh boundaries",
-            ),
-            Line2D(
-                [0],
-                [0],
-                marker="o",
-                color="black",
-                markersize=6,
-                linewidth=0,
-                label="Collocation points",
-            ),
-        ]
-        ax.legend(handles=legend_elements, loc="upper right")
-
-        plt.tight_layout()
-        plt.show()
+        plot_mesh_refinement_history(
+            self,
+            phase_id,
+            figsize=figsize,
+            transform_domain=transform_domain,
+            show_strategy=show_strategy,
+        )
 
     def export_benchmark_comparison(
         self,
@@ -1018,74 +830,6 @@ class Solution:
             ...     format="json"
             ... )
         """
-        benchmark_data = self.get_benchmark_table(phase_id=phase_id)
+        from .iteration_solution import export_benchmark_comparison
 
-        if format == "latex":
-            _export_latex_table(benchmark_data, filename, phase_id)
-        elif format == "csv":
-            _export_csv_table(benchmark_data, filename)
-        elif format == "json":
-            _export_json_table(benchmark_data, filename)
-        else:
-            raise ValueError(f"Unsupported format: {format}. Use 'latex', 'csv', or 'json'")
-
-
-def _export_latex_table(benchmark_data: dict, filename: str, phase_id: PhaseID | None) -> None:
-    """Export benchmark data as LaTeX table for research publications."""
-    phase_label = f"Phase {phase_id}" if phase_id is not None else "Multiphase"
-    latex_content = f"""% MAPTOR Benchmark Results - {phase_label}
-\\begin{{table}}[h]
-\\centering
-\\caption{{MAPTOR Performance on Example Problem Using hp-adaptive refinement}}
-\\label{{tab:maptor_performance}}
-\\begin{{tabular}}{{|c|c|c|}}
-\\hline
-Mesh Iteration & Estimated Error & Number of Collocation Points \\\\
-\\hline
-"""
-    for i in range(len(benchmark_data["mesh_iteration"])):
-        iteration = benchmark_data["mesh_iteration"][i]
-        error = benchmark_data["estimated_error"][i]
-        points = benchmark_data["collocation_points"][i]
-        latex_content += f"{iteration} & {error:.3e} & {points} \\\\\n"
-    latex_content += """\\hline
-\\end{tabular}
-\\end{table}
-"""
-    with open(filename, "w") as f:
-        f.write(latex_content)
-
-
-def _export_csv_table(benchmark_data: dict, filename: str) -> None:
-    """Export benchmark data as CSV for data analysis."""
-    import csv
-
-    with open(filename, "w", newline="") as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(
-            ["mesh_iteration", "estimated_error", "collocation_points", "mesh_intervals"]
-        )
-        for i in range(len(benchmark_data["mesh_iteration"])):
-            writer.writerow(
-                [
-                    benchmark_data["mesh_iteration"][i],
-                    benchmark_data["estimated_error"][i],
-                    benchmark_data["collocation_points"][i],
-                    benchmark_data["mesh_intervals"][i],
-                ]
-            )
-
-
-def _export_json_table(benchmark_data: dict, filename: str) -> None:
-    """Export benchmark data as JSON for web applications."""
-    import json
-
-    # Convert numpy arrays to lists for JSON serialization
-    json_data = {}
-    for key, value in benchmark_data.items():
-        if hasattr(value[0], "tolist"):  # numpy array
-            json_data[key] = [v.tolist() if hasattr(v, "tolist") else v for v in value]
-        else:
-            json_data[key] = value
-    with open(filename, "w") as f:
-        json.dump(json_data, f, indent=2)
+        export_benchmark_comparison(self, filename, phase_id=phase_id, format=format)
