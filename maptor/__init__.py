@@ -1,10 +1,7 @@
 """
 MAPTOR: Multiphase Adaptive Trajectory Optimizer
 
-A Python framework for solving optimal control problems using the Radau
-Pseudospectral Method. MAPTOR transforms continuous trajectory optimization
-problems into solvable nonlinear programming problems through spectral
-collocation methods.
+A Python framework for **trajectory optimization** using optimal control. MAPTOR solves problems involving the motion of vehicles, robots, spacecraft, and other dynamic systems through space and time using the Legendre-Gauss-Radau pseudospectral method and phs-adaptive mesh refinement.
 
 Key Features:
     - Intuitive problem definition API
@@ -43,7 +40,6 @@ from __future__ import annotations
 
 import logging
 
-# Import exceptions first - foundational error handling
 from maptor.exceptions import (
     ConfigurationError,
     DataIntegrityError,
@@ -51,35 +47,24 @@ from maptor.exceptions import (
     MAPTORBaseError,
     SolutionExtractionError,
 )
-
-# Core problem definition interface
 from maptor.problem import Problem
-
-# Solver functions - primary user interface
 from maptor.solver import solve_adaptive, solve_fixed_mesh
 
-
-# Version and metadata
-__version__ = "0.1.0"
+__version__ = "0.1.2"
 __author__ = "David Timothy"
 __description__ = "Multiphase Adaptive Trajectory Optimizer"
 
-# Public API - Only these should be used by external code
 __all__ = [
     "ConfigurationError",
     "DataIntegrityError",
     "InterpolationError",
-    # Exception Hierarchy
     "MAPTORBaseError",
-    # Core Classes
     "Problem",
     "SolutionExtractionError",
-    # Solver Functions
     "solve_adaptive",
     "solve_fixed_mesh",
 ]
 
-# Configure logging - no handlers, let user control output
 logging.getLogger(__name__).addHandler(logging.NullHandler())
 
 
@@ -95,7 +80,6 @@ def _get_config() -> dict[str, str]:
     }
 
 
-# Development and debugging utilities (not in __all__)
 def _show_config() -> None:
     """Print MAPTOR configuration (internal use)."""
     config = _get_config()
