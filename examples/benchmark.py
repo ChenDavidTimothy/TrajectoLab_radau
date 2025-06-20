@@ -39,7 +39,7 @@ solution = mtor.solve_adaptive(
     min_polynomial_degree=3,
     max_polynomial_degree=8,
     nlp_options={"ipopt.print_level": 0, "ipopt.max_iter": 500},
-    show_summary=False,
+    show_summary=True,
 )
 
 if not solution.status["success"]:
