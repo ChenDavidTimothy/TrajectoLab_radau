@@ -450,7 +450,7 @@ Access structured benchmark arrays for performance analysis and research compari
 
         # All six benchmark arrays
         iterations = benchmark["mesh_iteration"]         # [0, 1, 2, 3, ...]
-        errors = benchmark["estimated_error"]            # [nan, 1e-3, 1e-5, 1e-7, ...]
+        errors = benchmark["estimated_error"]            # [1e-2, 1e-3, 1e-5, 1e-7, ...]
         points = benchmark["collocation_points"]         # [50, 75, 100, 150, ...]
         intervals = benchmark["mesh_intervals"]          # [10, 15, 20, 30, ...]
         degrees = benchmark["polynomial_degrees"]        # [[4,4,4], [4,6,4], [6,6,6], ...]
@@ -482,7 +482,7 @@ Access structured benchmark arrays for performance analysis and research compari
         benchmark = solution.adaptive["benchmark"]
 
         # mesh_iteration: Iteration sequence numbers starting from 0
-        # estimated_error: Maximum error estimate across all intervals (nan for iteration 0)
+        # estimated_error: Maximum error estimate across all intervals
         # collocation_points: Total collocation points used in mesh
         # mesh_intervals: Total number of mesh intervals
         # polynomial_degrees: List of polynomial degrees for each interval per iteration

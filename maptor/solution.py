@@ -553,7 +553,7 @@ class Solution:
 
             >>> benchmark = solution.adaptive["benchmark"]
             >>> iterations = benchmark["mesh_iteration"]         # [0, 1, 2, 3]
-            >>> errors = benchmark["estimated_error"]            # [nan, 1e-3, 1e-5, 1e-7]
+            >>> errors = benchmark["estimated_error"]            # [1e-2, 1e-3, 1e-5, 1e-7]
             >>> points = benchmark["collocation_points"]         # [50, 75, 100, 150]
             >>> intervals = benchmark["mesh_intervals"]          # [10, 15, 20, 30]
             >>> degrees = benchmark["polynomial_degrees"]        # [[4,4,4], [4,6,4], ...]
