@@ -1,5 +1,4 @@
 import logging
-from functools import cached_property
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -405,14 +404,7 @@ class Solution:
             "count": len(self._raw_solution.static_parameters),
         }
 
-    @cached_property
-    def _benchmark_data_cache(self) -> tuple[BenchmarkData, dict[PhaseID, BenchmarkData]]:
-        """
-        Process benchmark data efficiently with caching and validation.
-
-        Returns:
-            Tuple of (mission_wide_benchmark, phase_specific_benchmarks)
-        """
+    def _process_benchmark_data(self) -> tuple[BenchmarkData, dict[PhaseID, BenchmarkData]]:
         if self._raw_solution is None or self._raw_solution.adaptive_data is None:
             return {
                 "mesh_iteration": [],
@@ -659,8 +651,8 @@ class Solution:
                 }
             result["iteration_history"] = iteration_history
 
-            # Add processed benchmark data using cached property
-            mission_benchmark, phase_benchmarks = self._benchmark_data_cache
+            # Add processed benchmark data
+            mission_benchmark, phase_benchmarks = self._process_benchmark_data()
             result["benchmark"] = mission_benchmark
             result["phase_benchmarks"] = phase_benchmarks
 
