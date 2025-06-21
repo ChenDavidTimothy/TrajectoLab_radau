@@ -538,7 +538,7 @@ class Solution:
 
             **Benchmark Array Structure** (both mission-wide and per-phase):
             - **mesh_iteration** (list[int]): Iteration numbers [0, 1, 2, ...]
-            - **estimated_error** (list[float]): Error estimates [nan, 1e-3, 1e-5, ...]
+            - **estimated_error** (list[float]): Error estimates [1e-2, 1e-3, 1e-5, ...]
             - **collocation_points** (list[int]): Total collocation points [50, 75, 100, ...]
             - **mesh_intervals** (list[int]): Total mesh intervals [10, 15, 20, ...]
             - **polynomial_degrees** (list[list[int]]): Polynomial degrees per interval
@@ -961,18 +961,13 @@ class Solution:
         plt.tight_layout()
         plt.show()
 
-    def print_benchmark_summary(self, comprehensive: bool = True) -> None:
+    def print_benchmark_summary(self) -> None:
         """
         Display professional adaptive mesh refinement benchmark analysis.
 
         Provides comprehensive performance metrics, convergence analysis, refinement
         strategies, and research integrity verification suitable for academic
         comparison with established pseudospectral optimal control methods.
-
-        Args:
-            comprehensive: Detail level:
-                - True: Complete benchmark analysis (default)
-                - False: Reserved for future brief format
 
         Examples:
             Complete benchmark analysis:
@@ -991,15 +986,6 @@ class Solution:
             >>> phase_data = solution.adaptive["phase_benchmarks"][1]
             >>> solution.plot_refinement_history(phase_id=1)
         """
-        if comprehensive:
-            from .summary_benchmark import print_comprehensive_benchmark_summary
+        from .summary_benchmark import print_comprehensive_benchmark_summary
 
-            print_comprehensive_benchmark_summary(self)
-        else:
-            if self.adaptive:
-                print(
-                    f"Adaptive: {self.adaptive['iterations']} iterations, "
-                    f"{'converged' if self.adaptive['converged'] else 'not converged'}"
-                )
-            else:
-                print("No adaptive benchmark data available")
+        print_comprehensive_benchmark_summary(self)

@@ -41,7 +41,7 @@ if not solution.status["success"]:
 print("✓ Solution converged successfully")
 
 # =============================================================================
-# PROFESSIONAL BENCHMARK SUMMARY - SINGLE SOURCE DATA ACCESS
+# PROFESSIONAL BENCHMARK SUMMARY
 # =============================================================================
 
 # Display professional benchmark analysis
@@ -80,7 +80,7 @@ if len(valid_errors) >= 2:
     print(f"\nCustom Metric - Convergence Rate: {convergence_rate:.2f} per iteration")
 
 # =============================================================================
-# VISUALIZATION - WORKS IDENTICALLY WITH PURGED IMPLEMENTATION
+# VISUALIZATION
 # =============================================================================
 
 print("\n" + "=" * 60)
@@ -130,7 +130,7 @@ except ImportError:
     print("matplotlib not available for plotting")
 
 # =============================================================================
-# RAW DATA ACCESS - SINGLE SOURCE VALIDATION
+# RAW DATA ACCESS
 # =============================================================================
 
 print("\n" + "=" * 60)
