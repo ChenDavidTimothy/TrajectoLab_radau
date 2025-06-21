@@ -510,7 +510,7 @@ class Solution:
         return phase_benchmarks
 
     @property
-    def adaptive(self) -> dict[str, Any] | None:
+    def adaptive(self) -> dict[str, Any]:
         """
         Comprehensive adaptive algorithm performance data and benchmarking metrics.
 
@@ -595,10 +595,9 @@ class Solution:
             ...     print("Fixed mesh solution - no adaptive data")
         """
         if self._raw_solution is None or self._raw_solution.adaptive_data is None:
-            return None
+            raise RuntimeError("Adaptive data is not available. This may be a fixed mesh solution.")
 
         adaptive_data = self._raw_solution.adaptive_data
-
         result = {
             "converged": adaptive_data.converged,
             "iterations": adaptive_data.total_iterations,
@@ -608,9 +607,7 @@ class Solution:
             "gamma_factors": adaptive_data.phase_gamma_factors,
         }
 
-        # Add iteration history for benchmarking if available
         if hasattr(adaptive_data, "iteration_history") and adaptive_data.iteration_history:
-            # Convert IterationData objects to dictionaries for API consistency
             iteration_history: dict[int, dict[str, Any]] = {}
             for iteration, data in adaptive_data.iteration_history.items():
                 iteration_history[iteration] = {
@@ -626,8 +623,6 @@ class Solution:
                     "convergence_status": data.convergence_status,
                 }
             result["iteration_history"] = iteration_history
-
-            # Add computed benchmark data
             result["benchmark"] = self._extract_mission_benchmark_arrays()
             result["phase_benchmarks"] = self._extract_phase_benchmark_arrays()
 
@@ -657,7 +652,6 @@ class Solution:
         if len(key) != 2:
             raise KeyError("Tuple key must have exactly 2 elements: (phase_id, variable_name)")
 
-        # Explicit None check for mypy type safety
         if self._raw_solution is None:
             raise RuntimeError("Cannot access variable: No solution data available")
 

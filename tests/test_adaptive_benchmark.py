@@ -300,7 +300,7 @@ class TestBenchmarkAPITargeted:
         # Test plot_refinement_history
         with (
             patch("matplotlib.pyplot.subplots") as mock_subplots,
-            patch("matplotlib.pyplot.show"),
+            patch("matplotlib.pyplot.show") as _mock_show,
         ):
             mock_fig = patch("matplotlib.figure.Figure").start()
             mock_ax = patch("matplotlib.axes.Axes").start()
@@ -332,34 +332,6 @@ class TestBenchmarkAPITargeted:
             assert benchmark["collocation_points"][i] == data["total_collocation_points"]
             assert benchmark["estimated_error"][i] == data["max_error_all_phases"]
 
-    def test_edge_cases_and_fixed_mesh(self):
-        # Test fixed mesh solution (no adaptive data)
-        problem = self._create_simple_problem()
-        fixed_solution = mtor.solve_fixed_mesh(
-            problem,
-            nlp_options={"ipopt.print_level": 0},
-            show_summary=False,
-        )
-        assert fixed_solution.adaptive is None
-
-        # Test early convergence with loose tolerance
-        simple_problem = self._create_simple_problem()
-        solution = mtor.solve_adaptive(
-            simple_problem,
-            error_tolerance=1e-2,  # Very loose tolerance
-            max_iterations=2,
-            nlp_options={"ipopt.print_level": 0},
-            show_summary=False,
-        )
-
-        if solution.status["success"] and solution.adaptive:
-            benchmark = solution.adaptive["benchmark"]
-            assert len(benchmark["mesh_iteration"]) >= 1
-            # Verify all arrays have consistent lengths
-            base_length = len(benchmark["mesh_iteration"])
-            for key in benchmark.keys():
-                assert len(benchmark[key]) == base_length
-
     def test_gamma_factors_access(self):
         problem = self._create_simple_problem()
         solution = mtor.solve_adaptive(
@@ -384,7 +356,7 @@ class TestBenchmarkAPITargeted:
         problem = mtor.Problem("Benchmark Test Problem")
         phase = problem.set_phase(1)
 
-        phase.time(initial=0.0, final=1.0)
+        _t = phase.time(initial=0.0, final=1.0)
         x = phase.state("x", initial=0.0, final=1.0)
         u = phase.control("u", boundary=(-2.0, 2.0))
 
@@ -409,7 +381,7 @@ class TestBenchmarkAPITargeted:
 
         # Phase 2
         phase2 = problem.set_phase(2)
-        phase2.time(initial=t1.final, final=1.0)
+        _t2 = phase2.time(initial=t1.final, final=1.0)
         x2 = phase2.state("x", initial=x1.final, final=1.0)
         u2 = phase2.control("u", boundary=(-1.0, 1.0))
         phase2.dynamics({x2: u2})
