@@ -15,47 +15,6 @@ from maptor.mtor_types import (
 logger = logging.getLogger(__name__)
 
 
-def _capture_true_initial_mesh_state(problem: ProblemProtocol) -> IterationData:
-    """Capture the TRUE user-specified initial mesh BEFORE any algorithm processing."""
-    phase_colloc_points = {}
-    phase_mesh_intervals = {}
-    phase_polynomial_degrees = {}
-    phase_mesh_nodes = {}
-    total_colloc = 0
-
-    for phase_id in problem._get_phase_ids():
-        phase_def = problem._phases[phase_id]
-
-        # Capture ORIGINAL mesh configuration as specified by user
-        original_degrees = list(phase_def.collocation_points_per_interval)
-        original_mesh_nodes = phase_def.global_normalized_mesh_nodes.copy()
-
-        colloc = sum(original_degrees)
-        phase_colloc_points[phase_id] = colloc
-        phase_mesh_intervals[phase_id] = len(original_degrees)
-        phase_polynomial_degrees[phase_id] = original_degrees
-        phase_mesh_nodes[phase_id] = original_mesh_nodes
-        total_colloc += colloc
-
-    logger.debug("TRUE initial mesh captured: %d collocation points", total_colloc)
-
-    return IterationData(
-        iteration=0,
-        phase_error_estimates={
-            pid: [float("nan")] * len(phase_polynomial_degrees[pid])
-            for pid in problem._get_phase_ids()
-        },
-        phase_collocation_points=phase_colloc_points,
-        phase_mesh_intervals=phase_mesh_intervals,
-        phase_polynomial_degrees=phase_polynomial_degrees,
-        phase_mesh_nodes=phase_mesh_nodes,
-        refinement_strategy={pid: {} for pid in problem._get_phase_ids()},
-        total_collocation_points=total_colloc,
-        max_error_all_phases=float("nan"),
-        convergence_status=dict.fromkeys(problem._get_phase_ids(), False),
-    )
-
-
 def _capture_iteration_metrics(
     iteration: int,
     solution: Any,
