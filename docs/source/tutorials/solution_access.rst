@@ -640,7 +640,7 @@ Access professional analysis and visualization capabilities:
 
     # Concise benchmark information
     try:
-        solution.print_benchmark_summary(comprehensive=False)
+        solution.print_benchmark_summary()
     except RuntimeError:
         print("No adaptive data for benchmark summary")
 
