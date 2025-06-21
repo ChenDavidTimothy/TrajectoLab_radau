@@ -36,7 +36,7 @@ class TestBenchmarkAPITargeted:
 
         # Test final errors structure
         assert isinstance(adaptive["final_errors"], dict)
-        for phase_id, errors in adaptive["final_errors"].items():
+        for _phase_id, errors in adaptive["final_errors"].items():
             assert isinstance(errors, list)
             assert all(isinstance(e, float) for e in errors)
 
@@ -300,7 +300,7 @@ class TestBenchmarkAPITargeted:
         # Test plot_refinement_history
         with (
             patch("matplotlib.pyplot.subplots") as mock_subplots,
-            patch("matplotlib.pyplot.show") as mock_show,
+            patch("matplotlib.pyplot.show"),
         ):
             mock_fig = patch("matplotlib.figure.Figure").start()
             mock_ax = patch("matplotlib.axes.Axes").start()
@@ -384,7 +384,7 @@ class TestBenchmarkAPITargeted:
         problem = mtor.Problem("Benchmark Test Problem")
         phase = problem.set_phase(1)
 
-        t = phase.time(initial=0.0, final=1.0)
+        phase.time(initial=0.0, final=1.0)
         x = phase.state("x", initial=0.0, final=1.0)
         u = phase.control("u", boundary=(-2.0, 2.0))
 
@@ -409,7 +409,7 @@ class TestBenchmarkAPITargeted:
 
         # Phase 2
         phase2 = problem.set_phase(2)
-        t2 = phase2.time(initial=t1.final, final=1.0)
+        phase2.time(initial=t1.final, final=1.0)
         x2 = phase2.state("x", initial=x1.final, final=1.0)
         u2 = phase2.control("u", boundary=(-1.0, 1.0))
         phase2.dynamics({x2: u2})

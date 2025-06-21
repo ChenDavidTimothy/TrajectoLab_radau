@@ -428,7 +428,7 @@ class Solution:
 
         iterations = sorted(history.keys())
 
-        # Single pass extraction - no redundant processing
+        # Single pass extraction
         mesh_iterations = iterations
         estimated_errors = [history[i].max_error_all_phases for i in iterations]
         collocation_points = [history[i].total_collocation_points for i in iterations]
@@ -627,7 +627,7 @@ class Solution:
                 }
             result["iteration_history"] = iteration_history
 
-            # Add computed benchmark data (no redundant storage)
+            # Add computed benchmark data
             result["benchmark"] = self._extract_mission_benchmark_arrays()
             result["phase_benchmarks"] = self._extract_phase_benchmark_arrays()
 

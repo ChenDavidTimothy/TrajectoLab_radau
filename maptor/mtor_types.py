@@ -147,7 +147,7 @@ class Constraint:
         return f"Constraint({' '.join(bounds)})"
 
 
-# ADAPTIVE ALGORITHM DATA - REDUNDANCY ELIMINATED
+# ADAPTIVE ALGORITHM DATA
 @dataclass
 class AdaptiveAlgorithmData:
     """Data from adaptive mesh refinement algorithm with single source of truth."""

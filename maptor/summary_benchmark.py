@@ -41,7 +41,7 @@ def _print_performance_table(solution: Solution) -> None:
         print("Adaptive data unavailable")
         return
 
-    # Use single source benchmark data (no redundancy)
+    # Use single source benchmark data
     benchmark_data = adaptive_info.get("benchmark")
     if benchmark_data is None:
         print("Benchmark data unavailable")

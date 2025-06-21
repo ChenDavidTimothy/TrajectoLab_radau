@@ -48,14 +48,14 @@ print("✓ Solution converged successfully")
 solution.print_benchmark_summary()
 
 # =============================================================================
-# CUSTOM ANALYSIS WITH SINGLE SOURCE RAW DATA - NO REDUNDANCY
+# CUSTOM ANALYSIS WITH SINGLE SOURCE RAW DATA
 # =============================================================================
 
 print("\n" + "=" * 60)
 print("CUSTOM ANALYSIS - SINGLE SOURCE DATA")
 print("=" * 60)
 
-# Extract benchmark data from single source (no redundant storage)
+# Extract benchmark data from single source
 benchmark_data = solution.adaptive["benchmark"]
 
 # Phase-specific analysis using single source
@@ -73,7 +73,7 @@ iterations = benchmark_data["mesh_iteration"]
 errors = benchmark_data["estimated_error"]
 points = benchmark_data["collocation_points"]
 
-# Proof: Same data access pattern works but with no redundant storage
+# Same data access pattern
 valid_errors = [e for e in errors[1:] if not (np.isnan(e) or np.isinf(e))]
 if len(valid_errors) >= 2:
     convergence_rate = np.log(valid_errors[0] / valid_errors[-1]) / (len(valid_errors) - 1)
@@ -134,20 +134,20 @@ except ImportError:
 # =============================================================================
 
 print("\n" + "=" * 60)
-print("RAW DATA ACCESS - NO REDUNDANCY")
+print("RAW DATA ACCESS")
 print("=" * 60)
 
 print("Raw benchmark data available from single source:")
 print(f"  Iterations: {len(benchmark_data['mesh_iteration'])}")
 print(f"  Data keys: {list(benchmark_data.keys())}")
 
-# Proof: Data consistency validation - all extracted from iteration_history
+#  Data consistency validation - all extracted from iteration_history
 raw_history = solution.adaptive["iteration_history"]
 print(f"\nValidation: Raw iteration history has {len(raw_history)} iterations")
 print(f"Benchmark arrays have {len(benchmark_data['mesh_iteration'])} iterations")
 print(f"✓ Data consistency: {len(raw_history) == len(benchmark_data['mesh_iteration'])}")
 
-# Example: Export to CSV - same interface, no redundancy
+# Example: Export to CSV
 print("\nExample: Manual CSV export from single source")
 print("iteration,error,points,intervals")
 for i in range(len(benchmark_data["mesh_iteration"])):
@@ -157,24 +157,3 @@ for i in range(len(benchmark_data["mesh_iteration"])):
     intervals = benchmark_data["mesh_intervals"][i]
     error_str = "NaN" if np.isnan(error) else f"{error:.6e}"
     print(f"{iteration},{error_str},{points},{intervals}")
-
-# =============================================================================
-# MEMORY EFFICIENCY PROOF
-# =============================================================================
-
-print("\n" + "=" * 60)
-print("MEMORY EFFICIENCY VALIDATION")
-print("=" * 60)
-
-# Demonstrate that data is computed on-demand, not stored redundantly
-adaptive_data = solution._raw_solution.adaptive_data
-print(f"Raw adaptive data has iteration_history: {hasattr(adaptive_data, 'iteration_history')}")
-print(f"Raw adaptive data stores benchmark arrays: {False}")  # No longer stored
-print(f"Raw adaptive data stores phase_benchmarks: {False}")  # No longer stored
-
-print("\n✓ Redundancy elimination successful:")
-print("  - Single source: iteration_history")
-print("  - No duplicate benchmark array storage")
-print("  - No duplicate phase benchmark storage")
-print("  - Computed extraction methods provide same interface")
-print("  - Memory usage reduced by ~60-70% for benchmark data")
