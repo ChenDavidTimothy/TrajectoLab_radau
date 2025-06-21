@@ -80,13 +80,8 @@ class TestBenchmarkAPIExhaustive:
         for array_name in required_arrays:
             assert len(benchmark[array_name]) == num_iterations, f"{array_name} length mismatch"
 
-        # Test specific array types and contents
-        self._validate_mesh_iteration_array(benchmark["mesh_iteration"])
-        self._validate_estimated_error_array(benchmark["estimated_error"])
-        self._validate_collocation_points_array(benchmark["collocation_points"])
-        self._validate_mesh_intervals_array(benchmark["mesh_intervals"])
-        self._validate_polynomial_degrees_array(benchmark["polynomial_degrees"])
-        self._validate_refinement_strategy_array(benchmark["refinement_strategy"])
+        # Test benchmark data comprehensive validation
+        self._validate_benchmark_data_comprehensive(benchmark, "mission-wide")
 
     def test_phase_specific_benchmark_complete(self):
         """Verify phase-specific benchmark data has complete structure."""
@@ -126,8 +121,8 @@ class TestBenchmarkAPIExhaustive:
                     f"Phase {phase_id} {array_name} length mismatch"
                 )
 
-            # Test phase-specific array validity
-            self._validate_phase_benchmark_arrays(phase_data, phase_id)
+            # Test phase-specific comprehensive validation
+            self._validate_benchmark_data_comprehensive(phase_data, f"Phase {phase_id}")
 
     def test_iteration_history_access(self):
         problem = self._create_simple_problem()
@@ -349,52 +344,69 @@ class TestBenchmarkAPIExhaustive:
         error_array = np.array(benchmark["estimated_error"])
         assert error_array.dtype == np.float64, "Errors should convert to float array"
 
-    def _validate_mesh_iteration_array(self, iterations):
-        assert isinstance(iterations, list), "mesh_iteration must be list"
-        assert all(isinstance(i, int) for i in iterations), "All iterations must be int"
-        assert iterations == list(range(len(iterations))), "Iterations must be sequential from 0"
-
-    def _validate_estimated_error_array(self, errors):
-        assert isinstance(errors, list), "estimated_error must be list"
-        assert all(isinstance(e, float) for e in errors), "All errors must be float"
-
-    def _validate_collocation_points_array(self, points):
-        assert isinstance(points, list), "collocation_points must be list"
-        assert all(isinstance(p, int) for p in points), "All points must be int"
-        assert all(p > 0 for p in points), "All points must be positive"
-
-    def _validate_mesh_intervals_array(self, intervals):
-        assert isinstance(intervals, list), "mesh_intervals must be list"
-        assert all(isinstance(i, int) for i in intervals), "All intervals must be int"
-        assert all(i > 0 for i in intervals), "All intervals must be positive"
-
-    def _validate_polynomial_degrees_array(self, degrees):
-        assert isinstance(degrees, list), "polynomial_degrees must be list"
-        for deg_list in degrees:
-            assert isinstance(deg_list, list), "Each polynomial_degrees entry must be list"
-            assert all(isinstance(d, int) for d in deg_list), "All degrees must be int"
-            assert all(d > 0 for d in deg_list), "All degrees must be positive"
-
-    def _validate_refinement_strategy_array(self, strategies):
-        assert isinstance(strategies, list), "refinement_strategy must be list"
-        for strategy_dict in strategies:
-            assert isinstance(strategy_dict, dict), "Each strategy entry must be dict"
-            for interval_idx, strategy in strategy_dict.items():
-                assert isinstance(interval_idx, int), "Interval indices must be int"
-                assert strategy in ["p", "h"], f"Strategy must be 'p' or 'h', got {strategy}"
-
-    def _validate_phase_benchmark_arrays(self, phase_data, phase_id):
-        # Same validation as mission-wide but for phase data
-        iterations = phase_data["mesh_iteration"]
+    def _validate_benchmark_data_comprehensive(self, benchmark_data, context: str):
+        """Single comprehensive validator replacing all redundant validation methods."""
+        # Validate mesh iteration array
+        iterations = benchmark_data["mesh_iteration"]
+        assert isinstance(iterations, list), f"{context} mesh_iteration must be list"
+        assert all(isinstance(i, int) for i in iterations), f"{context} all iterations must be int"
         assert iterations == list(range(len(iterations))), (
-            f"Phase {phase_id} iterations not sequential"
+            f"{context} iterations must be sequential from 0"
         )
 
-        points = phase_data["collocation_points"]
-        assert all(p >= 0 for p in points), f"Phase {phase_id} negative collocation points"
+        # Validate estimated error array
+        errors = benchmark_data["estimated_error"]
+        assert isinstance(errors, list), f"{context} estimated_error must be list"
+        assert all(isinstance(e, float) for e in errors), f"{context} all errors must be float"
 
-        intervals = phase_data["mesh_intervals"]
-        assert all(i >= 0 for i in intervals), f"Phase {phase_id} negative intervals"
+        # Validate collocation points array
+        points = benchmark_data["collocation_points"]
+        assert isinstance(points, list), f"{context} collocation_points must be list"
+        assert all(isinstance(p, int) for p in points), f"{context} all points must be int"
+        assert all(p > 0 for p in points), f"{context} all points must be positive"
+
+        # Validate mesh intervals array
+        intervals = benchmark_data["mesh_intervals"]
+        assert isinstance(intervals, list), f"{context} mesh_intervals must be list"
+        assert all(isinstance(i, int) for i in intervals), f"{context} all intervals must be int"
+        assert all(i > 0 for i in intervals), f"{context} all intervals must be positive"
+
+        # Validate polynomial degrees array
+        degrees = benchmark_data["polynomial_degrees"]
+        assert isinstance(degrees, list), f"{context} polynomial_degrees must be list"
+        for deg_list in degrees:
+            assert isinstance(deg_list, list), (
+                f"{context} each polynomial_degrees entry must be list"
+            )
+            assert all(isinstance(d, int) for d in deg_list), f"{context} all degrees must be int"
+            assert all(d > 0 for d in deg_list), f"{context} all degrees must be positive"
+
+        # Validate refinement strategy array
+        strategies = benchmark_data["refinement_strategy"]
+        assert isinstance(strategies, list), f"{context} refinement_strategy must be list"
+        for strategy_dict in strategies:
+            assert isinstance(strategy_dict, dict), f"{context} each strategy entry must be dict"
+            for interval_idx, strategy in strategy_dict.items():
+                assert isinstance(interval_idx, int), f"{context} interval indices must be int"
+                assert strategy in ["p", "h"], (
+                    f"{context} strategy must be 'p' or 'h', got {strategy}"
+                )
+
+        # Validate array length consistency
+        base_length = len(iterations)
+        all_arrays = [errors, points, intervals, degrees, strategies]
+        array_names = [
+            "estimated_error",
+            "collocation_points",
+            "mesh_intervals",
+            "polynomial_degrees",
+            "refinement_strategy",
+        ]
+
+        for array, name in zip(all_arrays, array_names, strict=False):
+            assert len(array) == base_length, (
+                f"{context} {name} length mismatch with mesh_iteration"
+            )
 
     def _create_simple_problem(self):
         problem = mtor.Problem("Benchmark Test Problem")

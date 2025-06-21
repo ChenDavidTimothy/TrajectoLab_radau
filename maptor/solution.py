@@ -3,7 +3,6 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from .input_validation import _validate_array_numerical_integrity
 from .mtor_types import BenchmarkData, FloatArray, OptimalControlSolution, PhaseID, ProblemProtocol
 
 
@@ -404,7 +403,8 @@ class Solution:
             "count": len(self._raw_solution.static_parameters),
         }
 
-    def _process_benchmark_data(self) -> tuple[BenchmarkData, dict[PhaseID, BenchmarkData]]:
+    def _extract_mission_benchmark_arrays(self) -> BenchmarkData:
+        """Extract mission-wide benchmark arrays from iteration history."""
         if self._raw_solution is None or self._raw_solution.adaptive_data is None:
             return {
                 "mesh_iteration": [],
@@ -413,53 +413,12 @@ class Solution:
                 "mesh_intervals": [],
                 "polynomial_degrees": [],
                 "refinement_strategy": [],
-            }, {}
+            }
 
-        adaptive_data = self._raw_solution.adaptive_data
-
-        if not hasattr(adaptive_data, "iteration_history") or not adaptive_data.iteration_history:
+        history = self._raw_solution.adaptive_data.iteration_history
+        if not history:
             return {
                 "mesh_iteration": [],
-                "estimated_error": [],
-                "collocation_points": [],
-                "mesh_intervals": [],
-                "polynomial_degrees": [],
-                "refinement_strategy": [],
-            }, {}
-
-        history = adaptive_data.iteration_history
-        iterations = sorted(history.keys())
-        num_iterations = len(iterations)
-
-        if num_iterations == 0:
-            return {
-                "mesh_iteration": [],
-                "estimated_error": [],
-                "collocation_points": [],
-                "mesh_intervals": [],
-                "polynomial_degrees": [],
-                "refinement_strategy": [],
-            }, {}
-
-        # Validate iteration data structure
-        first_data = history[iterations[0]]
-        available_phases = list(first_data.phase_error_estimates.keys())
-
-        # Pre-allocate arrays for efficiency
-        mesh_iterations = np.array(iterations, dtype=np.int32).tolist()
-
-        # Mission-wide processing
-        estimated_errors = []
-        total_collocation_points = []
-        total_mesh_intervals = []
-        combined_polynomial_degrees = []
-        combined_refinement_strategies = []
-
-        # Phase-specific processing
-        phase_benchmarks: dict[PhaseID, BenchmarkData] = {}
-        for phase_id in available_phases:
-            phase_benchmarks[phase_id] = {
-                "mesh_iteration": mesh_iterations.copy(),
                 "estimated_error": [],
                 "collocation_points": [],
                 "mesh_intervals": [],
@@ -467,87 +426,88 @@ class Solution:
                 "refinement_strategy": [],
             }
 
-        # Single pass through iterations
-        for iteration in iterations:
-            data = history[iteration]
+        iterations = sorted(history.keys())
 
-            # Mission-wide metrics
-            estimated_errors.append(data.max_error_all_phases)
-            total_collocation_points.append(data.total_collocation_points)
-            total_intervals = sum(data.phase_mesh_intervals.values())
-            total_mesh_intervals.append(total_intervals)
+        # Single pass extraction - no redundant processing
+        mesh_iterations = iterations
+        estimated_errors = [history[i].max_error_all_phases for i in iterations]
+        collocation_points = [history[i].total_collocation_points for i in iterations]
+        mesh_intervals = [sum(history[i].phase_mesh_intervals.values()) for i in iterations]
 
-            # Combined polynomial degrees
+        polynomial_degrees = []
+        refinement_strategy = []
+        for i in iterations:
+            data = history[i]
             combined_degrees = []
             for phase_degrees in data.phase_polynomial_degrees.values():
                 combined_degrees.extend(phase_degrees)
-            combined_polynomial_degrees.append(combined_degrees)
+            polynomial_degrees.append(combined_degrees)
 
-            # Combined refinement strategies
             combined_strategy = {}
             for phase_strategy in data.refinement_strategy.values():
                 combined_strategy.update(phase_strategy)
-            combined_refinement_strategies.append(combined_strategy)
+            refinement_strategy.append(combined_strategy)
 
-            # Phase-specific metrics
-            for phase_id in available_phases:
+        return {
+            "mesh_iteration": mesh_iterations,
+            "estimated_error": estimated_errors,
+            "collocation_points": collocation_points,
+            "mesh_intervals": mesh_intervals,
+            "polynomial_degrees": polynomial_degrees,
+            "refinement_strategy": refinement_strategy,
+        }
+
+    def _extract_phase_benchmark_arrays(self) -> dict[PhaseID, BenchmarkData]:
+        """Extract phase-specific benchmark arrays from iteration history."""
+        if self._raw_solution is None or self._raw_solution.adaptive_data is None:
+            return {}
+
+        history = self._raw_solution.adaptive_data.iteration_history
+        if not history:
+            return {}
+
+        iterations = sorted(history.keys())
+        first_data = history[iterations[0]]
+        available_phases = list(first_data.phase_error_estimates.keys())
+
+        phase_benchmarks: dict[PhaseID, BenchmarkData] = {}
+
+        # Single pass extraction per phase
+        for phase_id in available_phases:
+            mesh_iterations = iterations
+            estimated_errors = []
+            collocation_points = []
+            mesh_intervals = []
+            polynomial_degrees = []
+            refinement_strategy = []
+
+            for iteration in iterations:
+                data = history[iteration]
+
+                # Error estimate for this phase
                 if phase_id in data.phase_error_estimates:
                     phase_errors = data.phase_error_estimates[phase_id]
                     max_error = max(phase_errors) if phase_errors else float("inf")
-                    phase_benchmarks[phase_id]["estimated_error"].append(max_error)
+                    estimated_errors.append(max_error)
                 else:
-                    phase_benchmarks[phase_id]["estimated_error"].append(float("inf"))
+                    estimated_errors.append(float("inf"))
 
-                if phase_id in data.phase_collocation_points:
-                    phase_benchmarks[phase_id]["collocation_points"].append(
-                        data.phase_collocation_points[phase_id]
-                    )
-                else:
-                    phase_benchmarks[phase_id]["collocation_points"].append(0)
+                # Phase metrics
+                collocation_points.append(data.phase_collocation_points.get(phase_id, 0))
+                mesh_intervals.append(data.phase_mesh_intervals.get(phase_id, 0))
+                polynomial_degrees.append(data.phase_polynomial_degrees.get(phase_id, []).copy())
+                refinement_strategy.append(data.refinement_strategy.get(phase_id, {}).copy())
 
-                if phase_id in data.phase_mesh_intervals:
-                    phase_benchmarks[phase_id]["mesh_intervals"].append(
-                        data.phase_mesh_intervals[phase_id]
-                    )
-                else:
-                    phase_benchmarks[phase_id]["mesh_intervals"].append(0)
+            phase_benchmarks[phase_id] = {
+                "mesh_iteration": mesh_iterations,
+                "estimated_error": estimated_errors,
+                "collocation_points": collocation_points,
+                "mesh_intervals": mesh_intervals,
+                "polynomial_degrees": polynomial_degrees,
+                "refinement_strategy": refinement_strategy,
+            }
 
-                if phase_id in data.phase_polynomial_degrees:
-                    phase_benchmarks[phase_id]["polynomial_degrees"].append(
-                        data.phase_polynomial_degrees[phase_id].copy()
-                    )
-                else:
-                    phase_benchmarks[phase_id]["polynomial_degrees"].append([])
-
-                if phase_id in data.refinement_strategy:
-                    phase_benchmarks[phase_id]["refinement_strategy"].append(
-                        data.refinement_strategy[phase_id].copy()
-                    )
-                else:
-                    phase_benchmarks[phase_id]["refinement_strategy"].append({})
-
-        # Validate numerical arrays
-        try:
-            finite_errors = [e for e in estimated_errors if not (np.isnan(e) or np.isinf(e))]
-            if finite_errors:
-                _validate_array_numerical_integrity(
-                    np.array(finite_errors), "benchmark estimated errors", "benchmark processing"
-                )
-        except Exception as e:
-            logging.warning(
-                "Benchmark validation failed: %s. Continuing with potentially invalid data.", e
-            )
-
-        mission_benchmark: BenchmarkData = {
-            "mesh_iteration": mesh_iterations,
-            "estimated_error": estimated_errors,
-            "collocation_points": total_collocation_points,
-            "mesh_intervals": total_mesh_intervals,
-            "polynomial_degrees": combined_polynomial_degrees,
-            "refinement_strategy": combined_refinement_strategies,
-        }
-
-        return mission_benchmark, phase_benchmarks
+        return phase_benchmarks
 
     @property
     def adaptive(self) -> dict[str, Any] | None:
@@ -667,10 +627,9 @@ class Solution:
                 }
             result["iteration_history"] = iteration_history
 
-            # Add processed benchmark data
-            mission_benchmark, phase_benchmarks = self._process_benchmark_data()
-            result["benchmark"] = mission_benchmark
-            result["phase_benchmarks"] = phase_benchmarks
+            # Add computed benchmark data (no redundant storage)
+            result["benchmark"] = self._extract_mission_benchmark_arrays()
+            result["phase_benchmarks"] = self._extract_phase_benchmark_arrays()
 
         return result
 

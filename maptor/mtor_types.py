@@ -147,10 +147,10 @@ class Constraint:
         return f"Constraint({' '.join(bounds)})"
 
 
-# ADAPTIVE ALGORITHM DATA
+# ADAPTIVE ALGORITHM DATA - REDUNDANCY ELIMINATED
 @dataclass
 class AdaptiveAlgorithmData:
-    """Data from adaptive mesh refinement algorithm."""
+    """Data from adaptive mesh refinement algorithm with single source of truth."""
 
     target_tolerance: float
     total_iterations: int
