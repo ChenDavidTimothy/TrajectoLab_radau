@@ -1,9 +1,11 @@
 import logging
+from functools import cached_property
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from .mtor_types import FloatArray, OptimalControlSolution, PhaseID, ProblemProtocol
+from .input_validation import _validate_array_numerical_integrity
+from .mtor_types import BenchmarkData, FloatArray, OptimalControlSolution, PhaseID, ProblemProtocol
 
 
 if TYPE_CHECKING:
@@ -403,55 +405,157 @@ class Solution:
             "count": len(self._raw_solution.static_parameters),
         }
 
-    def _process_benchmark_data(
-        self, phase_id: PhaseID | None, history: dict[int, dict[str, Any]]
-    ) -> dict[str, list]:
-        mesh_iterations = []
+    @cached_property
+    def _benchmark_data_cache(self) -> tuple[BenchmarkData, dict[PhaseID, BenchmarkData]]:
+        """
+        Process benchmark data efficiently with caching and validation.
+
+        Returns:
+            Tuple of (mission_wide_benchmark, phase_specific_benchmarks)
+        """
+        if self._raw_solution is None or self._raw_solution.adaptive_data is None:
+            return {
+                "mesh_iteration": [],
+                "estimated_error": [],
+                "collocation_points": [],
+                "mesh_intervals": [],
+                "polynomial_degrees": [],
+                "refinement_strategy": [],
+            }, {}
+
+        adaptive_data = self._raw_solution.adaptive_data
+
+        if not hasattr(adaptive_data, "iteration_history") or not adaptive_data.iteration_history:
+            return {
+                "mesh_iteration": [],
+                "estimated_error": [],
+                "collocation_points": [],
+                "mesh_intervals": [],
+                "polynomial_degrees": [],
+                "refinement_strategy": [],
+            }, {}
+
+        history = adaptive_data.iteration_history
+        iterations = sorted(history.keys())
+        num_iterations = len(iterations)
+
+        if num_iterations == 0:
+            return {
+                "mesh_iteration": [],
+                "estimated_error": [],
+                "collocation_points": [],
+                "mesh_intervals": [],
+                "polynomial_degrees": [],
+                "refinement_strategy": [],
+            }, {}
+
+        # Validate iteration data structure
+        first_data = history[iterations[0]]
+        available_phases = list(first_data.phase_error_estimates.keys())
+
+        # Pre-allocate arrays for efficiency
+        mesh_iterations = np.array(iterations, dtype=np.int32).tolist()
+
+        # Mission-wide processing
         estimated_errors = []
-        collocation_points = []
-        mesh_intervals = []
-        polynomial_degrees = []
-        refinement_strategies = []
+        total_collocation_points = []
+        total_mesh_intervals = []
+        combined_polynomial_degrees = []
+        combined_refinement_strategies = []
 
-        for iteration in sorted(history.keys()):
+        # Phase-specific processing
+        phase_benchmarks: dict[PhaseID, BenchmarkData] = {}
+        for phase_id in available_phases:
+            phase_benchmarks[phase_id] = {
+                "mesh_iteration": mesh_iterations.copy(),
+                "estimated_error": [],
+                "collocation_points": [],
+                "mesh_intervals": [],
+                "polynomial_degrees": [],
+                "refinement_strategy": [],
+            }
+
+        # Single pass through iterations
+        for iteration in iterations:
             data = history[iteration]
-            mesh_iterations.append(iteration)
 
-            if phase_id is not None:
-                # Single phase benchmarking
-                phase_errors = data["phase_error_estimates"][phase_id]
-                max_error = max(phase_errors) if phase_errors else float("inf")
-                colloc_points = data["phase_collocation_points"][phase_id]
-                intervals = data["phase_mesh_intervals"][phase_id]
-                degrees = data["phase_polynomial_degrees"][phase_id].copy()
-                strategy = data["refinement_strategy"].get(phase_id, {})
-            else:
-                # Multiphase combined benchmarking
-                max_error = data["max_error_all_phases"]
-                colloc_points = data["total_collocation_points"]
-                intervals = sum(data["phase_mesh_intervals"].values())
-                degrees = []
-                for phase_degrees in data["phase_polynomial_degrees"].values():
-                    degrees.extend(phase_degrees)
-                # Combine all phase strategies
-                strategy = {}
-                for phase_strategy in data["refinement_strategy"].values():
-                    strategy.update(phase_strategy)
+            # Mission-wide metrics
+            estimated_errors.append(data.max_error_all_phases)
+            total_collocation_points.append(data.total_collocation_points)
+            total_intervals = sum(data.phase_mesh_intervals.values())
+            total_mesh_intervals.append(total_intervals)
 
-            estimated_errors.append(max_error)
-            collocation_points.append(colloc_points)
-            mesh_intervals.append(intervals)
-            polynomial_degrees.append(degrees)
-            refinement_strategies.append(strategy)
+            # Combined polynomial degrees
+            combined_degrees = []
+            for phase_degrees in data.phase_polynomial_degrees.values():
+                combined_degrees.extend(phase_degrees)
+            combined_polynomial_degrees.append(combined_degrees)
 
-        return {
+            # Combined refinement strategies
+            combined_strategy = {}
+            for phase_strategy in data.refinement_strategy.values():
+                combined_strategy.update(phase_strategy)
+            combined_refinement_strategies.append(combined_strategy)
+
+            # Phase-specific metrics
+            for phase_id in available_phases:
+                if phase_id in data.phase_error_estimates:
+                    phase_errors = data.phase_error_estimates[phase_id]
+                    max_error = max(phase_errors) if phase_errors else float("inf")
+                    phase_benchmarks[phase_id]["estimated_error"].append(max_error)
+                else:
+                    phase_benchmarks[phase_id]["estimated_error"].append(float("inf"))
+
+                if phase_id in data.phase_collocation_points:
+                    phase_benchmarks[phase_id]["collocation_points"].append(
+                        data.phase_collocation_points[phase_id]
+                    )
+                else:
+                    phase_benchmarks[phase_id]["collocation_points"].append(0)
+
+                if phase_id in data.phase_mesh_intervals:
+                    phase_benchmarks[phase_id]["mesh_intervals"].append(
+                        data.phase_mesh_intervals[phase_id]
+                    )
+                else:
+                    phase_benchmarks[phase_id]["mesh_intervals"].append(0)
+
+                if phase_id in data.phase_polynomial_degrees:
+                    phase_benchmarks[phase_id]["polynomial_degrees"].append(
+                        data.phase_polynomial_degrees[phase_id].copy()
+                    )
+                else:
+                    phase_benchmarks[phase_id]["polynomial_degrees"].append([])
+
+                if phase_id in data.refinement_strategy:
+                    phase_benchmarks[phase_id]["refinement_strategy"].append(
+                        data.refinement_strategy[phase_id].copy()
+                    )
+                else:
+                    phase_benchmarks[phase_id]["refinement_strategy"].append({})
+
+        # Validate numerical arrays
+        try:
+            finite_errors = [e for e in estimated_errors if not (np.isnan(e) or np.isinf(e))]
+            if finite_errors:
+                _validate_array_numerical_integrity(
+                    np.array(finite_errors), "benchmark estimated errors", "benchmark processing"
+                )
+        except Exception as e:
+            logging.warning(
+                "Benchmark validation failed: %s. Continuing with potentially invalid data.", e
+            )
+
+        mission_benchmark: BenchmarkData = {
             "mesh_iteration": mesh_iterations,
             "estimated_error": estimated_errors,
-            "collocation_points": collocation_points,
-            "mesh_intervals": mesh_intervals,
-            "polynomial_degrees": polynomial_degrees,
-            "refinement_strategy": refinement_strategies,
+            "collocation_points": total_collocation_points,
+            "mesh_intervals": total_mesh_intervals,
+            "polynomial_degrees": combined_polynomial_degrees,
+            "refinement_strategy": combined_refinement_strategies,
         }
+
+        return mission_benchmark, phase_benchmarks
 
     @property
     def adaptive(self) -> dict[str, Any] | None:
@@ -555,18 +659,9 @@ class Solution:
                 }
             result["iteration_history"] = iteration_history
 
-            # Add processed benchmark data
-            result["benchmark"] = self._process_benchmark_data(None, iteration_history)
-
-            # Add per-phase benchmark data
-            phase_benchmarks = {}
-            if iteration_history:
-                first_iteration_data = next(iter(iteration_history.values()))
-                available_phases = list(first_iteration_data["phase_error_estimates"].keys())
-                for phase_id in available_phases:
-                    phase_benchmarks[phase_id] = self._process_benchmark_data(
-                        phase_id, iteration_history
-                    )
+            # Add processed benchmark data using cached property
+            mission_benchmark, phase_benchmarks = self._benchmark_data_cache
+            result["benchmark"] = mission_benchmark
             result["phase_benchmarks"] = phase_benchmarks
 
         return result

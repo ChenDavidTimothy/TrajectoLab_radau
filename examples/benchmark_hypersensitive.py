@@ -1,11 +1,3 @@
-"""
-Complete Example: MAPTOR Benchmarking for Research Comparison
-============================================================
-
-This example demonstrates how to extract benchmarking data from MAPTOR
-for adaptive mesh refinement analysis and comparison.
-"""
-
 import numpy as np
 
 import maptor as mtor

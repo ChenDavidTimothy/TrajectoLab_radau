@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Protocol, TypeAlias
+from typing import Any, Protocol, TypeAlias, TypedDict
 
 import casadi as ca
 import numpy as np
@@ -217,3 +217,14 @@ class IterationData:
     total_collocation_points: int
     max_error_all_phases: float
     convergence_status: dict[PhaseID, bool]
+
+
+class BenchmarkData(TypedDict):
+    """Type definition for processed benchmark arrays."""
+
+    mesh_iteration: list[int]
+    estimated_error: list[float]
+    collocation_points: list[int]
+    mesh_intervals: list[int]
+    polynomial_degrees: list[list[int]]
+    refinement_strategy: list[dict[int, str]]
