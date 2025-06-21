@@ -595,7 +595,10 @@ class Solution:
             ...     print("Fixed mesh solution - no adaptive data")
         """
         if self._raw_solution is None or self._raw_solution.adaptive_data is None:
-            raise RuntimeError("Adaptive data is not available. This may be a fixed mesh solution.")
+            raise RuntimeError(
+                "Adaptive data not available. This solution was created with solve_fixed_mesh(). "
+                "Use solve_adaptive() to obtain adaptive mesh refinement data."
+            )
 
         adaptive_data = self._raw_solution.adaptive_data
         result = {

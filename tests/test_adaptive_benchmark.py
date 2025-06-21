@@ -271,7 +271,7 @@ class TestBenchmarkAPITargeted:
         assert all("," in row for row in csv_rows)
 
         # Test numpy array conversion
-        points_array = np.array(benchmark["collocation_points"])
+        points_array = np.array(benchmark["collocation_points"], dtype=int)
         assert points_array.dtype in [np.int32, np.int64]
 
         error_array = np.array(benchmark["estimated_error"])
