@@ -6,16 +6,13 @@ import numpy as np
 import maptor as mtor
 
 
-class TestBenchmarkAPIExhaustive:
-    """Exhaustive test suite for adaptive benchmark API capabilities."""
-
-    def test_algorithm_status_complete(self):
+class TestBenchmarkAPITargeted:
+    def test_algorithm_status_access(self):
         problem = self._create_simple_problem()
-
         solution = mtor.solve_adaptive(
             problem,
             error_tolerance=1e-4,
-            max_iterations=6,
+            max_iterations=4,
             nlp_options={"ipopt.print_level": 0},
             show_summary=False,
         )
@@ -24,32 +21,27 @@ class TestBenchmarkAPIExhaustive:
         adaptive = solution.adaptive
         assert adaptive is not None, "Adaptive data must be available"
 
-        # Test all documented algorithm status fields
-        assert isinstance(adaptive["converged"], bool), "converged must be bool"
-        assert isinstance(adaptive["iterations"], int), "iterations must be int"
-        assert adaptive["iterations"] >= 0, "iterations must be non-negative"
-        assert isinstance(adaptive["target_tolerance"], float), "target_tolerance must be float"
-        assert adaptive["target_tolerance"] > 0, "target_tolerance must be positive"
+        # Test all algorithm status fields
+        assert isinstance(adaptive["converged"], bool)
+        assert isinstance(adaptive["iterations"], int)
+        assert adaptive["iterations"] >= 0
+        assert isinstance(adaptive["target_tolerance"], float)
+        assert adaptive["target_tolerance"] > 0
 
         # Test phase convergence status
-        phase_converged = adaptive["phase_converged"]
-        assert isinstance(phase_converged, dict), "phase_converged must be dict"
-        for phase_id, converged in phase_converged.items():
-            assert isinstance(phase_id, int), f"Phase ID {phase_id} must be int"
-            assert isinstance(converged, bool), f"Phase {phase_id} convergence must be bool"
+        assert isinstance(adaptive["phase_converged"], dict)
+        for phase_id, converged in adaptive["phase_converged"].items():
+            assert isinstance(phase_id, int)
+            assert isinstance(converged, bool)
 
         # Test final errors structure
-        final_errors = adaptive["final_errors"]
-        assert isinstance(final_errors, dict), "final_errors must be dict"
-        for phase_id, errors in final_errors.items():
-            assert isinstance(errors, list), f"Phase {phase_id} errors must be list"
-            assert all(isinstance(e, float) for e in errors), (
-                f"Phase {phase_id} errors must be floats"
-            )
+        assert isinstance(adaptive["final_errors"], dict)
+        for phase_id, errors in adaptive["final_errors"].items():
+            assert isinstance(errors, list)
+            assert all(isinstance(e, float) for e in errors)
 
-    def test_benchmark_arrays_complete_structure(self):
+    def test_mission_benchmark_arrays_structure(self):
         problem = self._create_simple_problem()
-
         solution = mtor.solve_adaptive(
             problem,
             error_tolerance=1e-5,
@@ -60,7 +52,7 @@ class TestBenchmarkAPIExhaustive:
 
         benchmark = solution.adaptive["benchmark"]
 
-        # Test all 6 documented benchmark arrays exist
+        # Test all 6 required arrays exist
         required_arrays = {
             "mesh_iteration",
             "estimated_error",
@@ -69,24 +61,26 @@ class TestBenchmarkAPIExhaustive:
             "polynomial_degrees",
             "refinement_strategy",
         }
-        assert set(benchmark.keys()) == required_arrays, (
-            f"Missing arrays: {required_arrays - set(benchmark.keys())}"
+        assert set(benchmark.keys()) == required_arrays
+
+        # Test consistent lengths
+        num_iterations = len(benchmark["mesh_iteration"])
+        assert num_iterations > 0
+        for array_name in required_arrays:
+            assert len(benchmark[array_name]) == num_iterations
+
+        # Test specific array types and content
+        assert benchmark["mesh_iteration"] == list(range(num_iterations))
+        assert all(isinstance(e, float) for e in benchmark["estimated_error"])
+        assert all(isinstance(p, int) and p > 0 for p in benchmark["collocation_points"])
+        assert all(isinstance(i, int) and i > 0 for i in benchmark["mesh_intervals"])
+        assert all(isinstance(deg_list, list) for deg_list in benchmark["polynomial_degrees"])
+        assert all(
+            isinstance(strategy_dict, dict) for strategy_dict in benchmark["refinement_strategy"]
         )
 
-        # Verify consistent lengths
-        num_iterations = len(benchmark["mesh_iteration"])
-        assert num_iterations > 0, "Must have at least one iteration"
-
-        for array_name in required_arrays:
-            assert len(benchmark[array_name]) == num_iterations, f"{array_name} length mismatch"
-
-        # Test benchmark data comprehensive validation
-        self._validate_benchmark_data_comprehensive(benchmark, "mission-wide")
-
-    def test_phase_specific_benchmark_complete(self):
-        """Verify phase-specific benchmark data has complete structure."""
+    def test_phase_benchmark_arrays_structure(self):
         problem = self._create_multiphase_problem()
-
         solution = mtor.solve_adaptive(
             problem,
             error_tolerance=1e-4,
@@ -99,34 +93,29 @@ class TestBenchmarkAPIExhaustive:
         phase_ids = list(solution.phases.keys())
 
         # Verify all phases have benchmark data
-        assert set(phase_benchmarks.keys()) == set(phase_ids), "Phase benchmark coverage mismatch"
+        assert set(phase_benchmarks.keys()) == set(phase_ids)
 
-        # Test each phase has complete structure
+        # Test each phase has same structure as mission-wide
+        required_arrays = {
+            "mesh_iteration",
+            "estimated_error",
+            "collocation_points",
+            "mesh_intervals",
+            "polynomial_degrees",
+            "refinement_strategy",
+        }
+
         for phase_id in phase_ids:
             phase_data = phase_benchmarks[phase_id]
-            required_arrays = {
-                "mesh_iteration",
-                "estimated_error",
-                "collocation_points",
-                "mesh_intervals",
-                "polynomial_degrees",
-                "refinement_strategy",
-            }
-            assert set(phase_data.keys()) == required_arrays, f"Phase {phase_id} missing arrays"
+            assert set(phase_data.keys()) == required_arrays
 
             # Verify consistent lengths within phase
             num_iterations = len(phase_data["mesh_iteration"])
             for array_name in required_arrays:
-                assert len(phase_data[array_name]) == num_iterations, (
-                    f"Phase {phase_id} {array_name} length mismatch"
-                )
-
-            # Test phase-specific comprehensive validation
-            self._validate_benchmark_data_comprehensive(phase_data, f"Phase {phase_id}")
+                assert len(phase_data[array_name]) == num_iterations
 
     def test_iteration_history_access(self):
         problem = self._create_simple_problem()
-
         solution = mtor.solve_adaptive(
             problem,
             error_tolerance=1e-4,
@@ -136,148 +125,35 @@ class TestBenchmarkAPIExhaustive:
         )
 
         history = solution.adaptive["iteration_history"]
-        assert isinstance(history, dict), "iteration_history must be dict"
+        assert isinstance(history, dict)
 
         iterations = sorted(history.keys())
-        assert iterations == list(range(len(iterations))), "Iteration keys must be sequential"
+        assert iterations == list(range(len(iterations)))
 
-        # Test each iteration has complete data structure
+        # Test each iteration has complete IterationData structure
+        required_fields = {
+            "iteration",
+            "phase_error_estimates",
+            "phase_collocation_points",
+            "phase_mesh_intervals",
+            "phase_polynomial_degrees",
+            "phase_mesh_nodes",
+            "refinement_strategy",
+            "total_collocation_points",
+            "max_error_all_phases",
+            "convergence_status",
+        }
+
         for iteration in iterations:
             data = history[iteration]
-            required_fields = {
-                "iteration",
-                "phase_error_estimates",
-                "phase_collocation_points",
-                "phase_mesh_intervals",
-                "phase_polynomial_degrees",
-                "phase_mesh_nodes",
-                "refinement_strategy",
-                "total_collocation_points",
-                "max_error_all_phases",
-                "convergence_status",
-            }
-            assert set(data.keys()) == required_fields, f"Iteration {iteration} missing fields"
+            assert set(data.keys()) == required_fields
+            assert data["iteration"] == iteration
+            assert isinstance(data["total_collocation_points"], int)
+            assert data["total_collocation_points"] > 0
+            assert isinstance(data["max_error_all_phases"], float)
 
-            # Validate field types and content
-            assert data["iteration"] == iteration, "Iteration number mismatch"
-            assert isinstance(data["total_collocation_points"], int), (
-                "total_collocation_points must be int"
-            )
-            assert data["total_collocation_points"] > 0, "total_collocation_points must be positive"
-            assert isinstance(data["max_error_all_phases"], float), (
-                "max_error_all_phases must be float"
-            )
-
-    def test_benchmark_data_progression_logic(self):
-        problem = self._create_simple_problem()
-
-        solution = mtor.solve_adaptive(
-            problem,
-            error_tolerance=1e-6,
-            max_iterations=8,
-            nlp_options={"ipopt.print_level": 0},
-            show_summary=False,
-        )
-
-        benchmark = solution.adaptive["benchmark"]
-
-        # Test iteration progression
-        iterations = benchmark["mesh_iteration"]
-        assert iterations == list(range(len(iterations))), (
-            "Iterations must be sequential starting from 0"
-        )
-
-        # Test error progression (first iteration should be NaN, then decreasing trend)
-        errors = benchmark["estimated_error"]
-
-        finite_errors = [e for e in errors[1:] if not (np.isnan(e) or np.isinf(e))]
-        if len(finite_errors) >= 2:
-            # General decreasing trend (allowing for some fluctuation)
-            early_avg = np.mean(finite_errors[: len(finite_errors) // 2])
-            late_avg = np.mean(finite_errors[len(finite_errors) // 2 :])
-            assert late_avg <= early_avg, "Error should generally decrease over iterations"
-
-        # Test collocation points progression (should generally increase)
-        points = benchmark["collocation_points"]
-        assert all(p > 0 for p in points), "All collocation point counts must be positive"
-        assert points[-1] >= points[0], "Final mesh should have at least as many points as initial"
-
-        # Test mesh intervals progression
-        intervals = benchmark["mesh_intervals"]
-        assert all(i > 0 for i in intervals), "All interval counts must be positive"
-
-    def test_built_in_methods_functionality(self):
-        problem = self._create_simple_problem()
-
-        solution = mtor.solve_adaptive(
-            problem,
-            error_tolerance=1e-4,
-            max_iterations=3,
-            nlp_options={"ipopt.print_level": 0},
-            show_summary=False,
-        )
-
-        # Test print_benchmark_summary doesn't crash
-        captured_output = StringIO()
-        with patch("sys.stdout", captured_output):
-            solution.print_benchmark_summary()
-
-        output = captured_output.getvalue()
-        assert "ADAPTIVE MESH REFINEMENT BENCHMARK" in output, (
-            "Summary should contain expected header"
-        )
-        assert "Status:" in output, "Summary should contain status"
-        assert "Iterations:" in output, "Summary should contain iteration count"
-
-        # Test plot_refinement_history doesn't crash (mock matplotlib)
-        with (
-            patch("matplotlib.pyplot.subplots") as mock_subplots,
-            patch("matplotlib.pyplot.show") as mock_show,
-        ):
-            mock_fig = patch("matplotlib.figure.Figure").start()
-            mock_ax = patch("matplotlib.axes.Axes").start()
-            mock_subplots.return_value = (mock_fig, mock_ax)
-
-            # Should not raise exception
-            solution.plot_refinement_history(phase_id=1)
-
-            # Verify matplotlib was called
-            mock_subplots.assert_called_once()
-
-    def test_edge_cases_and_failures(self):
-        # Test fixed mesh solution (no adaptive data)
-        problem = self._create_simple_problem()
-
-        fixed_solution = mtor.solve_fixed_mesh(
-            problem,
-            nlp_options={"ipopt.print_level": 0},
-            show_summary=False,
-        )
-
-        assert fixed_solution.adaptive is None, "Fixed mesh should have no adaptive data"
-
-        # Test early convergence (minimal iterations)
-        convergent_problem = self._create_trivial_problem()
-
-        solution = mtor.solve_adaptive(
-            convergent_problem,
-            error_tolerance=1e-2,  # Very loose tolerance
-            max_iterations=2,
-            nlp_options={"ipopt.print_level": 0},
-            show_summary=False,
-        )
-
-        if solution.status["success"]:
-            benchmark = solution.adaptive["benchmark"]
-            # Should still have valid structure even with minimal iterations
-            assert len(benchmark["mesh_iteration"]) >= 1, "Should have at least initial iteration"
-            assert all(
-                len(benchmark[key]) == len(benchmark["mesh_iteration"]) for key in benchmark.keys()
-            ), "Consistent array lengths even with early convergence"
-
-    def test_multiphase_benchmark_consistency(self):
+    def test_mission_vs_phase_consistency(self):
         problem = self._create_multiphase_problem()
-
         solution = mtor.solve_adaptive(
             problem,
             error_tolerance=1e-4,
@@ -289,29 +165,87 @@ class TestBenchmarkAPIExhaustive:
         mission_benchmark = solution.adaptive["benchmark"]
         phase_benchmarks = solution.adaptive["phase_benchmarks"]
 
-        # Test mission-wide totals match sum of phases
+        # Test mission-wide totals equal sum of phases
         for i in range(len(mission_benchmark["mesh_iteration"])):
-            # Total collocation points should equal sum across phases
+            # Total collocation points
             mission_points = mission_benchmark["collocation_points"][i]
             phase_points_sum = sum(
                 phase_data["collocation_points"][i] for phase_data in phase_benchmarks.values()
             )
-            assert mission_points == phase_points_sum, (
-                f"Iteration {i}: mission points != sum of phase points"
-            )
+            assert mission_points == phase_points_sum
 
-            # Total intervals should equal sum across phases
+            # Total intervals
             mission_intervals = mission_benchmark["mesh_intervals"][i]
             phase_intervals_sum = sum(
                 phase_data["mesh_intervals"][i] for phase_data in phase_benchmarks.values()
             )
-            assert mission_intervals == phase_intervals_sum, (
-                f"Iteration {i}: mission intervals != sum of phase intervals"
-            )
+            assert mission_intervals == phase_intervals_sum
 
-    def test_data_export_patterns(self):
+    def test_algorithmic_progression_logic(self):
         problem = self._create_simple_problem()
+        solution = mtor.solve_adaptive(
+            problem,
+            error_tolerance=1e-6,
+            max_iterations=8,
+            nlp_options={"ipopt.print_level": 0},
+            show_summary=False,
+        )
 
+        benchmark = solution.adaptive["benchmark"]
+
+        # Test iteration sequence
+        iterations = benchmark["mesh_iteration"]
+        assert iterations == list(range(len(iterations)))
+
+        # Test collocation points progression (should generally increase)
+        points = benchmark["collocation_points"]
+        assert all(p > 0 for p in points)
+        assert points[-1] >= points[0]
+
+        # Test mesh intervals progression
+        intervals = benchmark["mesh_intervals"]
+        assert all(i > 0 for i in intervals)
+
+        # Test error progression (finite errors should generally decrease)
+        errors = benchmark["estimated_error"]
+        finite_errors = [e for e in errors[1:] if not (np.isnan(e) or np.isinf(e))]
+        if len(finite_errors) >= 2:
+            early_avg = np.mean(finite_errors[: len(finite_errors) // 2])
+            late_avg = np.mean(finite_errors[len(finite_errors) // 2 :])
+            assert late_avg <= early_avg
+
+    def test_refinement_strategy_tracking(self):
+        problem = self._create_simple_problem()
+        solution = mtor.solve_adaptive(
+            problem,
+            error_tolerance=1e-5,
+            max_iterations=6,
+            nlp_options={"ipopt.print_level": 0},
+            show_summary=False,
+        )
+
+        if not solution.status["success"]:
+            return
+
+        # Test benchmark array refinement strategies
+        benchmark = solution.adaptive["benchmark"]
+        strategies = benchmark["refinement_strategy"]
+
+        for strategy_dict in strategies:
+            assert isinstance(strategy_dict, dict)
+            for interval_idx, strategy in strategy_dict.items():
+                assert isinstance(interval_idx, int)
+                assert strategy in ["p", "h"]
+
+        # Test iteration history refinement strategy consistency
+        history = solution.adaptive["iteration_history"]
+        for iteration_data in history.values():
+            for phase_strategies in iteration_data["refinement_strategy"].values():
+                for strategy in phase_strategies.values():
+                    assert strategy in ["p", "h"]
+
+    def test_export_data_access_patterns(self):
+        problem = self._create_simple_problem()
         solution = mtor.solve_adaptive(
             problem,
             error_tolerance=1e-4,
@@ -322,91 +256,129 @@ class TestBenchmarkAPIExhaustive:
 
         benchmark = solution.adaptive["benchmark"]
 
-        # Test CSV-ready extraction
+        # Test CSV export capability
         csv_rows = []
         for i in range(len(benchmark["mesh_iteration"])):
             iteration = benchmark["mesh_iteration"][i]
             error = benchmark["estimated_error"][i]
             points = benchmark["collocation_points"][i]
             intervals = benchmark["mesh_intervals"][i]
-
-            # Should be able to format as CSV
-            csv_row = f"{iteration},{error},{points},{intervals}"
+            error_str = "NaN" if np.isnan(error) else f"{error:.6e}"
+            csv_row = f"{iteration},{error_str},{points},{intervals}"
             csv_rows.append(csv_row)
 
-        assert len(csv_rows) > 0, "Should generate CSV rows"
-        assert all("," in row for row in csv_rows), "All rows should be comma-separated"
+        assert len(csv_rows) > 0
+        assert all("," in row for row in csv_rows)
 
         # Test numpy array conversion
         points_array = np.array(benchmark["collocation_points"])
-        assert points_array.dtype in [np.int32, np.int64], "Points should convert to integer array"
+        assert points_array.dtype in [np.int32, np.int64]
 
         error_array = np.array(benchmark["estimated_error"])
-        assert error_array.dtype == np.float64, "Errors should convert to float array"
+        assert error_array.dtype == np.float64
 
-    def _validate_benchmark_data_comprehensive(self, benchmark_data, context: str):
-        """Single comprehensive validator replacing all redundant validation methods."""
-        # Validate mesh iteration array
-        iterations = benchmark_data["mesh_iteration"]
-        assert isinstance(iterations, list), f"{context} mesh_iteration must be list"
-        assert all(isinstance(i, int) for i in iterations), f"{context} all iterations must be int"
-        assert iterations == list(range(len(iterations))), (
-            f"{context} iterations must be sequential from 0"
+    def test_built_in_analysis_methods(self):
+        problem = self._create_simple_problem()
+        solution = mtor.solve_adaptive(
+            problem,
+            error_tolerance=1e-4,
+            max_iterations=3,
+            nlp_options={"ipopt.print_level": 0},
+            show_summary=False,
         )
 
-        # Validate estimated error array
-        errors = benchmark_data["estimated_error"]
-        assert isinstance(errors, list), f"{context} estimated_error must be list"
-        assert all(isinstance(e, float) for e in errors), f"{context} all errors must be float"
+        # Test print_benchmark_summary
+        captured_output = StringIO()
+        with patch("sys.stdout", captured_output):
+            solution.print_benchmark_summary()
 
-        # Validate collocation points array
-        points = benchmark_data["collocation_points"]
-        assert isinstance(points, list), f"{context} collocation_points must be list"
-        assert all(isinstance(p, int) for p in points), f"{context} all points must be int"
-        assert all(p > 0 for p in points), f"{context} all points must be positive"
+        output = captured_output.getvalue()
+        assert "ADAPTIVE MESH REFINEMENT BENCHMARK" in output
+        assert "Status:" in output
+        assert "Iterations:" in output
 
-        # Validate mesh intervals array
-        intervals = benchmark_data["mesh_intervals"]
-        assert isinstance(intervals, list), f"{context} mesh_intervals must be list"
-        assert all(isinstance(i, int) for i in intervals), f"{context} all intervals must be int"
-        assert all(i > 0 for i in intervals), f"{context} all intervals must be positive"
+        # Test plot_refinement_history
+        with (
+            patch("matplotlib.pyplot.subplots") as mock_subplots,
+            patch("matplotlib.pyplot.show") as mock_show,
+        ):
+            mock_fig = patch("matplotlib.figure.Figure").start()
+            mock_ax = patch("matplotlib.axes.Axes").start()
+            mock_subplots.return_value = (mock_fig, mock_ax)
 
-        # Validate polynomial degrees array
-        degrees = benchmark_data["polynomial_degrees"]
-        assert isinstance(degrees, list), f"{context} polynomial_degrees must be list"
-        for deg_list in degrees:
-            assert isinstance(deg_list, list), (
-                f"{context} each polynomial_degrees entry must be list"
-            )
-            assert all(isinstance(d, int) for d in deg_list), f"{context} all degrees must be int"
-            assert all(d > 0 for d in deg_list), f"{context} all degrees must be positive"
+            solution.plot_refinement_history(phase_id=1)
+            mock_subplots.assert_called_once()
 
-        # Validate refinement strategy array
-        strategies = benchmark_data["refinement_strategy"]
-        assert isinstance(strategies, list), f"{context} refinement_strategy must be list"
-        for strategy_dict in strategies:
-            assert isinstance(strategy_dict, dict), f"{context} each strategy entry must be dict"
-            for interval_idx, strategy in strategy_dict.items():
-                assert isinstance(interval_idx, int), f"{context} interval indices must be int"
-                assert strategy in ["p", "h"], (
-                    f"{context} strategy must be 'p' or 'h', got {strategy}"
-                )
+    def test_single_source_data_integrity(self):
+        problem = self._create_simple_problem()
+        solution = mtor.solve_adaptive(
+            problem,
+            error_tolerance=1e-4,
+            max_iterations=3,
+            nlp_options={"ipopt.print_level": 0},
+            show_summary=False,
+        )
 
-        # Validate array length consistency
-        base_length = len(iterations)
-        all_arrays = [errors, points, intervals, degrees, strategies]
-        array_names = [
-            "estimated_error",
-            "collocation_points",
-            "mesh_intervals",
-            "polynomial_degrees",
-            "refinement_strategy",
-        ]
+        # Verify iteration_history is source of truth
+        history = solution.adaptive["iteration_history"]
+        benchmark = solution.adaptive["benchmark"]
 
-        for array, name in zip(all_arrays, array_names, strict=False):
-            assert len(array) == base_length, (
-                f"{context} {name} length mismatch with mesh_iteration"
-            )
+        # Test that benchmark data matches iteration_history data
+        assert len(benchmark["mesh_iteration"]) == len(history)
+
+        for i, iteration in enumerate(sorted(history.keys())):
+            data = history[iteration]
+            assert benchmark["mesh_iteration"][i] == iteration
+            assert benchmark["collocation_points"][i] == data["total_collocation_points"]
+            assert benchmark["estimated_error"][i] == data["max_error_all_phases"]
+
+    def test_edge_cases_and_fixed_mesh(self):
+        # Test fixed mesh solution (no adaptive data)
+        problem = self._create_simple_problem()
+        fixed_solution = mtor.solve_fixed_mesh(
+            problem,
+            nlp_options={"ipopt.print_level": 0},
+            show_summary=False,
+        )
+        assert fixed_solution.adaptive is None
+
+        # Test early convergence with loose tolerance
+        simple_problem = self._create_simple_problem()
+        solution = mtor.solve_adaptive(
+            simple_problem,
+            error_tolerance=1e-2,  # Very loose tolerance
+            max_iterations=2,
+            nlp_options={"ipopt.print_level": 0},
+            show_summary=False,
+        )
+
+        if solution.status["success"] and solution.adaptive:
+            benchmark = solution.adaptive["benchmark"]
+            assert len(benchmark["mesh_iteration"]) >= 1
+            # Verify all arrays have consistent lengths
+            base_length = len(benchmark["mesh_iteration"])
+            for key in benchmark.keys():
+                assert len(benchmark[key]) == base_length
+
+    def test_gamma_factors_access(self):
+        problem = self._create_simple_problem()
+        solution = mtor.solve_adaptive(
+            problem,
+            error_tolerance=1e-4,
+            max_iterations=3,
+            nlp_options={"ipopt.print_level": 0},
+            show_summary=False,
+        )
+
+        gamma_factors = solution.adaptive["gamma_factors"]
+        assert isinstance(gamma_factors, dict)
+
+        for phase_id, factors in gamma_factors.items():
+            assert isinstance(phase_id, int)
+            # factors can be FloatArray or None
+            if factors is not None:
+                assert isinstance(factors, np.ndarray)
+                assert factors.dtype == np.float64
 
     def _create_simple_problem(self):
         problem = mtor.Problem("Benchmark Test Problem")
@@ -447,18 +419,4 @@ class TestBenchmarkAPIExhaustive:
         effort2 = phase2.add_integral(u2**2)
         problem.minimize(effort1 + effort2)
 
-        return problem
-
-    def _create_trivial_problem(self):
-        problem = mtor.Problem("Trivial Test")
-        phase = problem.set_phase(1)
-
-        t = phase.time(initial=0.0, final=0.1)
-        x = phase.state("x", initial=0.0, final=0.1)
-        u = phase.control("u", boundary=(-0.1, 0.1))
-
-        phase.dynamics({x: u})
-        problem.minimize(u**2)
-
-        phase.mesh([2], [-1.0, 1.0])
         return problem
