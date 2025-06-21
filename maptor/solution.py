@@ -337,30 +337,30 @@ class Solution:
         return phases_data
 
     @property
-    def parameters(self) -> dict[str, Any] | None:
+    def parameters(self) -> dict[str, Any]:
         """
         Static parameter optimization results and information.
 
-        Provides access to optimized static parameters with comprehensive
-        parameter information. Returns None if no parameters were defined.
+        Always returns valid parameter dictionary with empty structure
+        if no parameters were defined
 
         Returns:
-            Parameter information dictionary or None:
+            Parameter information dictionary:
 
-            - **values** (FloatArray): Optimized parameter values
+            - **values** (FloatArray): Optimized parameter values (empty array if no parameters)
             - **names** (list[str] | None): Parameter names if available
-            - **count** (int): Number of static parameters
+            - **count** (int): Number of static parameters (0 if no parameters)
 
         Examples:
             Parameter existence check:
 
-            >>> if solution.parameters is not None:
+            >>> if solution.parameters["count"] > 0:
             ...     print("Problem has static parameters")
 
             Parameter access:
 
             >>> params = solution.parameters
-            >>> if params:
+            >>> if params["count"] > 0:
             ...     values = params["values"]        # [500.0, 1500.0, 0.1]
             ...     count = params["count"]          # 3
             ...     names = params["names"]          # ["mass", "thrust", "drag"] or None
@@ -368,24 +368,28 @@ class Solution:
             Named parameter access:
 
             >>> params = solution.parameters
-            >>> if params and params["names"]:
+            >>> if params["names"] and params["count"] > 0:
             ...     for name, value in zip(params["names"], params["values"]):
             ...         print(f"{name}: {value:.6f}")
 
             Unnamed parameter access:
 
             >>> params = solution.parameters
-            >>> if params:
-            ...     for i, value in enumerate(params["values"]):
-            ...         print(f"Parameter {i}: {value:.6f}")
+            >>> for i in range(params["count"]):
+            ...     value = params["values"][i]
+            ...     print(f"Parameter {i}: {value:.6f}")
 
             No parameters case:
 
-            >>> if solution.parameters is None:
+            >>> if solution.parameters["count"] == 0:
             ...     print("No static parameters in problem")
         """
         if self._raw_solution is None or self._raw_solution.static_parameters is None:
-            return None
+            return {
+                "values": np.array([], dtype=np.float64),
+                "names": None,
+                "count": 0,
+            }
 
         # Try to get parameter names if available
         param_names = None
@@ -404,7 +408,6 @@ class Solution:
         }
 
     def _extract_mission_benchmark_arrays(self) -> BenchmarkData:
-        """Extract mission-wide benchmark arrays from iteration history."""
         if self._raw_solution is None or self._raw_solution.adaptive_data is None:
             return {
                 "mesh_iteration": [],
@@ -458,7 +461,6 @@ class Solution:
         }
 
     def _extract_phase_benchmark_arrays(self) -> dict[PhaseID, BenchmarkData]:
-        """Extract phase-specific benchmark arrays from iteration history."""
         if self._raw_solution is None or self._raw_solution.adaptive_data is None:
             return {}
 
@@ -519,7 +521,7 @@ class Solution:
         arrays. Only available for adaptive solver solutions.
 
         Returns:
-            Adaptive algorithm data dictionary or None:
+            Adaptive algorithm data dictionary with comprehensive benchmarking arrays:
 
             **Algorithm Status:**
             - **converged** (bool): Algorithm convergence status
@@ -542,57 +544,41 @@ class Solution:
             - **polynomial_degrees** (list[list[int]]): Polynomial degrees per interval
             - **refinement_strategy** (list[dict]): Refinement actions per iteration
 
-        Examples:
-            Basic adaptive data access:
+        Raises:
+            RuntimeError: If no adaptive data available. This typically means
+                solve_fixed_mesh() was used instead of solve_adaptive().
 
-            >>> if solution.adaptive:
-            ...     converged = solution.adaptive["converged"]
-            ...     iterations = solution.adaptive["iterations"]
+        Examples:
+            Safe adaptive data access:
+
+            >>> try:
+            ...     adaptive = solution.adaptive
+            ...     converged = adaptive["converged"]
+            ...     iterations = adaptive["iterations"]
+            ... except RuntimeError:
+            ...     print("Fixed mesh solution - no adaptive data available")
 
             Complete benchmark arrays:
 
-            >>> benchmark = solution.adaptive["benchmark"]
+            >>> adaptive = solution.adaptive  # May raise RuntimeError
+            >>> benchmark = adaptive["benchmark"]
             >>> iterations = benchmark["mesh_iteration"]         # [0, 1, 2, 3]
             >>> errors = benchmark["estimated_error"]            # [1e-2, 1e-3, 1e-5, 1e-7]
             >>> points = benchmark["collocation_points"]         # [50, 75, 100, 150]
-            >>> intervals = benchmark["mesh_intervals"]          # [10, 15, 20, 30]
-            >>> degrees = benchmark["polynomial_degrees"]        # [[4,4,4], [4,6,4], ...]
-            >>> strategies = benchmark["refinement_strategy"]    # [{0:'p', 1:'h'}, ...]
 
             Phase-specific benchmark data:
 
             >>> phase_benchmarks = solution.adaptive["phase_benchmarks"]
             >>> phase1_data = phase_benchmarks[1]
             >>> phase1_errors = phase1_data["estimated_error"]
-            >>> phase1_points = phase1_data["collocation_points"]
-            >>> phase1_strategies = phase1_data["refinement_strategy"]
-
-            Per-phase convergence status:
-
-            >>> for phase_id, converged in solution.adaptive["phase_converged"].items():
-            ...     print(f"Phase {phase_id}: {'✓' if converged else '✗'}")
-
-            Final error estimates:
-
-            >>> for phase_id, errors in solution.adaptive["final_errors"].items():
-            ...     print(f"Phase {phase_id} errors: {errors}")
-
-            Raw iteration history:
-
-            >>> history = solution.adaptive["iteration_history"]
-            >>> iteration_3_data = history[3]
-            >>> iter3_errors = iteration_3_data["phase_error_estimates"]
-            >>> iter3_points = iteration_3_data["total_collocation_points"]
 
             Built-in analysis methods:
 
-            >>> solution.print_benchmark_summary()              # Professional summary
-            >>> solution.plot_refinement_history(phase_id=1)    # Mesh evolution plot
-
-            Fixed mesh check:
-
-            >>> if solution.adaptive is None:
-            ...     print("Fixed mesh solution - no adaptive data")
+            >>> try:
+            ...     solution.print_benchmark_summary()
+            ...     solution.plot_refinement_history(phase_id=1)
+            ... except RuntimeError:
+            ...     print("No adaptive data for analysis")
         """
         if self._raw_solution is None or self._raw_solution.adaptive_data is None:
             raise RuntimeError(
