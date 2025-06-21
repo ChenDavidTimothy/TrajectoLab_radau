@@ -378,10 +378,10 @@ Extract optimized design parameters that remain constant throughout the mission:
 
 Static parameters represent optimization variables that remain constant throughout the mission but are determined by the solver.
 
-Adaptive Algorithm Analysis
----------------------------
+Adaptive Algorithm Data Access
+-------------------------------
 
-Examine convergence and refinement performance for adaptive solutions:
+Access comprehensive adaptive mesh refinement performance data and benchmarking metrics for adaptive solutions:
 
 **Algorithm Status:**
 
@@ -393,233 +393,309 @@ Examine convergence and refinement performance for adaptive solutions:
     else:
         print("Fixed mesh solution")
 
-**Convergence Information:**
+**Basic Algorithm Information:**
 
 .. code-block:: python
 
-    # Basic convergence data
+    # Algorithm status data
     if solution.adaptive:
         converged = solution.adaptive["converged"]
         iterations = solution.adaptive["iterations"]
         tolerance = solution.adaptive["target_tolerance"]
 
-**Phase-Specific Convergence:**
+**Per-Phase Convergence Status:**
 
 .. code-block:: python
 
-    # Per-phase convergence status
+    # Phase convergence information
     if solution.adaptive:
         phase_converged = solution.adaptive["phase_converged"]
         for phase_id, status in phase_converged.items():
             print(f"Phase {phase_id}: {'Converged' if status else 'Not converged'}")
 
-**Error Analysis:**
-
-.. code-block:: python
-
-    # Error estimates
-    if solution.adaptive:
-        final_errors = solution.adaptive["final_errors"]
-        for phase_id, errors in final_errors.items():
-            if errors:
-                max_error = max(errors)
-                mean_error = sum(errors) / len(errors)
-
-**Refinement Factors:**
-
-.. code-block:: python
-
-    # Algorithm parameters
-    if solution.adaptive:
-        gamma_factors = solution.adaptive["gamma_factors"]
-        for phase_id, factors in gamma_factors.items():
-            if factors is not None:
-                refinement_data = factors
-
-**Complete Adaptive Analysis:**
-
-.. code-block:: python
-
-    # Full adaptive diagnostics
-    adaptive = solution.adaptive
-    if adaptive:
-        algorithm_converged = adaptive["converged"]
-        total_iterations = adaptive["iterations"]
-        target_accuracy = adaptive["target_tolerance"]
-        phase_status = adaptive["phase_converged"]
-        error_estimates = adaptive["final_errors"]
-        normalization_factors = adaptive["gamma_factors"]
-
-Adaptive Algorithm Diagnostics
--------------------------------
-
-Access comprehensive adaptive mesh refinement data and iteration-by-iteration
-benchmarking metrics for performance evaluation and research comparison:
-
-**Algorithm Status:**
-
-.. code-block:: python
-
-    # Basic adaptive information
-    if solution.adaptive:
-        converged = solution.adaptive["converged"]           # bool: Algorithm converged
-        iterations = solution.adaptive["iterations"]         # int: Total iterations
-        tolerance = solution.adaptive["target_tolerance"]    # float: Target tolerance
-
-    # Per-phase convergence status
-    phase_converged = solution.adaptive["phase_converged"]
-    for phase_id, status in phase_converged.items():
-        print(f"Phase {phase_id}: {'Converged' if status else 'Not converged'}")
-
-**Complete Benchmark Data Access:**
-
-.. code-block:: python
-
-    # Mission-wide benchmark arrays
-    benchmark = solution.adaptive["benchmark"]
-
-    # All six benchmark arrays available:
-    iterations = benchmark["mesh_iteration"]         # [0, 1, 2, 3, ...]
-    errors = benchmark["estimated_error"]            # [nan, 1e-3, 1e-5, 1e-7, ...]
-    points = benchmark["collocation_points"]         # [50, 75, 100, 150, ...]
-    intervals = benchmark["mesh_intervals"]          # [10, 15, 20, 30, ...]
-    degrees = benchmark["polynomial_degrees"]        # [[4,4,4], [4,6,4], [6,6,6], ...]
-    strategies = benchmark["refinement_strategy"]    # [{0:'p', 1:'h'}, {2:'p'}, ...]
-
-**Phase-Specific Benchmark Data:**
-
-.. code-block:: python
-
-    # Individual phase benchmark arrays
-    phase_benchmarks = solution.adaptive["phase_benchmarks"]
-
-    # Access specific phase data
-    phase1_data = phase_benchmarks[1]
-    phase1_iterations = phase1_data["mesh_iteration"]      # [0, 1, 2, ...]
-    phase1_errors = phase1_data["estimated_error"]         # [1e-2, 1e-4, 1e-6, ...]
-    phase1_points = phase1_data["collocation_points"]      # [25, 35, 50, ...]
-    phase1_intervals = phase1_data["mesh_intervals"]       # [5, 7, 10, ...]
-    phase1_degrees = phase1_data["polynomial_degrees"]     # [[4,4], [4,6], [6,6], ...]
-    phase1_strategies = phase1_data["refinement_strategy"] # [{0:'p'}, {1:'h'}, ...]
-
-**Benchmark Array Definitions:**
-
-- **mesh_iteration**: Iteration sequence numbers starting from 0
-- **estimated_error**: Maximum error estimate across all intervals (nan for iteration 0)
-- **collocation_points**: Total collocation points used in mesh
-- **mesh_intervals**: Total number of mesh intervals
-- **polynomial_degrees**: List of polynomial degrees for each interval per iteration
-- **refinement_strategy**: Dictionary mapping interval index to strategy ('p' or 'h')
-
-**Error Analysis Access:**
+**Final Error Estimates:**
 
 .. code-block:: python
 
     # Final error estimates per phase per interval
-    final_errors = solution.adaptive["final_errors"]
-    for phase_id, errors in final_errors.items():
-        for interval_idx, error in enumerate(errors):
-            print(f"Phase {phase_id} interval {interval_idx}: {error:.2e}")
+    if solution.adaptive:
+        final_errors = solution.adaptive["final_errors"]
+        for phase_id, errors in final_errors.items():
+            for interval_idx, error in enumerate(errors):
+                print(f"Phase {phase_id} interval {interval_idx}: {error:.2e}")
 
-**Raw Iteration History:**
-
-.. code-block:: python
-
-    # Complete algorithm state per iteration
-    history = solution.adaptive["iteration_history"]
-
-    # Access specific iteration data
-    iteration_data = history[2]  # Third iteration (0-indexed)
-    phase_errors = iteration_data["phase_error_estimates"]
-    total_points = iteration_data["total_collocation_points"]
-    refinement_actions = iteration_data["refinement_strategy"]
-    mesh_nodes = iteration_data["phase_mesh_nodes"]
-
-**Built-in Benchmark Methods:**
+**Gamma Normalization Factors:**
 
 .. code-block:: python
 
-    # Professional benchmark summary
-    solution.print_benchmark_summary()
+    # Algorithm normalization factors
+    if solution.adaptive:
+        gamma_factors = solution.adaptive["gamma_factors"]
+        for phase_id, factors in gamma_factors.items():
+            if factors is not None:
+                print(f"Phase {phase_id} gamma factors available")
 
-    # Mesh refinement visualization
-    solution.plot_refinement_history(phase_id=1)
+Benchmark Array Data Access
+----------------------------
 
-    # Custom visualization with domain transformation
-    solution.plot_refinement_history(
-        phase_id=1,
-        figsize=(16, 10),
-        transform_domain=(0.0, 100.0)  # Transform from [-1,1] to [0,100]
-    )
+Access structured benchmark arrays for performance analysis and research comparison:
+
+**Mission-Wide Benchmark Arrays:**
+
+.. code-block:: python
+
+    # Complete benchmark data structure
+    if solution.adaptive:
+        benchmark = solution.adaptive["benchmark"]
+
+        # All six benchmark arrays
+        iterations = benchmark["mesh_iteration"]         # [0, 1, 2, 3, ...]
+        errors = benchmark["estimated_error"]            # [nan, 1e-3, 1e-5, 1e-7, ...]
+        points = benchmark["collocation_points"]         # [50, 75, 100, 150, ...]
+        intervals = benchmark["mesh_intervals"]          # [10, 15, 20, 30, ...]
+        degrees = benchmark["polynomial_degrees"]        # [[4,4,4], [4,6,4], [6,6,6], ...]
+        strategies = benchmark["refinement_strategy"]    # [{0:'p', 1:'h'}, {2:'p'}, ...]
+
+**Phase-Specific Benchmark Arrays:**
+
+.. code-block:: python
+
+    # Individual phase benchmark data
+    if solution.adaptive:
+        phase_benchmarks = solution.adaptive["phase_benchmarks"]
+
+        # Access specific phase data
+        phase1_data = phase_benchmarks[1]
+        phase1_iterations = phase1_data["mesh_iteration"]      # [0, 1, 2, ...]
+        phase1_errors = phase1_data["estimated_error"]         # [1e-2, 1e-4, 1e-6, ...]
+        phase1_points = phase1_data["collocation_points"]      # [25, 35, 50, ...]
+        phase1_intervals = phase1_data["mesh_intervals"]       # [5, 7, 10, ...]
+        phase1_degrees = phase1_data["polynomial_degrees"]     # [[4,4], [4,6], [6,6], ...]
+        phase1_strategies = phase1_data["refinement_strategy"] # [{0:'p'}, {1:'h'}, ...]
+
+**Benchmark Array Definitions:**
+
+.. code-block:: python
+
+    # Array content definitions
+    if solution.adaptive:
+        benchmark = solution.adaptive["benchmark"]
+
+        # mesh_iteration: Iteration sequence numbers starting from 0
+        # estimated_error: Maximum error estimate across all intervals (nan for iteration 0)
+        # collocation_points: Total collocation points used in mesh
+        # mesh_intervals: Total number of mesh intervals
+        # polynomial_degrees: List of polynomial degrees for each interval per iteration
+        # refinement_strategy: Dictionary mapping interval index to strategy ('p' or 'h')
+
+**Benchmark Data Iteration:**
+
+.. code-block:: python
+
+    # Process all benchmark iterations
+    if solution.adaptive:
+        benchmark = solution.adaptive["benchmark"]
+
+        for i in range(len(benchmark["mesh_iteration"])):
+            iteration = benchmark["mesh_iteration"][i]
+            error = benchmark["estimated_error"][i]
+            points = benchmark["collocation_points"][i]
+            intervals = benchmark["mesh_intervals"][i]
+            degrees = benchmark["polynomial_degrees"][i]
+            strategy = benchmark["refinement_strategy"][i]
+
+            print(f"Iteration {iteration}: Error={error:.2e}, Points={points}")
+
+**Multi-Phase Benchmark Comparison:**
+
+.. code-block:: python
+
+    # Compare benchmark data across phases
+    if solution.adaptive:
+        phase_benchmarks = solution.adaptive["phase_benchmarks"]
+
+        # Compare final iteration across phases
+        for phase_id, phase_data in phase_benchmarks.items():
+            final_error = phase_data["estimated_error"][-1]
+            final_points = phase_data["collocation_points"][-1]
+            print(f"Phase {phase_id}: Final error={final_error:.2e}, Points={final_points}")
+
+Raw Iteration History Access
+-----------------------------
+
+Access complete algorithm state for each refinement iteration:
+
+**Iteration History Structure:**
+
+.. code-block:: python
+
+    # Complete iteration-by-iteration algorithm state
+    if solution.adaptive:
+        history = solution.adaptive["iteration_history"]
+
+        # Access specific iteration data
+        iteration_data = history[2]  # Third iteration (0-indexed)
+
+        # All available fields per iteration
+        iteration_num = iteration_data["iteration"]
+        phase_errors = iteration_data["phase_error_estimates"]
+        total_points = iteration_data["total_collocation_points"]
+        phase_points = iteration_data["phase_collocation_points"]
+        phase_intervals = iteration_data["phase_mesh_intervals"]
+        phase_degrees = iteration_data["phase_polynomial_degrees"]
+        mesh_nodes = iteration_data["phase_mesh_nodes"]
+        refinement_actions = iteration_data["refinement_strategy"]
+        max_error = iteration_data["max_error_all_phases"]
+        convergence_status = iteration_data["convergence_status"]
+
+**Iteration History Processing:**
+
+.. code-block:: python
+
+    # Process all iterations sequentially
+    if solution.adaptive:
+        history = solution.adaptive["iteration_history"]
+
+        for iteration in sorted(history.keys()):
+            data = history[iteration]
+            print(f"Iteration {iteration}:")
+            print(f"  Total points: {data['total_collocation_points']}")
+            print(f"  Max error: {data['max_error_all_phases']:.2e}")
+
+            # Phase-specific data for this iteration
+            for phase_id in data["phase_error_estimates"].keys():
+                phase_errors = data["phase_error_estimates"][phase_id]
+                phase_points = data["phase_collocation_points"][phase_id]
+                print(f"  Phase {phase_id}: {len(phase_errors)} intervals, {phase_points} points")
+
+**Mesh Evolution Tracking:**
+
+.. code-block:: python
+
+    # Track mesh node evolution
+    if solution.adaptive:
+        history = solution.adaptive["iteration_history"]
+
+        for iteration in sorted(history.keys()):
+            data = history[iteration]
+
+            for phase_id, mesh_nodes in data["phase_mesh_nodes"].items():
+                degrees = data["phase_polynomial_degrees"][phase_id]
+                print(f"Iteration {iteration}, Phase {phase_id}:")
+                print(f"  Mesh nodes: {len(mesh_nodes)} points")
+                print(f"  Polynomial degrees: {degrees}")
+
+Built-in Analysis Methods
+-------------------------
+
+Access professional analysis and visualization capabilities:
+
+**Comprehensive Benchmark Summary:**
+
+.. code-block:: python
+
+    # Professional benchmark analysis
+    if solution.adaptive:
+        solution.print_benchmark_summary()
+
+    # Concise benchmark information
+    if solution.adaptive:
+        solution.print_benchmark_summary(comprehensive=False)
+
+**Mesh Refinement Visualization:**
+
+.. code-block:: python
+
+    # Basic mesh evolution plot
+    if solution.adaptive:
+        solution.plot_refinement_history(phase_id=1)
+
+    # Custom mesh visualization
+    if solution.adaptive:
+        solution.plot_refinement_history(
+            phase_id=1,
+            figsize=(16, 10),
+            transform_domain=(0.0, 100.0)  # Transform from [-1,1] to [0,100]
+        )
+
+**Method Parameters:**
+
+.. code-block:: python
+
+    # plot_refinement_history parameters:
+    # - phase_id: Phase to visualize (required)
+    # - figsize: Figure dimensions (width, height), default (12, 6)
+    # - transform_domain: Transform from [-1,1] to physical domain (min, max), default None
+
+    # print_benchmark_summary parameters:
+    # - comprehensive: Detail level (bool), default True
 
 **Fixed Mesh Solution Check:**
 
 .. code-block:: python
 
-    # No adaptive data for fixed mesh
+    # Handle solutions without adaptive data
     if solution.adaptive is None:
         print("Fixed mesh solution - no benchmark data available")
+    else:
+        # Access adaptive data
+        benchmark_available = "benchmark" in solution.adaptive
+        print(f"Benchmark arrays available: {benchmark_available}")
 
-The ``adaptive`` property provides complete algorithm data for custom analysis and external processing.
+Data Export Patterns
+--------------------
 
-Built-in Solution Methods
---------------------------
+Extract benchmark data for external analysis and research comparison:
 
-MAPTOR provides convenient methods for common solution analysis tasks:
-
-**Comprehensive Plotting:**
-
-.. code-block:: python
-
-    # Default plotting (all variables, all phases)
-    solution.plot()
-
-    # Specific phase plotting
-    solution.plot(phase_id=1)
-
-    # Selected variables
-    solution.plot("altitude", "velocity", "thrust")
-
-    # Phase-specific variables
-    solution.plot(1, "position", "velocity")
-
-    # Custom formatting
-    solution.plot(figsize=(16, 10), show_phase_boundaries=True)
-
-**Solution Summaries:**
+**CSV Export Pattern:**
 
 .. code-block:: python
 
-    # Comprehensive summary (default)
-    solution.summary()
+    # Export benchmark data to CSV format
+    if solution.adaptive:
+        benchmark = solution.adaptive["benchmark"]
 
-    # Concise summary
-    solution.summary(comprehensive=False)
+        print("iteration,error,points,intervals")
+        for i in range(len(benchmark["mesh_iteration"])):
+            iteration = benchmark["mesh_iteration"][i]
+            error = benchmark["estimated_error"][i]
+            points = benchmark["collocation_points"][i]
+            intervals = benchmark["mesh_intervals"][i]
 
-**Plot Customization:**
+            error_str = "NaN" if np.isnan(error) else f"{error:.6e}"
+            print(f"{iteration},{error_str},{points},{intervals}")
 
-.. code-block:: python
-
-    # All phases with boundaries
-    solution.plot(show_phase_boundaries=True)
-
-    # No phase boundaries
-    solution.plot(show_phase_boundaries=False)
-
-    # Large figure size
-    solution.plot(figsize=(20, 12))
-
-**Summary Control:**
+**NumPy Array Conversion:**
 
 .. code-block:: python
 
-    # Detailed diagnostics
-    solution.summary(comprehensive=True)
+    # Convert to numpy arrays for analysis
+    if solution.adaptive:
+        benchmark = solution.adaptive["benchmark"]
 
-    # Key information only
-    solution.summary(comprehensive=False)
+        import numpy as np
+        points_array = np.array(benchmark["collocation_points"])
+        error_array = np.array(benchmark["estimated_error"])
 
-Built-in methods provide immediate visualization and analysis capabilities without requiring custom plotting code.
+        # Filter valid errors for analysis
+        valid_errors = error_array[~np.isnan(error_array)]
+
+**Research Data Package:**
+
+.. code-block:: python
+
+    # Extract complete research dataset
+    if solution.adaptive:
+        research_data = {
+            "algorithm_status": {
+                "converged": solution.adaptive["converged"],
+                "iterations": solution.adaptive["iterations"],
+                "tolerance": solution.adaptive["target_tolerance"]
+            },
+            "mission_benchmark": solution.adaptive["benchmark"],
+            "phase_benchmarks": solution.adaptive["phase_benchmarks"],
+            "convergence_history": solution.adaptive["iteration_history"]
+        }
 
 Next Steps
 ----------
