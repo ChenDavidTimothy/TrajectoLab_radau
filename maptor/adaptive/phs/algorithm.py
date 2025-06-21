@@ -19,7 +19,6 @@ from maptor.adaptive.phs.initial_guess import (
 )
 from maptor.adaptive.phs.iteration_data import (
     _capture_iteration_metrics,
-    _capture_true_initial_mesh_state,
 )
 from maptor.adaptive.phs.refinement import (
     _h_reduce_intervals,
@@ -758,6 +757,20 @@ def _check_convergence_across_phases(
     any_phase_needs_refinement = False
     all_refinement_actions: dict[PhaseID, dict[int, tuple[str, Any]]] = {}
 
+    # Save current adaptive_state before modification
+    saved_adaptive_state = MultiphaseAdaptiveState(
+        phase_polynomial_degrees={
+            pid: degrees.copy() for pid, degrees in adaptive_state.phase_polynomial_degrees.items()
+        },
+        phase_mesh_points={
+            pid: points.copy() for pid, points in adaptive_state.phase_mesh_points.items()
+        },
+        phase_converged=adaptive_state.phase_converged.copy(),
+        iteration=adaptive_state.iteration,
+        most_recent_unified_solution=adaptive_state.most_recent_unified_solution,
+    )
+
+    # Apply existing mesh refinement logic
     for phase_id in problem._get_phase_ids():
         numerical_dynamics_function = numerical_dynamics_functions[phase_id]
 
@@ -784,16 +797,15 @@ def _check_convergence_across_phases(
             )
             all_refinement_actions[phase_id] = refinement_actions
 
-    # Record iteration data directly for benchmarking
-    if adaptive_state.iteration > 0:
-        iteration_history[adaptive_state.iteration] = _capture_iteration_metrics(
-            adaptive_state.iteration,
-            solution,
-            problem,
-            adaptive_state,
-            final_phase_errors,
-            all_refinement_actions,
-        )
+    # Record iteration data for ALL iterations (0, 1, 2, ...)
+    iteration_history[adaptive_state.iteration] = _capture_iteration_metrics(
+        adaptive_state.iteration,
+        solution,
+        problem,
+        saved_adaptive_state,
+        final_phase_errors,
+        all_refinement_actions,
+    )
 
     return any_phase_needs_refinement, all_refinement_actions
 
@@ -817,9 +829,8 @@ def solve_multiphase_phs_adaptive_internal(
         max_iterations,
     )
 
-    # Initialize benchmarking with TRUE user-specified initial mesh
+    # Initialize iteration history for benchmarking
     iteration_history: dict[int, IterationData] = {}
-    iteration_history[0] = _capture_true_initial_mesh_state(problem)
 
     adaptive_params = AdaptiveParameters(
         error_tolerance=error_tolerance,
