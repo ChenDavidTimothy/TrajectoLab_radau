@@ -1,6 +1,7 @@
 import logging
 from typing import cast
 
+from maptor.birkhoff_solver import _solve_multiphase_birkhoff_collocation
 from maptor.direct_solver import _solve_multiphase_radau_collocation
 from maptor.input_validation import (
     _validate_adaptive_solver_parameters,
@@ -9,6 +10,7 @@ from maptor.input_validation import (
 from maptor.mtor_types import (
     ODESolverCallable,
     OptimalControlSolution,
+    PhaseID,
     ProblemProtocol,
 )
 from maptor.problem import Problem
@@ -125,6 +127,137 @@ def solve_fixed_mesh(
         )
     else:
         logger.warning("Fixed-mesh solve failed: %s", solution_data.message)
+
+    return Solution(solution_data, protocol_problem, auto_summary=show_summary)
+
+
+def solve_birkhoff_mesh(
+    problem: Problem,
+    grid_points_per_phase: dict[PhaseID, tuple[float, ...]],
+    nlp_options: dict[str, object] | None = None,
+    show_summary: bool = True,
+) -> Solution:
+    """
+    Solve optimal control problem using Birkhoff pseudospectral method with user-defined grids.
+
+    Solves the problem using Birkhoff interpolation theory on arbitrary grid points
+    specified by the user. Provides flexibility in grid selection while maintaining
+    mathematical rigor through the universal Birkhoff interpolation framework.
+
+    Args:
+        problem: Configured Problem instance with dynamics and objective
+        grid_points_per_phase: Dictionary mapping phase IDs to grid point tuples.
+            Each tuple contains grid points in computational domain [-1, 1].
+            Grid points must be strictly increasing.
+        nlp_options: IPOPT solver options (same as solve_fixed_mesh)
+        show_summary: Whether to display solution summary (default: True)
+
+    Returns:
+        Solution: Optimization results with trajectories and solver diagnostics
+
+    Examples:
+        Basic Birkhoff solving with uniform grids:
+
+        >>> grid_points = {
+        ...     1: (-1.0, -0.5, 0.0, 0.5, 1.0),    # Phase 1: 5 points
+        ...     2: (-1.0, -0.33, 0.33, 1.0),       # Phase 2: 4 points
+        ... }
+        >>> solution = mtor.solve_birkhoff_mesh(problem, grid_points)
+
+        High-density grids for accuracy:
+
+        >>> import numpy as np
+        >>> dense_grid = tuple(np.linspace(-1, 1, 21))  # 21 points
+        >>> grid_points = {1: dense_grid}
+        >>> solution = mtor.solve_birkhoff_mesh(problem, grid_points)
+
+        Custom non-uniform grids:
+
+        >>> # Concentrate points near boundaries
+        >>> custom_grid = (-1.0, -0.8, -0.3, 0.0, 0.3, 0.8, 1.0)
+        >>> grid_points = {1: custom_grid}
+        >>> solution = mtor.solve_birkhoff_mesh(problem, grid_points)
+
+        Legendre-Gauss-Lobatto grids (recommended):
+
+        >>> # Can use external libraries to generate LGL points
+        >>> from scipy.special import roots_legendre
+        >>> # Note: You'll need to add boundary points for LGL
+        >>> lgl_interior, _ = roots_legendre(3)  # 3 interior points
+        >>> lgl_grid = (-1.0, *lgl_interior, 1.0)  # Add boundaries
+        >>> grid_points = {1: lgl_grid}
+        >>> solution = mtor.solve_birkhoff_mesh(problem, grid_points)
+
+        With solver options:
+
+        >>> solution = mtor.solve_birkhoff_mesh(
+        ...     problem,
+        ...     grid_points,
+        ...     nlp_options={
+        ...         "ipopt.tol": 1e-8,
+        ...         "ipopt.max_iter": 2000
+        ...     }
+        ... )
+
+    Raises:
+        ValueError: If grid points are not strictly increasing or missing for any phase
+        ConfigurationError: If problem is not properly configured
+    """
+    logger.info("Starting multiphase Birkhoff solve: problem='%s'", problem.name)
+
+    if logger.isEnabledFor(logging.DEBUG):
+        phase_ids = problem._get_phase_ids()
+        total_states, total_controls, num_static_params = problem._get_total_variable_counts()
+        logger.debug(
+            "Birkhoff problem dimensions: phases=%d, total_states=%d, total_controls=%d, static_params=%d",
+            len(phase_ids),
+            total_states,
+            total_controls,
+            num_static_params,
+        )
+
+        for phase_id, grid_points in grid_points_per_phase.items():
+            logger.debug(
+                "Phase %d Birkhoff grid: %d points from %.3f to %.3f",
+                phase_id,
+                len(grid_points),
+                grid_points[0] if grid_points else 0.0,
+                grid_points[-1] if grid_points else 0.0,
+            )
+
+    _validate_multiphase_problem_ready_for_solving(cast(ProblemProtocol, problem))
+
+    # Validate grid points
+    for phase_id in problem._get_phase_ids():
+        if phase_id not in grid_points_per_phase:
+            raise ValueError(f"No grid points provided for phase {phase_id}")
+
+        grid_points = grid_points_per_phase[phase_id]
+        if len(grid_points) < 2:
+            raise ValueError(f"Phase {phase_id} must have at least 2 grid points")
+
+        # Check strictly increasing
+        for i in range(1, len(grid_points)):
+            if grid_points[i] <= grid_points[i - 1]:
+                raise ValueError(f"Phase {phase_id} grid points must be strictly increasing")
+
+    problem.solver_options = nlp_options or {}
+    logger.debug("Birkhoff NLP solver options: %s", problem.solver_options)
+
+    protocol_problem = cast(ProblemProtocol, problem)
+    solution_data: OptimalControlSolution = _solve_multiphase_birkhoff_collocation(
+        protocol_problem, grid_points_per_phase
+    )
+
+    if solution_data.success:
+        total_grid_points = sum(len(points) for points in grid_points_per_phase.values())
+        logger.info(
+            "Birkhoff solve completed successfully: objective=%.6e, total_grid_points=%d",
+            solution_data.objective or 0.0,
+            total_grid_points,
+        )
+    else:
+        logger.warning("Birkhoff solve failed: %s", solution_data.message)
 
     return Solution(solution_data, protocol_problem, auto_summary=show_summary)
 

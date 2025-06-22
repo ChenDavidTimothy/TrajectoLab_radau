@@ -48,7 +48,7 @@ from maptor.exceptions import (
     SolutionExtractionError,
 )
 from maptor.problem import Problem
-from maptor.solver import solve_adaptive, solve_fixed_mesh
+from maptor.solver import solve_adaptive, solve_birkhoff_mesh, solve_fixed_mesh
 
 
 __version__ = "0.1.3"
@@ -63,6 +63,7 @@ __all__ = [
     "Problem",
     "SolutionExtractionError",
     "solve_adaptive",
+    "solve_birkhoff_mesh",
     "solve_fixed_mesh",
 ]
 
