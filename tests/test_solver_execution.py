@@ -25,7 +25,7 @@ class TestProvenExamples:
 
         # Simple initial guess matching examples/lqr pattern
         states_guess = [
-            np.array([[1.0, 0.8, 0.6, 0.4, 0.2]], dtype=float),
+            np.array([[1.0, 0.8, 0.6, 0.4, 0.2]]),
             np.array([[0.2, 0.15, 0.1, 0.05, 0.0]]),
         ]
         controls_guess = [

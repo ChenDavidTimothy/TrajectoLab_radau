@@ -250,10 +250,7 @@ class TestOrderIndependence:
         phase.mesh([3, 3], [-1, 0, 1])
 
         # Then set guess
-        states_guess = [
-            np.array([[1.0, 0.5, 0.25, 0.0]], dtype=float),
-            np.array([[0.0, -0.25, -0.5, -1.0]], dtype=float),
-        ]
+        states_guess = [np.array([[1.0, 0.5, 0.25, 0.0]]), np.array([[0.0, -0.25, -0.5, -1.0]])]
         controls_guess = [np.array([[-1, -1, -1]]), np.array([[-1, -1, -1]])]
 
         phase.guess(states=states_guess, controls=controls_guess)
