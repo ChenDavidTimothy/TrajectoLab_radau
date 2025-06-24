@@ -218,7 +218,7 @@ class TestProblemFailureModes:
         phase = problem.set_phase(1)
 
         # Invalid tuple length - should fail
-        with pytest.raises(ValueError, match="too many values to unpack"):
+        with pytest.raises(ConfigurationError):
             phase.state("x", initial=(1, 2, 3))
 
         # Invalid bound ordering - should fail with specific error message
