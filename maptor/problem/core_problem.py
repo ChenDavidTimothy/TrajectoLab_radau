@@ -17,7 +17,7 @@ from .constraints_problem import (
     _get_cross_phase_event_constraints_function,
     _get_phase_path_constraints_function,
 )
-from .state import ConstraintInput, MultiPhaseVariableState
+from .state import BoundaryInput, ConstraintInput, FixedInput, MultiPhaseVariableState
 from .variables_problem import StateVariableImpl, TimeVariableImpl
 
 
@@ -319,7 +319,7 @@ class Phase:
         name: str,
         initial: ConstraintInput = None,
         final: ConstraintInput = None,
-        boundary: ConstraintInput = None,
+        boundary: BoundaryInput = None,
     ) -> StateVariableImpl:
         """
         Define a state variable with comprehensive constraint specification.
@@ -350,7 +350,6 @@ class Phase:
 
             boundary: Path constraint applied throughout trajectory:
 
-                - float: State equals this value at all times
                 - (lower, upper): State bounds throughout (e.g., (0, 1000))
                 - (None, upper): Upper path bound only (e.g., (None, 500))
                 - (lower, None): Lower path bound only (e.g., (0, None))
@@ -364,35 +363,35 @@ class Phase:
 
                 >>> altitude = phase.state("altitude", initial=0.0, final=1000.0)
 
-            Ranges:
+                Ranges:
 
-            >>> position = phase.state("position", initial=(0, 5), final=(95, 105))
+                >>> position = phase.state("position", initial=(0, 5), final=(95, 105))
 
-            Single-sided bounds:
+                Single-sided bounds:
 
-            >>> velocity = phase.state("velocity", initial=0, final=(None, 200))
+                >>> velocity = phase.state("velocity", initial=0, final=(None, 200))
 
-            Path bounds:
+                Path bounds:
 
-            >>> mass = phase.state("mass", boundary=(100, 1000))
+                >>> mass = phase.state("mass", boundary=(100, 1000))
 
-            All constraint types:
+                All constraint types:
 
-            >>> state = phase.state("x", initial=(0, 10), final=(90, 110), boundary=(0, None))
+                >>> state = phase.state("x", initial=(0, 10), final=(90, 110), boundary=(0, None))
 
-            Symbolic linking:
+                Symbolic linking:
 
-            >>> h2 = phase2.state("altitude", initial=h1.final)
+                >>> h2 = phase2.state("altitude", initial=h1.final)
 
-            Unconstrained:
+                Unconstrained:
 
-            >>> free_state = phase.state("free_variable")
+                >>> free_state = phase.state("free_variable")
         """
         return variables_problem._create_phase_state_variable(
             self._phase_def, name, initial, final, boundary
         )
 
-    def control(self, name: str, boundary: ConstraintInput = None) -> ca.MX:
+    def control(self, name: str, boundary: BoundaryInput = None) -> ca.MX:
         """
         Define a control variable with comprehensive bound specification.
 
@@ -402,9 +401,8 @@ class Phase:
 
         Args:
             name: Unique control variable name within this phase
-            boundary: Control bounds with full constraint syntax:
+            boundary: Control bounds with constraint syntax:
 
-                - float: Fixed control value (e.g., 100.0)
                 - (lower, upper): Symmetric/asymmetric bounds (e.g., (-50, 100))
                 - (None, upper): Upper bound only (e.g., (None, 1000))
                 - (lower, None): Lower bound only (e.g., (0, None))
@@ -422,10 +420,6 @@ class Phase:
 
             >>> power = phase.control("power", boundary=(0, None))
             >>> brake = phase.control("brake", boundary=(None, 100))
-
-            Fixed value:
-
-            >>> constant = phase.control("thrust", boundary=1500)
 
             Unconstrained:
 
@@ -883,7 +877,9 @@ class Problem:
         logger.debug("Adding phase %d to problem '%s'", phase_id, self.name)
         return Phase(self, phase_id)
 
-    def parameter(self, name: str, boundary: ConstraintInput = None) -> ca.MX:
+    def parameter(
+        self, name: str, boundary: BoundaryInput = None, fixed: FixedInput = None
+    ) -> ca.MX:
         """
         Define a static parameter for design optimization with exhaustive constraint syntax.
 
@@ -893,16 +889,24 @@ class Problem:
 
         Args:
             name: Unique parameter name
-            boundary: Parameter constraint with full syntax:
+            boundary: Parameter optimization bounds:
 
-                - float: Fixed parameter value (e.g., 1000.0)
                 - (lower, upper): Bounded parameter range (e.g., (100, 500))
                 - (None, upper): Upper bounded only (e.g., (None, 1000))
                 - (lower, None): Lower bounded only (e.g., (0, None))
                 - None: Unconstrained parameter
 
+            fixed: Fixed parameter value:
+
+                - float: Fixed constant (e.g., 9.81)
+                - ca.MX: Symbolic relationship (e.g., mass1 * 2.0)
+                - None: Not fixed (use boundary for optimization)
+
         Returns:
             ca.MX: Parameter variable for use across all phases
+
+        Raises:
+            ValueError: If both boundary and fixed are specified
 
         Examples:
             Bounded parameter:
@@ -916,7 +920,11 @@ class Problem:
 
             Fixed parameter:
 
-            >>> gravity = problem.parameter("gravity", boundary=9.81)
+            >>> gravity = problem.parameter("gravity", fixed=9.81)
+
+            Fixed relationship:
+
+            >>> mass2 = problem.parameter("mass2", fixed=mass1 * 2.0)
 
             Unconstrained:
 
@@ -925,7 +933,7 @@ class Problem:
         _validate_constraint_inputs(name, boundary, "Parameter")
 
         param_var = variables_problem._create_static_parameter(
-            self._multiphase_state.static_parameters, name, boundary
+            self._multiphase_state.static_parameters, name, boundary, fixed
         )
         logger.debug("Static parameter created: name='%s'", name)
         return param_var

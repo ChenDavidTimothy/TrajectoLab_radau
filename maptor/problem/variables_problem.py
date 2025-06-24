@@ -6,11 +6,15 @@ import casadi as ca
 
 from ..input_validation import _validate_constraint_input_format, _validate_string_not_empty
 from .state import (
+    BoundaryInput,
     ConstraintInput,
+    FixedInput,
     MultiPhaseVariableState,
     PhaseDefinition,
     StaticParameterState,
     _BoundaryConstraint,
+    _FixedConstraint,
+    _RangeBoundaryConstraint,
 )
 
 
@@ -221,23 +225,19 @@ def create_phase_time_variable(
 def _create_phase_state_variable(
     phase_def: PhaseDefinition,
     name: str,
-    initial: ConstraintInput = None,
-    final: ConstraintInput = None,
-    boundary: ConstraintInput = None,
+    initial: ConstraintInput = None,  # Supports symbolic linking
+    final: ConstraintInput = None,  # Supports symbolic linking
+    boundary: BoundaryInput = None,  # Ranges only
 ) -> StateVariableImpl:
-    _validate_constraint_and_name(
-        name, initial, f"phase {phase_def.phase_id} state '{name}' initial"
-    )
-    _validate_constraint_and_name(name, final, f"phase {phase_def.phase_id} state '{name}' final")
-    _validate_constraint_and_name(
-        name, boundary, f"phase {phase_def.phase_id} state '{name}' boundary"
-    )
+    _validate_string_not_empty(name, f"phase {phase_def.phase_id} state name")
+    _validate_constraint_input_format(initial, f"phase {phase_def.phase_id} state '{name}' initial")
+    _validate_constraint_input_format(final, f"phase {phase_def.phase_id} state '{name}' final")
 
     sym_var, sym_initial, sym_final = _create_state_symbols(name, phase_def.phase_id)
 
     initial_constraint = _BoundaryConstraint(initial) if initial is not None else None
     final_constraint = _BoundaryConstraint(final) if final is not None else None
-    boundary_constraint = _BoundaryConstraint(boundary) if boundary is not None else None
+    boundary_constraint = _RangeBoundaryConstraint(boundary) if boundary is not None else None
 
     phase_def.add_state(
         name=name,
@@ -253,12 +253,14 @@ def _create_phase_state_variable(
 
 
 def create_phase_control_variable(
-    phase_def: PhaseDefinition, name: str, boundary: ConstraintInput = None
+    phase_def: PhaseDefinition,
+    name: str,
+    boundary: BoundaryInput = None,  # Ranges only
 ) -> ca.MX:
-    _validate_constraint_and_name(name, boundary, f"phase {phase_def.phase_id} control '{name}'")
+    _validate_string_not_empty(name, f"phase {phase_def.phase_id} control name")
 
     sym_var = _create_phase_symbol(name, phase_def.phase_id)
-    boundary_constraint = _BoundaryConstraint(boundary) if boundary is not None else None
+    boundary_constraint = _RangeBoundaryConstraint(boundary) if boundary is not None else None
 
     phase_def.add_control(name=name, symbol=sym_var, boundary_constraint=boundary_constraint)
 
@@ -266,14 +268,27 @@ def create_phase_control_variable(
 
 
 def _create_static_parameter(
-    static_params: StaticParameterState, name: str, boundary: ConstraintInput = None
+    static_params: StaticParameterState,
+    name: str,
+    boundary: BoundaryInput = None,  # Ranges only
+    fixed: FixedInput = None,  # Equality/symbolic only
 ) -> ca.MX:
-    _validate_constraint_and_name(name, boundary, f"parameter '{name}'")
+    _validate_string_not_empty(name, f"parameter '{name}' name")
 
-    sym_var = ca.MX.sym(f"param_{name}", 1)  # type: ignore[arg-type]
-    boundary_constraint = _BoundaryConstraint(boundary) if boundary is not None else None
+    if boundary is not None and fixed is not None:
+        raise ValueError(f"Parameter '{name}' cannot have both boundary and fixed constraints")
 
-    static_params.add_parameter(name=name, symbol=sym_var, boundary_constraint=boundary_constraint)
+    sym_var = ca.MX.sym(f"param_{name}", 1)
+
+    boundary_constraint = _RangeBoundaryConstraint(boundary) if boundary is not None else None
+    fixed_constraint = _FixedConstraint(fixed) if fixed is not None else None
+
+    static_params.add_parameter(
+        name=name,
+        symbol=sym_var,
+        boundary_constraint=boundary_constraint,
+        fixed_constraint=fixed_constraint,
+    )
 
     return sym_var
 
