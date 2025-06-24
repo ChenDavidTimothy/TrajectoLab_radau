@@ -63,7 +63,6 @@ __all__ = [
     "Problem",
     "SolutionExtractionError",
     "solve_adaptive",
-    "solve_birkhoff_mesh",
     "solve_fixed_mesh",
 ]
 
