@@ -398,6 +398,32 @@ def _process_phase_final_boundary_constraints(
     )
 
 
+def _process_static_parameter_boundary_constraints(
+    multiphase_state: MultiPhaseVariableState,
+    static_parameters_vec: ca.MX | None,
+    result: list[Constraint],
+) -> None:
+    if static_parameters_vec is None:
+        return
+
+    static_params = multiphase_state.static_parameters
+    boundary_constraints = [info.boundary_constraint for info in static_params.parameter_info]
+    num_params = len(boundary_constraints)
+
+    for i, boundary_constraint in enumerate(boundary_constraints):
+        if (
+            boundary_constraint is None
+            or not boundary_constraint.has_constraint()
+            or boundary_constraint.is_symbolic()
+        ):
+            continue
+
+        param_expr = _map_symbol_to_vector_element(
+            static_parameters_vec, static_parameters_vec, i, num_params
+        )
+        result.extend(_boundary_constraint_to_constraints(boundary_constraint, param_expr))
+
+
 def _check_has_cross_phase_constraints(multiphase_state: MultiPhaseVariableState) -> bool:
     has_cross_phase_constraints = bool(multiphase_state.cross_phase_constraints)
 
@@ -413,7 +439,16 @@ def _check_has_cross_phase_constraints(multiphase_state: MultiPhaseVariableState
             has_phase_event_constraints = True
             break
 
-    return has_cross_phase_constraints or has_phase_event_constraints
+    has_static_param_constraints = any(
+        constraint is not None and constraint.has_constraint() and not constraint.is_symbolic()
+        for constraint in [
+            info.boundary_constraint for info in multiphase_state.static_parameters.parameter_info
+        ]
+    )
+
+    return (
+        has_cross_phase_constraints or has_phase_event_constraints or has_static_param_constraints
+    )
 
 
 def _create_cross_phase_event_constraints(
@@ -433,6 +468,9 @@ def _create_cross_phase_event_constraints(
             multiphase_state, phase_endpoint_vectors, result
         )
         _process_phase_final_boundary_constraints(multiphase_state, phase_endpoint_vectors, result)
+        _process_static_parameter_boundary_constraints(
+            multiphase_state, static_parameters_vec, result
+        )
 
         return result
 
