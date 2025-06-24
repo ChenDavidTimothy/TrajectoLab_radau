@@ -441,18 +441,22 @@ class TestBoundaryConstraintApplication:
 
         x = phase.state("x", initial=0)
 
-        # Controls with different bound types
-        thrust = phase.control("thrust", boundary=(0, 100))  # Two-sided bounds
-        steering = phase.control("steering", boundary=(-30, 30))  # Symmetric bounds
-        fixed_ctrl = phase.control("fixed", boundary=5.0)  # Fixed control
+        # NEW API: Only range constraints for controls
+        thrust = phase.control("thrust", boundary=(0, 100))
+        steering = phase.control("steering", boundary=(-30, 30))
+        free_ctrl = phase.control("free")
 
-        phase.dynamics({x: thrust + steering + fixed_ctrl})
+        # OLD API: Fixed control via boundary=scalar - NOW SHOULD FAIL
+        with pytest.raises(ValueError, match="boundary= argument only accepts range tuples"):
+            phase.control("fixed", boundary=5.0)
+
+        phase.dynamics({x: thrust + steering + free_ctrl})
         problem.minimize(x.final)
 
         phase.mesh([3], [-1, 1])
 
         opti = ca.Opti()
-        variables = _setup_multiphase_optimization_variables(opti, problem)  # type: ignore[arg-type]
+        variables = _setup_multiphase_optimization_variables(opti, problem)
 
         # Control variables should be created properly
         phase_vars = variables.phase_variables[1]

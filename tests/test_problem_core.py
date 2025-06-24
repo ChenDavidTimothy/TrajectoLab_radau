@@ -127,11 +127,11 @@ class TestProblemConstruction:
     def test_parameter_optimization(self):
         problem = mtor.Problem("Parameter Test")
 
-        # Create parameters with different constraint types
+        # NEW API: Use boundary= for ranges, fixed= for constants
         mass = problem.parameter("mass", boundary=(100, 1000))
         thrust_max = problem.parameter("thrust_max", boundary=(500, 2000))
-        fixed_param = problem.parameter("gravity", boundary=9.81)  # Fixed value
-        _free_param = problem.parameter("free_param")  # Unconstrained
+        gravity = problem.parameter("gravity", fixed=9.81)  # Use fixed= not boundary=
+        free_param = problem.parameter("free_param")
 
         phase = problem.set_phase(1)
         t = phase.time(initial=0, final=1)
@@ -139,12 +139,23 @@ class TestProblemConstruction:
         u = phase.control("throttle", boundary=(0, 1))
 
         # Use parameters in dynamics
-        phase.dynamics({v: u * thrust_max / mass - fixed_param})
+        phase.dynamics({v: u * thrust_max / mass - gravity})
         problem.minimize(t.final)
 
         # Verify parameter storage
         assert len(problem._static_parameters.parameter_info) == 4
         assert "mass" in problem._static_parameters.parameter_names
+
+        # Verify constraint types
+        mass_info = problem._static_parameters.parameter_info[0]
+        gravity_info = problem._static_parameters.parameter_info[2]
+
+        assert mass_info.boundary_constraint is not None
+        assert mass_info.boundary_constraint.lower == 100
+        assert mass_info.boundary_constraint.upper == 1000
+
+        assert gravity_info.fixed_constraint is not None
+        assert gravity_info.fixed_constraint.equals == 9.81
 
 
 class TestProblemFailureModes:
@@ -206,17 +217,17 @@ class TestProblemFailureModes:
         problem = mtor.Problem("Invalid Constraints")
         phase = problem.set_phase(1)
 
-        # Invalid tuple length
-        with pytest.raises(ConfigurationError, match="must have 2 elements"):
-            phase.state("x", initial=(1, 2, 3))  # type: ignore[arg-type]
+        # Invalid tuple length - should fail
+        with pytest.raises(ValueError, match="too many values to unpack"):
+            phase.state("x", initial=(1, 2, 3))
 
-        # Invalid bound ordering
-        with pytest.raises(ConfigurationError, match="Lower bound.*upper bound"):
+        # Invalid bound ordering - should fail with specific error message
+        with pytest.raises(ValueError, match="Invalid range.*lower bound.*upper bound"):
             phase.state("y", boundary=(10, 5))
 
-        # Invalid type
-        with pytest.raises(ConfigurationError, match="Invalid constraint type"):
-            phase.control("u", boundary="invalid")  # type: ignore[arg-type]
+        # Invalid type for boundary= - should fail
+        with pytest.raises(ValueError, match="boundary= argument only accepts range tuples"):
+            phase.control("u", boundary="invalid")
 
     def test_empty_string_names_fail(self):
         problem = mtor.Problem("Empty Names")
@@ -230,6 +241,13 @@ class TestProblemFailureModes:
 
         with pytest.raises(ConfigurationError, match="cannot be empty"):
             problem.parameter(" \t ")  # Mixed whitespace
+
+    def test_parameter_constraint_mutual_exclusion(self):
+        """Test that parameters reject both boundary= and fixed=."""
+        problem = mtor.Problem("Parameter Constraints")
+
+        with pytest.raises(ValueError, match="cannot have both boundary and fixed"):
+            problem.parameter("param", boundary=(1, 10), fixed=5.0)
 
 
 class TestOrderIndependence:
