@@ -116,6 +116,20 @@ def _process_symbolic_state_constraints(
         )
 
 
+def _process_symbolic_parameter_constraints(
+    multiphase_state: MultiPhaseVariableState, cross_phase_constraints: list[ca.MX]
+) -> None:
+    static_params = multiphase_state.static_parameters
+    for param_name, constraint_type, symbolic_expr in static_params.symbolic_boundary_constraints:
+        param_index = static_params.parameter_name_to_index[param_name]
+        param_symbols = static_params.get_ordered_parameter_symbols()
+        param_symbol = param_symbols[param_index]
+
+        constraint_expr = param_symbol - symbolic_expr
+        cross_phase_constraints.append(constraint_expr)
+        logger.debug(f"Added automatic parameter constraint for '{param_name}'")
+
+
 def _validate_phase_requirements(phases: dict[PhaseID, Any]) -> None:
     if not phases:
         raise ConfigurationError("Problem must have at least one phase defined")
@@ -132,13 +146,15 @@ def _validate_phase_requirements(phases: dict[PhaseID, Any]) -> None:
 
 
 def _process_symbolic_constraints_for_all_phases(
-    phases: dict[PhaseID, Any], cross_phase_constraints: list[ca.MX]
+    multiphase_state: MultiPhaseVariableState, cross_phase_constraints: list[ca.MX]
 ) -> None:
     logger.debug("Processing symbolic boundary constraints for automatic cross-phase linking")
 
-    for phase_id, phase_def in phases.items():
+    for phase_id, phase_def in multiphase_state.phases.items():
         _process_symbolic_time_constraints(phase_def, phase_id, cross_phase_constraints)
         _process_symbolic_state_constraints(phase_def, phase_id, cross_phase_constraints)
+
+    _process_symbolic_parameter_constraints(multiphase_state, cross_phase_constraints)
 
 
 def _build_all_phase_functions(multiphase_state: MultiPhaseVariableState) -> None:
@@ -1055,7 +1071,7 @@ class Problem:
 
     def validate_multiphase_configuration(self) -> None:
         _process_symbolic_constraints_for_all_phases(
-            self._multiphase_state.phases, self._multiphase_state.cross_phase_constraints
+            self._multiphase_state, self._multiphase_state.cross_phase_constraints
         )
 
         _validate_phase_requirements(self._multiphase_state.phases)

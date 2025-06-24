@@ -355,6 +355,7 @@ class StaticParameterState:
     parameter_info: list[_VariableInfo] = field(default_factory=list)
     parameter_name_to_index: dict[str, int] = field(default_factory=dict)
     parameter_names: list[str] = field(default_factory=list)
+    symbolic_boundary_constraints: list[tuple[str, str, ca.MX]] = field(default_factory=list)
     _ordering_lock: threading.Lock = field(default_factory=threading.Lock)
 
     def _create_parameter_variable_info(
@@ -371,6 +372,15 @@ class StaticParameterState:
         var_info._target_list = self.parameter_info
         return var_info
 
+    def _collect_parameter_symbolic_constraints(
+        self,
+        name: str,
+        boundary_constraint: _BoundaryConstraint | None,
+    ) -> None:
+        _collect_symbolic_constraint(
+            name, "boundary", boundary_constraint, self.symbolic_boundary_constraints
+        )
+
     def add_parameter(
         self, name: str, symbol: ca.MX, boundary_constraint: _BoundaryConstraint | None = None
     ) -> None:
@@ -379,7 +389,9 @@ class StaticParameterState:
         with self._ordering_lock:
 
             def create_parameter_info():
-                return self._create_parameter_variable_info(symbol, boundary_constraint)
+                var_info = self._create_parameter_variable_info(symbol, boundary_constraint)
+                self._collect_parameter_symbolic_constraints(name, boundary_constraint)
+                return var_info
 
             _create_variable_info_with_rollback(
                 name,
