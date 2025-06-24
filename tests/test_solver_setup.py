@@ -448,7 +448,7 @@ class TestBoundaryConstraintApplication:
 
         # OLD API: Fixed control via boundary=scalar - NOW SHOULD FAIL
         with pytest.raises(ValueError, match="boundary= argument only accepts range tuples"):
-            phase.control("fixed", boundary=5.0)
+            phase.control("fixed", boundary=5.0)  # type: ignore[arg-type]
 
         phase.dynamics({x: thrust + steering + free_ctrl})
         problem.minimize(x.final)
@@ -456,7 +456,7 @@ class TestBoundaryConstraintApplication:
         phase.mesh([3], [-1, 1])
 
         opti = ca.Opti()
-        variables = _setup_multiphase_optimization_variables(opti, problem)
+        variables = _setup_multiphase_optimization_variables(opti, problem)  # type: ignore[arg-type]
 
         # Control variables should be created properly
         phase_vars = variables.phase_variables[1]

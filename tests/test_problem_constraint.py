@@ -217,7 +217,7 @@ class TestBoundaryConstraints:
 
         # OLD API: boundary=50 for equality - NOW SHOULD FAIL
         with pytest.raises(ValueError, match="boundary= argument only accepts range tuples"):
-            phase.control("fixed", boundary=50)
+            phase.control("fixed", boundary=50)  # type: ignore[arg-type]
 
         phase.dynamics({x: bounded_control + lower_only + upper_only + free_control})
 
@@ -264,7 +264,7 @@ class TestConstraintFailureModes:
 
         # Wrong tuple length - should fail in _process_tuple_constraint_input
         with pytest.raises(ValueError, match="too many values to unpack"):
-            phase.state("x", boundary=(1, 2, 3))
+            phase.state("x", boundary=(1, 2, 3))  # type: ignore[arg-type]
 
         # Invalid bound ordering - should fail in _RangeBoundaryConstraint
         with pytest.raises(ValueError, match="Invalid range.*lower bound.*upper bound"):
@@ -285,15 +285,15 @@ class TestConstraintFailureModes:
 
         # Controls: boundary=scalar should fail
         with pytest.raises(ValueError, match="boundary= argument only accepts range tuples"):
-            phase.control("ctrl", boundary=50.0)
+            phase.control("ctrl", boundary=50.0)  # type: ignore[arg-type]
 
         # States: boundary=scalar should fail
         with pytest.raises(ValueError, match="boundary= argument only accepts range tuples"):
-            phase.state("state", boundary=100.0)
+            phase.state("state", boundary=100.0)  # type: ignore[arg-type]
 
         # Parameters: boundary=scalar should fail
         with pytest.raises(ValueError, match="boundary= argument only accepts range tuples"):
-            problem.parameter("param", boundary=9.81)
+            problem.parameter("param", boundary=9.81)  # type: ignore[arg-type]
 
 
 class TestSymbolicConstraints:

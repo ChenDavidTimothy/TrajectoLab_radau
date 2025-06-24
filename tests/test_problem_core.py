@@ -131,7 +131,7 @@ class TestProblemConstruction:
         mass = problem.parameter("mass", boundary=(100, 1000))
         thrust_max = problem.parameter("thrust_max", boundary=(500, 2000))
         gravity = problem.parameter("gravity", fixed=9.81)  # Use fixed= not boundary=
-        free_param = problem.parameter("free_param")
+        _free_param = problem.parameter("free_param")
 
         phase = problem.set_phase(1)
         t = phase.time(initial=0, final=1)
@@ -219,7 +219,7 @@ class TestProblemFailureModes:
 
         # Invalid tuple length - should fail
         with pytest.raises(ConfigurationError):
-            phase.state("x", initial=(1, 2, 3))
+            phase.state("x", initial=(1, 2, 3))  # type: ignore[arg-type]
 
         # Invalid bound ordering - should fail with specific error message
         with pytest.raises(ValueError, match="Invalid range.*lower bound.*upper bound"):
@@ -227,7 +227,7 @@ class TestProblemFailureModes:
 
         # Invalid type for boundary= - should fail
         with pytest.raises(ValueError, match="boundary= argument only accepts range tuples"):
-            phase.control("u", boundary="invalid")
+            phase.control("u", boundary="invalid")  # type: ignore[arg-type]
 
     def test_empty_string_names_fail(self):
         problem = mtor.Problem("Empty Names")

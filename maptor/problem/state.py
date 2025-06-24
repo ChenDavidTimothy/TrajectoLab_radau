@@ -142,8 +142,6 @@ class _BoundaryConstraint:
 
 
 class _RangeBoundaryConstraint:
-    """Handles only range constraints for boundary= argument - no equality, no symbolic."""
-
     def __init__(self, boundary_input: BoundaryInput = None) -> None:
         self.lower: float | None = None
         self.upper: float | None = None
@@ -166,7 +164,6 @@ class _RangeBoundaryConstraint:
         return self.lower is not None or self.upper is not None
 
     def is_symbolic(self) -> bool:
-        """Range boundaries are never symbolic - always return False."""
         return False
 
     def __repr__(self) -> str:
@@ -181,7 +178,7 @@ class _RangeBoundaryConstraint:
 
 
 class _FixedConstraint:
-    """Handles fixed parameter values - equality and symbolic expressions only."""
+    # Handles fixed parameter values - equality and symbolic expressions only.
 
     def __init__(self, fixed_input: FixedInput = None) -> None:
         self.equals: float | None = None

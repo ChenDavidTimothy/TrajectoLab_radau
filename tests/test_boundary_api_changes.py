@@ -7,10 +7,7 @@ from maptor.exceptions import ConfigurationError
 
 
 class TestStateBoundaryChanges:
-    """Test state boundary= only accepts ranges, not equality or symbolic."""
-
     def test_state_boundary_accepts_ranges(self):
-        """Test that state boundary= accepts valid range tuples."""
         problem = mtor.Problem("State Range Test")
         phase = problem.set_phase(1)
 
@@ -27,25 +24,22 @@ class TestStateBoundaryChanges:
         assert h4 is not None
 
     def test_state_boundary_rejects_equality(self):
-        """Test that state boundary= rejects equality constraints."""
         problem = mtor.Problem("State Equality Reject Test")
         phase = problem.set_phase(1)
 
         with pytest.raises((ValueError, TypeError)):
-            phase.state("altitude", boundary=1000.0)  # Should fail - no equality
+            phase.state("altitude", boundary=1000.0)  # type: ignore[arg-type] # Should fail - no equality
 
     def test_state_boundary_rejects_symbolic(self):
-        """Test that state boundary= rejects symbolic expressions."""
         problem = mtor.Problem("State Symbolic Reject Test")
         phase = problem.set_phase(1)
 
         h1 = phase.state("alt1", initial=0)
 
         with pytest.raises((ValueError, TypeError)):
-            phase.state("alt2", boundary=h1.final)  # Should fail - no symbolic
+            phase.state("alt2", boundary=h1.final)  # type: ignore[arg-type] # Should fail - no symbolic
 
     def test_state_initial_final_still_support_symbolic(self):
-        """Test that initial= and final= still support symbolic linking."""
         problem = mtor.Problem("State Symbolic Linking Test")
         phase1 = problem.set_phase(1)
         phase2 = problem.set_phase(2)
@@ -59,7 +53,6 @@ class TestStateBoundaryChanges:
         assert h2 is not None
 
     def test_state_initial_final_numeric_constraints(self):
-        """Test that initial= and final= support numeric constraints."""
         problem = mtor.Problem("State Numeric Test")
         phase = problem.set_phase(1)
 
@@ -73,10 +66,7 @@ class TestStateBoundaryChanges:
 
 
 class TestControlBoundaryChanges:
-    """Test control boundary= only accepts ranges, not equality or symbolic."""
-
     def test_control_boundary_accepts_ranges(self):
-        """Test that control boundary= accepts valid range tuples."""
         problem = mtor.Problem("Control Range Test")
         phase = problem.set_phase(1)
 
@@ -89,29 +79,24 @@ class TestControlBoundaryChanges:
         assert all(u is not None for u in [u1, u2, u3, u4])
 
     def test_control_boundary_rejects_equality(self):
-        """Test that control boundary= rejects equality constraints."""
         problem = mtor.Problem("Control Equality Reject Test")
         phase = problem.set_phase(1)
 
         with pytest.raises((ValueError, TypeError)):
-            phase.control("thrust", boundary=500.0)  # Should fail - no equality
+            phase.control("thrust", boundary=500.0)  # type: ignore[arg-type] # Should fail - no equality
 
     def test_control_boundary_rejects_symbolic(self):
-        """Test that control boundary= rejects symbolic expressions."""
         problem = mtor.Problem("Control Symbolic Reject Test")
         phase = problem.set_phase(1)
 
         param = problem.parameter("max_thrust", fixed=2000.0)
 
         with pytest.raises((ValueError, TypeError)):
-            phase.control("thrust", boundary=param)  # Should fail - no symbolic
+            phase.control("thrust", boundary=param)  # type: ignore[arg-type]  # Should fail - no symbolic
 
 
 class TestParameterBoundaryAndFixed:
-    """Test parameter boundary= (ranges) and fixed= (equality/symbolic)."""
-
     def test_parameter_boundary_accepts_ranges(self):
-        """Test that parameter boundary= accepts valid range tuples."""
         problem = mtor.Problem("Parameter Range Test")
 
         # All valid range formats for optimization
@@ -123,7 +108,6 @@ class TestParameterBoundaryAndFixed:
         assert all(p is not None for p in [p1, p2, p3, p4])
 
     def test_parameter_fixed_accepts_constants(self):
-        """Test that parameter fixed= accepts numeric constants."""
         problem = mtor.Problem("Parameter Fixed Constants Test")
 
         # Fixed numeric values
@@ -134,7 +118,6 @@ class TestParameterBoundaryAndFixed:
         assert all(p is not None for p in [p1, p2, p3])
 
     def test_parameter_fixed_accepts_symbolic(self):
-        """Test that parameter fixed= accepts symbolic relationships."""
         problem = mtor.Problem("Parameter Fixed Symbolic Test")
 
         # Symbolic relationships
@@ -145,21 +128,18 @@ class TestParameterBoundaryAndFixed:
         assert all(p is not None for p in [mass1, mass2, mass3])
 
     def test_parameter_boundary_rejects_equality(self):
-        """Test that parameter boundary= rejects equality constraints."""
         problem = mtor.Problem("Parameter Boundary Equality Reject Test")
 
         with pytest.raises((ValueError, TypeError)):
-            problem.parameter("mass", boundary=1000.0)  # Should fail - use fixed=
+            problem.parameter("mass", boundary=1000.0)  # type: ignore[arg-type] # Should fail - use fixed=
 
     def test_parameter_rejects_both_boundary_and_fixed(self):
-        """Test that parameters cannot have both boundary= and fixed=."""
         problem = mtor.Problem("Parameter Both Constraints Test")
 
         with pytest.raises(ValueError, match="cannot have both boundary and fixed"):
             problem.parameter("mass", boundary=(100, 500), fixed=300.0)
 
     def test_parameter_allows_neither_constraint(self):
-        """Test that parameters can have neither boundary= nor fixed=."""
         problem = mtor.Problem("Parameter No Constraints Test")
 
         # Should work - unconstrained parameter
@@ -168,36 +148,31 @@ class TestParameterBoundaryAndFixed:
 
 
 class TestConstraintValidation:
-    """Test constraint validation and error handling."""
-
     def test_invalid_boundary_tuple_formats(self):
-        """Test that malformed boundary tuples are rejected."""
         problem = mtor.Problem("Invalid Boundary Test")
         phase = problem.set_phase(1)
 
         # Invalid tuple formats should fail
         with pytest.raises((ValueError, TypeError)):
-            phase.state("bad1", boundary=(1, 2, 3))  # Too many elements
+            phase.state("bad1", boundary=(1, 2, 3))  # type: ignore[arg-type]  # Too many elements
 
         with pytest.raises((ValueError, TypeError)):
-            phase.state("bad2", boundary=(5,))  # Too few elements
+            phase.state("bad2", boundary=(5,))  # type: ignore[arg-type] # Too few elements
 
         with pytest.raises((ValueError, TypeError)):
-            phase.state("bad3", boundary="invalid")  # Wrong type
+            phase.state("bad3", boundary="invalid")  # type: ignore[arg-type] # Wrong type
 
     def test_invalid_fixed_formats(self):
-        """Test that invalid fixed= formats are rejected."""
         problem = mtor.Problem("Invalid Fixed Test")
 
         # Invalid fixed formats should fail
         with pytest.raises((ValueError, TypeError)):
-            problem.parameter("bad1", fixed=(100, 500))  # Should be boundary=
+            problem.parameter("bad1", fixed=(100, 500))  # type: ignore[arg-type]  # Should be boundary=
 
         with pytest.raises((ValueError, TypeError)):
-            problem.parameter("bad2", fixed="invalid")  # Wrong type
+            problem.parameter("bad2", fixed="invalid")  # type: ignore[arg-type]  # Wrong type
 
     def test_boundary_range_validation(self):
-        """Test that invalid ranges are caught."""
         problem = mtor.Problem("Range Validation Test")
         phase = problem.set_phase(1)
 
@@ -207,10 +182,7 @@ class TestConstraintValidation:
 
 
 class TestCompleteWorkingExample:
-    """Test complete problem using the new clean API."""
-
     def test_complete_problem_definition(self):
-        """Test a complete problem with all new API features."""
         problem = mtor.Problem("Complete API Test")
         phase = problem.set_phase(1)
 
@@ -253,7 +225,6 @@ class TestCompleteWorkingExample:
         assert fuel_ratio is not None
 
     def test_multiphase_symbolic_linking_still_works(self):
-        """Test that multiphase symbolic linking is preserved."""
         problem = mtor.Problem("Multiphase Linking Test")
 
         # Phase 1
@@ -267,7 +238,7 @@ class TestCompleteWorkingExample:
 
         # Phase 2 - symbolic continuity should still work
         phase2 = problem.set_phase(2)
-        t2 = phase2.time(initial=t1.final, final=300)  # Time continuity
+        _t2 = phase2.time(initial=t1.final, final=300)  # Time continuity
         h2 = phase2.state("altitude", initial=h1.final)  # State continuity
         v2 = phase2.state("velocity", initial=v1.final)  # State continuity
         u2 = phase2.control("thrust", boundary=(0, 1000))
@@ -286,33 +257,28 @@ class TestCompleteWorkingExample:
 
 
 class TestBackwardCompatibilityBreaks:
-    """Test that old API patterns correctly fail."""
-
     def test_old_state_boundary_equality_fails(self):
-        """Test that old state boundary=value syntax fails."""
         problem = mtor.Problem("Old State API Test")
         phase = problem.set_phase(1)
 
         with pytest.raises((ValueError, TypeError)):
             # This used to work but should now fail
-            phase.state("altitude", boundary=1000.0)
+            phase.state("altitude", boundary=1000.0)  # type: ignore[arg-type]
 
     def test_old_control_boundary_equality_fails(self):
-        """Test that old control boundary=value syntax fails."""
         problem = mtor.Problem("Old Control API Test")
         phase = problem.set_phase(1)
 
         with pytest.raises((ValueError, TypeError)):
             # This used to work but should now fail
-            phase.control("thrust", boundary=500.0)
+            phase.control("thrust", boundary=500.0)  # type: ignore[arg-type]
 
     def test_old_parameter_boundary_equality_fails(self):
-        """Test that old parameter boundary=value syntax fails."""
         problem = mtor.Problem("Old Parameter API Test")
 
         with pytest.raises((ValueError, TypeError)):
             # This used to work but should now fail
-            problem.parameter("mass", boundary=1000.0)
+            problem.parameter("mass", boundary=1000.0)  # type: ignore[arg-type]
 
 
 if __name__ == "__main__":
