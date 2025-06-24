@@ -120,7 +120,7 @@ def _process_symbolic_parameter_constraints(
     multiphase_state: MultiPhaseVariableState, cross_phase_constraints: list[ca.MX]
 ) -> None:
     static_params = multiphase_state.static_parameters
-    for param_name, constraint_type, symbolic_expr in static_params.symbolic_boundary_constraints:
+    for param_name, _, symbolic_expr in static_params.symbolic_boundary_constraints:
         param_index = static_params.parameter_name_to_index[param_name]
         param_symbols = static_params.get_ordered_parameter_symbols()
         param_symbol = param_symbols[param_index]

@@ -278,7 +278,7 @@ def _create_static_parameter(
     if boundary is not None and fixed is not None:
         raise ValueError(f"Parameter '{name}' cannot have both boundary and fixed constraints")
 
-    sym_var = ca.MX.sym(f"param_{name}", 1)
+    sym_var = ca.MX.sym(f"param_{name}", 1)  # type: ignore[arg-type]
 
     boundary_constraint = _RangeBoundaryConstraint(boundary) if boundary is not None else None
     fixed_constraint = _FixedConstraint(fixed) if fixed is not None else None
