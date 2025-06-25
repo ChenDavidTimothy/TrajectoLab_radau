@@ -30,11 +30,6 @@ def _create_phase_symbol(base_name: str, phase_id: int, suffix: str = "") -> ca.
     return ca.MX.sym(name, 1)  # type: ignore[arg-type]
 
 
-def _validate_constraint_and_name(name: str, constraint: ConstraintInput, context: str) -> None:
-    _validate_string_not_empty(name, f"{context} name")
-    _validate_constraint_input_format(constraint, f"{context} '{name}' constraint")
-
-
 def _convert_expression_to_casadi(
     expr: Any, expression_type: str, allow_callable_error: bool = True
 ) -> ca.MX:
