@@ -105,7 +105,7 @@ def _process_state_boundary_constraints(
 
 
 def _process_control_boundary_constraints(
-    control_boundary_constraints: list[_RangeBoundaryConstraint | None],  # Updated type
+    control_boundary_constraints: list[_RangeBoundaryConstraint | None],
     controls_vec: ca.MX,
     result: list[Constraint],
 ) -> None:
