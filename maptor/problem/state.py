@@ -7,7 +7,7 @@ from typing import TypeAlias, cast
 
 import casadi as ca
 
-from ..exceptions import DataIntegrityError
+from ..exceptions import ConfigurationError, DataIntegrityError
 from ..input_validation import _validate_constraint_input_format, _validate_string_not_empty
 from ..mtor_types import FloatArray, PhaseID
 from ..utils.constants import LARGE_VALUE
@@ -148,7 +148,9 @@ class _RangeBoundaryConstraint:
 
         if boundary_input is not None:
             if not isinstance(boundary_input, tuple):
-                raise ValueError("boundary= argument only accepts range tuples like (lower, upper)")
+                raise ConfigurationError(
+                    "boundary= argument only accepts range tuples like (lower, upper)"
+                )
             self._process_boundary_input(boundary_input)
 
     def _process_boundary_input(self, boundary_input: tuple) -> None:
@@ -156,7 +158,9 @@ class _RangeBoundaryConstraint:
 
         # Add range validation here
         if lower is not None and upper is not None and lower > upper:
-            raise ValueError(f"Invalid range: lower bound ({lower}) > upper bound ({upper})")
+            raise ConfigurationError(
+                f"Invalid range: lower bound ({lower}) > upper bound ({upper})"
+            )
 
         self.lower, self.upper = lower, upper
 
@@ -193,7 +197,7 @@ class _FixedConstraint:
         elif isinstance(fixed_input, int | float):
             self.equals = float(fixed_input)
         else:
-            raise ValueError(
+            raise ConfigurationError(
                 f"fixed= argument only accepts numeric values or symbolic expressions, got {type(fixed_input)}"
             )
 

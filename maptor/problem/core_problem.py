@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 def _validate_phase_exists(phases: dict[PhaseID, Any], phase_id: PhaseID) -> None:
     if phase_id not in phases:
-        raise ValueError(f"Phase {phase_id} does not exist")
+        raise ConfigurationError(f"Phase {phase_id} does not exist")
 
 
 def _validate_constraint_inputs(name: str, boundary: ConstraintInput, context: str) -> None:
@@ -46,7 +46,7 @@ def _validate_constraint_expressions_not_empty(
     constraint_expressions: tuple, phase_id: PhaseID, constraint_type: str
 ) -> None:
     if not constraint_expressions:
-        raise ValueError(
+        raise ConfigurationError(
             f"Phase {phase_id} {constraint_type}_constraints() requires at least one constraint expression"
         )
 
@@ -59,14 +59,18 @@ def _process_symbolic_time_constraints(
             phase_def.sym_time_initial is None
             or phase_def.t0_constraint.symbolic_expression is None
         ):
-            raise ValueError(f"Phase {phase_id} has an undefined symbolic time initial expression.")
+            raise ConfigurationError(
+                f"Phase {phase_id} has an undefined symbolic time initial expression."
+            )
         constraint_expr = phase_def.sym_time_initial - phase_def.t0_constraint.symbolic_expression
         cross_phase_constraints.append(constraint_expr)
         logger.debug(f"Added automatic time initial constraint for phase {phase_id}")
 
     if phase_def.tf_constraint.is_symbolic():
         if phase_def.sym_time_final is None or phase_def.tf_constraint.symbolic_expression is None:
-            raise ValueError(f"Phase {phase_id} has an undefined symbolic time final expression.")
+            raise ConfigurationError(
+                f"Phase {phase_id} has an undefined symbolic time final expression."
+            )
         constraint_expr = phase_def.sym_time_final - phase_def.tf_constraint.symbolic_expression
         cross_phase_constraints.append(constraint_expr)
         logger.debug(f"Added automatic time final constraint for phase {phase_id}")
@@ -839,7 +843,7 @@ class Problem:
             Phase: Phase object for defining variables, dynamics, and constraints
 
         Raises:
-            ValueError: If phase_id already exists
+            ConfigurationError: If phase_id already exists
 
         Examples:
             Single phase problem:
@@ -872,7 +876,7 @@ class Problem:
             >>> descent_phase = problem.set_phase(3)
         """
         if phase_id in self._multiphase_state.phases:
-            raise ValueError(f"Phase {phase_id} already exists")
+            raise ConfigurationError(f"Phase {phase_id} already exists")
 
         logger.debug("Adding phase %d to problem '%s'", phase_id, self.name)
         return Phase(self, phase_id)
@@ -906,7 +910,7 @@ class Problem:
             ca.MX: Parameter variable for use across all phases
 
         Raises:
-            ValueError: If both boundary and fixed are specified
+            ConfigurationError: If both boundary and fixed are specified
 
         Examples:
             Bounded parameter:
@@ -1039,7 +1043,7 @@ class Problem:
         phase_def = self._multiphase_state.phases[phase_id]
 
         if phase_def._dynamics_function is None:
-            raise ValueError(
+            raise ConfigurationError(
                 f"Phase {phase_id} dynamics function not built - call validate_multiphase_configuration() first"
             )
 
@@ -1050,7 +1054,7 @@ class Problem:
         phase_def = self._multiphase_state.phases[phase_id]
 
         if phase_def._numerical_dynamics_function is None:
-            raise ValueError(
+            raise ConfigurationError(
                 f"Phase {phase_id} numerical dynamics function not built - call validate_multiphase_configuration() first"
             )
 
@@ -1058,7 +1062,7 @@ class Problem:
 
     def _get_objective_function(self) -> Any:
         if self._multiphase_state._objective_function is None:
-            raise ValueError(
+            raise ConfigurationError(
                 "Multiphase objective function not built - call validate_multiphase_configuration() first"
             )
 
@@ -1085,7 +1089,7 @@ class Problem:
         _validate_phase_requirements(self._multiphase_state.phases)
 
         if self._multiphase_state.objective_expression is None:
-            raise ValueError("Problem must have objective function defined")
+            raise ConfigurationError("Problem must have objective function defined")
 
         _build_all_phase_functions(self._multiphase_state)
 

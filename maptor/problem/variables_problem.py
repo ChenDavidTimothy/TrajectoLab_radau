@@ -4,6 +4,7 @@ from typing import Any, cast
 
 import casadi as ca
 
+from ..exceptions import ConfigurationError
 from ..input_validation import _validate_constraint_input_format, _validate_string_not_empty
 from .state import (
     BoundaryInput,
@@ -46,11 +47,11 @@ def _convert_expression_to_casadi(
             return ca.MX(expr)
     except Exception as e:
         if callable(expr) and allow_callable_error:
-            raise ValueError(
+            raise ConfigurationError(
                 f"{expression_type} appears to be a function {expr}. Did you forget to call it?"
             ) from e
         else:
-            raise ValueError(
+            raise ConfigurationError(
                 f"Cannot convert {expression_type} of type {type(expr)} to CasADi MX: {expr}"
             ) from e
 
@@ -64,7 +65,7 @@ def _validate_dynamics_key_exists(
         if underlying_sym is sym:
             return
 
-    raise ValueError(f"Dynamics provided for undefined state variable in phase {phase_id}")
+    raise ConfigurationError(f"Dynamics provided for undefined state variable in phase {phase_id}")
 
 
 def _convert_dynamics_dict_to_casadi(
@@ -232,6 +233,9 @@ def _create_phase_state_variable(
     _validate_string_not_empty(name, f"phase {phase_def.phase_id} state name")
     _validate_constraint_input_format(initial, f"phase {phase_def.phase_id} state '{name}' initial")
     _validate_constraint_input_format(final, f"phase {phase_def.phase_id} state '{name}' final")
+    _validate_constraint_input_format(
+        boundary, f"phase {phase_def.phase_id} state '{name}' boundary"
+    )
 
     sym_var, sym_initial, sym_final = _create_state_symbols(name, phase_def.phase_id)
 
@@ -258,6 +262,9 @@ def create_phase_control_variable(
     boundary: BoundaryInput = None,  # Ranges only
 ) -> ca.MX:
     _validate_string_not_empty(name, f"phase {phase_def.phase_id} control name")
+    _validate_constraint_input_format(
+        boundary, f"phase {phase_def.phase_id} control '{name}' boundary"
+    )
 
     sym_var = _create_phase_symbol(name, phase_def.phase_id)
     boundary_constraint = _RangeBoundaryConstraint(boundary) if boundary is not None else None
@@ -274,9 +281,13 @@ def _create_static_parameter(
     fixed: FixedInput = None,  # Equality/symbolic only
 ) -> ca.MX:
     _validate_string_not_empty(name, f"parameter '{name}' name")
+    _validate_constraint_input_format(boundary, f"parameter '{name}' boundary")  # ← ADD THIS
+    _validate_constraint_input_format(fixed, f"parameter '{name}' fixed")  # ← ADD THIS
 
     if boundary is not None and fixed is not None:
-        raise ValueError(f"Parameter '{name}' cannot have both boundary and fixed constraints")
+        raise ConfigurationError(
+            f"Parameter '{name}' cannot have both boundary and fixed constraints"
+        )
 
     sym_var = ca.MX.sym(f"param_{name}", 1)  # type: ignore[arg-type]
 

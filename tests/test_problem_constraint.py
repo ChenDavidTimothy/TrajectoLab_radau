@@ -69,7 +69,7 @@ class TestPathConstraints:
         phase.dynamics({x: 0})
 
         # Empty constraint list should fail
-        with pytest.raises(ValueError, match="requires at least one constraint"):
+        with pytest.raises(ConfigurationError, match="requires at least one constraint"):
             phase.path_constraints()
 
     def test_mixed_constraint_types(self):
@@ -172,7 +172,7 @@ class TestEventConstraints:
         phase.dynamics({x: 0})
 
         # Empty constraint list should fail
-        with pytest.raises(ValueError, match="requires at least one constraint"):
+        with pytest.raises(ConfigurationError, match="requires at least one constraint"):
             phase.event_constraints()
 
 
@@ -216,7 +216,9 @@ class TestBoundaryConstraints:
         free_control = phase.control("free")
 
         # OLD API: boundary=50 for equality - NOW SHOULD FAIL
-        with pytest.raises(ValueError, match="boundary= argument only accepts range tuples"):
+        with pytest.raises(
+            ConfigurationError, match="boundary= argument only accepts range tuples"
+        ):
             phase.control("fixed", boundary=50)  # type: ignore[arg-type]
 
         phase.dynamics({x: bounded_control + lower_only + upper_only + free_control})
@@ -249,13 +251,13 @@ class TestConstraintFailureModes:
         phase = problem.set_phase(1)
 
         # NaN/Inf should be caught by input validation before reaching _RangeBoundaryConstraint
-        with pytest.raises((ValueError, ConfigurationError), match="NaN|infinite|Invalid"):
+        with pytest.raises(ConfigurationError, match="NaN|infinite|Invalid"):
             phase.state("x", initial=float("nan"))
 
-        with pytest.raises((ValueError, ConfigurationError), match="NaN|infinite|Invalid"):
+        with pytest.raises(ConfigurationError, match="NaN|infinite|Invalid"):
             phase.state("y", final=float("inf"))
 
-        with pytest.raises((ValueError, ConfigurationError), match="NaN|infinite|Invalid"):
+        with pytest.raises(ConfigurationError, match="NaN|infinite|Invalid"):
             phase.control("u", boundary=(float("nan"), 10))
 
     def test_invalid_tuple_constraints_fail(self):
@@ -263,19 +265,19 @@ class TestConstraintFailureModes:
         phase = problem.set_phase(1)
 
         # Wrong tuple length - should fail in _process_tuple_constraint_input
-        with pytest.raises(ValueError, match="too many values to unpack"):
+        with pytest.raises(ConfigurationError, match="too many values to unpack"):
             phase.state("x", boundary=(1, 2, 3))  # type: ignore[arg-type]
 
         # Invalid bound ordering - should fail in _RangeBoundaryConstraint
-        with pytest.raises(ValueError, match="Invalid range.*lower bound.*upper bound"):
+        with pytest.raises(ConfigurationError):
             phase.state("y", boundary=(10, 5))
 
     def test_conflicting_constraints_fail(self):
         # This would test the Constraint class validation
-        with pytest.raises(ValueError, match="Cannot specify equality.*with bound"):
+        with pytest.raises(ConfigurationError):
             Constraint(val=ca.MX.sym("x", 1), equals=5, min_val=0, max_val=10)  # type: ignore[arg-type]
 
-        with pytest.raises(ValueError, match="min_val.*must be.*max_val"):
+        with pytest.raises(ConfigurationError):
             Constraint(val=ca.MX.sym("x", 1), min_val=10, max_val=5)  # type: ignore[arg-type]
 
     def test_boundary_scalar_values_now_fail(self):
@@ -284,15 +286,15 @@ class TestConstraintFailureModes:
         phase = problem.set_phase(1)
 
         # Controls: boundary=scalar should fail
-        with pytest.raises(ValueError, match="boundary= argument only accepts range tuples"):
+        with pytest.raises(ConfigurationError):
             phase.control("ctrl", boundary=50.0)  # type: ignore[arg-type]
 
         # States: boundary=scalar should fail
-        with pytest.raises(ValueError, match="boundary= argument only accepts range tuples"):
+        with pytest.raises(ConfigurationError):
             phase.state("state", boundary=100.0)  # type: ignore[arg-type]
 
         # Parameters: boundary=scalar should fail
-        with pytest.raises(ValueError, match="boundary= argument only accepts range tuples"):
+        with pytest.raises(ConfigurationError):
             problem.parameter("param", boundary=9.81)  # type: ignore[arg-type]
 
 

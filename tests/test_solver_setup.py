@@ -447,7 +447,9 @@ class TestBoundaryConstraintApplication:
         free_ctrl = phase.control("free")
 
         # OLD API: Fixed control via boundary=scalar - NOW SHOULD FAIL
-        with pytest.raises(ValueError, match="boundary= argument only accepts range tuples"):
+        with pytest.raises(
+            ConfigurationError, match="boundary= argument only accepts range tuples"
+        ):
             phase.control("fixed", boundary=5.0)  # type: ignore[arg-type]
 
         phase.dynamics({x: thrust + steering + free_ctrl})

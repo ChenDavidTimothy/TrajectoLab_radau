@@ -27,7 +27,7 @@ class TestStateBoundaryChanges:
         problem = mtor.Problem("State Equality Reject Test")
         phase = problem.set_phase(1)
 
-        with pytest.raises((ValueError, TypeError)):
+        with pytest.raises(ConfigurationError):
             phase.state("altitude", boundary=1000.0)  # type: ignore[arg-type] # Should fail - no equality
 
     def test_state_boundary_rejects_symbolic(self):
@@ -36,7 +36,7 @@ class TestStateBoundaryChanges:
 
         h1 = phase.state("alt1", initial=0)
 
-        with pytest.raises((ValueError, TypeError)):
+        with pytest.raises(ConfigurationError):
             phase.state("alt2", boundary=h1.final)  # type: ignore[arg-type] # Should fail - no symbolic
 
     def test_state_initial_final_still_support_symbolic(self):
@@ -82,7 +82,7 @@ class TestControlBoundaryChanges:
         problem = mtor.Problem("Control Equality Reject Test")
         phase = problem.set_phase(1)
 
-        with pytest.raises((ValueError, TypeError)):
+        with pytest.raises(ConfigurationError):
             phase.control("thrust", boundary=500.0)  # type: ignore[arg-type] # Should fail - no equality
 
     def test_control_boundary_rejects_symbolic(self):
@@ -91,7 +91,7 @@ class TestControlBoundaryChanges:
 
         param = problem.parameter("max_thrust", fixed=2000.0)
 
-        with pytest.raises((ValueError, TypeError)):
+        with pytest.raises(ConfigurationError):
             phase.control("thrust", boundary=param)  # type: ignore[arg-type]  # Should fail - no symbolic
 
 
@@ -130,13 +130,13 @@ class TestParameterBoundaryAndFixed:
     def test_parameter_boundary_rejects_equality(self):
         problem = mtor.Problem("Parameter Boundary Equality Reject Test")
 
-        with pytest.raises((ValueError, TypeError)):
+        with pytest.raises(ConfigurationError):
             problem.parameter("mass", boundary=1000.0)  # type: ignore[arg-type] # Should fail - use fixed=
 
     def test_parameter_rejects_both_boundary_and_fixed(self):
         problem = mtor.Problem("Parameter Both Constraints Test")
 
-        with pytest.raises(ValueError, match="cannot have both boundary and fixed"):
+        with pytest.raises(ConfigurationError, match="cannot have both boundary and fixed"):
             problem.parameter("mass", boundary=(100, 500), fixed=300.0)
 
     def test_parameter_allows_neither_constraint(self):
@@ -153,23 +153,23 @@ class TestConstraintValidation:
         phase = problem.set_phase(1)
 
         # Invalid tuple formats should fail
-        with pytest.raises((ValueError, TypeError)):
+        with pytest.raises(ConfigurationError):
             phase.state("bad1", boundary=(1, 2, 3))  # type: ignore[arg-type]  # Too many elements
 
-        with pytest.raises((ValueError, TypeError)):
+        with pytest.raises(ConfigurationError):
             phase.state("bad2", boundary=(5,))  # type: ignore[arg-type] # Too few elements
 
-        with pytest.raises((ValueError, TypeError)):
+        with pytest.raises(ConfigurationError):
             phase.state("bad3", boundary="invalid")  # type: ignore[arg-type] # Wrong type
 
     def test_invalid_fixed_formats(self):
         problem = mtor.Problem("Invalid Fixed Test")
 
         # Invalid fixed formats should fail
-        with pytest.raises((ValueError, TypeError)):
+        with pytest.raises(ConfigurationError):
             problem.parameter("bad1", fixed=(100, 500))  # type: ignore[arg-type]  # Should be boundary=
 
-        with pytest.raises((ValueError, TypeError)):
+        with pytest.raises(ConfigurationError):
             problem.parameter("bad2", fixed="invalid")  # type: ignore[arg-type]  # Wrong type
 
     def test_boundary_range_validation(self):
@@ -177,7 +177,7 @@ class TestConstraintValidation:
         phase = problem.set_phase(1)
 
         # Lower > upper should fail in validation
-        with pytest.raises((ValueError, ConfigurationError)):
+        with pytest.raises(ConfigurationError):
             phase.state("bad_range", boundary=(100, 50))  # Invalid range
 
 
@@ -261,7 +261,7 @@ class TestBackwardCompatibilityBreaks:
         problem = mtor.Problem("Old State API Test")
         phase = problem.set_phase(1)
 
-        with pytest.raises((ValueError, TypeError)):
+        with pytest.raises(ConfigurationError):
             # This used to work but should now fail
             phase.state("altitude", boundary=1000.0)  # type: ignore[arg-type]
 
@@ -269,14 +269,14 @@ class TestBackwardCompatibilityBreaks:
         problem = mtor.Problem("Old Control API Test")
         phase = problem.set_phase(1)
 
-        with pytest.raises((ValueError, TypeError)):
+        with pytest.raises(ConfigurationError):
             # This used to work but should now fail
             phase.control("thrust", boundary=500.0)  # type: ignore[arg-type]
 
     def test_old_parameter_boundary_equality_fails(self):
         problem = mtor.Problem("Old Parameter API Test")
 
-        with pytest.raises((ValueError, TypeError)):
+        with pytest.raises(ConfigurationError):
             # This used to work but should now fail
             problem.parameter("mass", boundary=1000.0)  # type: ignore[arg-type]
 

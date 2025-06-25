@@ -163,7 +163,7 @@ class TestProblemFailureModes:
         problem = mtor.Problem("Duplicate Test")
         problem.set_phase(1)
 
-        with pytest.raises(ValueError, match="Phase 1 already exists"):
+        with pytest.raises(ConfigurationError, match="Phase 1 already exists"):
             problem.set_phase(1)
 
     def test_duplicate_variable_names_fail(self):
@@ -192,7 +192,7 @@ class TestProblemFailureModes:
         # Create a fake state symbol not registered with phase
         fake_state = ca.MX.sym("fake", 1)  # type: ignore[arg-type]
 
-        with pytest.raises(ValueError, match="undefined state variable"):
+        with pytest.raises(ConfigurationError, match="undefined state variable"):
             phase.dynamics({fake_state: u, x: 0})
 
     def test_incomplete_dynamics_detected(self):
@@ -222,11 +222,13 @@ class TestProblemFailureModes:
             phase.state("x", initial=(1, 2, 3))  # type: ignore[arg-type]
 
         # Invalid bound ordering - should fail with specific error message
-        with pytest.raises(ValueError, match="Invalid range.*lower bound.*upper bound"):
+        with pytest.raises(ConfigurationError, match="Invalid range.*lower bound.*upper bound"):
             phase.state("y", boundary=(10, 5))
 
         # Invalid type for boundary= - should fail
-        with pytest.raises(ValueError, match="boundary= argument only accepts range tuples"):
+        with pytest.raises(
+            ConfigurationError, match="boundary= argument only accepts range tuples"
+        ):
             phase.control("u", boundary="invalid")  # type: ignore[arg-type]
 
     def test_empty_string_names_fail(self):
@@ -246,7 +248,7 @@ class TestProblemFailureModes:
         """Test that parameters reject both boundary= and fixed=."""
         problem = mtor.Problem("Parameter Constraints")
 
-        with pytest.raises(ValueError, match="cannot have both boundary and fixed"):
+        with pytest.raises(ConfigurationError, match="cannot have both boundary and fixed"):
             problem.parameter("param", boundary=(1, 10), fixed=5.0)
 
 
