@@ -8,7 +8,7 @@ from ..mtor_types import Constraint, PhaseID
 from .state import (
     MultiPhaseVariableState,
     PhaseDefinition,
-    _BoundaryConstraint,
+    _EndpointConstraint,
     _FixedConstraint,
     _RangeBoundaryConstraint,
 )
@@ -64,7 +64,7 @@ def _symbolic_constraint_to_constraint(expr: ca.MX) -> Constraint:
 
 
 def _boundary_constraint_to_constraints(
-    boundary_constraint: _BoundaryConstraint, variable_expression: ca.MX
+    boundary_constraint: _EndpointConstraint, variable_expression: ca.MX
 ) -> list[Constraint]:
     constraints: list[Constraint] = []
 

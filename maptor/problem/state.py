@@ -80,7 +80,7 @@ def _create_variable_info_with_rollback(
 def _collect_symbolic_constraint(
     name: str,
     constraint_type: str,
-    constraint: _BoundaryConstraint | None,
+    constraint: _EndpointConstraint | None,
     symbolic_constraints: list[tuple[str, str, ca.MX]],
 ) -> None:
     if constraint is not None and constraint.is_symbolic():
@@ -89,7 +89,7 @@ def _collect_symbolic_constraint(
         )
 
 
-class _BoundaryConstraint:
+class _EndpointConstraint:
     def __init__(self, constraint_input: ConstraintInput = None) -> None:
         _validate_constraint_input_format(constraint_input, "boundary constraint")
 
@@ -125,20 +125,20 @@ class _BoundaryConstraint:
 
     def __repr__(self) -> str:
         if self.symbolic_expression is not None:
-            return f"_BoundaryConstraint(symbolic={self.symbolic_expression})"
+            return f"_EndpointConstraint(symbolic={self.symbolic_expression})"
         elif self.equals is not None:
-            return f"_BoundaryConstraint(equals={self.equals})"
+            return f"_EndpointConstraint(equals={self.equals})"
         elif self.lower is not None and self.upper is not None:
-            return f"_BoundaryConstraint(lower={self.lower}, upper={self.upper})"
+            return f"_EndpointConstraint(lower={self.lower}, upper={self.upper})"
         elif self.lower is not None:
-            return f"_BoundaryConstraint(lower={self.lower})"
+            return f"_EndpointConstraint(lower={self.lower})"
         elif self.upper is not None:
-            return f"_BoundaryConstraint(upper={self.upper})"
+            return f"_EndpointConstraint(upper={self.upper})"
         else:
-            return "_BoundaryConstraint(no constraint)"
+            return "_EndpointConstraint(no constraint)"
 
 
-# maptor/problem/state.py - Add new classes, keep original _BoundaryConstraint for initial/final
+# maptor/problem/state.py - Add new classes, keep original _EndpointConstraint for initial/final
 
 
 class _RangeBoundaryConstraint:
@@ -221,8 +221,8 @@ class _VariableInfo:
     symbol: ca.MX
     initial_symbol: ca.MX | None = None
     final_symbol: ca.MX | None = None
-    initial_constraint: _BoundaryConstraint | None = None  # For initial= (supports symbolic)
-    final_constraint: _BoundaryConstraint | None = None  # For final= (supports symbolic)
+    initial_constraint: _EndpointConstraint | None = None  # For initial= (supports symbolic)
+    final_constraint: _EndpointConstraint | None = None  # For final= (supports symbolic)
     boundary_constraint: _RangeBoundaryConstraint | None = None  # For boundary= (ranges only)
     fixed_constraint: _FixedConstraint | None = None  # For parameter fixed= (equality/symbolic)
     _target_list: list[_VariableInfo] | None = None
@@ -250,8 +250,8 @@ class PhaseDefinition:
     integral_symbols: list[ca.MX] = field(default_factory=list)
     num_integrals: int = 0
 
-    t0_constraint: _BoundaryConstraint = field(default_factory=lambda: _BoundaryConstraint(0.0))
-    tf_constraint: _BoundaryConstraint = field(default_factory=lambda: _BoundaryConstraint())
+    t0_constraint: _EndpointConstraint = field(default_factory=lambda: _EndpointConstraint(0.0))
+    tf_constraint: _EndpointConstraint = field(default_factory=lambda: _EndpointConstraint())
 
     collocation_points_per_interval: list[int] = field(default_factory=list)
     global_normalized_mesh_nodes: FloatArray | None = None
@@ -281,8 +281,8 @@ class PhaseDefinition:
         symbol: ca.MX,
         initial_symbol: ca.MX | None,
         final_symbol: ca.MX | None,
-        initial_constraint: _BoundaryConstraint | None,
-        final_constraint: _BoundaryConstraint | None,
+        initial_constraint: _EndpointConstraint | None,
+        final_constraint: _EndpointConstraint | None,
         boundary_constraint: _RangeBoundaryConstraint | None,
     ) -> _VariableInfo:
         var_info = _VariableInfo(
@@ -309,8 +309,8 @@ class PhaseDefinition:
     def _collect_state_symbolic_constraints(
         self,
         name: str,
-        initial_constraint: _BoundaryConstraint | None,
-        final_constraint: _BoundaryConstraint | None,
+        initial_constraint: _EndpointConstraint | None,
+        final_constraint: _EndpointConstraint | None,
     ) -> None:
         _collect_symbolic_constraint(
             name, "initial", initial_constraint, self.symbolic_boundary_constraints
@@ -325,8 +325,8 @@ class PhaseDefinition:
         symbol: ca.MX,
         initial_symbol: ca.MX | None = None,
         final_symbol: ca.MX | None = None,
-        initial_constraint: _BoundaryConstraint | None = None,
-        final_constraint: _BoundaryConstraint | None = None,
+        initial_constraint: _EndpointConstraint | None = None,
+        final_constraint: _EndpointConstraint | None = None,
         boundary_constraint: _RangeBoundaryConstraint | None = None,
     ) -> None:
         _validate_string_not_empty(name, "State variable name")
@@ -403,7 +403,7 @@ class PhaseDefinition:
         return symbols
 
     def _get_time_bounds(
-        self, constraint: _BoundaryConstraint, constraint_type: str
+        self, constraint: _EndpointConstraint, constraint_type: str
     ) -> tuple[float, float]:
         if constraint.is_symbolic():
             return (-LARGE_VALUE, LARGE_VALUE)

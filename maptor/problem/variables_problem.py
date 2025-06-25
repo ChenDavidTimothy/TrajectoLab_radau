@@ -13,7 +13,7 @@ from .state import (
     MultiPhaseVariableState,
     PhaseDefinition,
     StaticParameterState,
-    _BoundaryConstraint,
+    _EndpointConstraint,
     _FixedConstraint,
     _RangeBoundaryConstraint,
 )
@@ -206,8 +206,8 @@ def create_phase_time_variable(
     if initial is None:
         initial = 0.0
 
-    t0_constraint = _BoundaryConstraint(initial)
-    tf_constraint = _BoundaryConstraint(final)
+    t0_constraint = _EndpointConstraint(initial)
+    tf_constraint = _EndpointConstraint(final)
 
     phase_def.t0_constraint = t0_constraint
     phase_def.tf_constraint = tf_constraint
@@ -234,8 +234,8 @@ def _create_phase_state_variable(
 
     sym_var, sym_initial, sym_final = _create_state_symbols(name, phase_def.phase_id)
 
-    initial_constraint = _BoundaryConstraint(initial) if initial is not None else None
-    final_constraint = _BoundaryConstraint(final) if final is not None else None
+    initial_constraint = _EndpointConstraint(initial) if initial is not None else None
+    final_constraint = _EndpointConstraint(final) if final is not None else None
     boundary_constraint = _RangeBoundaryConstraint(boundary) if boundary is not None else None
 
     phase_def.add_state(
