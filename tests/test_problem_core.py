@@ -222,13 +222,11 @@ class TestProblemFailureModes:
             phase.state("x", initial=(1, 2, 3))  # type: ignore[arg-type]
 
         # Invalid bound ordering - should fail with specific error message
-        with pytest.raises(ConfigurationError, match="Invalid range.*lower bound.*upper bound"):
+        with pytest.raises(ConfigurationError, match="Lower bound \\(10\\) > upper bound \\(5\\)"):
             phase.state("y", boundary=(10, 5))
 
         # Invalid type for boundary= - should fail
-        with pytest.raises(
-            ConfigurationError, match="boundary= argument only accepts range tuples"
-        ):
+        with pytest.raises(ConfigurationError, match="Invalid constraint type: <class 'str'>"):
             phase.control("u", boundary="invalid")  # type: ignore[arg-type]
 
     def test_empty_string_names_fail(self):

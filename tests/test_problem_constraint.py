@@ -265,7 +265,9 @@ class TestConstraintFailureModes:
         phase = problem.set_phase(1)
 
         # Wrong tuple length - should fail in _process_tuple_constraint_input
-        with pytest.raises(ConfigurationError, match="too many values to unpack"):
+        with pytest.raises(
+            ConfigurationError, match="Constraint tuple must have 2 elements, got 3"
+        ):
             phase.state("x", boundary=(1, 2, 3))  # type: ignore[arg-type]
 
         # Invalid bound ordering - should fail in _RangeBoundaryConstraint
@@ -274,10 +276,10 @@ class TestConstraintFailureModes:
 
     def test_conflicting_constraints_fail(self):
         # This would test the Constraint class validation
-        with pytest.raises(ConfigurationError):
+        with pytest.raises(ValueError):
             Constraint(val=ca.MX.sym("x", 1), equals=5, min_val=0, max_val=10)  # type: ignore[arg-type]
 
-        with pytest.raises(ConfigurationError):
+        with pytest.raises(ValueError):
             Constraint(val=ca.MX.sym("x", 1), min_val=10, max_val=5)  # type: ignore[arg-type]
 
     def test_boundary_scalar_values_now_fail(self):
