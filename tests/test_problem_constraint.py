@@ -276,10 +276,12 @@ class TestConstraintFailureModes:
 
     def test_conflicting_constraints_fail(self):
         # This would test the Constraint class validation
-        with pytest.raises(ValueError):
+        with pytest.raises(
+            ValueError, match="Cannot specify equality constraint with bound constraints"
+        ):
             Constraint(val=ca.MX.sym("x", 1), equals=5, min_val=0, max_val=10)  # type: ignore[arg-type]
 
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match=r"min_val \(10\) must be <= max_val \(5\)"):
             Constraint(val=ca.MX.sym("x", 1), min_val=10, max_val=5)  # type: ignore[arg-type]
 
     def test_boundary_scalar_values_now_fail(self):

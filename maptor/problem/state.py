@@ -221,10 +221,10 @@ class _VariableInfo:
     symbol: ca.MX
     initial_symbol: ca.MX | None = None
     final_symbol: ca.MX | None = None
-    initial_constraint: _EndpointConstraint | None = None  # For initial= (supports symbolic)
-    final_constraint: _EndpointConstraint | None = None  # For final= (supports symbolic)
-    boundary_constraint: _RangeBoundaryConstraint | None = None  # For boundary= (ranges only)
-    fixed_constraint: _FixedConstraint | None = None  # For parameter fixed= (equality/symbolic)
+    initial_constraint: _EndpointConstraint | None = None
+    final_constraint: _EndpointConstraint | None = None
+    boundary_constraint: _RangeBoundaryConstraint | None = None
+    fixed_constraint: _FixedConstraint | None = None
     _target_list: list[_VariableInfo] | None = None
 
 

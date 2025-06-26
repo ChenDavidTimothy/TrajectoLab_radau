@@ -221,9 +221,9 @@ def create_phase_time_variable(
 def _create_phase_state_variable(
     phase_def: PhaseDefinition,
     name: str,
-    initial: ConstraintInput = None,  # Supports symbolic linking
-    final: ConstraintInput = None,  # Supports symbolic linking
-    boundary: BoundaryInput = None,  # Ranges only
+    initial: ConstraintInput = None,
+    final: ConstraintInput = None,
+    boundary: BoundaryInput = None,
 ) -> StateVariableImpl:
     _validate_string_not_empty(name, f"phase {phase_def.phase_id} state name")
     _validate_constraint_input_format(initial, f"phase {phase_def.phase_id} state '{name}' initial")
@@ -276,9 +276,8 @@ def _create_static_parameter(
     fixed: FixedInput = None,  # Equality/symbolic only
 ) -> ca.MX:
     _validate_string_not_empty(name, f"parameter '{name}' name")
-    _validate_constraint_input_format(boundary, f"parameter '{name}' boundary")  # ← ADD THIS
-    _validate_constraint_input_format(fixed, f"parameter '{name}' fixed")  # ← ADD THIS
-
+    _validate_constraint_input_format(boundary, f"parameter '{name}' boundary")
+    _validate_constraint_input_format(fixed, f"parameter '{name}' fixed")
     if boundary is not None and fixed is not None:
         raise ConfigurationError(
             f"Parameter '{name}' cannot have both boundary and fixed constraints"

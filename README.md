@@ -4,11 +4,15 @@
 
 # MAPTOR: Multiphase Adaptive Trajectory Optimizer
 
-[![PyPI version](https://badge.fury.io/py/maptor.svg)](https://badge.fury.io/py/maptor)
+[![PyPI version](https://img.shields.io/pypi/v/maptor)](https://pypi.org/project/maptor/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: LGPL v3](https://img.shields.io/badge/License-LGPL_v3-blue.svg)](https://www.gnu.org/licenses/lgpl-3.0)
 
-A Python framework for **trajectory optimization** using optimal control theory. MAPTOR solves problems involving the motion of vehicles, robots, spacecraft, and other dynamic systems through space and time using the Legendre-Gauss-Radau pseudospectral method.
+**Author:** [David Timothy](https://github.com/ChenDavidTimothy)
+
+**Contact:** chendavidtimothy@gmail.com
+
+A Python framework for **trajectory optimization** using optimal control. MAPTOR solves problems involving the motion of vehicles, robots, spacecraft, and other dynamic systems through space and time using the Legendre-Gauss-Radau pseudospectral method and phs-adaptive mesh refinement.
 
 ## What is Trajectory Optimization?
 
@@ -24,7 +28,7 @@ Trajectory optimization finds the best path for a dynamic system to follow, cons
 MAPTOR implements the **Legendre-Gauss-Radau pseudospectral method** with:
 
 - **Spectral accuracy**: Exponential convergence for smooth solutions
-- **Adaptive mesh refinement**: Automatic error control through phs-Adaptive refinement method
+- **Adaptive mesh refinement**: Automatic error control through phs-adaptive mesh refinement method
 - **Multiphase capability**: Complex missions with automatic phase linking
 - **Symbolic computation**: Built on CasADi for exact differentiation and optimization
 
@@ -32,7 +36,6 @@ MAPTOR implements the **Legendre-Gauss-Radau pseudospectral method** with:
 
 ```python
 import maptor as mtor
-import numpy as np
 
 # Minimum-time trajectory: reach target with bounded control
 problem = mtor.Problem("Minimum Time to Target")
@@ -95,7 +98,7 @@ The examples gallery demonstrates trajectory optimization across multiple domain
 - **[Low-Thrust Orbit Transfer](https://maptor.github.io/maptor/examples/low_thrust_orbit_transfer.html)**: Orbital mechanics with J2/J3/J4 gravitational perturbations and modified equinoctial elements
 - **[Multiphase Vehicle Launch](https://maptor.github.io/maptor/examples/multiphase_vehicle_launch.html)**: Realistic rocket trajectory with stage separations and orbital insertion
 - **[Shuttle Reentry](https://maptor.github.io/maptor/examples/shuttle_reentry.html)**: Atmospheric entry with heat rate constraints and crossrange maximization
-- **[Aero-Assisted Plane Change](https://maptor.github.io/maptor/examples/aero-assisted_plane_change.html)**: Atmospheric maneuvers for orbital inclination change
+- **[Aero-Assisted Plane Change](https://maptor.github.io/maptor/examples/aero_assisted_plane_change.html)**: Atmospheric maneuvers for orbital inclination change
 
 ### Advanced Robotics and Control
 - **[Quadcopter Flight](https://maptor.github.io/maptor/examples/quadcopter.html)**: Quadcopter dynamics with obstacle avoidance
@@ -107,7 +110,7 @@ The examples gallery demonstrates trajectory optimization across multiple domain
 - **[Hang Glider Flight](https://maptor.github.io/maptor/examples/hang_glider.html)**: Thermal soaring optimization with atmospheric updrafts
 
 ### Interdisciplinary Applications
-- **[Two-Strain Tuberculosis Model](https://maptor.github.io/maptor/examples/two-strain_tuberculosis_model.html)**: Epidemiological optimal control with drug resistance dynamics
+- **[Two-Strain Tuberculosis Model](https://maptor.github.io/maptor/examples/two_strain_tuberculosis_model.html)**: Epidemiological optimal control with drug resistance dynamics
 
 ### Benchmark and Classical Problems
 - **[Hypersensitive Problem](https://maptor.github.io/maptor/examples/hypersensitive.html)**: Challenging optimal control benchmark with sensitive dynamics
@@ -161,7 +164,7 @@ If you use MAPTOR in academic research, please cite:
   author={Timothy, David},
   year={2025},
   url={https://github.com/maptor/maptor},
-  version={0.1.0}
+  version={0.2.0}
 }
 ```
 
