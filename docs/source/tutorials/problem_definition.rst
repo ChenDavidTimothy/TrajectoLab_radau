@@ -505,7 +505,7 @@ Optimize design parameters that remain constant throughout the mission:
     fuel_capacity = problem.parameter("fuel_tank", boundary=(100, 1000))
     aerodynamic_efficiency = problem.parameter("l_over_d", boundary=(5, 20))
 
-    # Trajectory and design co-optimization
+    # Trajectory and design optimization
     structural_mass = vehicle_mass - fuel_capacity
     problem.minimize(
         structural_mass +                    # Minimize vehicle mass

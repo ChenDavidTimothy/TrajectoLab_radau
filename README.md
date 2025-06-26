@@ -12,7 +12,7 @@
 
 **Contact:** chendavidtimothy@gmail.com
 
-A Python framework for **trajectory and design co-optimization** using optimal control. MAPTOR solves problems involving the motion of vehicles, robots, spacecraft, and other dynamic systems through space and time using the Legendre-Gauss-Radau pseudospectral method and phs-adaptive mesh refinement.
+A Python framework for **trajectory and design optimization** using optimal control. MAPTOR solves problems involving the motion of vehicles, robots, spacecraft, and other dynamic systems through space and time using the Legendre-Gauss-Radau pseudospectral method and phs-adaptive mesh refinement.
 
 ## What Makes MAPTOR Different?
 
@@ -27,7 +27,7 @@ Most trajectory optimizers solve the path for a **given** vehicle design. MAPTOR
 **MAPTOR Approach** (simultaneous optimization):
 - Optimize vehicle design parameters AND trajectory together
 - Eliminate design-trajectory iteration loops
-- Find globally optimal vehicle-mission combinations
+- Find optimal vehicle-mission combinations
 
 ## Quick Start
 
@@ -57,7 +57,7 @@ if solution.status["success"]:
     solution.plot()
 ```
 
-## MAPTOR's Real Power: Design Co-Optimization
+## MAPTOR's Real Power: Design optimization
 
 While the above shows basic trajectory optimization, MAPTOR's unique strength is optimizing **vehicle design** alongside trajectory:
 

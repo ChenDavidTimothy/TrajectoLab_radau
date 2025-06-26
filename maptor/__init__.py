@@ -1,7 +1,7 @@
 """
 MAPTOR: Multiphase Adaptive Trajectory Optimizer
 
-A Python framework for **trajectory optimization** using optimal control. MAPTOR solves problems involving the motion of vehicles, robots, spacecraft, and other dynamic systems through space and time using the Legendre-Gauss-Radau pseudospectral method and phs-adaptive mesh refinement.
+A Python framework for **trajectory and design optimization** using optimal control. MAPTOR solves problems involving the motion of vehicles, robots, spacecraft, and other dynamic systems through space and time using the Legendre-Gauss-Radau pseudospectral method and phs-adaptive mesh refinement.
 
 Key Features:
     - Intuitive problem definition API
