@@ -107,11 +107,7 @@ def lagrangian_to_maptor_dynamics(lagranges_method, coordinates):
     coordinate_names = [str(coord).replace("(t)", "") for coord in coordinates]
     state_names = coordinate_names + [name + "_dot" for name in coordinate_names]
 
-    return casadi_equations, state_names
-
-
-def print_maptor_dynamics(casadi_equations, state_names):
-    """Print MAPTOR dynamics in copy-paste ready format."""
+    # Print copy-paste ready format (moved from print_maptor_dynamics)
     print("CasADi MAPTOR Dynamics:")
     print("=" * 60)
 

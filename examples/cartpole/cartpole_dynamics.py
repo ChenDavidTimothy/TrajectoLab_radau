@@ -1,7 +1,7 @@
 import sympy as sm
 import sympy.physics.mechanics as me
 
-from maptor.mechanics import lagrangian_to_maptor_dynamics, print_maptor_dynamics
+from maptor.mechanics import lagrangian_to_maptor_dynamics
 
 
 # Initialize pretty printing
@@ -58,8 +58,4 @@ L = me.Lagrangian(N, cart_body, pole_body)
 LM = me.LagrangesMethod(L, [x, theta], forcelist=loads, frame=N)
 
 # === Convert to MAPTOR Format ===
-casadi_equations, state_names = lagrangian_to_maptor_dynamics(LM, [x, theta])
-
-
-if __name__ == "__main__":
-    print_maptor_dynamics(casadi_equations, state_names)
+lagrangian_to_maptor_dynamics(LM, [x, theta])

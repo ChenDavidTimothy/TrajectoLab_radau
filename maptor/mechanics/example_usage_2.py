@@ -1,6 +1,6 @@
 import sympy as sm
 import sympy.physics.mechanics as me
-from symbolic import lagrangian_to_maptor_dynamics, print_maptor_dynamics
+from symbolic import lagrangian_to_maptor_dynamics
 
 
 # Initialize pretty printing
@@ -47,8 +47,4 @@ L = me.Lagrangian(N, block_body, pendulum_body)
 LM = me.LagrangesMethod(L, [q1, q2], forcelist=loads, frame=N)
 
 # === Convert to MAPTOR Format ===
-casadi_equations, state_names = lagrangian_to_maptor_dynamics(LM, [q1, q2])
-
-
-if __name__ == "__main__":
-    print_maptor_dynamics(casadi_equations, state_names)
+lagrangian_to_maptor_dynamics(LM, [q1, q2])
