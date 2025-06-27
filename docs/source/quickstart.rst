@@ -54,10 +54,10 @@ Let's solve a classic problem: reach a target in minimum time with limited thrus
 
 **Run this code** and you'll see the optimal trajectory: maximum thrust forward, then maximum thrust backward to arrive at rest.
 
-MAPTOR's Unique Strength: Design Optimization
+Design Optimization Capability
 ----------------------------------------------
 
-While the above shows basic trajectory optimization, MAPTOR's key capability is optimizing **vehicle design** alongside trajectory:
+Beyond basic trajectory optimization, MAPTOR handles problems where you need to determine optimal system design parameters alongside trajectories:
 
 .. code-block:: python
 
@@ -132,7 +132,7 @@ While the above shows basic trajectory optimization, MAPTOR's key capability is 
 
 **Run this code** and you'll see MAPTOR simultaneously optimized both the engine design and the flight trajectory.
 
-**Key Insight:** Traditional approaches require you to guess the engine size, then optimize the trajectory, then iterate. MAPTOR finds the optimal engine size AND trajectory in a single optimization.
+**Engineering Workflow:** Instead of guessing engine size, optimizing trajectory, then iterating, MAPTOR determines optimal engine size AND trajectory together.
 
 Understanding the Workflow
 ---------------------------
@@ -141,7 +141,7 @@ Every MAPTOR problem follows the same pattern:
 
 1. **Create Problem**: Container for your optimization
 2. **Set Phase(s)**: Trajectory segments with different dynamics
-3. **Define Variables**: Time, states (what evolves), controls (what you choose)
+3. **Define Variables**: Time, states (what evolves), controls (what you choose), parameters (design variables)
 4. **Set Dynamics**: How your system evolves (differential equations)
 5. **Add Constraints**: Safety limits, performance bounds, target conditions
 6. **Set Objective**: What to minimize (time, fuel, error, etc.)
@@ -152,6 +152,7 @@ Every MAPTOR problem follows the same pattern:
 
 - **States**: Quantities that evolve over time (position, velocity, mass, etc.)
 - **Controls**: Inputs you optimize (thrust, steering, power, etc.)
+- **Parameters**: Design variables that remain constant (engine size, battery capacity, etc.)
 - **Constraints**: Limits and requirements (bounds, targets, safety limits)
 - **Phases**: Trajectory segments that can link together automatically
 
@@ -190,6 +191,20 @@ Common Problem Types
     # Phase 2: Coast (automatically linked)
     coast = problem.set_phase(2)
     h2 = coast.state("altitude", initial=h1.final)  # Continuous altitude
+
+**Design Optimization**: Optimize system parameters and trajectory together
+
+.. code-block:: python
+
+    # Design parameter: engine capability
+    max_thrust = problem.parameter("max_thrust", boundary=(1000, 5000))
+
+    # Use parameter in constraints and objective
+    phase.path_constraints(thrust <= max_thrust)
+    total_mass = base_mass + max_thrust * engine_mass_factor
+
+    # Trade-off: mission time vs. engine mass
+    problem.minimize(t.final + max_thrust * mass_penalty)
 
 Adding Constraints
 ------------------

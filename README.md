@@ -12,24 +12,26 @@
 
 **Contact:** chendavidtimothy@gmail.com
 
-A Python framework for **trajectory and design optimization** using optimal control. MAPTOR solves problems involving the motion of vehicles, robots, spacecraft, and other dynamic systems through space and time using the Legendre-Gauss-Radau pseudospectral method and phs-adaptive mesh refinement.
+A Python framework for **trajectory and design optimization** using optimal control. MAPTOR simultaneously optimizes system parameters and trajectories for vehicles, robots, spacecraft, and other dynamic systems.
 
-## What Makes MAPTOR Different?
+## When to Use MAPTOR
 
-Most trajectory optimizers solve the path for a **given** vehicle design. MAPTOR optimizes both the **vehicle design** and **trajectory** simultaneously.
+**If you only need basic PATH planning** (geometry-focused problems), use path planning algorithms:
+- A*, Dijkstra, basic RRT, PRM
+- Fastest for obstacle avoidance without complex dynamics
 
-**Traditional Approach** (slow iteration):
-1. Guess vehicle parameters (battery size, engine thrust, etc.)
-2. Optimize trajectory for that fixed design
-3. Check if performance meets requirements
-4. Manually adjust design and repeat
+**If you need TRAJECTORY optimization** with simple constraints, faster methods exist:
+- iLQR (iterative Linear Quadratic Regulator)
+- ALTRO (Augmented Lagrangian Trajectory Optimizer)
+- Faster convergence for dynamics-heavy, constraint-light problems
 
-**MAPTOR Approach** (simultaneous optimization):
-- Optimize vehicle design parameters AND trajectory together
-- Eliminate design-trajectory iteration loops
-- Find optimal vehicle-mission combinations
+**Use MAPTOR for complex DESIGN + TRAJECTORY problems:**
+- Multiple design parameters + trajectory optimization
+- Complex nonlinear path constraints (obstacle avoidance, state bounds)
+- Multiphase missions with automatic phase linking
+- When you need the full flexibility of direct transcription
 
-## Quick Start
+## Quick Start: Pure Trajectory Optimization
 
 ```python
 import maptor as mtor
@@ -57,9 +59,9 @@ if solution.status["success"]:
     solution.plot()
 ```
 
-## MAPTOR's Real Power: Design optimization
+## Example: Simultaneous Design and Trajectory Optimization
 
-While the above shows basic trajectory optimization, MAPTOR's unique strength is optimizing **vehicle design** alongside trajectory:
+While the above shows basic trajectory optimization, MAPTOR also handles simultaneous design and trajectory optimization:
 
 ```python
 import maptor as mtor
