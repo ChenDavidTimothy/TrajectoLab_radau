@@ -33,11 +33,9 @@ def _sympy_to_casadi_string(expressions):
         (re.compile(r"Derivative\(([^,\(\)]+)\(t\),\s*\(t,\s*2\)\)"), r"\1_ddot"),
         # Handle first derivatives
         (re.compile(r"Derivative\(([^,\(\)]+)\(t\),\s*t\)"), r"\1_dot"),
-        # Handle alternative derivative notations
+        # Handle SymPy pretty printing shorthand
         (re.compile(r"\b([a-zA-Z][a-zA-Z0-9]*)ddot\b"), r"\1_ddot"),
         (re.compile(r"\b([a-zA-Z][a-zA-Z0-9]*)dot\b"), r"\1_dot"),
-        (re.compile(r"\b([a-zA-Z][a-zA-Z0-9]*)dd\b"), r"\1_ddot"),
-        (re.compile(r"\b([a-zA-Z][a-zA-Z0-9]*)d\b"), r"\1_dot"),
         # Remove (t) from base variables - MUST BE LAST
         (re.compile(r"\b([a-zA-Z][a-zA-Z0-9]*)\(t\)"), r"\1"),
     ]
@@ -52,11 +50,9 @@ def _sympy_to_casadi_string(expressions):
             expr_str = pattern.sub(replacement, expr_str)
 
         # Convert functions
-        expr_str = func_pattern.sub(lambda m: functions[m.group(1)], expr_str)
+        return func_pattern.sub(lambda m: functions[m.group(1)], expr_str)
 
-        return expr_str
-
-    # Convert all expressions
+    # Convert all expressions and handle Matrix format
     converted_expressions = []
     for expr in expressions:
         converted = _convert_single(expr)
@@ -65,8 +61,7 @@ def _sympy_to_casadi_string(expressions):
         if converted.startswith("Matrix([") and converted.endswith("])"):
             # Extract equations from Matrix([[eq1], [eq2]]) format
             inner = converted[9:-3]  # Remove 'Matrix([[' and ']])'
-            equations = inner.split("], [")
-            converted_expressions.extend([eq.strip() for eq in equations])
+            converted_expressions.extend(eq.strip() for eq in inner.split("], ["))
         else:
             converted_expressions.append(converted)
 
@@ -92,9 +87,7 @@ def lagrangian_to_maptor_dynamics(lagranges_method, coordinates):
     accelerations = sm.solve(eom_implicit, second_derivatives)
 
     # Extract and simplify explicit accelerations
-    explicit_accelerations = []
-    for sd in second_derivatives:
-        explicit_accelerations.append(sm.simplify(accelerations[sd]))
+    explicit_accelerations = [sm.simplify(accelerations[sd]) for sd in second_derivatives]
 
     # Create first-order system: [q1_dot, q2_dot, ..., q1_ddot, q2_ddot, ...]
     first_derivatives = [coord.diff(me.dynamicsymbols._t) for coord in coordinates]
@@ -103,8 +96,8 @@ def lagrangian_to_maptor_dynamics(lagranges_method, coordinates):
     # Convert to CasADi syntax
     casadi_equations = _sympy_to_casadi_string(first_order_system)
 
-    # Generate state names: [q1, q2, ..., q1_dot, q2_dot, ...]
-    coordinate_names = [str(coord).replace("(t)", "") for coord in coordinates]
+    # Generate state names using same conversion logic
+    coordinate_names = _sympy_to_casadi_string(coordinates)
     state_names = coordinate_names + [name + "_dot" for name in coordinate_names]
 
     # Print copy-paste ready format (moved from print_maptor_dynamics)
