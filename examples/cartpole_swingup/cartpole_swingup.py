@@ -54,10 +54,8 @@ phase.dynamics(
         / (4 * M + 3 * m * ca.sin(theta) ** 2 + m),
         theta_dot: 3
         * (
-            2 * F * ca.cos(theta)
-            + 2 * M * g * ca.sin(theta)
-            + 2 * g * m * ca.sin(theta)
-            - l * m * ca.sin(2 * theta) * theta_dot**2 / 2
+            2 * g * (M + m) * ca.sin(theta)
+            + (2 * F - l * m * ca.sin(theta) * theta_dot**2) * ca.cos(theta)
         )
         / (l * (4 * M + 3 * m * ca.sin(theta) ** 2 + m)),
     }

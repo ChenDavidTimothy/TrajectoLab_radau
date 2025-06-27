@@ -1,7 +1,7 @@
 import sympy as sm
 import sympy.physics.mechanics as me
 
-from maptor.mechanics.symbolic import _sympy_to_casadi_string
+from maptor.mechanics import lagrangian_to_maptor_dynamics
 
 
 # === Define Symbols ===
@@ -44,43 +44,22 @@ I2_dyadic = I2 * me.inertia(B, 0, 0, 1)
 link2_body = me.RigidBody("link2", G2, B, m2, (I2_dyadic, G2))
 
 
-# === Lagrangian Mechanics ===
+# === Forces (Passive Only) ===
 loads = [(G1, -m1 * g * N.y), (G2, -m2 * g * N.y)]
 
+# === Lagrangian Mechanics ===
 L = me.Lagrangian(N, link1_body, link2_body)
 LM = me.LagrangesMethod(L, [q1, q2], forcelist=loads, frame=N)
-LM.form_lagranges_equations()
 
-# Extract dynamics components
-mass_matrix_inv = LM.mass_matrix.inv()
-passive_dynamics = mass_matrix_inv * LM.forcing
-control_coupling = mass_matrix_inv * sm.Matrix([tau1, tau2])
-total_dynamics = passive_dynamics + control_coupling
+# === Control Forces ===
+# Joint torques acting on each generalized coordinate
+control_forces = sm.Matrix([tau1, tau2])
 
-# Convert to CasADi format
-coordinates = [q1, q2]
-velocities = [q1d, q2d]
-first_order_system = velocities + [total_dynamics[0], total_dynamics[1]]
+# === Convert to MAPTOR Format ===
+lagrangian_to_maptor_dynamics(LM, [q1, q2], control_forces)
 
-casadi_equations = _sympy_to_casadi_string(first_order_system)
-coordinate_names = _sympy_to_casadi_string(coordinates)
-state_names = coordinate_names + [name + "_dot" for name in coordinate_names]
+# Output ready to be copy-pasted:
 
-print("MAPTOR Dynamics (General 2DOF Manipulator):")
-print("=" * 50)
-print("# State variables:")
-for name in state_names:
-    print(f"# {name} = phase.state('{name}')")
-print("\n# Control variables:")
-print("# tau1 = phase.control('tau1')")
-print("# tau2 = phase.control('tau2')")
-print("\n# Dynamics:")
-print("phase.dynamics({")
-for name, eq_str in zip(state_names, casadi_equations, strict=False):
-    print(f"    {name}: {eq_str},")
-print("})")
-
-# Output:
 # State variables:
 # q1 = phase.state('q1')
 # q2 = phase.state('q2')
@@ -91,10 +70,10 @@ print("})")
 # tau1 = phase.control('tau1')
 # tau2 = phase.control('tau2')
 
-# Dynamics:
+# MAPTOR dynamics dictionary:
 # phase.dynamics({
 #    q1: q1_dot,
 #    q2: q2_dot,
-#    q1_dot: tau1*(-I2 - lc2**2*m2)/(-I1*I2 - I1*lc2**2*m2 - I2*l1**2*m2 - I2*lc1**2*m1 + l1**2*lc2**2*m2**2*ca.cos(q2)**2 - l1**2*lc2**2*m2**2 - lc1**2*lc2**2*m1*m2) + tau2*(I2 + l1*lc2*m2*ca.cos(q2) + lc2**2*m2)/(-I1*I2 - I1*lc2**2*m2 - I2*l1**2*m2 - I2*lc1**2*m1 + l1**2*lc2**2*m2**2*ca.cos(q2)**2 - l1**2*lc2**2*m2**2 - lc1**2*lc2**2*m1*m2) + (-I2 - lc2**2*m2)*(-g*l1*m2*ca.cos(q1) - g*lc1*m1*ca.cos(q1) - g*lc2*m2*(-ca.sin(q1)*ca.sin(q2) + ca.cos(q1)*ca.cos(q2)) - m2*(-2*l1*lc2*(q1_dot + q2_dot)*ca.sin(q2)*q2_dot - 2*l1*lc2*ca.sin(q2)*q1_dot*q2_dot)/2)/(-I1*I2 - I1*lc2**2*m2 - I2*l1**2*m2 - I2*lc1**2*m1 + l1**2*lc2**2*m2**2*ca.cos(q2)**2 - l1**2*lc2**2*m2**2 - lc1**2*lc2**2*m1*m2) + (I2 + l1*lc2*m2*ca.cos(q2) + lc2**2*m2)*(-g*lc2*m2*(-ca.sin(q1)*ca.sin(q2) + ca.cos(q1)*ca.cos(q2)) - l1*lc2*m2*(q1_dot + q2_dot)*ca.sin(q2)*q1_dot + l1*lc2*m2*ca.sin(q2)*q1_dot*q2_dot)/(-I1*I2 - I1*lc2**2*m2 - I2*l1**2*m2 - I2*lc1**2*m1 + l1**2*lc2**2*m2**2*ca.cos(q2)**2 - l1**2*lc2**2*m2**2 - lc1**2*lc2**2*m1*m2),
-#    q2_dot: tau1*(I2 + l1*lc2*m2*ca.cos(q2) + lc2**2*m2)/(-I1*I2 - I1*lc2**2*m2 - I2*l1**2*m2 - I2*lc1**2*m1 + l1**2*lc2**2*m2**2*ca.cos(q2)**2 - l1**2*lc2**2*m2**2 - lc1**2*lc2**2*m1*m2) + tau2*(-I1 - I2 - l1**2*m2 - 2*l1*lc2*m2*ca.cos(q2) - lc1**2*m1 - lc2**2*m2)/(-I1*I2 - I1*lc2**2*m2 - I2*l1**2*m2 - I2*lc1**2*m1 + l1**2*lc2**2*m2**2*ca.cos(q2)**2 - l1**2*lc2**2*m2**2 - lc1**2*lc2**2*m1*m2) + (I2 + l1*lc2*m2*ca.cos(q2) + lc2**2*m2)*(-g*l1*m2*ca.cos(q1) - g*lc1*m1*ca.cos(q1) - g*lc2*m2*(-ca.sin(q1)*ca.sin(q2) + ca.cos(q1)*ca.cos(q2)) - m2*(-2*l1*lc2*(q1_dot + q2_dot)*ca.sin(q2)*q2_dot - 2*l1*lc2*ca.sin(q2)*q1_dot*q2_dot)/2)/(-I1*I2 - I1*lc2**2*m2 - I2*l1**2*m2 - I2*lc1**2*m1 + l1**2*lc2**2*m2**2*ca.cos(q2)**2 - l1**2*lc2**2*m2**2 - lc1**2*lc2**2*m1*m2) + (-g*lc2*m2*(-ca.sin(q1)*ca.sin(q2) + ca.cos(q1)*ca.cos(q2)) - l1*lc2*m2*(q1_dot + q2_dot)*ca.sin(q2)*q1_dot + l1*lc2*m2*ca.sin(q2)*q1_dot*q2_dot)*(-I1 - I2 - l1**2*m2 - 2*l1*lc2*m2*ca.cos(q2) - lc1**2*m1 - lc2**2*m2)/(-I1*I2 - I1*lc2**2*m2 - I2*l1**2*m2 - I2*lc1**2*m1 + l1**2*lc2**2*m2**2*ca.cos(q2)**2 - l1**2*lc2**2*m2**2 - lc1**2*lc2**2*m1*m2),
+#    q1_dot: ((I2 + lc2**2*m2)*(-g*l1*m2*ca.cos(q1) - g*lc1*m1*ca.cos(q1) - g*lc2*m2*ca.cos(q1 + q2) + l1*lc2*m2*(2*q1_dot + q2_dot)*ca.sin(q2)*q2_dot + tau1) - (I2 + l1*lc2*m2*ca.cos(q2) + lc2**2*m2)*(-g*lc2*m2*ca.cos(q1 + q2) - l1*lc2*m2*ca.sin(q2)*q1_dot**2 + tau2))/(I1*I2 + I1*lc2**2*m2 + I2*l1**2*m2 + I2*lc1**2*m1 + l1**2*lc2**2*m2**2*ca.sin(q2)**2 + lc1**2*lc2**2*m1*m2),
+#    q2_dot: (-(I2 + l1*lc2*m2*ca.cos(q2) + lc2**2*m2)*(-g*l1*m2*ca.cos(q1) - g*lc1*m1*ca.cos(q1) - g*lc2*m2*ca.cos(q1 + q2) + l1*lc2*m2*(2*q1_dot + q2_dot)*ca.sin(q2)*q2_dot + tau1) + (-g*lc2*m2*ca.cos(q1 + q2) - l1*lc2*m2*ca.sin(q2)*q1_dot**2 + tau2)*(I1 + I2 + l1**2*m2 + 2*l1*lc2*m2*ca.cos(q2) + lc1**2*m1 + lc2**2*m2))/(I1*I2 + I1*lc2**2*m2 + I2*l1**2*m2 + I2*lc1**2*m1 + l1**2*lc2**2*m2**2*ca.sin(q2)**2 + lc1**2*lc2**2*m1*m2),
 # })

@@ -62,121 +62,45 @@ phase.dynamics(
     {
         q1: q1_dot,
         q2: q2_dot,
-        q1_dot: tau1
-        * (-I2 - lc2**2 * m2)
-        / (
-            -I1 * I2
-            - I1 * lc2**2 * m2
-            - I2 * l1**2 * m2
-            - I2 * lc1**2 * m1
-            + l1**2 * lc2**2 * m2**2 * ca.cos(q2) ** 2
-            - l1**2 * lc2**2 * m2**2
-            - lc1**2 * lc2**2 * m1 * m2
-        )
-        + tau2
-        * (I2 + l1 * lc2 * m2 * ca.cos(q2) + lc2**2 * m2)
-        / (
-            -I1 * I2
-            - I1 * lc2**2 * m2
-            - I2 * l1**2 * m2
-            - I2 * lc1**2 * m1
-            + l1**2 * lc2**2 * m2**2 * ca.cos(q2) ** 2
-            - l1**2 * lc2**2 * m2**2
-            - lc1**2 * lc2**2 * m1 * m2
-        )
-        + (-I2 - lc2**2 * m2)
-        * (
-            -g * l1 * m2 * ca.cos(q1)
-            - g * lc1 * m1 * ca.cos(q1)
-            - g * lc2 * m2 * (-ca.sin(q1) * ca.sin(q2) + ca.cos(q1) * ca.cos(q2))
-            - m2
+        q1_dot: (
+            (I2 + lc2**2 * m2)
             * (
-                -2 * l1 * lc2 * (q1_dot + q2_dot) * ca.sin(q2) * q2_dot
-                - 2 * l1 * lc2 * ca.sin(q2) * q1_dot * q2_dot
+                -g * l1 * m2 * ca.cos(q1)
+                - g * lc1 * m1 * ca.cos(q1)
+                - g * lc2 * m2 * ca.cos(q1 + q2)
+                + l1 * lc2 * m2 * (2 * q1_dot + q2_dot) * ca.sin(q2) * q2_dot
+                + tau1
             )
-            / 2
+            - (I2 + l1 * lc2 * m2 * ca.cos(q2) + lc2**2 * m2)
+            * (-g * lc2 * m2 * ca.cos(q1 + q2) - l1 * lc2 * m2 * ca.sin(q2) * q1_dot**2 + tau2)
         )
         / (
-            -I1 * I2
-            - I1 * lc2**2 * m2
-            - I2 * l1**2 * m2
-            - I2 * lc1**2 * m1
-            + l1**2 * lc2**2 * m2**2 * ca.cos(q2) ** 2
-            - l1**2 * lc2**2 * m2**2
-            - lc1**2 * lc2**2 * m1 * m2
-        )
-        + (I2 + l1 * lc2 * m2 * ca.cos(q2) + lc2**2 * m2)
-        * (
-            -g * lc2 * m2 * (-ca.sin(q1) * ca.sin(q2) + ca.cos(q1) * ca.cos(q2))
-            - l1 * lc2 * m2 * (q1_dot + q2_dot) * ca.sin(q2) * q1_dot
-            + l1 * lc2 * m2 * ca.sin(q2) * q1_dot * q2_dot
-        )
-        / (
-            -I1 * I2
-            - I1 * lc2**2 * m2
-            - I2 * l1**2 * m2
-            - I2 * lc1**2 * m1
-            + l1**2 * lc2**2 * m2**2 * ca.cos(q2) ** 2
-            - l1**2 * lc2**2 * m2**2
-            - lc1**2 * lc2**2 * m1 * m2
+            I1 * I2
+            + I1 * lc2**2 * m2
+            + I2 * l1**2 * m2
+            + I2 * lc1**2 * m1
+            + l1**2 * lc2**2 * m2**2 * ca.sin(q2) ** 2
+            + lc1**2 * lc2**2 * m1 * m2
         ),
-        q2_dot: tau1
-        * (I2 + l1 * lc2 * m2 * ca.cos(q2) + lc2**2 * m2)
-        / (
-            -I1 * I2
-            - I1 * lc2**2 * m2
-            - I2 * l1**2 * m2
-            - I2 * lc1**2 * m1
-            + l1**2 * lc2**2 * m2**2 * ca.cos(q2) ** 2
-            - l1**2 * lc2**2 * m2**2
-            - lc1**2 * lc2**2 * m1 * m2
-        )
-        + tau2
-        * (-I1 - I2 - l1**2 * m2 - 2 * l1 * lc2 * m2 * ca.cos(q2) - lc1**2 * m1 - lc2**2 * m2)
-        / (
-            -I1 * I2
-            - I1 * lc2**2 * m2
-            - I2 * l1**2 * m2
-            - I2 * lc1**2 * m1
-            + l1**2 * lc2**2 * m2**2 * ca.cos(q2) ** 2
-            - l1**2 * lc2**2 * m2**2
-            - lc1**2 * lc2**2 * m1 * m2
-        )
-        + (I2 + l1 * lc2 * m2 * ca.cos(q2) + lc2**2 * m2)
-        * (
-            -g * l1 * m2 * ca.cos(q1)
-            - g * lc1 * m1 * ca.cos(q1)
-            - g * lc2 * m2 * (-ca.sin(q1) * ca.sin(q2) + ca.cos(q1) * ca.cos(q2))
-            - m2
+        q2_dot: (
+            -(I2 + l1 * lc2 * m2 * ca.cos(q2) + lc2**2 * m2)
             * (
-                -2 * l1 * lc2 * (q1_dot + q2_dot) * ca.sin(q2) * q2_dot
-                - 2 * l1 * lc2 * ca.sin(q2) * q1_dot * q2_dot
+                -g * l1 * m2 * ca.cos(q1)
+                - g * lc1 * m1 * ca.cos(q1)
+                - g * lc2 * m2 * ca.cos(q1 + q2)
+                + l1 * lc2 * m2 * (2 * q1_dot + q2_dot) * ca.sin(q2) * q2_dot
+                + tau1
             )
-            / 2
+            + (-g * lc2 * m2 * ca.cos(q1 + q2) - l1 * lc2 * m2 * ca.sin(q2) * q1_dot**2 + tau2)
+            * (I1 + I2 + l1**2 * m2 + 2 * l1 * lc2 * m2 * ca.cos(q2) + lc1**2 * m1 + lc2**2 * m2)
         )
         / (
-            -I1 * I2
-            - I1 * lc2**2 * m2
-            - I2 * l1**2 * m2
-            - I2 * lc1**2 * m1
-            + l1**2 * lc2**2 * m2**2 * ca.cos(q2) ** 2
-            - l1**2 * lc2**2 * m2**2
-            - lc1**2 * lc2**2 * m1 * m2
-        )
-        + (
-            -g * lc2 * m2 * (-ca.sin(q1) * ca.sin(q2) + ca.cos(q1) * ca.cos(q2))
-            - l1 * lc2 * m2 * (q1_dot + q2_dot) * ca.sin(q2) * q1_dot
-            + l1 * lc2 * m2 * ca.sin(q2) * q1_dot * q2_dot
-        )
-        * (-I1 - I2 - l1**2 * m2 - 2 * l1 * lc2 * m2 * ca.cos(q2) - lc1**2 * m1 - lc2**2 * m2)
-        / (
-            -I1 * I2
-            - I1 * lc2**2 * m2
-            - I2 * l1**2 * m2
-            - I2 * lc1**2 * m1
-            + l1**2 * lc2**2 * m2**2 * ca.cos(q2) ** 2
-            - l1**2 * lc2**2 * m2**2
-            - lc1**2 * lc2**2 * m1 * m2
+            I1 * I2
+            + I1 * lc2**2 * m2
+            + I2 * l1**2 * m2
+            + I2 * lc1**2 * m1
+            + l1**2 * lc2**2 * m2**2 * ca.sin(q2) ** 2
+            + lc1**2 * lc2**2 * m1 * m2
         ),
     }
 )

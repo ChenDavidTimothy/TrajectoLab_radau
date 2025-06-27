@@ -35,9 +35,8 @@ cart_body = me.RigidBody("cart", cart_point, N, M, (I_cart, cart_point))
 I_pole_cm = (m * l**2 / 12) * me.inertia(B, 0, 0, 1)
 pole_body = me.RigidBody("pole", pole_point, B, m, (I_pole_cm, pole_point))
 
-# === Forces ===
+# === Forces (Passive Only) ===
 loads = [
-    (cart_point, F * N.x),  # Applied force on cart (horizontal)
     (cart_point, -M * g * N.y),  # Gravity on cart
     (pole_point, -m * g * N.y),  # Gravity on pole
 ]
@@ -46,22 +45,27 @@ loads = [
 L = me.Lagrangian(N, cart_body, pole_body)
 LM = me.LagrangesMethod(L, [x, theta], forcelist=loads, frame=N)
 
-# === Convert to MAPTOR Format ===
-lagrangian_to_maptor_dynamics(LM, [x, theta])
+# === Control Forces ===
+# F acts on x coordinate (cart position), no direct force on theta coordinate
+control_forces = sm.Matrix([F, 0])
 
-# Output ready to be copy-pasted
-# CasADi MAPTOR Dynamics:
-# ============================================================
+# === Convert to MAPTOR Format ===
+lagrangian_to_maptor_dynamics(LM, [x, theta], control_forces)
+
+# Output ready to be copy-pasted:
 # State variables:
 # x = phase.state('x')
 # theta = phase.state('theta')
 # x_dot = phase.state('x_dot')
 # theta_dot = phase.state('theta_dot')
 
+# Control variables:
+# F = phase.control('F')
+
 # MAPTOR dynamics dictionary:
 # phase.dynamics({
 #    x: x_dot,
 #    theta: theta_dot,
 #    x_dot: (4*F + 3*g*m*ca.sin(2*theta)/2 - 2*l*m*ca.sin(theta)*theta_dot**2)/(4*M + 3*m*ca.sin(theta)**2 + m),
-#    theta_dot: 3*(2*F*ca.cos(theta) + 2*M*g*ca.sin(theta) + 2*g*m*ca.sin(theta) - l*m*ca.sin(2*theta)*theta_dot**2/2)/(l*(4*M + 3*m*ca.sin(theta)**2 + m)),
+#    theta_dot: 3*(2*g*(M + m)*ca.sin(theta) + (2*F - l*m*ca.sin(theta)*theta_dot**2)*ca.cos(theta))/(l*(4*M + 3*m*ca.sin(theta)**2 + m)),
 # })
