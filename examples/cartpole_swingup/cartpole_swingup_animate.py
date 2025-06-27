@@ -7,9 +7,9 @@ import numpy as np
 from matplotlib.patches import Rectangle
 
 
-# ============================================================================
+# ============================================================================ #
 # Colors
-# ============================================================================
+# ============================================================================ #
 
 COLORS = {
     "primary_red": "#991b1b",
@@ -21,9 +21,9 @@ COLORS = {
 }
 
 
-# ============================================================================
+# ============================================================================ #
 # Geometry Creation Functions
-# ============================================================================
+# ============================================================================ #
 
 
 def _create_cart_rectangle(x_pos, cart_width=0.3, cart_height=0.2):
@@ -39,19 +39,26 @@ def _create_cart_rectangle(x_pos, cart_width=0.3, cart_height=0.2):
     return corners
 
 
-def _create_pole_line(x_pos, theta, pole_length=0.5):
-    """Create pole line from cart position at given angle."""
-    # Pole goes from cart center to end of pole
-    # theta=0 is upright, positive theta tilts left from cart perspective
-    pole_end_x = x_pos - pole_length * np.sin(theta)
-    pole_end_y = pole_length * np.cos(theta)
+def _create_pole_line(x_pos, theta, pole_length=0.5, return_midpoint=False):
+    """Create pole line from cart position at given angle.
+    If return_midpoint=True, returns start, end, and midpoint (COM).
+    """
+    dx = -pole_length * np.sin(theta)
+    dy = pole_length * np.cos(theta)
 
-    return np.array([[x_pos, 0], [pole_end_x, pole_end_y]])
+    start = np.array([x_pos, 0])
+    end = start + np.array([dx, dy])
+
+    if return_midpoint:
+        midpoint = start + 0.5 * np.array([dx, dy])
+        return start, end, midpoint
+    else:
+        return np.array([start, end])
 
 
-# ============================================================================
+# ============================================================================ #
 # Animation Function
-# ============================================================================
+# ============================================================================ #
 
 
 def animate_cartpole_swingup(solution, save_filename="cartpole_swingup.mp4"):
@@ -68,39 +75,33 @@ def animate_cartpole_swingup(solution, save_filename="cartpole_swingup.mp4"):
     if not solution.status["success"]:
         raise ValueError("Cannot animate a failed solution.")
 
-    # Extract and clean data
     time_states = solution["time_states"]
     x_cart = solution["x"]
     theta_pole = solution["theta"]
     x_dot_cart = solution["x_dot"]
     force = solution["F"]
 
-    # Remove duplicate time points
     unique_indices = np.unique(time_states, return_index=True)[1]
     time_sol = time_states[unique_indices]
     x_sol = x_cart[unique_indices]
     theta_sol = theta_pole[unique_indices]
     x_dot_sol = x_dot_cart[unique_indices]
 
-    # Animation parameters - real-time duration
     final_time = solution.status["total_mission_time"]
     fps = 30
     total_frames = int(final_time * fps)
     animation_time = np.linspace(0, final_time, total_frames)
 
-    # Interpolate trajectories
     x_anim = np.interp(animation_time, time_sol, x_sol)
     theta_anim = np.interp(animation_time, time_sol, theta_sol)
     x_dot_anim = np.interp(animation_time, time_sol, x_dot_sol)
 
-    # Interpolate force for display
     time_controls = solution["time_controls"]
     unique_control_indices = np.unique(time_controls, return_index=True)[1]
     time_control_sol = time_controls[unique_control_indices]
     force_sol = force[unique_control_indices]
     force_anim = np.interp(animation_time, time_control_sol, force_sol)
 
-    # Setup plot
     plt.style.use("dark_background")
     fig, (ax_main, ax_force) = plt.subplots(
         2,
@@ -110,7 +111,6 @@ def animate_cartpole_swingup(solution, save_filename="cartpole_swingup.mp4"):
         gridspec_kw={"height_ratios": [3, 1]},
     )
 
-    # Main animation plot
     ax_main.set_facecolor(COLORS["background_dark"])
     ax_main.set_xlim(-2, 2)
     ax_main.set_ylim(-1, 1)
@@ -121,7 +121,6 @@ def animate_cartpole_swingup(solution, save_filename="cartpole_swingup.mp4"):
     ax_main.set_ylabel("Height (m)", color=COLORS["text_light"])
     ax_main.tick_params(colors=COLORS["text_light"])
 
-    # Force plot
     ax_force.set_facecolor(COLORS["background_dark"])
     ax_force.set_xlim(0, final_time)
     ax_force.set_ylim(min(force_sol) - 1, max(force_sol) + 1)
@@ -131,7 +130,6 @@ def animate_cartpole_swingup(solution, save_filename="cartpole_swingup.mp4"):
     ax_force.set_ylabel("Force (N)", color=COLORS["text_light"])
     ax_force.tick_params(colors=COLORS["text_light"])
 
-    # Plot complete force trajectory
     ax_force.plot(
         time_control_sol,
         force_sol,
@@ -146,30 +144,25 @@ def animate_cartpole_swingup(solution, save_filename="cartpole_swingup.mp4"):
         labelcolor=COLORS["text_light"],
     )
 
-    # Ground line
     ax_main.axhline(y=-0.5, color=COLORS["text_light"], linewidth=2, alpha=0.5)
 
-    # Initialize animated elements
     cart_patch = Rectangle(
         (0, 0), 0, 0, facecolor=COLORS["agent_blue"], edgecolor=COLORS["text_light"], linewidth=2
     )
     ax_main.add_patch(cart_patch)
 
     (pole_line,) = ax_main.plot([], [], color=COLORS["primary_red"], linewidth=4)
-    (pole_end_dot,) = ax_main.plot([], [], "o", color=COLORS["obstacle_orange"], markersize=8)
+    (pole_com_dot,) = ax_main.plot([], [], "o", color=COLORS["obstacle_orange"], markersize=8)
 
-    # Trajectory trails
     (cart_trail_line,) = ax_main.plot(
         [], [], color=COLORS["obstacle_green"], linewidth=2, alpha=0.6, label="Cart trajectory"
     )
     (pole_trail_line,) = ax_main.plot(
-        [], [], color=COLORS["obstacle_orange"], linewidth=2, alpha=0.8, label="Pole end trajectory"
+        [], [], color=COLORS["obstacle_orange"], linewidth=2, alpha=0.8, label="Pole COM trajectory"
     )
 
-    # Force indicator (current time marker)
     (force_marker,) = ax_force.plot([], [], "o", color=COLORS["primary_red"], markersize=8)
 
-    # State text display
     state_text = ax_main.text(
         0.02,
         0.95,
@@ -190,34 +183,27 @@ def animate_cartpole_swingup(solution, save_filename="cartpole_swingup.mp4"):
     def animate(frame):
         current_time = animation_time[frame]
 
-        # Update cart position
         cart_corners = _create_cart_rectangle(x_anim[frame])
-        cart_patch.set_xy(cart_corners[0])  # Bottom-left corner
+        cart_patch.set_xy(cart_corners[0])
         cart_patch.set_width(cart_corners[1, 0] - cart_corners[0, 0])
         cart_patch.set_height(cart_corners[2, 1] - cart_corners[1, 1])
 
-        # Update pole
-        pole_coords = _create_pole_line(x_anim[frame], theta_anim[frame])
-        pole_line.set_data(pole_coords[:, 0], pole_coords[:, 1])
+        start, end, midpoint = _create_pole_line(
+            x_anim[frame], theta_anim[frame], return_midpoint=True
+        )
+        pole_line.set_data([start[0], end[0]], [start[1], end[1]])
+        pole_com_dot.set_data([midpoint[0]], [midpoint[1]])
 
-        # Pole end dot
-        pole_end_dot.set_data([pole_coords[1, 0]], [pole_coords[1, 1]])
-
-        # Update trails
-        # Cart trail (along ground)
         cart_trail_x = x_anim[: frame + 1]
         cart_trail_y = np.zeros_like(cart_trail_x)
         cart_trail_line.set_data(cart_trail_x, cart_trail_y)
 
-        # Pole end trail (actual swinging path)
-        pole_trail_x = x_anim[: frame + 1] - 0.5 * np.sin(theta_anim[: frame + 1])
-        pole_trail_y = 0.5 * np.cos(theta_anim[: frame + 1])
+        pole_trail_x = x_anim[: frame + 1] - 0.25 * np.sin(theta_anim[: frame + 1])
+        pole_trail_y = 0.25 * np.cos(theta_anim[: frame + 1])
         pole_trail_line.set_data(pole_trail_x, pole_trail_y)
 
-        # Update force marker
         force_marker.set_data([current_time], [force_anim[frame]])
 
-        # Update state information
         state_info = (
             f"Time: {current_time:.2f}s\n"
             f"Cart position: {x_anim[frame]:.3f} m\n"
@@ -230,7 +216,7 @@ def animate_cartpole_swingup(solution, save_filename="cartpole_swingup.mp4"):
         return (
             cart_patch,
             pole_line,
-            pole_end_dot,
+            pole_com_dot,
             cart_trail_line,
             pole_trail_line,
             force_marker,
@@ -252,9 +238,9 @@ def animate_cartpole_swingup(solution, save_filename="cartpole_swingup.mp4"):
     return anim
 
 
-# ============================================================================
+# ============================================================================ #
 # Main Execution
-# ============================================================================
+# ============================================================================ #
 
 if __name__ == "__main__":
     solution = cartpole_swingup.solution
@@ -267,7 +253,6 @@ if __name__ == "__main__":
 
         anim = animate_cartpole_swingup(solution, str(output_file))
 
-        # Print cartpole-specific verification
         x_traj = solution["x"]
         theta_traj = solution["theta"]
         force_traj = solution["F"]
