@@ -63,16 +63,21 @@ phase.dynamics(
         q1: q1_dot,
         q2: q2_dot,
         q1_dot: (
-            (I2 + lc2**2 * m2)
-            * (
-                -g * l1 * m2 * ca.cos(q1)
-                - g * lc1 * m1 * ca.cos(q1)
-                - g * lc2 * m2 * ca.cos(q1 + q2)
-                + l1 * lc2 * m2 * (2 * q1_dot + q2_dot) * ca.sin(q2) * q2_dot
-                + tau1
-            )
-            - (I2 + l1 * lc2 * m2 * ca.cos(q2) + lc2**2 * m2)
-            * (-g * lc2 * m2 * ca.cos(q1 + q2) - l1 * lc2 * m2 * ca.sin(q2) * q1_dot**2 + tau2)
+            -I2 * g * l1 * m2 * ca.cos(q1)
+            - I2 * g * lc1 * m1 * ca.cos(q1)
+            + I2 * l1 * lc2 * m2 * ca.sin(q2) * q1_dot**2
+            + 2 * I2 * l1 * lc2 * m2 * ca.sin(q2) * q1_dot * q2_dot
+            + I2 * l1 * lc2 * m2 * ca.sin(q2) * q2_dot**2
+            + I2 * tau1
+            + g * l1 * lc2**2 * m2**2 * ca.cos(q1 + 2 * q2) / 2
+            - g * l1 * lc2**2 * m2**2 * ca.cos(q1) / 2
+            - g * lc1 * lc2**2 * m1 * m2 * ca.cos(q1)
+            + l1**2 * lc2**2 * m2**2 * ca.sin(2 * q2) * q1_dot**2 / 2
+            + l1 * lc2**3 * m2**2 * ca.sin(q2) * q1_dot**2
+            + 2 * l1 * lc2**3 * m2**2 * ca.sin(q2) * q1_dot * q2_dot
+            + l1 * lc2**3 * m2**2 * ca.sin(q2) * q2_dot**2
+            - l1 * lc2 * m2 * tau2 * ca.cos(q2)
+            + lc2**2 * m2 * tau1
         )
         / (
             I1 * I2
@@ -83,16 +88,36 @@ phase.dynamics(
             + lc1**2 * lc2**2 * m1 * m2
         ),
         q2_dot: (
-            -(I2 + l1 * lc2 * m2 * ca.cos(q2) + lc2**2 * m2)
-            * (
-                -g * l1 * m2 * ca.cos(q1)
-                - g * lc1 * m1 * ca.cos(q1)
-                - g * lc2 * m2 * ca.cos(q1 + q2)
-                + l1 * lc2 * m2 * (2 * q1_dot + q2_dot) * ca.sin(q2) * q2_dot
-                + tau1
-            )
-            + (-g * lc2 * m2 * ca.cos(q1 + q2) - l1 * lc2 * m2 * ca.sin(q2) * q1_dot**2 + tau2)
-            * (I1 + I2 + l1**2 * m2 + 2 * l1 * lc2 * m2 * ca.cos(q2) + lc1**2 * m1 + lc2**2 * m2)
+            -I1 * g * lc2 * m2 * ca.cos(q1 + q2)
+            - I1 * l1 * lc2 * m2 * ca.sin(q2) * q1_dot**2
+            + I1 * tau2
+            + I2 * g * l1 * m2 * ca.cos(q1)
+            + I2 * g * lc1 * m1 * ca.cos(q1)
+            - I2 * l1 * lc2 * m2 * ca.sin(q2) * q1_dot**2
+            - 2 * I2 * l1 * lc2 * m2 * ca.sin(q2) * q1_dot * q2_dot
+            - I2 * l1 * lc2 * m2 * ca.sin(q2) * q2_dot**2
+            - I2 * tau1
+            + g * l1**2 * lc2 * m2**2 * ca.cos(q1 - q2) / 2
+            - g * l1**2 * lc2 * m2**2 * ca.cos(q1 + q2) / 2
+            + g * l1 * lc1 * lc2 * m1 * m2 * ca.cos(q1 - q2) / 2
+            + g * l1 * lc1 * lc2 * m1 * m2 * ca.cos(q1 + q2) / 2
+            - g * l1 * lc2**2 * m2**2 * ca.cos(q1 + 2 * q2) / 2
+            + g * l1 * lc2**2 * m2**2 * ca.cos(q1) / 2
+            - g * lc1**2 * lc2 * m1 * m2 * ca.cos(q1 + q2)
+            + g * lc1 * lc2**2 * m1 * m2 * ca.cos(q1)
+            - l1**3 * lc2 * m2**2 * ca.sin(q2) * q1_dot**2
+            - l1**2 * lc2**2 * m2**2 * ca.sin(2 * q2) * q1_dot**2
+            - l1**2 * lc2**2 * m2**2 * ca.sin(2 * q2) * q1_dot * q2_dot
+            - l1**2 * lc2**2 * m2**2 * ca.sin(2 * q2) * q2_dot**2 / 2
+            + l1**2 * m2 * tau2
+            - l1 * lc1**2 * lc2 * m1 * m2 * ca.sin(q2) * q1_dot**2
+            - l1 * lc2**3 * m2**2 * ca.sin(q2) * q1_dot**2
+            - 2 * l1 * lc2**3 * m2**2 * ca.sin(q2) * q1_dot * q2_dot
+            - l1 * lc2**3 * m2**2 * ca.sin(q2) * q2_dot**2
+            - l1 * lc2 * m2 * tau1 * ca.cos(q2)
+            + l1 * lc2 * m2 * tau2 * ca.cos(q2)
+            + lc1**2 * m1 * tau2
+            - lc2**2 * m2 * tau1
         )
         / (
             I1 * I2
@@ -168,7 +193,7 @@ phase.guess(
 
 solution = mtor.solve_adaptive(
     problem,
-    error_tolerance=5e-3,
+    error_tolerance=1e-2,
     max_iterations=15,
     min_polynomial_degree=3,
     max_polynomial_degree=8,

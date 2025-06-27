@@ -44,36 +44,32 @@ I2_dyadic = I2 * me.inertia(B, 0, 0, 1)
 link2_body = me.RigidBody("link2", G2, B, m2, (I2_dyadic, G2))
 
 
-# === Forces (Passive Only) ===
-loads = [(G1, -m1 * g * N.y), (G2, -m2 * g * N.y)]
+# === Forces and Torques in Single Loads List ===
+loads = [
+    (G1, -m1 * g * N.y),  # Gravity on link 1 center of mass
+    (G2, -m2 * g * N.y),  # Gravity on link 2 center of mass
+    (A, tau1 * N.z),  # Joint 1 torque on link 1 body
+    (B, tau2 * A.z),  # Joint 2 torque on link 2 body
+]
 
 # === Lagrangian Mechanics ===
 L = me.Lagrangian(N, link1_body, link2_body)
 LM = me.LagrangesMethod(L, [q1, q2], forcelist=loads, frame=N)
 
-# === Control Forces ===
-# Joint torques acting on each generalized coordinate
-control_forces = sm.Matrix([tau1, tau2])
-
 # === Convert to MAPTOR Format ===
-lagrangian_to_maptor_dynamics(LM, [q1, q2], control_forces)
+lagrangian_to_maptor_dynamics(LM, [q1, q2])
 
-# Output ready to be copy-pasted:
-
+# Output:
 # State variables:
 # q1 = phase.state('q1')
 # q2 = phase.state('q2')
 # q1_dot = phase.state('q1_dot')
 # q2_dot = phase.state('q2_dot')
 
-# Control variables:
-# tau1 = phase.control('tau1')
-# tau2 = phase.control('tau2')
-
 # MAPTOR dynamics dictionary:
 # phase.dynamics({
 #    q1: q1_dot,
 #    q2: q2_dot,
-#    q1_dot: ((I2 + lc2**2*m2)*(-g*l1*m2*ca.cos(q1) - g*lc1*m1*ca.cos(q1) - g*lc2*m2*ca.cos(q1 + q2) + l1*lc2*m2*(2*q1_dot + q2_dot)*ca.sin(q2)*q2_dot + tau1) - (I2 + l1*lc2*m2*ca.cos(q2) + lc2**2*m2)*(-g*lc2*m2*ca.cos(q1 + q2) - l1*lc2*m2*ca.sin(q2)*q1_dot**2 + tau2))/(I1*I2 + I1*lc2**2*m2 + I2*l1**2*m2 + I2*lc1**2*m1 + l1**2*lc2**2*m2**2*ca.sin(q2)**2 + lc1**2*lc2**2*m1*m2),
-#    q2_dot: (-(I2 + l1*lc2*m2*ca.cos(q2) + lc2**2*m2)*(-g*l1*m2*ca.cos(q1) - g*lc1*m1*ca.cos(q1) - g*lc2*m2*ca.cos(q1 + q2) + l1*lc2*m2*(2*q1_dot + q2_dot)*ca.sin(q2)*q2_dot + tau1) + (-g*lc2*m2*ca.cos(q1 + q2) - l1*lc2*m2*ca.sin(q2)*q1_dot**2 + tau2)*(I1 + I2 + l1**2*m2 + 2*l1*lc2*m2*ca.cos(q2) + lc1**2*m1 + lc2**2*m2))/(I1*I2 + I1*lc2**2*m2 + I2*l1**2*m2 + I2*lc1**2*m1 + l1**2*lc2**2*m2**2*ca.sin(q2)**2 + lc1**2*lc2**2*m1*m2),
+#    q1_dot: (-I2*g*l1*m2*ca.cos(q1) - I2*g*lc1*m1*ca.cos(q1) + I2*l1*lc2*m2*ca.sin(q2)*q1_dot**2 + 2*I2*l1*lc2*m2*ca.sin(q2)*q1_dot*q2_dot + I2*l1*lc2*m2*ca.sin(q2)*q2_dot**2 + I2*tau1 + g*l1*lc2**2*m2**2*ca.cos(q1 + 2*q2)/2 - g*l1*lc2**2*m2**2*ca.cos(q1)/2 - g*lc1*lc2**2*m1*m2*ca.cos(q1) + l1**2*lc2**2*m2**2*ca.sin(2*q2)*q1_dot**2/2 + l1*lc2**3*m2**2*ca.sin(q2)*q1_dot**2 + 2*l1*lc2**3*m2**2*ca.sin(q2)*q1_dot*q2_dot + l1*lc2**3*m2**2*ca.sin(q2)*q2_dot**2 - l1*lc2*m2*tau2*ca.cos(q2) + lc2**2*m2*tau1)/(I1*I2 + I1*lc2**2*m2 + I2*l1**2*m2 + I2*lc1**2*m1 + l1**2*lc2**2*m2**2*ca.sin(q2)**2 + lc1**2*lc2**2*m1*m2),
+#    q2_dot: (-I1*g*lc2*m2*ca.cos(q1 + q2) - I1*l1*lc2*m2*ca.sin(q2)*q1_dot**2 + I1*tau2 + I2*g*l1*m2*ca.cos(q1) + I2*g*lc1*m1*ca.cos(q1) - I2*l1*lc2*m2*ca.sin(q2)*q1_dot**2 - 2*I2*l1*lc2*m2*ca.sin(q2)*q1_dot*q2_dot - I2*l1*lc2*m2*ca.sin(q2)*q2_dot**2 - I2*tau1 + g*l1**2*lc2*m2**2*ca.cos(q1 - q2)/2 - g*l1**2*lc2*m2**2*ca.cos(q1 + q2)/2 + g*l1*lc1*lc2*m1*m2*ca.cos(q1 - q2)/2 + g*l1*lc1*lc2*m1*m2*ca.cos(q1 + q2)/2 - g*l1*lc2**2*m2**2*ca.cos(q1 + 2*q2)/2 + g*l1*lc2**2*m2**2*ca.cos(q1)/2 - g*lc1**2*lc2*m1*m2*ca.cos(q1 + q2) + g*lc1*lc2**2*m1*m2*ca.cos(q1) - l1**3*lc2*m2**2*ca.sin(q2)*q1_dot**2 - l1**2*lc2**2*m2**2*ca.sin(2*q2)*q1_dot**2 - l1**2*lc2**2*m2**2*ca.sin(2*q2)*q1_dot*q2_dot - l1**2*lc2**2*m2**2*ca.sin(2*q2)*q2_dot**2/2 + l1**2*m2*tau2 - l1*lc1**2*lc2*m1*m2*ca.sin(q2)*q1_dot**2 - l1*lc2**3*m2**2*ca.sin(q2)*q1_dot**2 - 2*l1*lc2**3*m2**2*ca.sin(q2)*q1_dot*q2_dot - l1*lc2**3*m2**2*ca.sin(q2)*q2_dot**2 - l1*lc2*m2*tau1*ca.cos(q2) + l1*lc2*m2*tau2*ca.cos(q2) + lc1**2*m1*tau2 - lc2**2*m2*tau1)/(I1*I2 + I1*lc2**2*m2 + I2*l1**2*m2 + I2*lc1**2*m1 + l1**2*lc2**2*m2**2*ca.sin(q2)**2 + lc1**2*lc2**2*m1*m2),
 # })

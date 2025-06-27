@@ -68,86 +68,38 @@ def _sympy_to_casadi_string(expressions):
     return converted_expressions
 
 
-def lagrangian_to_maptor_dynamics(lagranges_method, coordinates, control_forces):
+def lagrangian_to_maptor_dynamics(lagranges_method, coordinates):
     """
-    Convert SymPy LagrangesMethod to MAPTOR dynamics format using universal mass matrix approach.
-
-    Supports any mechanical system by using the fundamental equation q̈ = M⁻¹(f_passive + f_control)
-    where M is the mass matrix, f_passive includes forces from forcelist, and f_control
-    contains control forces/torques acting on generalized coordinates.
+    Convert SymPy LagrangesMethod to MAPTOR dynamics format.
 
     Args:
-        lagranges_method: SymPy LagrangesMethod object with passive forces in forcelist
+        lagranges_method: SymPy LagrangesMethod object
         coordinates: List of generalized coordinates (e.g., [q1, q2])
-        control_forces: SymPy Matrix of control forces/torques for each coordinate.
-            Shape must be (len(coordinates), 1)
 
-    Examples:
-        Cartpole with external force:
-
-        >>> control_forces = sm.Matrix([F, 0])  # Force on x, none on theta
-        >>> lagrangian_to_maptor_dynamics(LM, [x, theta], control_forces)
-
-        Manipulator with joint torques:
-
-        >>> control_forces = sm.Matrix([tau1, tau2])  # Torques on q1, q2
-        >>> lagrangian_to_maptor_dynamics(LM, [q1, q2], control_forces)
-
-        Spacecraft with body torques:
-
-        >>> control_forces = sm.Matrix([0, 0, 0, tau_x, tau_y, tau_z])
-        >>> lagrangian_to_maptor_dynamics(LM, [x, y, z, phi, theta, psi], control_forces)
-
-        Pure passive system (no control):
-
-        >>> control_forces = sm.Matrix([0, 0])  # No control forces
-        >>> lagrangian_to_maptor_dynamics(LM, [q1, q2], control_forces)
+    Returns:
+        tuple: (casadi_equations, state_names) ready for MAPTOR dynamics
     """
-    # Input validation
+    # Essential input validation
     if not hasattr(lagranges_method, "form_lagranges_equations"):
         raise ValueError("lagranges_method must be a SymPy LagrangesMethod object")
     if not coordinates:
         raise ValueError("coordinates list cannot be empty")
-    if not hasattr(control_forces, "shape"):
-        raise ValueError("control_forces must be a SymPy Matrix")
 
-    n_coords = len(coordinates)
-    if control_forces.shape != (n_coords, 1):
-        raise ValueError(
-            f"control_forces shape {control_forces.shape} must match coordinates length ({n_coords}, 1)"
-        )
-
-    # Build Lagrangian equations components
+    # Get implicit equations of motion
     try:
-        # Form equations of motion to compute mass matrix and forcing
-        lagranges_method.form_lagranges_equations()
-
-        mass_matrix = lagranges_method.mass_matrix
-        forcing = lagranges_method.forcing
-
-        if mass_matrix.shape != (n_coords, n_coords):
-            raise ValueError(
-                f"Mass matrix shape {mass_matrix.shape} incompatible with {n_coords} coordinates"
-            )
-        if forcing.shape != (n_coords, 1):
-            raise ValueError(
-                f"Forcing vector shape {forcing.shape} incompatible with {n_coords} coordinates"
-            )
-
+        eom_implicit = lagranges_method.form_lagranges_equations()
     except Exception as e:
-        raise ValueError(f"Failed to extract Lagrangian components: {e}") from e
+        raise ValueError(f"Failed to form Lagrange equations: {e}") from e
 
-    # Universal dynamics: q̈ = M⁻¹(f_passive + f_control)
-    try:
-        mass_matrix_inv = mass_matrix.inv()
-        total_generalized_forces = forcing + control_forces
-        explicit_accelerations = mass_matrix_inv * total_generalized_forces
+    # Solve for accelerations explicitly
+    second_derivatives = [coord.diff(me.dynamicsymbols._t, 2) for coord in coordinates]
 
-        # Simplify each acceleration equation
-        explicit_accelerations = [sm.simplify(expr) for expr in explicit_accelerations]
+    accelerations = sm.solve(eom_implicit, second_derivatives)
+    if not accelerations:
+        raise ValueError("No solution found for accelerations - system may be singular")
 
-    except Exception as e:
-        raise ValueError(f"Failed to compute dynamics - system may be singular: {e}") from e
+    # Extract and simplify explicit accelerations
+    explicit_accelerations = [sm.simplify(accelerations[sd]) for sd in second_derivatives]
 
     # Create first-order system: [q1_dot, q2_dot, ..., q1_ddot, q2_ddot, ...]
     first_derivatives = [coord.diff(me.dynamicsymbols._t) for coord in coordinates]
@@ -160,27 +112,7 @@ def lagrangian_to_maptor_dynamics(lagranges_method, coordinates, control_forces)
     coordinate_names = _sympy_to_casadi_string(coordinates)
     state_names = coordinate_names + [name + "_dot" for name in coordinate_names]
 
-    # Extract control variable names from control_forces matrix
-    control_names = []
-    for i in range(n_coords):
-        control_expr = control_forces[i]
-        if control_expr == 0:
-            continue  # Skip zero controls
-
-        # Extract symbols from the control expression
-        control_symbols = list(control_expr.free_symbols)
-        if len(control_symbols) == 1:
-            # Single symbol case (most common)
-            control_name = str(control_symbols[0])
-            control_names.append(control_name)
-        elif len(control_symbols) == 0:
-            # Constant non-zero control
-            control_names.append(f"control_constant_{i}")
-        else:
-            # Multiple symbols or complex expression
-            control_names.append(f"control_expr_{i}")
-
-    # Print copy-paste ready format
+    # Print copy-paste ready format (preserved exactly from original)
     print("CasADi MAPTOR Dynamics:")
     print("=" * 60)
 
@@ -188,14 +120,8 @@ def lagrangian_to_maptor_dynamics(lagranges_method, coordinates, control_forces)
     for name in state_names:
         print(f"# {name} = phase.state('{name}')")
 
-    print("\n# Control variables:")
-    for name in control_names:
-        print(f"# {name} = phase.control('{name}')")
-
     print("\n# MAPTOR dynamics dictionary:")
     print("phase.dynamics({")
     for name, eq_str in zip(state_names, casadi_equations, strict=False):
         print(f"    {name}: {eq_str},")
     print("})")
-
-    return casadi_equations, state_names
