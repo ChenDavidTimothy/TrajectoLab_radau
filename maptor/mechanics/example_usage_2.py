@@ -1,6 +1,7 @@
 import sympy as sm
 import sympy.physics.mechanics as me
-from symbolic import lagrangian_to_maptor_dynamics
+
+from maptor.mechanics import lagrangian_to_maptor_dynamics
 
 
 # Initialize pretty printing

@@ -1,6 +1,7 @@
 import sympy as sm
 import sympy.physics.mechanics as me
-from symbolic import lagrangian_to_maptor_dynamics
+
+from maptor.mechanics import lagrangian_to_maptor_dynamics
 
 
 # Initialize pretty printing
@@ -33,24 +34,16 @@ pole_point.v2pt_theory(cart_point, N, B)
 I_cart = me.inertia(N, 0, 0, 0)
 cart_body = me.RigidBody("cart", cart_point, N, M, (I_cart, cart_point))
 
-# Pole: uniform rod rotating about end, I = (1/3)*m*l^2 about end
-I_pole_about_end = (m * l**2 / 3) * me.inertia(B, 0, 0, 1)
-# Transform inertia to center of mass: I_cm = I_end - m*d^2 where d = l/2
-I_pole_cm = I_pole_about_end - m * (l / 2) ** 2 * me.inertia(B, 0, 0, 1)
+# Pole: uniform rod inertia about center of mass
 I_pole_cm = (m * l**2 / 12) * me.inertia(B, 0, 0, 1)
 pole_body = me.RigidBody("pole", pole_point, B, m, (I_pole_cm, pole_point))
 
 # === Forces ===
-loads = []
-
-# Applied force on cart (horizontal)
-loads.append((cart_point, F * N.x))
-
-# Gravity on cart
-loads.append((cart_point, -M * g * N.y))
-
-# Gravity on pole
-loads.append((pole_point, -m * g * N.y))
+loads = [
+    (cart_point, F * N.x),  # Applied force on cart (horizontal)
+    (cart_point, -M * g * N.y),  # Gravity on cart
+    (pole_point, -m * g * N.y),  # Gravity on pole
+]
 
 # === Lagrangian Mechanics ===
 L = me.Lagrangian(N, cart_body, pole_body)
