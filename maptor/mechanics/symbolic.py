@@ -79,12 +79,24 @@ def lagrangian_to_maptor_dynamics(lagranges_method, coordinates):
     Returns:
         tuple: (casadi_equations, state_names) ready for MAPTOR dynamics
     """
+    # Essential input validation
+    if not hasattr(lagranges_method, "form_lagranges_equations"):
+        raise ValueError("lagranges_method must be a SymPy LagrangesMethod object")
+    if not coordinates:
+        raise ValueError("coordinates list cannot be empty")
+
     # Get implicit equations of motion
-    eom_implicit = lagranges_method.form_lagranges_equations()
+    try:
+        eom_implicit = lagranges_method.form_lagranges_equations()
+    except Exception as e:
+        raise ValueError(f"Failed to form Lagrange equations: {e}") from e
 
     # Solve for accelerations explicitly
     second_derivatives = [coord.diff(me.dynamicsymbols._t, 2) for coord in coordinates]
+
     accelerations = sm.solve(eom_implicit, second_derivatives)
+    if not accelerations:
+        raise ValueError("No solution found for accelerations - system may be singular")
 
     # Extract and simplify explicit accelerations
     explicit_accelerations = [sm.simplify(accelerations[sd]) for sd in second_derivatives]
@@ -100,7 +112,7 @@ def lagrangian_to_maptor_dynamics(lagranges_method, coordinates):
     coordinate_names = _sympy_to_casadi_string(coordinates)
     state_names = coordinate_names + [name + "_dot" for name in coordinate_names]
 
-    # Print copy-paste ready format (moved from print_maptor_dynamics)
+    # Print copy-paste ready format (preserved exactly from original)
     print("CasADi MAPTOR Dynamics:")
     print("=" * 60)
 
