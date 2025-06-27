@@ -19,7 +19,7 @@ g = 9.81  # Gravity (m/s²)
 # Problem Setup
 # ============================================================================
 
-problem = mtor.Problem("Cartpole Stabilization")
+problem = mtor.Problem("Cartpole Swing-Up")
 phase = problem.set_phase(1)
 
 
