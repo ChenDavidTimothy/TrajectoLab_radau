@@ -4,18 +4,7 @@ import sympy as sm
 import sympy.physics.mechanics as me
 
 
-def sympy_to_casadi_string(expressions):
-    """
-    Convert SymPy expressions to CasADi syntax strings.
-    NO CASADI IMPORT REQUIRED - pure string conversion.
-
-    Args:
-        expressions: Single expression or list of SymPy expressions
-
-    Returns:
-        List of CasADi-compatible equation strings
-    """
-
+def _sympy_to_casadi_string(expressions):
     # Handle single expression case
     if not isinstance(expressions, (list, tuple)):
         expressions = [expressions]
@@ -55,7 +44,7 @@ def sympy_to_casadi_string(expressions):
 
     func_pattern = re.compile(r"\b(" + "|".join(re.escape(f) for f in functions.keys()) + r")\b")
 
-    def convert_single(expr):
+    def _convert_single(expr):
         expr_str = str(expr)
 
         # Convert derivatives
@@ -70,7 +59,7 @@ def sympy_to_casadi_string(expressions):
     # Convert all expressions
     converted_expressions = []
     for expr in expressions:
-        converted = convert_single(expr)
+        converted = _convert_single(expr)
 
         # Post-process Matrix format if present
         if converted.startswith("Matrix([") and converted.endswith("])"):
@@ -112,7 +101,7 @@ def lagrangian_to_maptor_dynamics(lagranges_method, coordinates):
     first_order_system = first_derivatives + explicit_accelerations
 
     # Convert to CasADi syntax
-    casadi_equations = sympy_to_casadi_string(first_order_system)
+    casadi_equations = _sympy_to_casadi_string(first_order_system)
 
     # Generate state names: [q1, q2, ..., q1_dot, q2_dot, ...]
     coordinate_names = [str(coord).replace("(t)", "") for coord in coordinates]
