@@ -41,7 +41,7 @@ F = phase.control("F", boundary=(-10.0, 10.0))  # Applied force on cart
 
 
 # ============================================================================
-# Dynamics
+# Dynamics obtained from cartpole_dynamics.py
 # ============================================================================
 
 phase.dynamics(

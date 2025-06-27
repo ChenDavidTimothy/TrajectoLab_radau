@@ -48,3 +48,20 @@ LM = me.LagrangesMethod(L, [x, theta], forcelist=loads, frame=N)
 
 # === Convert to MAPTOR Format ===
 lagrangian_to_maptor_dynamics(LM, [x, theta])
+
+# Output ready to copy-pasted
+# CasADi MAPTOR Dynamics:
+# ============================================================
+# State variables:
+# x = phase.state('x')
+# theta = phase.state('theta')
+# x_dot = phase.state('x_dot')
+# theta_dot = phase.state('theta_dot')
+
+# MAPTOR dynamics dictionary:
+# phase.dynamics({
+#    x: x_dot,
+#    theta: theta_dot,
+#    x_dot: (4*F + 3*g*m*ca.sin(2*theta)/2 - 2*l*m*ca.sin(theta)*theta_dot**2)/(4*M + 3*m*ca.sin(theta)**2 + m),
+#    theta_dot: 3*(2*F*ca.cos(theta) + 2*M*g*ca.sin(theta) + 2*g*m*ca.sin(theta) - l*m*ca.sin(2*theta)*theta_dot**2/2)/(l*(4*M + 3*m*ca.sin(theta)**2 + m)),
+# })
