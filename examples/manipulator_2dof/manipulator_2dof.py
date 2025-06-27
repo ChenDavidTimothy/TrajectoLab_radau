@@ -112,10 +112,11 @@ phase.dynamics(
 
 # Joint angle limits (realistic for manipulator)
 phase.path_constraints(
-    q1 >= -np.pi,
+    q1 >= 0,
     q1 <= np.pi,
     q2 >= -np.pi,
     q2 <= np.pi,
+    l1 * ca.sin(q1) + l2 * ca.sin(q1 + q2) >= 0,
 )
 
 
