@@ -4,9 +4,6 @@ import sympy.physics.mechanics as me
 from maptor.mechanics import lagrangian_to_maptor_dynamics
 
 
-# Initialize pretty printing
-me.init_vprinting()
-
 # === Define Symbols ===
 M, m, l, k1, k2, c1, g, h, w, d, r = sm.symbols("M m l k1 k2 c1 g h w d r")
 q1, q2 = me.dynamicsymbols("q1 q2")

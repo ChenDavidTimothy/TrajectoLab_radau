@@ -4,9 +4,6 @@ import sympy.physics.mechanics as me
 from maptor.mechanics import lagrangian_to_maptor_dynamics
 
 
-# Initialize pretty printing
-me.init_vprinting()
-
 # === Define Symbols ===
 M, m, l, g = sm.symbols("M m l g")  # Cart mass, pole mass, pole length, gravity
 F = sm.symbols("F")  # Applied force on cart
