@@ -49,7 +49,7 @@ LM = me.LagrangesMethod(L, [x, theta], forcelist=loads, frame=N)
 # === Convert to MAPTOR Format ===
 lagrangian_to_maptor_dynamics(LM, [x, theta])
 
-# Output ready to copy-pasted
+# Output ready to be copy-pasted
 # CasADi MAPTOR Dynamics:
 # ============================================================
 # State variables:
