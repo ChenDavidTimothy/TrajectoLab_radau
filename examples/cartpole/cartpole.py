@@ -28,7 +28,7 @@ phase = problem.set_phase(1)
 # ============================================================================
 
 # Time variable
-t = phase.time(initial=0.0, final=2.0)
+t = phase.time(initial=0.0)
 
 # State variables
 x = phase.state("x", initial=0.0, final=0.0)  # Cart position
@@ -68,10 +68,8 @@ phase.dynamics(
 # Objective
 # ============================================================================
 
-# Minimize control effort and state deviations
-integrand = 0.1 * F**2 + x**2 + 10 * theta**2 + 0.1 * x_dot**2 + 0.1 * theta_dot**2
-cost = phase.add_integral(integrand)
-problem.minimize(cost)
+# Minimize final time
+problem.minimize(t.final)
 
 
 # ============================================================================
@@ -103,7 +101,6 @@ for N in [6, 6]:
 phase.guess(
     states=states_guess,
     controls=controls_guess,
-    initial_time=0.0,
     terminal_time=2.0,
 )
 
