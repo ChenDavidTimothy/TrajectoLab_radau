@@ -145,6 +145,8 @@ for N in [8, 8, 8]:
     controls_guess.append(np.array([tau_vals]))
 
 phase.guess(
+    states=states_guess,
+    controls=controls_guess,
     terminal_time=5.0,
 )
 
@@ -156,18 +158,13 @@ phase.guess(
 solution = mtor.solve_adaptive(
     problem,
     error_tolerance=1e-4,
-    max_iterations=30,
+    max_iterations=20,
     min_polynomial_degree=3,
     max_polynomial_degree=8,
-    ode_solver_tolerance=1e-4,
     nlp_options={
         "ipopt.print_level": 0,
         "ipopt.max_iter": 500,
-        "ipopt.tol": 1e-4,
-        "ipopt.constr_viol_tol": 1e-4,
-        "ipopt.acceptable_tol": 1e-3,
-        "ipopt.mu_strategy": "adaptive",
-        "ipopt.linear_solver": "mumps",
+        "ipopt.tol": 1e-8,
     },
 )
 
