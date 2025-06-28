@@ -19,6 +19,7 @@ COLORS = {
     "green": "#10b981",
     "orange": "#f59e0b",
     "grey": "#6b7280",
+    "box_color": "#dc2626",  # Red for the mass box
 }
 
 
@@ -46,6 +47,47 @@ def _create_manipulator_3d_geometry(q1, q2, q3, l1=0.3, l2=0.4, l3=0.3):
     )
 
     return base_pos, joint1_pos, joint2_pos, end_effector_pos
+
+
+def _create_box_wireframe(center_pos, box_size=0.12):
+    """Create simple wireframe box at end effector position."""
+    # Box dimensions (larger for visibility)
+    half_size = box_size / 2
+
+    # Create 8 vertices of the cube
+    vertices = (
+        np.array(
+            [
+                [-half_size, -half_size, -half_size],  # 0
+                [half_size, -half_size, -half_size],  # 1
+                [half_size, half_size, -half_size],  # 2
+                [-half_size, half_size, -half_size],  # 3
+                [-half_size, -half_size, half_size],  # 4
+                [half_size, -half_size, half_size],  # 5
+                [half_size, half_size, half_size],  # 6
+                [-half_size, half_size, half_size],  # 7
+            ]
+        )
+        + center_pos
+    )
+
+    # Define edges for wireframe
+    edges = [
+        [0, 1],
+        [1, 2],
+        [2, 3],
+        [3, 0],  # Bottom face
+        [4, 5],
+        [5, 6],
+        [6, 7],
+        [7, 4],  # Top face
+        [0, 4],
+        [1, 5],
+        [2, 6],
+        [3, 7],  # Vertical edges
+    ]
+
+    return vertices, edges
 
 
 def _create_workspace_boundary_3d(l1=0.3, l2=0.4, l3=0.3, num_points=50):
@@ -89,7 +131,7 @@ def _create_ground_plane(size=1.0, num_points=10):
 
 def animate_manipulator_3dof(solution, save_filename="manipulator_3dof.mp4"):
     """
-    Animate 3DOF manipulator trajectory with real-time duration.
+    Animate 3DOF manipulator trajectory with realistic mass box visualization.
 
     Args:
         solution: MAPTOR solution object
@@ -163,7 +205,7 @@ def animate_manipulator_3dof(solution, save_filename="manipulator_3dof.mp4"):
     ax_main.set_xlabel("X (m)", color=COLORS["text_light"])
     ax_main.set_ylabel("Y (m)", color=COLORS["text_light"])
     ax_main.set_zlabel("Z (m)", color=COLORS["text_light"])
-    ax_main.set_title("3DOF Manipulator 3D Motion", color=COLORS["text_light"], fontsize=14)
+    ax_main.set_title("3DOF Manipulator with 1kg Mass Box", color=COLORS["text_light"], fontsize=14)
     ax_main.tick_params(colors=COLORS["text_light"])
     ax_main.view_init(elev=20, azim=45)
 
@@ -179,7 +221,7 @@ def animate_manipulator_3dof(solution, save_filename="manipulator_3dof.mp4"):
     ax_torques.set_ylabel("Torque (N⋅m)", color=COLORS["text_light"])
     ax_torques.tick_params(colors=COLORS["text_light"])
 
-    # Plot torque trajectories (clarified labels)
+    # Plot torque trajectories
     ax_torques.plot(
         time_control_sol,
         tau1_sol,
@@ -266,26 +308,21 @@ def animate_manipulator_3dof(solution, save_filename="manipulator_3dof.mp4"):
         markeredgewidth=2,
         zorder=10,
     )
-    (end_effector_marker,) = ax_main.plot(
-        [],
-        [],
-        [],
-        "s",
-        color=COLORS["grey"],
-        markersize=8,
-        markeredgecolor=COLORS["text_light"],
-        markeredgewidth=2,
-        zorder=10,
-    )
 
-    # Links (base link is always vertical - q1 rotates entire arm about Z-axis)
+    # Links
     (base_link_line,) = ax_main.plot([], [], [], color=COLORS["primary_red"], linewidth=8)
     (upper_arm_line,) = ax_main.plot([], [], [], color=COLORS["blue"], linewidth=6)
     (forearm_line,) = ax_main.plot([], [], [], color=COLORS["green"], linewidth=4)
 
-    # End-effector trail (using different color to avoid torque confusion)
+    # Mass box visualization (wireframe for reliability)
+    box_lines = []
+    for _ in range(12):  # 12 edges for a cube wireframe
+        (line,) = ax_main.plot([], [], [], color=COLORS["box_color"], linewidth=3, alpha=0.9)
+        box_lines.append(line)
+
+    # End-effector trail
     (end_effector_trail,) = ax_main.plot(
-        [], [], [], color=COLORS["grey"], linewidth=3, alpha=0.8, label="End-effector path"
+        [], [], [], color=COLORS["box_color"], linewidth=3, alpha=0.8, label="Mass box path"
     )
 
     # Torque markers
@@ -313,13 +350,10 @@ def animate_manipulator_3dof(solution, save_filename="manipulator_3dof.mp4"):
             q1_anim[frame], q2_anim[frame], q3_anim[frame]
         )
 
-        # Update joint markers (using set_data_3d for proper 3D updates)
+        # Update joint markers
         base_marker.set_data_3d([base_pos[0]], [base_pos[1]], [base_pos[2]])
         joint1_marker.set_data_3d([joint1_pos[0]], [joint1_pos[1]], [joint1_pos[2]])
         joint2_marker.set_data_3d([joint2_pos[0]], [joint2_pos[1]], [joint2_pos[2]])
-        end_effector_marker.set_data_3d(
-            [end_effector_pos[0]], [end_effector_pos[1]], [end_effector_pos[2]]
-        )
 
         # Update links
         base_link_line.set_data_3d(
@@ -335,6 +369,17 @@ def animate_manipulator_3dof(solution, save_filename="manipulator_3dof.mp4"):
             [joint2_pos[1], end_effector_pos[1]],
             [joint2_pos[2], end_effector_pos[2]],
         )
+
+        # Update mass box wireframe at end effector
+        vertices, edges = _create_box_wireframe(end_effector_pos)
+        for i, edge in enumerate(edges):
+            start_vertex = vertices[edge[0]]
+            end_vertex = vertices[edge[1]]
+            box_lines[i].set_data_3d(
+                [start_vertex[0], end_vertex[0]],
+                [start_vertex[1], end_vertex[1]],
+                [start_vertex[2], end_vertex[2]],
+            )
 
         # Update end-effector trail (2-second window)
         trail_frames = min(frame + 1, int(2.0 * fps))
@@ -354,14 +399,15 @@ def animate_manipulator_3dof(solution, save_filename="manipulator_3dof.mp4"):
         tau2_marker.set_data([current_time], [tau2_anim[frame]])
         tau3_marker.set_data([current_time], [tau3_anim[frame]])
 
-        # Update state information (clarified torque descriptions)
+        # Update state information
         state_info = (
             f"Time: {current_time:.2f}s / {final_time:.2f}s\n"
             f"Base (q₁): {q1_anim[frame]:.3f} rad ({np.degrees(q1_anim[frame]):+6.1f}°)\n"
             f"Shoulder (q₂): {q2_anim[frame]:.3f} rad ({np.degrees(q2_anim[frame]):+6.1f}°)\n"
             f"Elbow (q₃): {q3_anim[frame]:.3f} rad ({np.degrees(q3_anim[frame]):+6.1f}°)\n"
             f"Joint Velocities: {q1_dot_anim[frame]:+5.2f}, {q2_dot_anim[frame]:+5.2f}, {q3_dot_anim[frame]:+5.2f} rad/s\n"
-            f"End-effector: ({end_effector_pos[0]:+5.3f}, {end_effector_pos[1]:+5.3f}, {end_effector_pos[2]:+5.3f}) m\n"
+            f"Mass Box Position: ({end_effector_pos[0]:+5.3f}, {end_effector_pos[1]:+5.3f}, {end_effector_pos[2]:+5.3f}) m\n"
+            f"Mass Box Load: 1.0 kg\n"
             f"Joint Torques: Base={tau1_anim[frame]:+5.1f}, Shoulder={tau2_anim[frame]:+5.1f}, Elbow={tau3_anim[frame]:+5.1f} N⋅m"
         )
         state_text.set_text(state_info)
@@ -370,7 +416,7 @@ def animate_manipulator_3dof(solution, save_filename="manipulator_3dof.mp4"):
             base_marker,
             joint1_marker,
             joint2_marker,
-            end_effector_marker,
+            *box_lines,
             base_link_line,
             upper_arm_line,
             forearm_line,
@@ -406,7 +452,7 @@ if __name__ == "__main__":
     solution = manipulator_3dof.solution
 
     if solution.status["success"]:
-        print("Creating 3DOF manipulator 3D animation...")
+        print("Creating 3DOF manipulator animation with realistic mass box...")
 
         script_dir = Path(__file__).parent
         output_file = script_dir / "manipulator_3dof.mp4"
