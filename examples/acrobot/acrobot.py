@@ -173,10 +173,6 @@ if solution.status["success"]:
     tau_max = max(np.abs(solution["tau"]))
     print(f"Maximum elbow torque: {tau_max:.3f} N⋅m")
 
-    # Swing-up success verification
-    swing_up_success = abs(theta1_final - np.pi) < 0.1 and abs(theta2_final) < 0.1
-    print(f"Swing-up successful: {'✓' if swing_up_success else '✗'}")
-
     solution.plot()
 
 else:

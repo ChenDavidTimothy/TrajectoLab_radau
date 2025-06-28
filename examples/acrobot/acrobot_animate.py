@@ -342,35 +342,6 @@ if __name__ == "__main__":
         output_file = script_dir / "acrobot_swingup.mp4"
 
         anim = animate_acrobot_swingup(solution, str(output_file))
-
-        # Performance analysis
-        theta1_traj = solution["theta1"]
-        theta2_traj = solution["theta2"]
-        tau_traj = solution["tau"]
-
-        print("\nAcrobot Performance Summary:")
-        print(
-            f"  Initial configuration: θ₁={np.degrees(theta1_traj[0]):.1f}°, θ₂={np.degrees(theta2_traj[0]):.1f}°"
-        )
-        print(
-            f"  Final configuration: θ₁={np.degrees(theta1_traj[-1]):.1f}°, θ₂={np.degrees(theta2_traj[-1]):.1f}°"
-        )
-        print(f"  Max elbow torque: {max(abs(tau_traj)):.2f} N⋅m")
-        print(f"  Swing-up time: {solution.status['total_mission_time']:.3f} s")
-        print(f"  Video duration: {solution.status['total_mission_time']:.3f} s (real-time)")
-
-        # Swing-up analysis
-        swing_up_angle = np.degrees(theta1_traj[-1])
-        swing_success = abs(theta1_traj[-1] - np.pi) < 0.1
-        print(f"  Final upright angle: {swing_up_angle:.1f}° (target: 180°)")
-        print(f"  Swing-up successful: {'✓' if swing_success else '✗'}")
-
-        # Energy analysis
-        initial_ee = _create_acrobot_geometry(theta1_traj[0], theta2_traj[0])[2]
-        final_ee = _create_acrobot_geometry(theta1_traj[-1], theta2_traj[-1])[2]
-        height_gain = final_ee[1] - initial_ee[1]
-        print(f"  End-effector height gain: {height_gain:.3f} m")
-
         plt.show()
     else:
         print("Cannot animate: solution failed")

@@ -411,18 +411,6 @@ if __name__ == "__main__":
         output_file = script_dir / "quadcopter_flight.mp4"
         anim = animate_quadcopter_flight(solution, str(output_file))
 
-        # Print danger zone avoidance verification (using original solution data)
-        X_traj_phys = solution["X_scaled"] * quadcopter.POS_SCALE
-        Y_traj_phys = solution["Y_scaled"] * quadcopter.POS_SCALE
-        distances_to_danger = np.sqrt(
-            (X_traj_phys - quadcopter.DANGER_ZONE_CENTER_X) ** 2
-            + (Y_traj_phys - quadcopter.DANGER_ZONE_CENTER_Y) ** 2
-        )
-        min_distance = np.min(distances_to_danger)
-        print(f"Minimum distance to danger zone: {min_distance:.3f} m")
-        print(f"Required clearance: {quadcopter.DANGER_ZONE_RADIUS:.1f} m")
-        print(f"Safety margin: {min_distance - quadcopter.DANGER_ZONE_RADIUS:.3f} m")
-
         plt.show()
     else:
         print("Cannot animate: solution failed")

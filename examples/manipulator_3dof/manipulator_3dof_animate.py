@@ -413,38 +413,6 @@ if __name__ == "__main__":
 
         anim = animate_manipulator_3dof(solution, str(output_file))
 
-        # Performance analysis
-        q1_traj = solution["q1"]
-        q2_traj = solution["q2"]
-        q3_traj = solution["q3"]
-        tau1_traj = solution["tau1"]
-        tau2_traj = solution["tau2"]
-        tau3_traj = solution["tau3"]
-
-        print("\n3DOF Manipulator Performance Summary:")
-        print(
-            f"  Initial configuration: q1={np.degrees(q1_traj[0]):.1f}°, "
-            f"q2={np.degrees(q2_traj[0]):.1f}°, q3={np.degrees(q3_traj[0]):.1f}°"
-        )
-        print(
-            f"  Final configuration: q1={np.degrees(q1_traj[-1]):.1f}°, "
-            f"q2={np.degrees(q2_traj[-1]):.1f}°, q3={np.degrees(q3_traj[-1]):.1f}°"
-        )
-        print(f"  Max base torque: {max(abs(tau1_traj)):.2f} N⋅m")
-        print(f"  Max shoulder torque: {max(abs(tau2_traj)):.2f} N⋅m")
-        print(f"  Max elbow torque: {max(abs(tau3_traj)):.2f} N⋅m")
-        print(f"  Motion time: {solution.status['total_mission_time']:.3f} s")
-        print(f"  Video duration: {solution.status['total_mission_time']:.3f} s (real-time)")
-
-        # 3D trajectory analysis
-        initial_ee = _create_manipulator_3d_geometry(q1_traj[0], q2_traj[0], q3_traj[0])[3]
-        final_ee = _create_manipulator_3d_geometry(q1_traj[-1], q2_traj[-1], q3_traj[-1])[3]
-        ee_distance = np.linalg.norm(final_ee - initial_ee)
-        print(f"  End-effector 3D travel distance: {ee_distance:.3f} m")
-        print(
-            "  Kinematic Note: Base link (red) is always vertical - q1 rotates entire arm about Z-axis"
-        )
-
         plt.show()
     else:
         print("Cannot animate: solution failed")

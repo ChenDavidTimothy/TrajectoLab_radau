@@ -253,19 +253,6 @@ if __name__ == "__main__":
 
         anim = animate_cartpole_swingup(solution, str(output_file))
 
-        x_traj = solution["x"]
-        theta_traj = solution["theta"]
-        force_traj = solution["F"]
-
-        print("\nCartpole Performance Summary:")
-        print(f"  Initial pole angle: {theta_traj[0]:.3f} rad ({np.degrees(theta_traj[0]):.1f}°)")
-        print(f"  Final pole angle: {theta_traj[-1]:.3f} rad ({np.degrees(theta_traj[-1]):.1f}°)")
-        print(f"  Final cart position: {x_traj[-1]:.6f} m")
-        print(f"  Max cart displacement: {max(abs(x_traj)):.3f} m")
-        print(f"  Max control force: {max(abs(force_traj)):.2f} N")
-        print(f"  Swingup time: {solution.status['total_mission_time']:.3f} s")
-        print(f"  Video duration: {solution.status['total_mission_time']:.3f} s (real-time)")
-
         plt.show()
     else:
         print("Cannot animate: solution failed")

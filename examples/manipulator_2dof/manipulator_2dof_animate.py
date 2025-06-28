@@ -314,38 +314,6 @@ if __name__ == "__main__":
 
         anim = animate_manipulator_2dof(solution, str(output_file))
 
-        q1_traj = solution["q1"]
-        q2_traj = solution["q2"]
-        tau1_traj = solution["tau1"]
-        tau2_traj = solution["tau2"]
-
-        print("\nManipulator Performance Summary:")
-        print(
-            f"  Initial configuration: q1={np.degrees(q1_traj[0]):.1f}°, q2={np.degrees(q2_traj[0]):.1f}°"
-        )
-        print(
-            f"  Final configuration: q1={np.degrees(q1_traj[-1]):.1f}°, q2={np.degrees(q2_traj[-1]):.1f}°"
-        )
-        print(f"  Max joint 1 torque: {max(abs(tau1_traj)):.2f} N⋅m")
-        print(f"  Max joint 2 torque: {max(abs(tau2_traj)):.2f} N⋅m")
-        print(f"  Motion time: {solution.status['total_mission_time']:.3f} s")
-        print(f"  Video duration: {solution.status['total_mission_time']:.3f} s (real-time)")
-
-        initial_ee = np.array(
-            [
-                0.5 * np.cos(np.pi / 2) + 0.4 * np.cos(np.pi / 2 + 0),
-                0.5 * np.sin(np.pi / 2) + 0.4 * np.sin(np.pi / 2 + 0),
-            ]
-        )
-        final_ee = np.array(
-            [
-                0.5 * np.cos(q1_traj[-1]) + 0.4 * np.cos(q1_traj[-1] + q2_traj[-1]),
-                0.5 * np.sin(q1_traj[-1]) + 0.4 * np.sin(q1_traj[-1] + q2_traj[-1]),
-            ]
-        )
-        ee_distance = np.linalg.norm(final_ee - initial_ee)
-        print(f"  End-effector travel distance: {ee_distance:.3f} m")
-
         plt.show()
     else:
         print("Cannot animate: solution failed")
