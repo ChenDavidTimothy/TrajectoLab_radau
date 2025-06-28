@@ -17,10 +17,8 @@ def lagrangian_to_maptor_dynamics(lagranges_method, coordinates, control_forces,
     Args:
         lagranges_method: SymPy LagrangesMethod object with passive forces in forcelist
         coordinates: List of generalized coordinates (e.g., [q1, q2])
-        control_forces: SymPy Matrix of control forces/torques for each coordinate.
-            Shape must be (len(coordinates), 1)
-        output_file: Optional filename for saving generated dynamics in same directory as caller.
-            If None, only prints to console.
+        control_forces: SymPy Matrix of control forces/torques for each coordinate. Shape must be (len(coordinates), 1)
+        output_file: Optional filename for saving generated dynamics in same directory as caller. If None, only prints to console.
 
     Returns:
         tuple: (casadi_equations, state_names) for programmatic use
