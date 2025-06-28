@@ -111,9 +111,9 @@ phase = problem.set_phase(1)
 # ============================================================================
 
 # Actuator sizing optimization - motor torque ratings
-max_tau1 = problem.parameter("base_motor_torque", boundary=(40.0, 120.0))
-max_tau2 = problem.parameter("shoulder_motor_torque", boundary=(60.0, 180.0))
-max_tau3 = problem.parameter("elbow_motor_torque", boundary=(30.0, 90.0))
+max_tau1 = problem.parameter("base_motor_torque", boundary=(5.0, 50.0))
+max_tau2 = problem.parameter("shoulder_motor_torque", boundary=(5.0, 50.0))
+max_tau3 = problem.parameter("elbow_motor_torque", boundary=(5.0, 50.0))
 
 # ============================================================================
 # Variables
@@ -340,17 +340,30 @@ solution = mtor.solve_adaptive(
 # Results
 # ============================================================================
 
+# Results
 if solution.status["success"]:
-    print(f"Objective (time + energy): {solution.status['objective']:.6f}")
-    print(f"Mission time: {solution.status['total_mission_time']:.3f} seconds")
+    # Extract optimized parameters
+    params = solution.parameters
+    optimal_tau1 = params["values"][0]
+    optimal_tau2 = params["values"][1]
+    optimal_tau3 = params["values"][2]
 
+    # Calculate utilization rates
+    tau1_max = max(np.abs(solution["tau1"]))
+    tau2_max = max(np.abs(solution["tau2"]))
+    tau3_max = max(np.abs(solution["tau3"]))
+
+    utilization1 = (tau1_max / optimal_tau1) * 100
+    utilization2 = (tau2_max / optimal_tau2) * 100
+    utilization3 = (tau3_max / optimal_tau3) * 100
+
+    # Calculate costs
+    actuator_cost = optimal_tau1 * 0.05 + optimal_tau2 * 0.08 + optimal_tau3 * 0.03
+
+    # Position verification
     q1_solved = solution["q1"][-1]
     q2_solved = solution["q2"][-1]
     q3_solved = solution["q3"][-1]
-    print(f"Final joint 1 angle: {q1_solved:.6f} rad ({np.degrees(q1_solved):.2f}°)")
-    print(f"Final joint 2 angle: {q2_solved:.6f} rad ({np.degrees(q2_solved):.2f}°)")
-    print(f"Final joint 3 angle: {q3_solved:.6f} rad ({np.degrees(q3_solved):.2f}°)")
-
     x_ee_achieved = (l2 * np.cos(q2_solved) + l3 * np.cos(q2_solved + q3_solved)) * np.cos(
         q1_solved
     )
@@ -358,34 +371,36 @@ if solution.status["success"]:
         q1_solved
     )
     z_ee_achieved = l1 + l2 * np.sin(q2_solved) + l3 * np.sin(q2_solved + q3_solved)
-
-    position_error_final = np.sqrt(
+    position_error = np.sqrt(
         (x_ee_achieved - x_ee_final) ** 2
         + (y_ee_achieved - y_ee_final) ** 2
         + (z_ee_achieved - z_ee_final) ** 2
     )
 
-    print(f"Target end-effector position: ({x_ee_final:.3f}, {y_ee_final:.3f}, {z_ee_final:.3f}) m")
-    print(
-        f"Achieved end-effector position: ({x_ee_achieved:.3f}, {y_ee_achieved:.3f}, {z_ee_achieved:.3f}) m"
-    )
-    print(f"Position error: {position_error_final:.6f} m")
-
-    tau1_max = max(np.abs(solution["tau1"]))
-    tau2_max = max(np.abs(solution["tau2"]))
-    tau3_max = max(np.abs(solution["tau3"]))
-    print(f"Maximum joint 1 torque: {tau1_max:.3f} N⋅m")
-    print(f"Maximum joint 2 torque: {tau2_max:.3f} N⋅m")
-    print(f"Maximum joint 3 torque: {tau3_max:.3f} N⋅m")
-
-    q1_dot_max = max(np.abs(solution["q1_dot"]))
-    q2_dot_max = max(np.abs(solution["q2_dot"]))
-    q3_dot_max = max(np.abs(solution["q3_dot"]))
-    print(f"Maximum joint 1 velocity: {q1_dot_max:.3f} rad/s ({np.degrees(q1_dot_max):.1f}°/s)")
-    print(f"Maximum joint 2 velocity: {q2_dot_max:.3f} rad/s ({np.degrees(q2_dot_max):.1f}°/s)")
-    print(f"Maximum joint 3 velocity: {q3_dot_max:.3f} rad/s ({np.degrees(q3_dot_max):.1f}°/s)")
-
-    solution.plot()
+    print("=== OPTIMAL ACTUATOR DESIGN ===")
+    print(f"Base motor torque: {optimal_tau1:.1f} N⋅m (utilization: {utilization1:.1f}%)")
+    print(f"Shoulder motor torque: {optimal_tau2:.1f} N⋅m (utilization: {utilization2:.1f}%)")
+    print(f"Elbow motor torque: {optimal_tau3:.1f} N⋅m (utilization: {utilization3:.1f}%)")
+    print(f"Total actuator cost: ${actuator_cost:.2f}")
+    print()
+    print("=== SYSTEM PERFORMANCE ===")
+    print(f"Mission time: {solution.status['total_mission_time']:.2f} seconds")
+    print(f"Position accuracy: {position_error * 1000:.2f} mm error")
+    print("5kg payload successfully transported")
 
 else:
-    print(f"Failed: {solution.status['message']}")
+    print(f"Optimization failed: {solution.status['message']}")
+
+"""
+OUTPUT
+=== OPTIMAL ACTUATOR DESIGN ===
+Base motor torque: 12.8 N⋅m (utilization: 100.0%)
+Shoulder motor torque: 34.3 N⋅m (utilization: 100.0%)
+Elbow motor torque: 24.1 N⋅m (utilization: 100.0%)
+Total actuator cost: $4.11
+
+=== SYSTEM PERFORMANCE ===
+Mission time: 2.14 seconds
+Position accuracy: 0.00 mm error
+5kg payload successfully transported
+"""
