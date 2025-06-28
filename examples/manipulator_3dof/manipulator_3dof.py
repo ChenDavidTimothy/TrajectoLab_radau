@@ -46,6 +46,17 @@ x_ee_final = 0.2  # Final X position (m)
 y_ee_final = -0.3  # Final Y position (m)
 z_ee_final = 0.5  # Final Z position (m)
 
+# ============================================================================
+# Obstacle Parameters
+# ============================================================================
+
+# Static spherical obstacle
+OBSTACLE_CENTER_X = 0.1  # Obstacle center X position (m)
+OBSTACLE_CENTER_Y = 0.2  # Obstacle center Y position (m)
+OBSTACLE_CENTER_Z = 0.3  # Obstacle center Z position (m)
+OBSTACLE_RADIUS = 0.08  # Obstacle radius (m)
+SAFETY_MARGIN = 0.02  # Additional safety margin (m)
+
 
 # ============================================================================
 # Inverse Kinematics
@@ -276,6 +287,18 @@ phase.dynamics(
 # ============================================================================
 # Constraints
 # ============================================================================
+
+x_ee = (l2 * ca.cos(q2) + l3 * ca.cos(q2 + q3)) * ca.cos(q1)
+y_ee = (l2 * ca.cos(q2) + l3 * ca.cos(q2 + q3)) * ca.sin(q1)
+z_ee = l1 + l2 * ca.cos(q2) + l3 * ca.cos(q2 + q3)
+
+# Spherical obstacle avoidance constraint
+obstacle_distance_squared = (
+    (x_ee - OBSTACLE_CENTER_X) ** 2
+    + (y_ee - OBSTACLE_CENTER_Y) ** 2
+    + (z_ee - OBSTACLE_CENTER_Z) ** 2
+)
+min_distance_squared = (OBSTACLE_RADIUS + SAFETY_MARGIN) ** 2
 
 # Realistic joint angle limits based on industrial manipulator specifications
 phase.path_constraints(
