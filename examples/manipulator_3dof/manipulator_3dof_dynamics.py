@@ -11,6 +11,9 @@ from maptor.mechanics import lagrangian_to_maptor_dynamics
 # Link masses (kg)
 m1, m2, m3 = sm.symbols("m1 m2 m3")
 
+# Weight mass (kg)
+m_box = sm.symbols("m_box")
+
 # Link lengths (m)
 l1, l2, l3 = sm.symbols("l1 l2 l3")
 
@@ -105,6 +108,7 @@ loads = [
     (G1, -m1 * g * N.z),  # Gravity on link 1
     (G2, -m2 * g * N.z),  # Gravity on link 2
     (G3, -m3 * g * N.z),  # Gravity on link 3
+    (P3, -m_box * g * N.z),  # Gravity on box at end effector
 ]
 
 

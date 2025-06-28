@@ -5,13 +5,14 @@ import maptor as mtor
 
 
 # ============================================================================
-# Physical Parameters (Realistic 3DOF Manipulator)
+# Physical Parameters
 # ============================================================================
 
 # Link masses (kg)
 m1 = 3.0  # Base link mass
 m2 = 2.0  # Upper arm mass
 m3 = 1.0  # Forearm mass
+m_box = 1.0  # Load mass
 
 # Link lengths (m)
 l1 = 0.3  # Base link length (vertical)
@@ -104,6 +105,8 @@ phase.dynamics(
                 I2 * ca.sin(2 * q2) * q1_dot**2 / 2
                 + I3 * ca.sin(2 * q2 + 2 * q3) * q1_dot**2 / 2
                 + g * l2 * m3 * ca.cos(q2)
+                + g * l2 * m_box * ca.cos(q2)
+                + g * l3 * m_box * ca.cos(q2 + q3)
                 + g * lc2 * m2 * ca.cos(q2)
                 + g * lc3 * m3 * ca.cos(q2 + q3)
                 + l2 * lc3 * m3 * (2 * q2_dot + q3_dot) * ca.sin(q3) * q3_dot
@@ -120,6 +123,7 @@ phase.dynamics(
             + (l2 * ca.cos(q3) + lc3)
             * (
                 -I3 * ca.sin(2 * q2 + 2 * q3) * q1_dot**2 / 2
+                - g * l3 * m_box * ca.cos(q2 + q3)
                 - g * lc3 * m3 * ca.cos(q2 + q3)
                 + l2 * lc3 * m3 * ca.sin(2 * q2 + q3) * q1_dot**2 / 2
                 + l2 * lc3 * m3 * ca.sin(q3) * q1_dot**2 / 2
@@ -137,6 +141,8 @@ phase.dynamics(
                 I2 * ca.sin(2 * q2) * q1_dot**2 / 2
                 + I3 * ca.sin(2 * q2 + 2 * q3) * q1_dot**2 / 2
                 + g * l2 * m3 * ca.cos(q2)
+                + g * l2 * m_box * ca.cos(q2)
+                + g * l3 * m_box * ca.cos(q2 + q3)
                 + g * lc2 * m2 * ca.cos(q2)
                 + g * lc3 * m3 * ca.cos(q2 + q3)
                 + l2 * lc3 * m3 * (2 * q2_dot + q3_dot) * ca.sin(q3) * q3_dot
@@ -153,6 +159,7 @@ phase.dynamics(
             - (l2**2 * m3 + 2 * l2 * lc3 * m3 * ca.cos(q3) + lc2**2 * m2 + lc3**2 * m3)
             * (
                 -I3 * ca.sin(2 * q2 + 2 * q3) * q1_dot**2 / 2
+                - g * l3 * m_box * ca.cos(q2 + q3)
                 - g * lc3 * m3 * ca.cos(q2 + q3)
                 + l2 * lc3 * m3 * ca.sin(2 * q2 + q3) * q1_dot**2 / 2
                 + l2 * lc3 * m3 * ca.sin(q3) * q1_dot**2 / 2
