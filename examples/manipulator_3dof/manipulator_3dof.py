@@ -106,6 +106,14 @@ print()
 problem = mtor.Problem("KUKA-Scale 3DOF Manipulator")
 phase = problem.set_phase(1)
 
+# ============================================================================
+# Design Parameters
+# ============================================================================
+
+# Actuator sizing optimization - motor torque ratings
+max_tau1 = problem.parameter("base_motor_torque", boundary=(40.0, 120.0))
+max_tau2 = problem.parameter("shoulder_motor_torque", boundary=(60.0, 180.0))
+max_tau3 = problem.parameter("elbow_motor_torque", boundary=(30.0, 90.0))
 
 # ============================================================================
 # Variables
@@ -121,9 +129,9 @@ q1_dot = phase.state("q1_dot", initial=0.0, final=0.0, boundary=(-1.5, 1.5))
 q2_dot = phase.state("q2_dot", initial=0.0, final=0.0, boundary=(-1.2, 1.2))
 q3_dot = phase.state("q3_dot", initial=0.0, final=0.0, boundary=(-2.0, 2.0))
 
-tau1 = phase.control("tau1", boundary=(-80.0, 80.0))
-tau2 = phase.control("tau2", boundary=(-120.0, 120.0))
-tau3 = phase.control("tau3", boundary=(-60.0, 60.0))
+tau1 = phase.control("tau1")
+tau2 = phase.control("tau2")
+tau3 = phase.control("tau3")
 
 
 # ============================================================================
@@ -244,13 +252,29 @@ phase.dynamics(
 z_ee = l1 + l2 * ca.sin(q2) + l3 * ca.sin(q2 + q3)
 phase.path_constraints(z_ee >= 0.05)
 
+# Actuator capability constraints
+phase.path_constraints(
+    tau1 >= -max_tau1,
+    tau1 <= max_tau1,
+    tau2 >= -max_tau2,
+    tau2 <= max_tau2,
+    tau3 >= -max_tau3,
+    tau3 <= max_tau3,
+)
+
 
 # ============================================================================
 # Objective
 # ============================================================================
 
+# Actuator cost model (realistic motor pricing)
+actuator_cost = max_tau1 * 0.05 + max_tau2 * 0.08 + max_tau3 * 0.03
+
+# Energy consumption (motion smoothness)
 energy = phase.add_integral(tau1**2 + tau2**2 + tau3**2)
-problem.minimize(t.final + 0.01 * energy)
+
+# Multi-objective: minimize time + actuator investment + energy consumption
+problem.minimize(t.final + 0.1 * actuator_cost + 0.01 * energy)
 
 
 # ============================================================================
