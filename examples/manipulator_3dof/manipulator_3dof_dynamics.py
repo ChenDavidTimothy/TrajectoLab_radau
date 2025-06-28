@@ -104,4 +104,4 @@ control_forces = sm.Matrix([tau1, tau2, tau3])
 
 
 # === Convert to MAPTOR Format ===
-lagrangian_to_maptor_dynamics(LM, [q1, q2, q3], control_forces)
+lagrangian_to_maptor_dynamics(LM, [q1, q2, q3], control_forces, "3dof_dynamics.txt")

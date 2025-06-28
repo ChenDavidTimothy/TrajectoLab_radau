@@ -50,7 +50,7 @@ LM = me.LagrangesMethod(L, [x, theta], forcelist=loads, frame=N)
 control_forces = sm.Matrix([F, 0])
 
 # === Convert to MAPTOR Format ===
-lagrangian_to_maptor_dynamics(LM, [x, theta], control_forces)
+lagrangian_to_maptor_dynamics(LM, [x, theta], control_forces, "cartpole_dynamics.txt")
 
 # Output ready to be copy-pasted:
 # State variables:

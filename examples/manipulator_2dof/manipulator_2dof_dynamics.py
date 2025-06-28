@@ -56,7 +56,7 @@ LM = me.LagrangesMethod(L, [q1, q2], forcelist=loads, frame=N)
 control_forces = sm.Matrix([tau1, tau2])
 
 # === Convert to MAPTOR Format ===
-lagrangian_to_maptor_dynamics(LM, [q1, q2], control_forces)
+lagrangian_to_maptor_dynamics(LM, [q1, q2], control_forces, "2dof_dynamics.txt")
 
 # Output ready to be copy-pasted:
 

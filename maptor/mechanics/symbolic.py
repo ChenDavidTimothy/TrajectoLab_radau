@@ -1,74 +1,12 @@
+import inspect
 import re
+from pathlib import Path
 
 import sympy as sm
 import sympy.physics.mechanics as me
 
 
-def _sympy_to_casadi_string(expressions):
-    # Handle single expression case
-    if not isinstance(expressions, (list, tuple)):
-        expressions = [expressions]
-
-    # Function mappings
-    functions = {
-        "atan2": "ca.atan2",
-        "sqrt": "ca.sqrt",
-        "sin": "ca.sin",
-        "cos": "ca.cos",
-        "tan": "ca.tan",
-        "exp": "ca.exp",
-        "log": "ca.log",
-        "Abs": "ca.fabs",
-        "asin": "ca.asin",
-        "acos": "ca.acos",
-        "atan": "ca.atan",
-        "sinh": "ca.sinh",
-        "cosh": "ca.cosh",
-        "tanh": "ca.tanh",
-    }
-
-    # Derivative patterns - order matters!
-    patterns = [
-        # Handle second derivatives first
-        (re.compile(r"Derivative\(([^,\(\)]+)\(t\),\s*\(t,\s*2\)\)"), r"\1_ddot"),
-        # Handle first derivatives
-        (re.compile(r"Derivative\(([^,\(\)]+)\(t\),\s*t\)"), r"\1_dot"),
-        # Handle SymPy pretty printing shorthand
-        (re.compile(r"\b([a-zA-Z][a-zA-Z0-9]*)ddot\b"), r"\1_ddot"),
-        (re.compile(r"\b([a-zA-Z][a-zA-Z0-9]*)dot\b"), r"\1_dot"),
-        # Remove (t) from base variables - MUST BE LAST
-        (re.compile(r"\b([a-zA-Z][a-zA-Z0-9]*)\(t\)"), r"\1"),
-    ]
-
-    func_pattern = re.compile(r"\b(" + "|".join(re.escape(f) for f in functions.keys()) + r")\b")
-
-    def _convert_single(expr):
-        expr_str = str(expr)
-
-        # Convert derivatives
-        for pattern, replacement in patterns:
-            expr_str = pattern.sub(replacement, expr_str)
-
-        # Convert functions
-        return func_pattern.sub(lambda m: functions[m.group(1)], expr_str)
-
-    # Convert all expressions and handle Matrix format
-    converted_expressions = []
-    for expr in expressions:
-        converted = _convert_single(expr)
-
-        # Post-process Matrix format if present
-        if converted.startswith("Matrix([") and converted.endswith("])"):
-            # Extract equations from Matrix([[eq1], [eq2]]) format
-            inner = converted[9:-3]  # Remove 'Matrix([[' and ']])'
-            converted_expressions.extend(eq.strip() for eq in inner.split("], ["))
-        else:
-            converted_expressions.append(converted)
-
-    return converted_expressions
-
-
-def lagrangian_to_maptor_dynamics(lagranges_method, coordinates, control_forces):
+def lagrangian_to_maptor_dynamics(lagranges_method, coordinates, control_forces, output_file=None):
     """
     Convert SymPy LagrangesMethod to MAPTOR dynamics format using universal mass matrix approach.
 
@@ -81,6 +19,11 @@ def lagrangian_to_maptor_dynamics(lagranges_method, coordinates, control_forces)
         coordinates: List of generalized coordinates (e.g., [q1, q2])
         control_forces: SymPy Matrix of control forces/torques for each coordinate.
             Shape must be (len(coordinates), 1)
+        output_file: Optional filename for saving generated dynamics in same directory as caller.
+            If None, only prints to console.
+
+    Returns:
+        tuple: (casadi_equations, state_names) for programmatic use
 
     Examples:
         Cartpole with external force:
@@ -93,10 +36,9 @@ def lagrangian_to_maptor_dynamics(lagranges_method, coordinates, control_forces)
         >>> control_forces = sm.Matrix([tau1, tau2])  # Torques on q1, q2
         >>> lagrangian_to_maptor_dynamics(LM, [q1, q2], control_forces)
 
-        Spacecraft with body torques:
+        With backup file output:
 
-        >>> control_forces = sm.Matrix([0, 0, 0, tau_x, tau_y, tau_z])
-        >>> lagrangian_to_maptor_dynamics(LM, [x, y, z, phi, theta, psi], control_forces)
+        >>> lagrangian_to_maptor_dynamics(LM, coords, forces, "dynamics_backup.txt")
 
         Pure passive system (no control):
 
@@ -180,22 +122,127 @@ def lagrangian_to_maptor_dynamics(lagranges_method, coordinates, control_forces)
             # Multiple symbols or complex expression
             control_names.append(f"control_expr_{i}")
 
-    # Print copy-paste ready format
-    print("CasADi MAPTOR Dynamics:")
-    print("=" * 60)
+    # Generate output content
+    output_content = _generate_output_content(state_names, control_names, casadi_equations)
 
-    print("# State variables:")
-    for name in state_names:
-        print(f"# {name} = phase.state('{name}')")
+    # Print copy-paste ready format (preserve existing behavior)
+    print(output_content)
 
-    print("\n# Control variables:")
-    for name in control_names:
-        print(f"# {name} = phase.control('{name}')")
+    # Optional file output in same directory as caller
+    if output_file is not None:
+        try:
+            caller_frame = inspect.currentframe().f_back  # Get user's script frame
+            caller_filepath = caller_frame.f_code.co_filename
+            caller_directory = Path(caller_filepath).parent
+            output_path = caller_directory / output_file
+        except (AttributeError, OSError):
+            # Fallback to current working directory if inspect fails
+            output_path = Path(output_file)
 
-    print("\n# MAPTOR dynamics dictionary:")
-    print("phase.dynamics({")
-    for name, eq_str in zip(state_names, casadi_equations, strict=False):
-        print(f"    {name}: {eq_str},")
-    print("})")
+        with open(output_path, "w") as f:
+            f.write(output_content)
+        print(f"\nDynamics saved to: {output_path}")
 
     return casadi_equations, state_names
+
+
+def _generate_output_content(state_names, control_names, casadi_equations):
+    """Generate formatted output content for console and file."""
+    lines = [
+        "CasADi MAPTOR Dynamics:",
+        "=" * 60,
+        "",
+        "# State variables:",
+    ]
+
+    for name in state_names:
+        lines.append(f"# {name} = phase.state('{name}')")
+
+    lines.extend(
+        [
+            "",
+            "# Control variables:",
+        ]
+    )
+
+    for name in control_names:
+        lines.append(f"# {name} = phase.control('{name}')")
+
+    lines.extend(
+        [
+            "",
+            "# MAPTOR dynamics dictionary:",
+            "phase.dynamics({",
+        ]
+    )
+
+    for name, eq_str in zip(state_names, casadi_equations, strict=False):
+        lines.append(f"    {name}: {eq_str},")
+
+    lines.append("})")
+
+    return "\n".join(lines)
+
+
+def _sympy_to_casadi_string(expressions):
+    # Handle single expression case
+    if not isinstance(expressions, (list, tuple)):
+        expressions = [expressions]
+
+    # Function mappings
+    functions = {
+        "atan2": "ca.atan2",
+        "sqrt": "ca.sqrt",
+        "sin": "ca.sin",
+        "cos": "ca.cos",
+        "tan": "ca.tan",
+        "exp": "ca.exp",
+        "log": "ca.log",
+        "Abs": "ca.fabs",
+        "asin": "ca.asin",
+        "acos": "ca.acos",
+        "atan": "ca.atan",
+        "sinh": "ca.sinh",
+        "cosh": "ca.cosh",
+        "tanh": "ca.tanh",
+    }
+
+    # Derivative patterns - order matters!
+    patterns = [
+        # Handle second derivatives first
+        (re.compile(r"Derivative\(([^,\(\)]+)\(t\),\s*\(t,\s*2\)\)"), r"\1_ddot"),
+        # Handle first derivatives
+        (re.compile(r"Derivative\(([^,\(\)]+)\(t\),\s*t\)"), r"\1_dot"),
+        # Handle SymPy pretty printing shorthand
+        (re.compile(r"\b([a-zA-Z][a-zA-Z0-9]*)ddot\b"), r"\1_ddot"),
+        (re.compile(r"\b([a-zA-Z][a-zA-Z0-9]*)dot\b"), r"\1_dot"),
+        # Remove (t) from base variables - MUST BE LAST
+        (re.compile(r"\b([a-zA-Z][a-zA-Z0-9]*)\(t\)"), r"\1"),
+    ]
+
+    func_pattern = re.compile(r"\b(" + "|".join(re.escape(f) for f in functions.keys()) + r")\b")
+
+    def _convert_single(expr):
+        expr_str = str(expr)
+
+        # Convert derivatives
+        for pattern, replacement in patterns:
+            expr_str = pattern.sub(replacement, expr_str)
+
+        # Convert functions
+        return func_pattern.sub(lambda m: functions[m.group(1)], expr_str)
+
+    # Convert all expressions and handle Matrix format
+    converted_expressions = []
+    for expr in expressions:
+        converted = _convert_single(expr)
+
+        # Post-process Matrix format if present
+        if converted.startswith("Matrix([") and converted.endswith("])"):
+            # Extract equations from Matrix([[eq1], [eq2]]) format
+            inner = converted[9:-3]  # Remove 'Matrix([[' and ']])'
+            converted_expressions.extend(eq.strip() for eq in inner.split("], ["))
+        else:
+            converted_expressions.append(converted)
+
+    return converted_expressions
