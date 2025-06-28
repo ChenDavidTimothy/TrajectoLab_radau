@@ -56,6 +56,11 @@ def generate_api_docs():
             "description": "Exception classes for error handling.",
             "modules": ["maptor.exceptions"],
         },
+        "mechanics": {
+            "title": "Mechanics Utilities",
+            "description": "Optional convenience tools for symbolic mechanics derivation.",
+            "modules": ["maptor.mechanics"],
+        },
     }
 
     # Generate RST files for each public module
