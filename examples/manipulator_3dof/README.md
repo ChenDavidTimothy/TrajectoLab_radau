@@ -1,14 +1,17 @@
-# 3DOF Manipulator Point-to-Point Motion
+# 3DOF Manipulator Design and Trajectory Optimization
 
 ## Mathematical Formulation
 
 ### Problem Statement
 
-Find the optimal joint torques $\tau_1(t)$, $\tau_2(t)$, and $\tau_3(t)$ that move a 3DOF industrial manipulator with 5kg payload from an initial end-effector position to a target position while minimizing time and energy consumption:
+Find the optimal motor sizing and joint torques that minimize actuator investment, mission time, and energy consumption for a 3DOF industrial manipulator with 5kg payload performing point-to-point motion:
 
-$$J = t_f + 0.01 \int_0^{t_f} (\tau_1^2 + \tau_2^2 + \tau_3^2) dt$$
+$$J = t_f + 0.1 \cdot C_{\text{actuator}} + 0.01 \int_0^{t_f} (\tau_1^2 + \tau_2^2 + \tau_3^2) dt$$
 
-Subject to the coupled 3DOF manipulator dynamics:
+Where the actuator cost model is:
+$$C_{\text{actuator}} = 0.05 \cdot \tau_{\max,1} + 0.08 \cdot \tau_{\max,2} + 0.03 \cdot \tau_{\max,3}$$
+
+Subject to the coupled 3DOF manipulator dynamics and actuator capability constraints:
 
 $$\frac{dq_1}{dt} = \dot{q}_1$$
 
@@ -36,6 +39,12 @@ $$x_{ee} = (l_2\cos(q_2) + l_3\cos(q_2+q_3))\cos(q_1)$$
 $$y_{ee} = (l_2\cos(q_2) + l_3\cos(q_2+q_3))\sin(q_1)$$
 $$z_{ee} = l_1 + l_2\sin(q_2) + l_3\sin(q_2+q_3)$$
 
+### Design Parameters
+
+- **Base motor torque rating**: $\tau_{\max,1} \in [5, 50]$ N⋅m
+- **Shoulder motor torque rating**: $\tau_{\max,2} \in [5, 50]$ N⋅m
+- **Elbow motor torque rating**: $\tau_{\max,3} \in [5, 50]$ N⋅m
+
 ### Boundary Conditions
 
 - **Initial end-effector position**: $(0.0, 0.5, 0.1)$ m
@@ -44,7 +53,7 @@ $$z_{ee} = l_1 + l_2\sin(q_2) + l_3\sin(q_2+q_3)$$
 - **Final joint velocities**: $\dot{q}_1(t_f) = \dot{q}_2(t_f) = \dot{q}_3(t_f) = 0$ rad/s
 - **Joint angle bounds**: $q_1 \in [-\pi, \pi]$ rad, $q_2 \in [-\pi/6, 5\pi/6]$ rad, $q_3 \in [-2.5, 2.5]$ rad
 - **Joint velocity bounds**: $\dot{q}_1 \in [-1.5, 1.5]$ rad/s, $\dot{q}_2 \in [-1.2, 1.2]$ rad/s, $\dot{q}_3 \in [-2.0, 2.0]$ rad/s
-- **Control bounds**: $\tau_1 \in [-80, 80]$ N⋅m, $\tau_2 \in [-120, 120]$ N⋅m, $\tau_3 \in [-60, 60]$ N⋅m
+- **Actuator capability constraints**: $-\tau_{\max,i} \leq \tau_i \leq \tau_{\max,i}$ for $i = 1,2,3$
 
 ### Physical Parameters
 
@@ -52,7 +61,7 @@ $$z_{ee} = l_1 + l_2\sin(q_2) + l_3\sin(q_2+q_3)$$
 - **Payload mass**: $m_{box} = 5.0$ kg (industrial payload)
 - **Link lengths**: $l_1 = 0.3$ m, $l_2 = 0.4$ m, $l_3 = 0.4$ m
 - **Center of mass distances**: $l_{c1} = 0.15$ m, $l_{c2} = 0.20$ m, $l_{c3} = 0.20$ m
-- **Moments of inertia**: $I_1 = 0.0225$ kg⋅m², $I_2 = 0.0333$ kg⋅m², $I_3 = 0.0200$ kg⋅m²
+- **Moments of inertia**: $I_1 = 0.0225$ kg⋅m², $I_2 = 0.0333$ kg⋅m², $I_3 = 0.02$ kg⋅m²
 - **Gravity**: $g = 9.81$ m/s²
 
 ### State Variables
@@ -73,12 +82,13 @@ $$z_{ee} = l_1 + l_2\sin(q_2) + l_3\sin(q_2+q_3)$$
 ### Constraints
 
 - **Workspace constraint**: End-effector height $z_{ee} \geq 0.05$ m (ground clearance)
+- **Actuator capability**: $|\tau_i(t)| \leq \tau_{\max,i}$ for all $t$ and $i = 1,2,3$
 - **Inverse kinematics**: Joint angles computed to achieve desired end-effector positions
 - **Reachability verification**: Target positions must satisfy $d_{min} \leq \|r_{target}\| \leq d_{max}$
 
 ### Notes
 
-This problem demonstrates optimal control of a 3DOF industrial manipulator performing point-to-point motion with realistic constraints. The robot configuration uses a vertical base link with azimuth rotation, followed by two pitch joints creating a shoulder-elbow kinematic chain. The inverse kinematics solver ensures reachable target positions, while the dynamics account for gravitational loading, inertial coupling between joints, and the 5kg industrial payload. The optimization balances mission time with energy consumption, representing typical industrial trajectory planning requirements where both speed and efficiency are important.
+This problem demonstrates **simultaneous design and trajectory optimization** for industrial robotics applications. Unlike pure trajectory planning, MAPTOR optimizes both the motor sizing (design parameters) and the motion trajectory simultaneously. The optimization determines the minimum motor torque ratings required while minimizing mission time and energy consumption. The actuator cost model reflects realistic motor pricing where higher-torque motors are more expensive. The final solution achieves 100% motor utilization, indicating optimal actuator sizing with no over-specification. This approach is essential for industrial applications where both performance and cost efficiency are critical, representing a significant advancement over sequential design-then-control approaches.
 
 ## Dynamics Derivation
 
