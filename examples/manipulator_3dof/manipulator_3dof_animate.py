@@ -18,9 +18,8 @@ COLORS = {
     "blue": "#3b82f6",
     "green": "#10b981",
     "orange": "#f59e0b",
+    "grey": "#6b7280",
     "box_color": "#dc2626",  # Red for the mass box
-    "obstacle_color": "#8b5cf6",  # Purple for obstacle
-    "safety_color": "#fbbf24",  # Yellow for safety boundary
 }
 
 
@@ -52,8 +51,9 @@ def _create_manipulator_3d_geometry(
     return base_pos, joint1_pos, joint2_pos, end_effector_pos
 
 
-def _create_box_wireframe(center_pos, box_size=0.08):
+def _create_box_wireframe(center_pos, box_size=0.12):
     """Create simple wireframe box at end effector position."""
+    # Box dimensions (larger for visibility)
     half_size = box_size / 2
 
     # Create 8 vertices of the cube
@@ -92,41 +92,6 @@ def _create_box_wireframe(center_pos, box_size=0.08):
     return vertices, edges
 
 
-def _create_sphere_wireframe(center, radius, num_meridians=16, num_parallels=12):
-    """Create wireframe sphere for obstacle visualization."""
-    vertices = []
-    edges = []
-
-    # Generate vertices using spherical coordinates
-    for i in range(num_parallels + 1):
-        phi = np.pi * i / num_parallels  # Latitude angle
-        for j in range(num_meridians):
-            theta = 2 * np.pi * j / num_meridians  # Longitude angle
-
-            x = center[0] + radius * np.sin(phi) * np.cos(theta)
-            y = center[1] + radius * np.sin(phi) * np.sin(theta)
-            z = center[2] + radius * np.cos(phi)
-            vertices.append([x, y, z])
-
-    vertices = np.array(vertices)
-
-    # Generate meridian edges (longitude lines)
-    for j in range(num_meridians):
-        for i in range(num_parallels):
-            start_idx = i * num_meridians + j
-            end_idx = (i + 1) * num_meridians + j
-            edges.append([start_idx, end_idx])
-
-    # Generate parallel edges (latitude lines)
-    for i in range(1, num_parallels):  # Skip poles
-        for j in range(num_meridians):
-            start_idx = i * num_meridians + j
-            end_idx = i * num_meridians + ((j + 1) % num_meridians)
-            edges.append([start_idx, end_idx])
-
-    return vertices, edges
-
-
 # ============================================================================
 # Animation Function
 # ============================================================================
@@ -134,7 +99,7 @@ def _create_sphere_wireframe(center, radius, num_meridians=16, num_parallels=12)
 
 def animate_manipulator_3dof(solution, save_filename="manipulator_3dof.mp4"):
     """
-    Animate 3DOF manipulator trajectory with obstacle avoidance.
+    Animate 3DOF manipulator trajectory with realistic mass box visualization.
 
     Args:
         solution: MAPTOR solution object
@@ -151,6 +116,9 @@ def animate_manipulator_3dof(solution, save_filename="manipulator_3dof.mp4"):
     q1_traj = solution["q1"]
     q2_traj = solution["q2"]
     q3_traj = solution["q3"]
+    q1_dot_traj = solution["q1_dot"]
+    q2_dot_traj = solution["q2_dot"]
+    q3_dot_traj = solution["q3_dot"]
 
     # Remove duplicate time points
     unique_indices = np.unique(time_states, return_index=True)[1]
@@ -158,6 +126,9 @@ def animate_manipulator_3dof(solution, save_filename="manipulator_3dof.mp4"):
     q1_sol = q1_traj[unique_indices]
     q2_sol = q2_traj[unique_indices]
     q3_sol = q3_traj[unique_indices]
+    q1_dot_sol = q1_dot_traj[unique_indices]
+    q2_dot_sol = q2_dot_traj[unique_indices]
+    q3_dot_sol = q3_dot_traj[unique_indices]
 
     # Real-time animation setup
     final_time = solution.status["total_mission_time"]
@@ -169,124 +140,158 @@ def animate_manipulator_3dof(solution, save_filename="manipulator_3dof.mp4"):
     q1_anim = np.interp(animation_time, time_sol, q1_sol)
     q2_anim = np.interp(animation_time, time_sol, q2_sol)
     q3_anim = np.interp(animation_time, time_sol, q3_sol)
+    q1_dot_anim = np.interp(animation_time, time_sol, q1_dot_sol)
+    q2_dot_anim = np.interp(animation_time, time_sol, q2_dot_sol)
+    q3_dot_anim = np.interp(animation_time, time_sol, q3_dot_sol)
 
-    # Setup figure with single 3D plot
+    # Control data interpolation
+    time_controls = solution["time_controls"]
+    unique_control_indices = np.unique(time_controls, return_index=True)[1]
+    time_control_sol = time_controls[unique_control_indices]
+    tau1_sol = solution["tau1"][unique_control_indices]
+    tau2_sol = solution["tau2"][unique_control_indices]
+    tau3_sol = solution["tau3"][unique_control_indices]
+    tau1_anim = np.interp(animation_time, time_control_sol, tau1_sol)
+    tau2_anim = np.interp(animation_time, time_control_sol, tau2_sol)
+    tau3_anim = np.interp(animation_time, time_control_sol, tau3_sol)
+
+    # Setup figure and axes
     plt.style.use("dark_background")
-    fig = plt.figure(figsize=(12, 10), facecolor=COLORS["background_dark"])
-    ax = fig.add_subplot(111, projection="3d", facecolor=COLORS["background_dark"])
+    fig = plt.figure(figsize=(18, 10), facecolor=COLORS["background_dark"])
 
-    # Configure 3D plot with equal aspect ratios
-    workspace_limit = 0.8
-    ax.set_xlim([-workspace_limit, workspace_limit])
-    ax.set_ylim([-workspace_limit, workspace_limit])
-    ax.set_zlim([0, workspace_limit * 2])
-    ax.set_xlabel("X (m)", color=COLORS["text_light"])
-    ax.set_ylabel("Y (m)", color=COLORS["text_light"])
-    ax.set_zlabel("Z (m)", color=COLORS["text_light"])
-    ax.set_title(
-        "3DOF Manipulator with Obstacle Avoidance", color=COLORS["text_light"], fontsize=16
+    # 3D manipulator view (left, larger)
+    ax_main = fig.add_subplot(121, projection="3d", facecolor=COLORS["background_dark"])
+
+    # Torque plots (right, smaller)
+    ax_torques = fig.add_subplot(122, facecolor=COLORS["background_dark"])
+
+    # Configure 3D plot
+    workspace_limit = 1.0
+    ax_main.set_xlim([-workspace_limit, workspace_limit])
+    ax_main.set_ylim([-workspace_limit, workspace_limit])
+    ax_main.set_zlim([0, workspace_limit])
+    ax_main.set_xlabel("X (m)", color=COLORS["text_light"])
+    ax_main.set_ylabel("Y (m)", color=COLORS["text_light"])
+    ax_main.set_zlabel("Z (m)", color=COLORS["text_light"])
+    ax_main.set_title("3DOF Manipulator with 1kg Mass Box", color=COLORS["text_light"], fontsize=14)
+    ax_main.tick_params(colors=COLORS["text_light"])
+    ax_main.view_init(elev=20, azim=45)
+
+    # Configure torque plot
+    ax_torques.set_facecolor(COLORS["background_dark"])
+    ax_torques.set_xlim(0, final_time)
+    torque_min = min(min(tau1_sol), min(tau2_sol), min(tau3_sol)) - 2
+    torque_max = max(max(tau1_sol), max(tau2_sol), max(tau3_sol)) + 2
+    ax_torques.set_ylim(torque_min, torque_max)
+    ax_torques.grid(True, alpha=0.3)
+    ax_torques.set_title("Joint Torques", color=COLORS["text_light"], fontsize=12)
+    ax_torques.set_xlabel("Time (s)", color=COLORS["text_light"])
+    ax_torques.set_ylabel("Torque (N⋅m)", color=COLORS["text_light"])
+    ax_torques.tick_params(colors=COLORS["text_light"])
+
+    # Plot torque trajectories
+    ax_torques.plot(
+        time_control_sol,
+        tau1_sol,
+        color=COLORS["blue"],
+        linewidth=2,
+        alpha=0.7,
+        label="τ₁ (Base Joint)",
     )
-    ax.tick_params(colors=COLORS["text_light"])
-    ax.view_init(elev=25, azim=45)
-    ax.set_box_aspect([1, 1, 1])  # Equal aspect ratios for true sphere
-
-    # Create static obstacle visualization using imported parameters
-    obstacle_center = np.array(
-        [
-            manipulator_3dof.OBSTACLE_CENTER_X,
-            manipulator_3dof.OBSTACLE_CENTER_Y,
-            manipulator_3dof.OBSTACLE_CENTER_Z,
-        ]
+    ax_torques.plot(
+        time_control_sol,
+        tau2_sol,
+        color=COLORS["green"],
+        linewidth=2,
+        alpha=0.7,
+        label="τ₂ (Shoulder Joint)",
     )
-
-    # Create obstacle sphere wireframe
-    obstacle_vertices, obstacle_edges = _create_sphere_wireframe(
-        obstacle_center, manipulator_3dof.OBSTACLE_RADIUS, num_meridians=16, num_parallels=12
+    ax_torques.plot(
+        time_control_sol,
+        tau3_sol,
+        color=COLORS["orange"],
+        linewidth=2,
+        alpha=0.7,
+        label="τ₃ (Elbow Joint)",
     )
-
-    # Create safety boundary sphere wireframe
-    safety_radius = manipulator_3dof.OBSTACLE_RADIUS + manipulator_3dof.SAFETY_MARGIN
-    safety_vertices, safety_edges = _create_sphere_wireframe(
-        obstacle_center, safety_radius, num_meridians=12, num_parallels=8
+    ax_torques.legend(
+        facecolor=COLORS["background_dark"],
+        edgecolor=COLORS["text_light"],
+        labelcolor=COLORS["text_light"],
     )
-
-    # Add static obstacle sphere wireframe
-    for edge in obstacle_edges:
-        start_vertex = obstacle_vertices[edge[0]]
-        end_vertex = obstacle_vertices[edge[1]]
-        ax.plot(
-            [start_vertex[0], end_vertex[0]],
-            [start_vertex[1], end_vertex[1]],
-            [start_vertex[2], end_vertex[2]],
-            color=COLORS["obstacle_color"],
-            linewidth=2,
-            alpha=0.9,
-        )
-
-    # Add static safety boundary wireframe
-    for edge in safety_edges:
-        start_vertex = safety_vertices[edge[0]]
-        end_vertex = safety_vertices[edge[1]]
-        ax.plot(
-            [start_vertex[0], end_vertex[0]],
-            [start_vertex[1], end_vertex[1]],
-            [start_vertex[2], end_vertex[2]],
-            color=COLORS["safety_color"],
-            linewidth=1,
-            alpha=0.5,
-            linestyle="--",
-        )
 
     # Initialize animated elements
-    (base_marker,) = ax.plot(
+    # Joint markers (using plot for proper 3D updates)
+    (base_marker,) = ax_main.plot(
         [],
         [],
         [],
         "o",
         color=COLORS["primary_red"],
-        markersize=15,
-        markeredgecolor=COLORS["text_light"],
-        markeredgewidth=2,
-        zorder=10,
-    )
-    (joint1_marker,) = ax.plot(
-        [],
-        [],
-        [],
-        "o",
-        color=COLORS["blue"],
         markersize=12,
         markeredgecolor=COLORS["text_light"],
         markeredgewidth=2,
         zorder=10,
     )
-    (joint2_marker,) = ax.plot(
+    (joint1_marker,) = ax_main.plot(
+        [],
+        [],
+        [],
+        "o",
+        color=COLORS["blue"],
+        markersize=10,
+        markeredgecolor=COLORS["text_light"],
+        markeredgewidth=2,
+        zorder=10,
+    )
+    (joint2_marker,) = ax_main.plot(
         [],
         [],
         [],
         "o",
         color=COLORS["green"],
-        markersize=10,
+        markersize=8,
         markeredgecolor=COLORS["text_light"],
         markeredgewidth=2,
         zorder=10,
     )
 
     # Links
-    (base_link_line,) = ax.plot([], [], [], color=COLORS["primary_red"], linewidth=10)
-    (upper_arm_line,) = ax.plot([], [], [], color=COLORS["blue"], linewidth=8)
-    (forearm_line,) = ax.plot([], [], [], color=COLORS["green"], linewidth=6)
+    (base_link_line,) = ax_main.plot([], [], [], color=COLORS["primary_red"], linewidth=8)
+    (upper_arm_line,) = ax_main.plot([], [], [], color=COLORS["blue"], linewidth=6)
+    (forearm_line,) = ax_main.plot([], [], [], color=COLORS["green"], linewidth=4)
 
-    # Mass box visualization
+    # Mass box visualization (wireframe for reliability)
     box_lines = []
     for _ in range(12):  # 12 edges for a cube wireframe
-        (line,) = ax.plot([], [], [], color=COLORS["box_color"], linewidth=4, alpha=0.9)
+        (line,) = ax_main.plot([], [], [], color=COLORS["box_color"], linewidth=3, alpha=0.9)
         box_lines.append(line)
 
     # End-effector trail
-    (end_effector_trail,) = ax.plot([], [], [], color=COLORS["box_color"], linewidth=3, alpha=0.8)
+    (end_effector_trail,) = ax_main.plot(
+        [], [], [], color=COLORS["box_color"], linewidth=3, alpha=0.8, label="Mass box path"
+    )
+
+    # Torque markers
+    (tau1_marker,) = ax_torques.plot([], [], "o", color=COLORS["blue"], markersize=8)
+    (tau2_marker,) = ax_torques.plot([], [], "o", color=COLORS["green"], markersize=8)
+    (tau3_marker,) = ax_torques.plot([], [], "o", color=COLORS["orange"], markersize=8)
+
+    # State information text
+    state_text = ax_main.text2D(
+        0.02,
+        0.98,
+        "",
+        transform=ax_main.transAxes,
+        fontsize=10,
+        color=COLORS["text_light"],
+        bbox={"boxstyle": "round,pad=0.3", "facecolor": COLORS["background_dark"], "alpha": 0.8},
+        verticalalignment="top",
+    )
 
     def animate(frame):
+        current_time = animation_time[frame]
+
         # Get manipulator geometry
         base_pos, joint1_pos, joint2_pos, end_effector_pos = _create_manipulator_3d_geometry(
             q1_anim[frame], q2_anim[frame], q3_anim[frame]
@@ -323,8 +328,8 @@ def animate_manipulator_3dof(solution, save_filename="manipulator_3dof.mp4"):
                 [start_vertex[2], end_vertex[2]],
             )
 
-        # Update end-effector trail (1.5-second window)
-        trail_frames = min(frame + 1, int(1.5 * fps))
+        # Update end-effector trail (2-second window)
+        trail_frames = min(frame + 1, int(2.0 * fps))
         trail_start = max(0, frame + 1 - trail_frames)
         trail_positions = [
             _create_manipulator_3d_geometry(q1_anim[i], q2_anim[i], q3_anim[i])[3]
@@ -336,6 +341,24 @@ def animate_manipulator_3dof(solution, save_filename="manipulator_3dof.mp4"):
             trail_z = [pos[2] for pos in trail_positions]
             end_effector_trail.set_data_3d(trail_x, trail_y, trail_z)
 
+        # Update torque markers
+        tau1_marker.set_data([current_time], [tau1_anim[frame]])
+        tau2_marker.set_data([current_time], [tau2_anim[frame]])
+        tau3_marker.set_data([current_time], [tau3_anim[frame]])
+
+        # Update state information
+        state_info = (
+            f"Time: {current_time:.2f}s / {final_time:.2f}s\n"
+            f"Base (q₁): {q1_anim[frame]:.3f} rad ({np.degrees(q1_anim[frame]):+6.1f}°)\n"
+            f"Shoulder (q₂): {q2_anim[frame]:.3f} rad ({np.degrees(q2_anim[frame]):+6.1f}°)\n"
+            f"Elbow (q₃): {q3_anim[frame]:.3f} rad ({np.degrees(q3_anim[frame]):+6.1f}°)\n"
+            f"Joint Velocities: {q1_dot_anim[frame]:+5.2f}, {q2_dot_anim[frame]:+5.2f}, {q3_dot_anim[frame]:+5.2f} rad/s\n"
+            f"Mass Box Position: ({end_effector_pos[0]:+5.3f}, {end_effector_pos[1]:+5.3f}, {end_effector_pos[2]:+5.3f}) m\n"
+            f"Mass Box Load: 1.0 kg\n"
+            f"Joint Torques: Base={tau1_anim[frame]:+5.1f}, Shoulder={tau2_anim[frame]:+5.1f}, Elbow={tau3_anim[frame]:+5.1f} N⋅m"
+        )
+        state_text.set_text(state_info)
+
         return (
             base_marker,
             joint1_marker,
@@ -345,6 +368,10 @@ def animate_manipulator_3dof(solution, save_filename="manipulator_3dof.mp4"):
             upper_arm_line,
             forearm_line,
             end_effector_trail,
+            tau1_marker,
+            tau2_marker,
+            tau3_marker,
+            state_text,
         )
 
     # Create animation
@@ -372,7 +399,7 @@ if __name__ == "__main__":
     solution = manipulator_3dof.solution
 
     if solution.status["success"]:
-        print("Creating 3DOF manipulator animation with obstacle avoidance...")
+        print("Creating 3DOF manipulator animation with realistic mass box...")
 
         script_dir = Path(__file__).parent
         output_file = script_dir / "manipulator_3dof.mp4"

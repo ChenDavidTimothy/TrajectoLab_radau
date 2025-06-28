@@ -34,28 +34,27 @@ g = 9.81  # m/s²
 
 
 # ============================================================================
-# End-Effector Position Specification (Feasible Positions)
+# End-Effector Position Specification
 # ============================================================================
 
-# Define desired end-effector positions (within reachable workspace)
-x_ee_initial = 0.0  # Initial X position (m) - forward reach
-y_ee_initial = 0.5  # Initial Y position (m) - centered
-z_ee_initial = 0.0  # Initial Z position (m) - mid-height
+# Define desired end-effector positions (modify these as needed)
+x_ee_initial = 0.0  # Initial X position (m)
+y_ee_initial = 0.4  # Initial Y position (m)
+z_ee_initial = 0.1  # Initial Z position (m)
 
-x_ee_final = -0.0  # Final X position (m) - closer
-y_ee_final = -0.5  # Final Y position (m) - to the side
-z_ee_final = 0.0  # Final Z position (m) - higher
-
+x_ee_final = 0.0  # Final X position (m)
+y_ee_final = -0.4  # Final Y position (m)
+z_ee_final = 0.1  # Final Z position (m)
 
 # ============================================================================
-# Obstacle Parameters (Positioned to Force Maneuvering)
+# Obstacle Parameters
 # ============================================================================
 
-# Static spherical obstacle - positioned to interfere with direct path
-OBSTACLE_CENTER_X = 0.4  # Obstacle center X position (m)
-OBSTACLE_CENTER_Y = 0.0  # Obstacle center Y position (m)
-OBSTACLE_CENTER_Z = 0.1  # Obstacle center Z position (m)
-OBSTACLE_RADIUS = 0.1  # Obstacle radius (m)
+# Static spherical obstacle
+OBSTACLE_CENTER_X = 0.1  # Obstacle center X position (m)
+OBSTACLE_CENTER_Y = 0.2  # Obstacle center Y position (m)
+OBSTACLE_CENTER_Z = 0.3  # Obstacle center Z position (m)
+OBSTACLE_RADIUS = 0.08  # Obstacle radius (m)
 SAFETY_MARGIN = 0.02  # Additional safety margin (m)
 
 
@@ -136,11 +135,7 @@ position_error = np.sqrt(
 )
 
 print("=== INVERSE KINEMATICS VERIFICATION ===")
-print(f"Initial target: ({x_ee_initial:.3f}, {y_ee_initial:.3f}, {z_ee_initial:.3f}) m")
-print(f"Final target: ({x_ee_final:.3f}, {y_ee_final:.3f}, {z_ee_final:.3f}) m")
-print(
-    f"Obstacle location: ({OBSTACLE_CENTER_X:.3f}, {OBSTACLE_CENTER_Y:.3f}, {OBSTACLE_CENTER_Z:.3f}) m"
-)
+print(f"Target position: ({x_ee_final:.3f}, {y_ee_final:.3f}, {z_ee_final:.3f}) m")
 print(
     f"Calculated joint angles: q1={np.degrees(q1_final):.1f}°, q2={np.degrees(q2_final):.1f}°, q3={np.degrees(q3_final):.1f}°"
 )
@@ -153,7 +148,7 @@ print()
 # Problem Setup
 # ============================================================================
 
-problem = mtor.Problem("3DOF Manipulator with Full Arm Collision Avoidance")
+problem = mtor.Problem("3DOF Manipulator Position Control")
 phase = problem.set_phase(1)
 
 
@@ -165,9 +160,9 @@ phase = problem.set_phase(1)
 t = phase.time(initial=0.0)
 
 # State variables (joint angles and velocities)
-q1 = phase.state("q1", initial=q1_initial, final=q1_final)
-q2 = phase.state("q2", initial=q2_initial, final=q2_final)
-q3 = phase.state("q3", initial=q3_initial, final=q3_final)
+q1 = phase.state("q1", initial=q1_initial, final=q1_final, boundary=(-np.pi, np.pi))
+q2 = phase.state("q2", initial=q2_initial, final=q2_final, boundary=(-np.pi / 6, 5 * np.pi / 6))
+q3 = phase.state("q3", initial=q3_initial, final=q3_final, boundary=(-2.5, 2.5))
 q1_dot = phase.state("q1_dot", initial=0.0, final=0.0)  # Start and end at rest
 q2_dot = phase.state("q2_dot", initial=0.0, final=0.0)  # Start and end at rest
 q3_dot = phase.state("q3_dot", initial=0.0, final=0.0)  # Start and end at rest
@@ -293,69 +288,8 @@ phase.dynamics(
 # Constraints
 # ============================================================================
 
-# Forward kinematics for end effector position
-x_ee = (l2 * ca.cos(q2) + l3 * ca.cos(q2 + q3)) * ca.cos(q1)
-y_ee = (l2 * ca.cos(q2) + l3 * ca.cos(q2 + q3)) * ca.sin(q1)
-z_ee = l1 + l2 * ca.cos(q2) + l3 * ca.cos(q2 + q3)
-
-# Joint 2 position for arm collision calculations
-joint2_pos_x = l2 * ca.cos(q2) * ca.cos(q1)
-joint2_pos_y = l2 * ca.cos(q2) * ca.sin(q1)
-joint2_pos_z = l1 + l2 * ca.sin(q2)
-
-# Link radius approximation for collision detection
-LINK_RADIUS = 0.03  # Approximate radius of arm links (m)
-total_safety_margin = OBSTACLE_RADIUS + SAFETY_MARGIN + LINK_RADIUS
-
-# Collision avoidance constraints for moving arms
-collision_constraints = []
-
-# 1. End effector protection
-end_effector_distance_sq = (
-    (x_ee - OBSTACLE_CENTER_X) ** 2
-    + (y_ee - OBSTACLE_CENTER_Y) ** 2
-    + (z_ee - OBSTACLE_CENTER_Z) ** 2
-)
-collision_constraints.append(end_effector_distance_sq >= total_safety_margin**2)
-
-# 2. Upper arm protection - single midpoint protector
-upper_arm_mid_x = 0.5 * l2 * ca.cos(q2) * ca.cos(q1)
-upper_arm_mid_y = 0.5 * l2 * ca.cos(q2) * ca.sin(q1)
-upper_arm_mid_z = l1 + 0.5 * l2 * ca.sin(q2)
-
-upper_arm_distance_sq = (
-    (upper_arm_mid_x - OBSTACLE_CENTER_X) ** 2
-    + (upper_arm_mid_y - OBSTACLE_CENTER_Y) ** 2
-    + (upper_arm_mid_z - OBSTACLE_CENTER_Z) ** 2
-)
-collision_constraints.append(upper_arm_distance_sq >= total_safety_margin**2)
-
-# 3. Forearm protection - single midpoint protector
-forearm_mid_x = joint2_pos_x + 0.5 * l3 * ca.cos(q2 + q3) * ca.cos(q1)
-forearm_mid_y = joint2_pos_y + 0.5 * l3 * ca.cos(q2 + q3) * ca.sin(q1)
-forearm_mid_z = joint2_pos_z + 0.5 * l3 * ca.sin(q2 + q3)
-
-forearm_distance_sq = (
-    (forearm_mid_x - OBSTACLE_CENTER_X) ** 2
-    + (forearm_mid_y - OBSTACLE_CENTER_Y) ** 2
-    + (forearm_mid_z - OBSTACLE_CENTER_Z) ** 2
-)
-collision_constraints.append(forearm_distance_sq >= total_safety_margin**2)
-
-# Apply collision avoidance constraints
-phase.path_constraints(*collision_constraints)
-
-# Realistic joint angle limits based on industrial manipulator specifications
-phase.path_constraints(
-    q1 >= -np.pi,  # Base rotation: ±180° (full rotation)
-    q1 <= np.pi,
-    q2 >= -np.pi / 6,  # Shoulder pitch: -30° to +150° (prevents self-collision)
-    q2 <= 5 * np.pi / 6,
-    q3 >= -2.5,  # Elbow pitch: -143° to +143° (realistic elbow range)
-    q3 <= 2.5,
-)
-
 # End-effector workspace constraints (avoid ground collision)
+z_ee = l1 + l2 * ca.cos(q2) + l3 * ca.cos(q2 + q3)
 phase.path_constraints(z_ee >= 0.05)  # Minimum 5cm above ground
 
 
@@ -372,8 +306,8 @@ problem.minimize(energy)
 # Mesh Configuration and Parameterized Initial Guess
 # ============================================================================
 
-num_interval = 20
-degree = [3]
+num_interval = 5
+degree = [5]
 final_mesh = degree * num_interval
 phase.mesh(final_mesh, np.linspace(-1.0, 1.0, num_interval + 1))
 
@@ -414,7 +348,7 @@ phase.guess(
 
 solution = mtor.solve_adaptive(
     problem,
-    error_tolerance=5e-2,
+    error_tolerance=5e-4,
     max_iterations=15,
     min_polynomial_degree=3,
     max_polynomial_degree=8,
@@ -438,7 +372,7 @@ solution = mtor.solve_adaptive(
 # ============================================================================
 
 if solution.status["success"]:
-    print(f"Objective (energy): {solution.status['objective']:.6f}")
+    print(f"Objective (time + energy): {solution.status['objective']:.6f}")
     print(f"Mission time: {solution.status['total_mission_time']:.3f} seconds")
 
     # Final joint angles
@@ -477,35 +411,6 @@ if solution.status["success"]:
     print(f"Maximum joint 1 torque: {tau1_max:.3f} N⋅m")
     print(f"Maximum joint 2 torque: {tau2_max:.3f} N⋅m")
     print(f"Maximum joint 3 torque: {tau3_max:.3f} N⋅m")
-
-    # Collision avoidance verification
-    print("\n=== COLLISION AVOIDANCE VERIFICATION ===")
-
-    # Check minimum distance to obstacle throughout trajectory
-    min_distances = []
-    for i in range(len(solution["time_states"])):
-        q1_val = solution["q1"][i]
-        q2_val = solution["q2"][i]
-        q3_val = solution["q3"][i]
-
-        # End effector distance
-        x_ee_val = (l2 * np.cos(q2_val) + l3 * np.cos(q2_val + q3_val)) * np.cos(q1_val)
-        y_ee_val = (l2 * np.cos(q2_val) + l3 * np.cos(q2_val + q3_val)) * np.sin(q1_val)
-        z_ee_val = l1 + l2 * np.cos(q2_val) + l3 * np.cos(q2_val + q3_val)
-
-        distance_to_obstacle = np.sqrt(
-            (x_ee_val - OBSTACLE_CENTER_X) ** 2
-            + (y_ee_val - OBSTACLE_CENTER_Y) ** 2
-            + (z_ee_val - OBSTACLE_CENTER_Z) ** 2
-        )
-        min_distances.append(distance_to_obstacle)
-
-    min_clearance = min(min_distances)
-    required_clearance = total_safety_margin
-
-    print(f"Minimum clearance achieved: {min_clearance:.4f} m")
-    print(f"Required clearance: {required_clearance:.4f} m")
-    print(f"Safety margin maintained: {'✓' if min_clearance >= required_clearance else '✗'}")
 
     solution.plot()
 
