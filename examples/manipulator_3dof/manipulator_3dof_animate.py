@@ -28,7 +28,9 @@ COLORS = {
 # ============================================================================
 
 
-def _create_manipulator_3d_geometry(q1, q2, q3, l1=0.3, l2=0.4, l3=0.3):
+def _create_manipulator_3d_geometry(
+    q1, q2, q3, l1=manipulator_3dof.l1, l2=manipulator_3dof.l2, l3=manipulator_3dof.l3
+):
     """Create 3D manipulator geometry from joint angles."""
     # Base joint (origin)
     base_pos = np.array([0.0, 0.0, 0.0])
@@ -88,40 +90,6 @@ def _create_box_wireframe(center_pos, box_size=0.12):
     ]
 
     return vertices, edges
-
-
-def _create_workspace_boundary_3d(l1=0.3, l2=0.4, l3=0.3, num_points=50):
-    """Create 3D workspace boundary surfaces."""
-    max_reach = l2 + l3
-    min_reach = abs(l2 - l3)
-
-    # Create spherical coordinates
-    phi = np.linspace(0, 2 * np.pi, num_points)
-    theta = np.linspace(0, np.pi, num_points // 2)
-    phi_grid, theta_grid = np.meshgrid(phi, theta)
-
-    # Outer workspace boundary (shifted up by l1)
-    x_outer = max_reach * np.sin(theta_grid) * np.cos(phi_grid)
-    y_outer = max_reach * np.sin(theta_grid) * np.sin(phi_grid)
-    z_outer = l1 + max_reach * np.cos(theta_grid)
-
-    # Inner workspace boundary (only upper hemisphere)
-    theta_inner = np.linspace(0, np.pi / 2, num_points // 4)
-    phi_inner_grid, theta_inner_grid = np.meshgrid(phi, theta_inner)
-    x_inner = min_reach * np.sin(theta_inner_grid) * np.cos(phi_inner_grid)
-    y_inner = min_reach * np.sin(theta_inner_grid) * np.sin(phi_inner_grid)
-    z_inner = l1 + min_reach * np.cos(theta_inner_grid)
-
-    return (x_outer, y_outer, z_outer), (x_inner, y_inner, z_inner)
-
-
-def _create_ground_plane(size=1.0, num_points=10):
-    """Create ground plane grid."""
-    x = np.linspace(-size, size, num_points)
-    y = np.linspace(-size, size, num_points)
-    x_grid, y_grid = np.meshgrid(x, y)
-    z_grid = np.zeros_like(x_grid)
-    return x_grid, y_grid, z_grid
 
 
 # ============================================================================
@@ -251,27 +219,6 @@ def animate_manipulator_3dof(solution, save_filename="manipulator_3dof.mp4"):
         edgecolor=COLORS["text_light"],
         labelcolor=COLORS["text_light"],
     )
-
-    # Add workspace boundaries
-    outer_boundary, inner_boundary = _create_workspace_boundary_3d()
-    ax_main.plot_surface(
-        outer_boundary[0],
-        outer_boundary[1],
-        outer_boundary[2],
-        alpha=0.1,
-        color=COLORS["grey"],
-    )
-    ax_main.plot_surface(
-        inner_boundary[0],
-        inner_boundary[1],
-        inner_boundary[2],
-        alpha=0.05,
-        color=COLORS["grey"],
-    )
-
-    # Add ground plane
-    ground_x, ground_y, ground_z = _create_ground_plane()
-    ax_main.plot_surface(ground_x, ground_y, ground_z, alpha=0.2, color=COLORS["text_light"])
 
     # Initialize animated elements
     # Joint markers (using plot for proper 3D updates)

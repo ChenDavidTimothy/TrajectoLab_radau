@@ -9,10 +9,10 @@ import maptor as mtor
 # ============================================================================
 
 # Link masses (kg)
-m1 = 3.0  # Base link mass
-m2 = 2.0  # Upper arm mass
-m3 = 1.0  # Forearm mass
-m_box = 1.0  # Load mass
+m1 = 6.0  # Base link mass
+m2 = 6.0  # Upper arm mass
+m3 = 6.0  # Forearm mass
+m_box = 10.0  # Load mass
 
 # Link lengths (m)
 l1 = 0.1  # Base link length (vertical)
@@ -20,7 +20,7 @@ l2 = 0.4  # Upper arm length
 l3 = 0.3  # Forearm length
 
 # Center of mass distances (m)
-lc1 = 0.15  # Base link COM distance from joint 1
+lc1 = 0.5  # Base link COM distance from joint 1
 lc2 = 0.20  # Upper arm COM distance from joint 2
 lc3 = 0.15  # Forearm COM distance from joint 3
 
@@ -40,10 +40,10 @@ g = 9.81  # m/s²
 # Define desired end-effector positions (modify these as needed)
 x_ee_initial = 0.0  # Initial X position (m)
 y_ee_initial = 0.4  # Initial Y position (m)
-z_ee_initial = 0.3  # Initial Z position (m)
+z_ee_initial = 0.0  # Initial Z position (m)
 
 x_ee_final = 0.2  # Final X position (m)
-y_ee_final = 0.3  # Final Y position (m)
+y_ee_final = -0.3  # Final Y position (m)
 z_ee_final = 0.5  # Final Z position (m)
 
 
@@ -157,9 +157,9 @@ q2_dot = phase.state("q2_dot", initial=0.0, final=0.0)  # Start and end at rest
 q3_dot = phase.state("q3_dot", initial=0.0, final=0.0)  # Start and end at rest
 
 # Control variables (joint torques)
-tau1 = phase.control("tau1", boundary=(-30.0, 30.0))  # Base torque (N⋅m)
-tau2 = phase.control("tau2", boundary=(-20.0, 20.0))  # Shoulder torque (N⋅m)
-tau3 = phase.control("tau3", boundary=(-10.0, 10.0))  # Elbow torque (N⋅m)
+tau1 = phase.control("tau1", boundary=(-50.0, 50.0))  # Base torque (N⋅m)
+tau2 = phase.control("tau2", boundary=(-50.0, 50.0))  # Shoulder torque (N⋅m)
+tau3 = phase.control("tau3", boundary=(-50.0, 50.0))  # Elbow torque (N⋅m)
 
 
 # ============================================================================
@@ -298,7 +298,7 @@ phase.path_constraints(z_ee >= 0.05)  # Minimum 5cm above ground
 
 # Minimize energy consumption (torque-squared integral) plus time
 energy = phase.add_integral(tau1**2 + tau2**2 + tau3**2)
-problem.minimize(t.final + 0.1 * energy)
+problem.minimize(energy)
 
 
 # ============================================================================
@@ -346,7 +346,7 @@ phase.guess(
 
 solution = mtor.solve_adaptive(
     problem,
-    error_tolerance=5e-3,
+    error_tolerance=5e-4,
     max_iterations=15,
     min_polynomial_degree=3,
     max_polynomial_degree=8,
