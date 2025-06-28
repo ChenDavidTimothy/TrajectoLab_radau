@@ -15,14 +15,14 @@ m3 = 6.0  # Forearm mass
 m_box = 10.0  # Load mass
 
 # Link lengths (m)
-l1 = 0.1  # Base link length (vertical)
-l2 = 0.4  # Upper arm length
-l3 = 0.3  # Forearm length
+l1 = 0.5  # Base link length (vertical)
+l2 = 2  # Upper arm length
+l3 = 2  # Forearm length
 
 # Center of mass distances (m)
-lc1 = 0.05  # Base link COM distance from joint 1
-lc2 = 0.20  # Upper arm COM distance from joint 2
-lc3 = 0.15  # Forearm COM distance from joint 3
+lc1 = 0.25  # Base link COM distance from joint 1
+lc2 = 1.0  # Upper arm COM distance from joint 2
+lc3 = 1.0  # Forearm COM distance from joint 3
 
 # Moments of inertia about COM (kg⋅m²)
 I1 = m1 * l1**2 / 12  # Uniform rod approximation
@@ -38,25 +38,13 @@ g = 9.81  # m/s²
 # ============================================================================
 
 # Define desired end-effector positions (modify these as needed)
-x_ee_initial = 0.0  # Initial X position (m)
-y_ee_initial = 0.4  # Initial Y position (m)
-z_ee_initial = 0.1  # Initial Z position (m)
+x_ee_initial = 0  # Initial X position (m)
+y_ee_initial = 2  # Initial Y position (m)
+z_ee_initial = 0.5  # Initial Z position (m)
 
 x_ee_final = 0.0  # Final X position (m)
-y_ee_final = -0.4  # Final Y position (m)
-z_ee_final = 0.1  # Final Z position (m)
-
-# ============================================================================
-# Obstacle Parameters
-# ============================================================================
-
-# Static spherical obstacle
-OBSTACLE_CENTER_X = 0.1  # Obstacle center X position (m)
-OBSTACLE_CENTER_Y = 0.2  # Obstacle center Y position (m)
-OBSTACLE_CENTER_Z = 0.3  # Obstacle center Z position (m)
-OBSTACLE_RADIUS = 0.08  # Obstacle radius (m)
-SAFETY_MARGIN = 0.02  # Additional safety margin (m)
-
+y_ee_final = -2  # Final Y position (m)
+z_ee_final = 0.5  # Final Z position (m)
 
 # ============================================================================
 # Inverse Kinematics
@@ -164,19 +152,19 @@ q1 = phase.state("q1", initial=q1_initial, final=q1_final, boundary=(-np.pi, np.
 q2 = phase.state("q2", initial=q2_initial, final=q2_final, boundary=(-np.pi / 6, 5 * np.pi / 6))
 q3 = phase.state("q3", initial=q3_initial, final=q3_final, boundary=(-2.5, 2.5))
 q1_dot = phase.state(
-    "q1_dot", initial=0.0, final=0.0, boundary=(None, 1.5)
+    "q1_dot", initial=0.0, final=0.0, boundary=(-1.5, 1.5)
 )  # Start and end at rest
 q2_dot = phase.state(
-    "q2_dot", initial=0.0, final=0.0, boundary=(None, 1.5)
+    "q2_dot", initial=0.0, final=0.0, boundary=(-1.5, 1.5)
 )  # Start and end at rest
 q3_dot = phase.state(
-    "q3_dot", initial=0.0, final=0.0, boundary=(None, 1.5)
+    "q3_dot", initial=0.0, final=0.0, boundary=(-1.5, 1.5)
 )  # Start and end at rest
 
 # Control variables (joint torques)
-tau1 = phase.control("tau1", boundary=(-50.0, 50.0))  # Base torque (N⋅m)
-tau2 = phase.control("tau2", boundary=(-50.0, 50.0))  # Shoulder torque (N⋅m)
-tau3 = phase.control("tau3", boundary=(-50.0, 50.0))  # Elbow torque (N⋅m)
+tau1 = phase.control("tau1", boundary=(-300.0, 300.0))  # Base torque (N⋅m)
+tau2 = phase.control("tau2", boundary=(-500.0, 500.0))  # Shoulder torque (N⋅m)
+tau3 = phase.control("tau3", boundary=(-500.0, 500.0))  # Elbow torque (N⋅m)
 
 
 # ============================================================================
@@ -305,15 +293,15 @@ phase.path_constraints(z_ee >= 0.05)  # Minimum 5cm above ground
 
 # Minimize energy consumption (torque-squared integral) plus time
 energy = phase.add_integral(tau1**2 + tau2**2 + tau3**2)
-problem.minimize(energy)
+problem.minimize(0.05 * energy)
 
 
 # ============================================================================
 # Mesh Configuration and Parameterized Initial Guess
 # ============================================================================
 
-num_interval = 5
-degree = [5]
+num_interval = 11
+degree = [3]
 final_mesh = degree * num_interval
 phase.mesh(final_mesh, np.linspace(-1.0, 1.0, num_interval + 1))
 
@@ -344,7 +332,7 @@ for N in final_mesh:
 phase.guess(
     states=states_guess,
     controls=controls_guess,
-    terminal_time=3.0,
+    terminal_time=10.0,
 )
 
 
