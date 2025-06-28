@@ -4,7 +4,10 @@ import sympy.physics.mechanics as me
 from maptor.mechanics import lagrangian_to_maptor_dynamics
 
 
-# === Define Symbols ===
+# ============================================================================
+# Physical Parameters
+# ============================================================================
+
 # Link masses (kg)
 m1, m2 = sm.symbols("m1 m2")
 
@@ -28,7 +31,10 @@ theta1, theta2 = me.dynamicsymbols("theta1 theta2")
 theta1d, theta2d = me.dynamicsymbols("theta1 theta2", 1)
 
 
-# === Reference Frames ===
+# ============================================================================
+# Reference Frames
+# ============================================================================
+
 # N: Inertial frame (Y-axis points up, X-axis points right)
 N = me.ReferenceFrame("N")
 
@@ -41,7 +47,10 @@ A = N.orientnew("A", "Axis", (theta1, N.z))
 B = A.orientnew("B", "Axis", (theta2, A.z))
 
 
-# === Points and Velocities ===
+# ============================================================================
+# Points and Velocities
+# ============================================================================
+
 # Fixed shoulder joint (origin)
 O = me.Point("O")
 O.set_vel(N, 0)
@@ -66,7 +75,10 @@ G2 = P1.locatenew("G2", lc2 * (-B.y))
 G2.v2pt_theory(P1, N, B)
 
 
-# === Rigid Bodies ===
+# ============================================================================
+# Rigid Bodies
+# ============================================================================
+
 # Link 1: Inertia about shoulder pivot
 I1_dyadic = I1 * me.inertia(A, 0, 0, 1)
 link1_body = me.RigidBody("link1", G1, A, m1, (I1_dyadic, O))  # Inertia about pivot O
@@ -76,7 +88,10 @@ I2_dyadic = I2 * me.inertia(B, 0, 0, 1)
 link2_body = me.RigidBody("link2", G2, B, m2, (I2_dyadic, P1))  # Inertia about pivot P1
 
 
-# === Forces (Passive Only) ===
+# ============================================================================
+# Forces (Passive Only)
+# ============================================================================
+
 # Gravitational forces on centers of mass (gravity acts in -N.y direction)
 loads = [
     (G1, -m1 * g * N.y),  # Gravity on link 1 COM
@@ -84,18 +99,27 @@ loads = [
 ]
 
 
-# === Lagrangian Mechanics ===
+# ============================================================================
+# Lagrangian Mechanics
+# ============================================================================
+
 L = me.Lagrangian(N, link1_body, link2_body)
 LM = me.LagrangesMethod(L, [theta1, theta2], forcelist=loads, frame=N)
 
 
-# === Control Forces ===
+# ============================================================================
+# Control Forces
+# ============================================================================
+
 # Acrobot: only second joint (elbow) is actuated
 # No torque on theta1 (shoulder), torque tau on theta2 (elbow)
 control_forces = sm.Matrix([0, tau])
 
 
-# === Term-by-Term Verification ===
+# ============================================================================
+# Term-by-Term Verification
+# ============================================================================
+
 print("=== ACROBOT TERM-BY-TERM VERIFICATION ===")
 print("Literature reference: https://underactuated.csail.mit.edu/acrobot.html#section1")
 print()
@@ -152,11 +176,15 @@ print("Literature form: M(q)*q̈ + C(q,q̇)*q̇ = τg(q) + B*u")
 print("Where B = [0, 1]ᵀ and u = τ (elbow torque)")
 print()
 
-# === Convert to MAPTOR Format ===
+
+# ============================================================================
+# Convert to MAPTOR Format
+# ============================================================================
+
 print("=== MAPTOR DYNAMICS GENERATION ===")
 lagrangian_to_maptor_dynamics(LM, [theta1, theta2], control_forces, "acrobot_dynamics.txt")
 
-""" OUTPUT
+"""
 === ACROBOT TERM-BY-TERM VERIFICATION ===
 Literature reference: https://underactuated.csail.mit.edu/acrobot.html#section1
 
@@ -201,16 +229,16 @@ Where B = [0, 1]ᵀ and u = τ (elbow torque)
 CasADi MAPTOR Dynamics:
 ============================================================
 
-# State variables:
-# theta1 = phase.state('theta1')
-# theta2 = phase.state('theta2')
-# theta1_dot = phase.state('theta1_dot')
-# theta2_dot = phase.state('theta2_dot')
+State variables:
+theta1 = phase.state('theta1')
+theta2 = phase.state('theta2')
+theta1_dot = phase.state('theta1_dot')
+theta2_dot = phase.state('theta2_dot')
 
-# Control variables:
-# tau = phase.control('tau')
+Control variables:
+tau = phase.control('tau')
 
-# MAPTOR dynamics dictionary:
+MAPTOR dynamics dictionary:
 phase.dynamics(
     {
         theta1: theta1_dot,
