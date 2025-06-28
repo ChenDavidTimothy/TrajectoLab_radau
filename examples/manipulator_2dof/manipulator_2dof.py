@@ -12,12 +12,14 @@ import maptor as mtor
 m1 = 2.0  # Link 1 mass
 m2 = 1.5  # Link 2 mass
 
+m_payload = 5  # kg
+
 # Link lengths (m)
-l1 = 0.5  # Link 1 length
+l1 = 0.4  # Link 1 length
 l2 = 0.4  # Link 2 length
 
 # Center of mass distances (m)
-lc1 = 0.25  # Link 1 COM distance from joint 1
+lc1 = 0.20  # Link 1 COM distance from joint 1
 lc2 = 0.20  # Link 2 COM distance from joint 2
 
 # Moments of inertia about COM (kg⋅m²)
@@ -35,6 +37,14 @@ g = 9.81  # m/s²
 problem = mtor.Problem("2DOF Manipulator Point-to-Point")
 phase = problem.set_phase(1)
 
+# ============================================================================
+# Design Parameters
+# ============================================================================
+
+# Actuator sizing optimization - motor torque ratings
+max_tau1 = problem.parameter("joint_1_torque", boundary=(5.0, 50.0))
+max_tau2 = problem.parameter("joint_2_torque", boundary=(5.0, 50.0))
+
 
 # ============================================================================
 # Variables
@@ -44,14 +54,22 @@ phase = problem.set_phase(1)
 t = phase.time(initial=0.0)
 
 # State variables (joint angles and velocities)
-q1 = phase.state("q1", initial=np.pi / 2, final=0.0)  # Joint 1: vertical to horizontal
-q2 = phase.state("q2", initial=0.0, final=0.0)  # Joint 2: straight to straight
-q1_dot = phase.state("q1_dot", initial=0.0, final=0.0)  # Start and end at rest
-q2_dot = phase.state("q2_dot", initial=0.0, final=0.0)  # Start and end at rest
+q1 = phase.state(
+    "q1", initial=np.pi / 2, final=0.0, boundary=(0, np.pi)
+)  # Joint 1: vertical to horizontal
+q2 = phase.state(
+    "q2", initial=0.0, final=0.0, boundary=(-np.pi, np.pi)
+)  # Joint 2: straight to straight
+q1_dot = phase.state(
+    "q1_dot", initial=0.0, final=0.0, boundary=(-1.2, 1.2)
+)  # Start and end at rest
+q2_dot = phase.state(
+    "q2_dot", initial=0.0, final=0.0, boundary=(-1.2, 1.2)
+)  # Start and end at rest
 
 # Control variables (joint torques)
-tau1 = phase.control("tau1", boundary=(-20.0, 20.0))  # Joint 1 torque (N⋅m)
-tau2 = phase.control("tau2", boundary=(-10.0, 10.0))  # Joint 2 torque (N⋅m)
+tau1 = phase.control("tau1")  # Joint 1 torque (N⋅m)
+tau2 = phase.control("tau2")  # Joint 2 torque (N⋅m)
 
 
 # ============================================================================
@@ -66,13 +84,20 @@ phase.dynamics(
             (I2 + lc2**2 * m2)
             * (
                 -g * l1 * m2 * ca.cos(q1)
+                - g * l1 * m_payload * ca.cos(q1)
+                - g * l2 * m_payload * ca.cos(q1 + q2)
                 - g * lc1 * m1 * ca.cos(q1)
                 - g * lc2 * m2 * ca.cos(q1 + q2)
                 + l1 * lc2 * m2 * (2 * q1_dot + q2_dot) * ca.sin(q2) * q2_dot
                 + tau1
             )
             - (I2 + l1 * lc2 * m2 * ca.cos(q2) + lc2**2 * m2)
-            * (-g * lc2 * m2 * ca.cos(q1 + q2) - l1 * lc2 * m2 * ca.sin(q2) * q1_dot**2 + tau2)
+            * (
+                -g * l2 * m_payload * ca.cos(q1 + q2)
+                - g * lc2 * m2 * ca.cos(q1 + q2)
+                - l1 * lc2 * m2 * ca.sin(q2) * q1_dot**2
+                + tau2
+            )
         )
         / (
             I1 * I2
@@ -86,12 +111,19 @@ phase.dynamics(
             -(I2 + l1 * lc2 * m2 * ca.cos(q2) + lc2**2 * m2)
             * (
                 -g * l1 * m2 * ca.cos(q1)
+                - g * l1 * m_payload * ca.cos(q1)
+                - g * l2 * m_payload * ca.cos(q1 + q2)
                 - g * lc1 * m1 * ca.cos(q1)
                 - g * lc2 * m2 * ca.cos(q1 + q2)
                 + l1 * lc2 * m2 * (2 * q1_dot + q2_dot) * ca.sin(q2) * q2_dot
                 + tau1
             )
-            + (-g * lc2 * m2 * ca.cos(q1 + q2) - l1 * lc2 * m2 * ca.sin(q2) * q1_dot**2 + tau2)
+            + (
+                -g * l2 * m_payload * ca.cos(q1 + q2)
+                - g * lc2 * m2 * ca.cos(q1 + q2)
+                - l1 * lc2 * m2 * ca.sin(q2) * q1_dot**2
+                + tau2
+            )
             * (I1 + I2 + l1**2 * m2 + 2 * l1 * lc2 * m2 * ca.cos(q2) + lc1**2 * m1 + lc2**2 * m2)
         )
         / (
@@ -112,13 +144,15 @@ phase.dynamics(
 
 # Joint angle limits (realistic for manipulator)
 phase.path_constraints(
-    q1 >= 0,
-    q1 <= np.pi,
-    q2 >= -np.pi,
-    q2 <= np.pi,
     l1 * ca.sin(q1) + l2 * ca.sin(q1 + q2) >= 0,
 )
 
+phase.path_constraints(
+    tau1 >= -max_tau1,
+    tau1 <= max_tau1,
+    tau2 >= -max_tau2,
+    tau2 <= max_tau2,
+)
 
 # ============================================================================
 # Objective

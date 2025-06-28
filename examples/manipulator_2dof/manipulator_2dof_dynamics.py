@@ -9,6 +9,7 @@ from maptor.mechanics import lagrangian_to_maptor_dynamics
 # ============================================================================
 
 m1, m2 = sm.symbols("m1 m2")
+m_payload = sm.symbols("m_payload")
 l1, l2 = sm.symbols("l1 l2")
 lc1, lc2 = sm.symbols("lc1 lc2")
 I1, I2 = sm.symbols("I1 I2")
@@ -44,6 +45,9 @@ G1.v2pt_theory(O, N, A)
 G2 = P1.locatenew("G2", lc2 * B.x)
 G2.v2pt_theory(P1, N, B)
 
+P2 = P1.locatenew("P2", l2 * B.x)
+P2.v2pt_theory(P1, N, B)
+
 
 # ============================================================================
 # Rigid Bodies
@@ -60,7 +64,11 @@ link2_body = me.RigidBody("link2", G2, B, m2, (I2_dyadic, G2))
 # Forces (Passive Only)
 # ============================================================================
 
-loads = [(G1, -m1 * g * N.y), (G2, -m2 * g * N.y)]
+loads = [
+    (G1, -m1 * g * N.y),  # Gravity on link 1 COM
+    (G2, -m2 * g * N.y),  # Gravity on link 2 COM
+    (P2, -m_payload * g * N.y),  # Gravity on payload at end effector
+]
 
 
 # ============================================================================
@@ -107,13 +115,20 @@ phase.dynamics(
             (I2 + lc2**2 * m2)
             * (
                 -g * l1 * m2 * ca.cos(q1)
+                - g * l1 * m_payload * ca.cos(q1)
+                - g * l2 * m_payload * ca.cos(q1 + q2)
                 - g * lc1 * m1 * ca.cos(q1)
                 - g * lc2 * m2 * ca.cos(q1 + q2)
                 + l1 * lc2 * m2 * (2 * q1_dot + q2_dot) * ca.sin(q2) * q2_dot
                 + tau1
             )
             - (I2 + l1 * lc2 * m2 * ca.cos(q2) + lc2**2 * m2)
-            * (-g * lc2 * m2 * ca.cos(q1 + q2) - l1 * lc2 * m2 * ca.sin(q2) * q1_dot**2 + tau2)
+            * (
+                -g * l2 * m_payload * ca.cos(q1 + q2)
+                - g * lc2 * m2 * ca.cos(q1 + q2)
+                - l1 * lc2 * m2 * ca.sin(q2) * q1_dot**2
+                + tau2
+            )
         )
         / (
             I1 * I2
@@ -127,12 +142,19 @@ phase.dynamics(
             -(I2 + l1 * lc2 * m2 * ca.cos(q2) + lc2**2 * m2)
             * (
                 -g * l1 * m2 * ca.cos(q1)
+                - g * l1 * m_payload * ca.cos(q1)
+                - g * l2 * m_payload * ca.cos(q1 + q2)
                 - g * lc1 * m1 * ca.cos(q1)
                 - g * lc2 * m2 * ca.cos(q1 + q2)
                 + l1 * lc2 * m2 * (2 * q1_dot + q2_dot) * ca.sin(q2) * q2_dot
                 + tau1
             )
-            + (-g * lc2 * m2 * ca.cos(q1 + q2) - l1 * lc2 * m2 * ca.sin(q2) * q1_dot**2 + tau2)
+            + (
+                -g * l2 * m_payload * ca.cos(q1 + q2)
+                - g * lc2 * m2 * ca.cos(q1 + q2)
+                - l1 * lc2 * m2 * ca.sin(q2) * q1_dot**2
+                + tau2
+            )
             * (I1 + I2 + l1**2 * m2 + 2 * l1 * lc2 * m2 * ca.cos(q2) + lc1**2 * m1 + lc2**2 * m2)
         )
         / (
