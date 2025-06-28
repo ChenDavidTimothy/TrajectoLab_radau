@@ -10,8 +10,10 @@ def lagrangian_to_maptor_dynamics(lagranges_method, coordinates, control_forces,
     """
     Convert SymPy LagrangesMethod to MAPTOR dynamics format using universal mass matrix approach.
 
-    Supports any mechanical system by using the fundamental equation q̈ = M⁻¹(f_passive + f_control)
-    where M is the mass matrix, f_passive includes forces from forcelist, and f_control
+    Supports any mechanical system by using the fundamental equation:
+    q̈ = M⁻¹(f_passive + f_control)
+
+    Where M is the mass matrix, f_passive includes forces from forcelist, and f_control
     contains control forces/torques acting on generalized coordinates.
 
     Args:
@@ -186,7 +188,7 @@ def _generate_output_content(state_names, control_names, casadi_equations):
 
 def _sympy_to_casadi_string(expressions):
     # Handle single expression case
-    if not isinstance(expressions, (list, tuple)):
+    if not isinstance(expressions, list | tuple):
         expressions = [expressions]
 
     # Function mappings
