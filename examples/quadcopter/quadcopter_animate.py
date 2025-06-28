@@ -15,8 +15,8 @@ COLORS = {
     "primary_red": "#991b1b",
     "background_dark": "#2d2d2d",
     "text_light": "#e5e7eb",
-    "agent_blue": "#3b82f6",
-    "obstacle_green": "#10b981",
+    "blue": "#3b82f6",
+    "green": "#10b981",
     "danger_red": "#dc2626",
     "danger_red_alpha": "#dc262640",
 }
@@ -316,8 +316,8 @@ def animate_quadcopter_flight(solution, save_filename="quadcopter_flight.mp4"):
     ax.zaxis.pane.set_edgecolor("none")
 
     # Start/end markers
-    ax.scatter(X_phys[0], Y_phys[0], Z_phys[0], c=COLORS["obstacle_green"], s=200, marker="s")
-    ax.scatter(X_phys[-1], Y_phys[-1], Z_phys[-1], c=COLORS["agent_blue"], s=300, marker="*")
+    ax.scatter(X_phys[0], Y_phys[0], Z_phys[0], c=COLORS["green"], s=200, marker="s")
+    ax.scatter(X_phys[-1], Y_phys[-1], Z_phys[-1], c=COLORS["blue"], s=300, marker="*")
 
     # Create and add danger zone visualization
     danger_zone_faces = _create_danger_zone_cylinder(
@@ -351,7 +351,7 @@ def animate_quadcopter_flight(solution, save_filename="quadcopter_flight.mp4"):
 
     # Animated detailed quadcopter
     quadcopter_mesh = Poly3DCollection(
-        [], facecolor=COLORS["agent_blue"], alpha=0.9, edgecolor=COLORS["text_light"], linewidth=0.5
+        [], facecolor=COLORS["blue"], alpha=0.9, edgecolor=COLORS["text_light"], linewidth=0.5
     )
     ax.add_collection3d(quadcopter_mesh)
 
@@ -359,7 +359,7 @@ def animate_quadcopter_flight(solution, save_filename="quadcopter_flight.mp4"):
     (front_line,) = ax.plot([], [], [], color="yellow", linewidth=3, alpha=0.9)
 
     # Progressive trail (builds up as quadcopter moves)
-    (trail_line,) = ax.plot([], [], [], color=COLORS["agent_blue"], linewidth=3, alpha=0.9)
+    (trail_line,) = ax.plot([], [], [], color=COLORS["blue"], linewidth=3, alpha=0.9)
 
     def animate(frame):
         # Update detailed quadcopter geometry

@@ -133,13 +133,15 @@ problem.minimize(t.final + energy)
 # Mesh Configuration and Initial Guess
 # ============================================================================
 
-phase.mesh([8, 8, 8], [-1.0, -1 / 3, 1 / 3, 1.0])
+# Mesh and guess
+num_interval = 11
+degree = [3]
+final_mesh = degree * num_interval
+phase.mesh(final_mesh, np.linspace(-1.0, 1.0, num_interval + 1))
 
-# Initial guess - linear interpolation for joint angles
 states_guess = []
 controls_guess = []
-
-for N in [8, 8, 8]:
+for N in final_mesh:
     tau = np.linspace(-1, 1, N + 1)
     t_norm = (tau + 1) / 2
 

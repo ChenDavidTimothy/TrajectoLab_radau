@@ -14,10 +14,10 @@ COLORS = {
     "primary_red": "#991b1b",
     "background_dark": "#2d2d2d",
     "text_light": "#e5e7eb",
-    "agent_blue": "#3b82f6",
-    "obstacle_green": "#10b981",
-    "obstacle_orange": "#f59e0b",
-    "lane_guides": "#6b7280",
+    "blue": "#3b82f6",
+    "green": "#10b981",
+    "orange": "#f59e0b",
+    "grey": "#6b7280",
 }
 
 
@@ -133,7 +133,7 @@ def animate_manipulator_2dof(solution, save_filename="manipulator_2dof.mp4"):
     ax_torques.plot(
         time_control_sol,
         tau1_sol,
-        color=COLORS["agent_blue"],
+        color=COLORS["blue"],
         linewidth=2,
         alpha=0.7,
         label="τ₁ (Joint 1)",
@@ -141,7 +141,7 @@ def animate_manipulator_2dof(solution, save_filename="manipulator_2dof.mp4"):
     ax_torques.plot(
         time_control_sol,
         tau2_sol,
-        color=COLORS["obstacle_orange"],
+        color=COLORS["orange"],
         linewidth=2,
         alpha=0.7,
         label="τ₂ (Joint 2)",
@@ -156,7 +156,7 @@ def animate_manipulator_2dof(solution, save_filename="manipulator_2dof.mp4"):
     ax_main.plot(
         outer_boundary[0],
         outer_boundary[1],
-        color=COLORS["lane_guides"],
+        color=COLORS["grey"],
         linewidth=1,
         alpha=0.3,
         linestyle="--",
@@ -164,7 +164,7 @@ def animate_manipulator_2dof(solution, save_filename="manipulator_2dof.mp4"):
     ax_main.plot(
         inner_boundary[0],
         inner_boundary[1],
-        color=COLORS["lane_guides"],
+        color=COLORS["grey"],
         linewidth=1,
         alpha=0.3,
         linestyle="--",
@@ -184,7 +184,7 @@ def animate_manipulator_2dof(solution, save_filename="manipulator_2dof.mp4"):
         [],
         [],
         s=120,
-        c=COLORS["agent_blue"],
+        c=COLORS["blue"],
         marker="o",
         zorder=10,
         edgecolor=COLORS["text_light"],
@@ -194,26 +194,24 @@ def animate_manipulator_2dof(solution, save_filename="manipulator_2dof.mp4"):
         [],
         [],
         s=100,
-        c=COLORS["obstacle_green"],
+        c=COLORS["green"],
         marker="s",
         zorder=10,
         edgecolor=COLORS["text_light"],
         linewidth=2,
     )
 
-    (link1_line,) = ax_main.plot(
-        [], [], color=COLORS["agent_blue"], linewidth=6, solid_capstyle="round"
-    )
+    (link1_line,) = ax_main.plot([], [], color=COLORS["blue"], linewidth=6, solid_capstyle="round")
     (link2_line,) = ax_main.plot(
-        [], [], color=COLORS["obstacle_orange"], linewidth=6, solid_capstyle="round"
+        [], [], color=COLORS["orange"], linewidth=6, solid_capstyle="round"
     )
 
     (end_effector_trail,) = ax_main.plot(
-        [], [], color=COLORS["obstacle_green"], linewidth=2, alpha=0.8, label="End-effector path"
+        [], [], color=COLORS["green"], linewidth=2, alpha=0.8, label="End-effector path"
     )
 
-    (tau1_marker,) = ax_torques.plot([], [], "o", color=COLORS["agent_blue"], markersize=8)
-    (tau2_marker,) = ax_torques.plot([], [], "o", color=COLORS["obstacle_orange"], markersize=8)
+    (tau1_marker,) = ax_torques.plot([], [], "o", color=COLORS["blue"], markersize=8)
+    (tau2_marker,) = ax_torques.plot([], [], "o", color=COLORS["orange"], markersize=8)
 
     state_text = ax_main.text(
         0.02,

@@ -15,10 +15,10 @@ COLORS = {
     "primary_red": "#991b1b",
     "background_dark": "#2d2d2d",
     "text_light": "#e5e7eb",
-    "agent_blue": "#3b82f6",
-    "obstacle_green": "#10b981",
-    "obstacle_orange": "#f59e0b",
-    "lane_guides": "#6b7280",
+    "blue": "#3b82f6",
+    "green": "#10b981",
+    "orange": "#f59e0b",
+    "grey": "#6b7280",
 }
 
 
@@ -183,7 +183,7 @@ def animate_manipulator_3dof(solution, save_filename="manipulator_3dof.mp4"):
     ax_torques.plot(
         time_control_sol,
         tau1_sol,
-        color=COLORS["agent_blue"],
+        color=COLORS["blue"],
         linewidth=2,
         alpha=0.7,
         label="τ₁ (Base Joint)",
@@ -191,7 +191,7 @@ def animate_manipulator_3dof(solution, save_filename="manipulator_3dof.mp4"):
     ax_torques.plot(
         time_control_sol,
         tau2_sol,
-        color=COLORS["obstacle_green"],
+        color=COLORS["green"],
         linewidth=2,
         alpha=0.7,
         label="τ₂ (Shoulder Joint)",
@@ -199,7 +199,7 @@ def animate_manipulator_3dof(solution, save_filename="manipulator_3dof.mp4"):
     ax_torques.plot(
         time_control_sol,
         tau3_sol,
-        color=COLORS["obstacle_orange"],
+        color=COLORS["orange"],
         linewidth=2,
         alpha=0.7,
         label="τ₃ (Elbow Joint)",
@@ -217,14 +217,14 @@ def animate_manipulator_3dof(solution, save_filename="manipulator_3dof.mp4"):
         outer_boundary[1],
         outer_boundary[2],
         alpha=0.1,
-        color=COLORS["lane_guides"],
+        color=COLORS["grey"],
     )
     ax_main.plot_surface(
         inner_boundary[0],
         inner_boundary[1],
         inner_boundary[2],
         alpha=0.05,
-        color=COLORS["lane_guides"],
+        color=COLORS["grey"],
     )
 
     # Add ground plane
@@ -249,7 +249,7 @@ def animate_manipulator_3dof(solution, save_filename="manipulator_3dof.mp4"):
         [],
         [],
         "o",
-        color=COLORS["agent_blue"],
+        color=COLORS["blue"],
         markersize=10,
         markeredgecolor=COLORS["text_light"],
         markeredgewidth=2,
@@ -260,7 +260,7 @@ def animate_manipulator_3dof(solution, save_filename="manipulator_3dof.mp4"):
         [],
         [],
         "o",
-        color=COLORS["obstacle_green"],
+        color=COLORS["green"],
         markersize=8,
         markeredgecolor=COLORS["text_light"],
         markeredgewidth=2,
@@ -271,7 +271,7 @@ def animate_manipulator_3dof(solution, save_filename="manipulator_3dof.mp4"):
         [],
         [],
         "s",
-        color=COLORS["lane_guides"],
+        color=COLORS["grey"],
         markersize=8,
         markeredgecolor=COLORS["text_light"],
         markeredgewidth=2,
@@ -280,18 +280,18 @@ def animate_manipulator_3dof(solution, save_filename="manipulator_3dof.mp4"):
 
     # Links (base link is always vertical - q1 rotates entire arm about Z-axis)
     (base_link_line,) = ax_main.plot([], [], [], color=COLORS["primary_red"], linewidth=8)
-    (upper_arm_line,) = ax_main.plot([], [], [], color=COLORS["agent_blue"], linewidth=6)
-    (forearm_line,) = ax_main.plot([], [], [], color=COLORS["obstacle_green"], linewidth=4)
+    (upper_arm_line,) = ax_main.plot([], [], [], color=COLORS["blue"], linewidth=6)
+    (forearm_line,) = ax_main.plot([], [], [], color=COLORS["green"], linewidth=4)
 
     # End-effector trail (using different color to avoid torque confusion)
     (end_effector_trail,) = ax_main.plot(
-        [], [], [], color=COLORS["lane_guides"], linewidth=3, alpha=0.8, label="End-effector path"
+        [], [], [], color=COLORS["grey"], linewidth=3, alpha=0.8, label="End-effector path"
     )
 
     # Torque markers
-    (tau1_marker,) = ax_torques.plot([], [], "o", color=COLORS["agent_blue"], markersize=8)
-    (tau2_marker,) = ax_torques.plot([], [], "o", color=COLORS["obstacle_green"], markersize=8)
-    (tau3_marker,) = ax_torques.plot([], [], "o", color=COLORS["obstacle_orange"], markersize=8)
+    (tau1_marker,) = ax_torques.plot([], [], "o", color=COLORS["blue"], markersize=8)
+    (tau2_marker,) = ax_torques.plot([], [], "o", color=COLORS["green"], markersize=8)
+    (tau3_marker,) = ax_torques.plot([], [], "o", color=COLORS["orange"], markersize=8)
 
     # State information text
     state_text = ax_main.text2D(

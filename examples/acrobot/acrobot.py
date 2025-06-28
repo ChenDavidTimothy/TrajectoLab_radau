@@ -44,7 +44,7 @@ phase = problem.set_phase(1)
 t = phase.time(initial=0.0)
 
 # State variables
-theta1 = phase.state("theta1", initial=0.0, final=np.pi)  # Shoulder: down to up
+theta1 = phase.state("theta1", initial=np.pi / 6, final=np.pi)  # Shoulder: down to up
 theta2 = phase.state("theta2", initial=0.0, final=0.0)  # Elbow: straight to straight
 theta1_dot = phase.state("theta1_dot", initial=0.0, final=0.0)  # Start and end at rest
 theta2_dot = phase.state("theta2_dot", initial=0.0, final=0.0)  # Start and end at rest
@@ -98,56 +98,22 @@ phase.dynamics(
 
 
 # ============================================================================
-# Constraints
-# ============================================================================
-
-# Joint angle limits (realistic for acrobot)
-phase.path_constraints(
-    theta1 >= -np.pi / 6,  # Shoulder limit: -30° to 210°
-    theta1 <= 7 * np.pi / 6,
-    theta2 >= -2 * np.pi / 3,  # Elbow limit: -120° to 120°
-    theta2 <= 2 * np.pi / 3,
-)
-
-
-# ============================================================================
 # Objective
 # ============================================================================
 
-# Minimize time to swing up
-problem.minimize(t.final)
+control_effort = phase.add_integral(tau**2)
+problem.minimize(t.final + 0.01 * control_effort)
 
 
 # ============================================================================
 # Mesh Configuration and Initial Guess
 # ============================================================================
 
-phase.mesh([8, 8, 8], [-1.0, -1 / 3, 1 / 3, 1.0])
-
-# Initial guess - linear interpolation for joint angles
-states_guess = []
-controls_guess = []
-
-for N in [8, 8, 8]:
-    tau_vals = np.linspace(-1, 1, N + 1)
-    t_norm = (tau_vals + 1) / 2
-
-    # Linear transition from downward (0) to upward (π)
-    theta1_vals = np.pi * t_norm
-    theta2_vals = np.zeros(N + 1)  # Straight configuration
-    theta1_dot_vals = np.zeros(N + 1)
-    theta2_dot_vals = np.zeros(N + 1)
-
-    states_guess.append(np.vstack([theta1_vals, theta2_vals, theta1_dot_vals, theta2_dot_vals]))
-
-    # Small control guess
-    tau_vals = np.ones(N) * 0.1
-    controls_guess.append(np.array([tau_vals]))
+num_interval = 16
+phase.mesh([3] * num_interval, np.linspace(-1.0, 1.0, num_interval + 1))
 
 phase.guess(
-    states=states_guess,
-    controls=controls_guess,
-    terminal_time=5.0,
+    terminal_time=10.0,
 )
 
 
@@ -157,13 +123,20 @@ phase.guess(
 
 solution = mtor.solve_adaptive(
     problem,
-    error_tolerance=1e-4,
+    error_tolerance=1e-3,
     max_iterations=20,
     min_polynomial_degree=3,
     max_polynomial_degree=8,
     nlp_options={
+        "ipopt.max_iter": 1000,
+        "ipopt.mumps_pivtol": 5e-7,
+        "ipopt.linear_solver": "mumps",
+        "ipopt.constr_viol_tol": 1e-7,
         "ipopt.print_level": 0,
-        "ipopt.max_iter": 500,
+        "ipopt.nlp_scaling_method": "gradient-based",
+        "ipopt.mu_strategy": "adaptive",
+        "ipopt.check_derivatives_for_naninf": "yes",
+        "ipopt.hessian_approximation": "exact",
         "ipopt.tol": 1e-8,
     },
 )

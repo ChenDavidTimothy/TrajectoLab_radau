@@ -14,10 +14,10 @@ COLORS = {
     "primary_red": "#991b1b",
     "background_dark": "#2d2d2d",
     "text_light": "#e5e7eb",
-    "agent_blue": "#3b82f6",
-    "obstacle_green": "#10b981",
-    "obstacle_orange": "#f59e0b",
-    "lane_guides": "#6b7280",
+    "blue": "#3b82f6",
+    "green": "#10b981",
+    "orange": "#f59e0b",
+    "grey": "#6b7280",
 }
 
 
@@ -149,7 +149,7 @@ def animate_acrobot_swingup(solution, save_filename="acrobot_swingup.mp4"):
     ax_torque.plot(
         time_control_sol,
         tau_sol,
-        color=COLORS["obstacle_orange"],
+        color=COLORS["orange"],
         linewidth=2,
         alpha=0.7,
         label="τ (Elbow Torque)",
@@ -165,7 +165,7 @@ def animate_acrobot_swingup(solution, save_filename="acrobot_swingup.mp4"):
     ax_main.plot(
         outer_boundary[0],
         outer_boundary[1],
-        color=COLORS["lane_guides"],
+        color=COLORS["grey"],
         linewidth=1,
         alpha=0.3,
         linestyle="--",
@@ -173,7 +173,7 @@ def animate_acrobot_swingup(solution, save_filename="acrobot_swingup.mp4"):
     ax_main.plot(
         inner_boundary[0],
         inner_boundary[1],
-        color=COLORS["lane_guides"],
+        color=COLORS["grey"],
         linewidth=1,
         alpha=0.3,
         linestyle="--",
@@ -200,7 +200,7 @@ def animate_acrobot_swingup(solution, save_filename="acrobot_swingup.mp4"):
         [],
         [],
         s=150,
-        c=COLORS["agent_blue"],
+        c=COLORS["orange"],
         marker="o",
         zorder=10,
         edgecolor=COLORS["text_light"],
@@ -211,7 +211,7 @@ def animate_acrobot_swingup(solution, save_filename="acrobot_swingup.mp4"):
         [],
         [],
         s=120,
-        c=COLORS["obstacle_green"],
+        c=COLORS["green"],
         marker="s",
         zorder=10,
         edgecolor=COLORS["text_light"],
@@ -221,19 +221,19 @@ def animate_acrobot_swingup(solution, save_filename="acrobot_swingup.mp4"):
 
     # Links
     (upper_arm_line,) = ax_main.plot(
-        [], [], color=COLORS["agent_blue"], linewidth=8, solid_capstyle="round", alpha=0.9
+        [], [], color=COLORS["blue"], linewidth=8, solid_capstyle="round", alpha=0.9
     )
     (forearm_line,) = ax_main.plot(
-        [], [], color=COLORS["obstacle_orange"], linewidth=6, solid_capstyle="round", alpha=0.9
+        [], [], color=COLORS["orange"], linewidth=6, solid_capstyle="round", alpha=0.9
     )
 
     # End-effector trail
     (end_effector_trail,) = ax_main.plot(
-        [], [], color=COLORS["obstacle_green"], linewidth=2, alpha=0.8, label="End-effector path"
+        [], [], color=COLORS["green"], linewidth=2, alpha=0.8, label="End-effector path"
     )
 
     # Torque marker
-    (tau_marker,) = ax_torque.plot([], [], "o", color=COLORS["obstacle_orange"], markersize=8)
+    (tau_marker,) = ax_torque.plot([], [], "o", color=COLORS["orange"], markersize=8)
 
     # State information text
     state_text = ax_main.text(

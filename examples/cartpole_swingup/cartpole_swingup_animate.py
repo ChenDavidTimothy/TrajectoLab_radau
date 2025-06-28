@@ -15,9 +15,9 @@ COLORS = {
     "primary_red": "#991b1b",
     "background_dark": "#2d2d2d",
     "text_light": "#e5e7eb",
-    "agent_blue": "#3b82f6",
-    "obstacle_green": "#10b981",
-    "obstacle_orange": "#f59e0b",
+    "blue": "#3b82f6",
+    "green": "#10b981",
+    "orange": "#f59e0b",
 }
 
 
@@ -133,7 +133,7 @@ def animate_cartpole_swingup(solution, save_filename="cartpole_swingup.mp4"):
     ax_force.plot(
         time_control_sol,
         force_sol,
-        color=COLORS["agent_blue"],
+        color=COLORS["blue"],
         linewidth=2,
         alpha=0.7,
         label="Force trajectory",
@@ -147,18 +147,18 @@ def animate_cartpole_swingup(solution, save_filename="cartpole_swingup.mp4"):
     ax_main.axhline(y=-0.5, color=COLORS["text_light"], linewidth=2, alpha=0.5)
 
     cart_patch = Rectangle(
-        (0, 0), 0, 0, facecolor=COLORS["agent_blue"], edgecolor=COLORS["text_light"], linewidth=2
+        (0, 0), 0, 0, facecolor=COLORS["blue"], edgecolor=COLORS["text_light"], linewidth=2
     )
     ax_main.add_patch(cart_patch)
 
     (pole_line,) = ax_main.plot([], [], color=COLORS["primary_red"], linewidth=4)
-    (pole_com_dot,) = ax_main.plot([], [], "o", color=COLORS["obstacle_orange"], markersize=8)
+    (pole_com_dot,) = ax_main.plot([], [], "o", color=COLORS["orange"], markersize=8)
 
     (cart_trail_line,) = ax_main.plot(
-        [], [], color=COLORS["obstacle_green"], linewidth=2, alpha=0.6, label="Cart trajectory"
+        [], [], color=COLORS["green"], linewidth=2, alpha=0.6, label="Cart trajectory"
     )
     (pole_trail_line,) = ax_main.plot(
-        [], [], color=COLORS["obstacle_orange"], linewidth=2, alpha=0.8, label="Pole COM trajectory"
+        [], [], color=COLORS["orange"], linewidth=2, alpha=0.8, label="Pole COM trajectory"
     )
 
     (force_marker,) = ax_force.plot([], [], "o", color=COLORS["primary_red"], markersize=8)
