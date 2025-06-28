@@ -5,46 +5,47 @@ import maptor as mtor
 
 
 # ============================================================================
-# Physical Parameters
+# Physical Parameters (KUKA KR 6 R900 Scale)
 # ============================================================================
 
-# Link masses (kg)
-m1 = 6.0  # Base link mass
-m2 = 6.0  # Upper arm mass
-m3 = 6.0  # Forearm mass
-m_box = 10.0  # Load mass
+# Link masses (kg) - realistic distribution for industrial robot
+m1 = 3.0  # Base link mass (heavier due to motors and gearboxes)
+m2 = 2.5  # Upper arm mass
+m3 = 1.5  # Forearm mass
+m_box = 5.0  # Load mass (within 6kg payload capacity)
 
-# Link lengths (m)
-l1 = 0.5  # Base link length (vertical)
-l2 = 2  # Upper arm length
-l3 = 2  # Forearm length
+# Link lengths (m) - KUKA KR 6 scale (~900mm reach)
+l1 = 0.3  # Base link length (vertical)
+l2 = 0.4  # Upper arm length
+l3 = 0.4  # Forearm length
 
-# Center of mass distances (m)
-lc1 = 0.25  # Base link COM distance from joint 1
-lc2 = 1.0  # Upper arm COM distance from joint 2
-lc3 = 1.0  # Forearm COM distance from joint 3
+# Center of mass distances (m) - PHYSICALLY CONSISTENT (uniform rods)
+lc1 = 0.15  # Base link COM = l1/2
+lc2 = 0.20  # Upper arm COM = l2/2
+lc3 = 0.20  # Forearm COM = l3/2
 
-# Moments of inertia about COM (kg⋅m²)
-I1 = m1 * l1**2 / 12  # Uniform rod approximation
-I2 = m2 * l2**2 / 12  # Uniform rod approximation
-I3 = m3 * l3**2 / 12  # Uniform rod approximation
+# Moments of inertia about COM (kg⋅m²) - uniform rod approximation
+I1 = m1 * l1**2 / 12  # = 0.0225 kg⋅m²
+I2 = m2 * l2**2 / 12  # = 0.0333 kg⋅m²
+I3 = m3 * l3**2 / 12  # = 0.0200 kg⋅m²
 
 # Gravity
 g = 9.81  # m/s²
 
 
 # ============================================================================
-# End-Effector Position Specification
+# End-Effector Position Specification (Realistic Workspace)
 # ============================================================================
 
-# Define desired end-effector positions (modify these as needed)
-x_ee_initial = 0  # Initial X position (m)
-y_ee_initial = 2  # Initial Y position (m)
-z_ee_initial = 0.5  # Initial Z position (m)
+# Define desired end-effector positions - moderate motion within reach
+x_ee_initial = 0.0  # Initial X position (m)
+y_ee_initial = 0.5  # Initial Y position (m)
+z_ee_initial = 0.1  # Initial Z position (m)
 
 x_ee_final = 0.0  # Final X position (m)
-y_ee_final = -2  # Final Y position (m)
-z_ee_final = 0.5  # Final Z position (m)
+y_ee_final = -0.5  # Final Y position (m)
+z_ee_final = 0.1  # Final Z position (m)
+
 
 # ============================================================================
 # Inverse Kinematics
@@ -104,7 +105,7 @@ def verify_forward_kinematics(q1, q2, q3, l1, l2, l3):
     """Verify inverse kinematics by computing forward kinematics."""
     x_ee = (l2 * np.cos(q2) + l3 * np.cos(q2 + q3)) * np.cos(q1)
     y_ee = (l2 * np.cos(q2) + l3 * np.cos(q2 + q3)) * np.sin(q1)
-    z_ee = l1 + l2 * np.cos(q2) + l3 * np.cos(q2 + q3)
+    z_ee = l1 + l2 * np.sin(q2) + l3 * np.sin(q2 + q3)
     return x_ee, y_ee, z_ee
 
 
@@ -136,7 +137,7 @@ print()
 # Problem Setup
 # ============================================================================
 
-problem = mtor.Problem("3DOF Manipulator Position Control")
+problem = mtor.Problem("KUKA-Scale 3DOF Manipulator")
 phase = problem.set_phase(1)
 
 
@@ -144,31 +145,27 @@ phase = problem.set_phase(1)
 # Variables
 # ============================================================================
 
-# Time variable
+# Time variable (free final time)
 t = phase.time(initial=0.0)
 
 # State variables (joint angles and velocities)
 q1 = phase.state("q1", initial=q1_initial, final=q1_final, boundary=(-np.pi, np.pi))
 q2 = phase.state("q2", initial=q2_initial, final=q2_final, boundary=(-np.pi / 6, 5 * np.pi / 6))
 q3 = phase.state("q3", initial=q3_initial, final=q3_final, boundary=(-2.5, 2.5))
-q1_dot = phase.state(
-    "q1_dot", initial=0.0, final=0.0, boundary=(-1.5, 1.5)
-)  # Start and end at rest
-q2_dot = phase.state(
-    "q2_dot", initial=0.0, final=0.0, boundary=(-1.5, 1.5)
-)  # Start and end at rest
-q3_dot = phase.state(
-    "q3_dot", initial=0.0, final=0.0, boundary=(-1.5, 1.5)
-)  # Start and end at rest
 
-# Control variables (joint torques)
-tau1 = phase.control("tau1", boundary=(-300.0, 300.0))  # Base torque (N⋅m)
-tau2 = phase.control("tau2", boundary=(-500.0, 500.0))  # Shoulder torque (N⋅m)
-tau3 = phase.control("tau3", boundary=(-500.0, 500.0))  # Elbow torque (N⋅m)
+# Joint velocities with REALISTIC LIMITS (industrial robot speeds ~150-200°/s)
+q1_dot = phase.state("q1_dot", initial=0.0, final=0.0, boundary=(-1.5, 1.5))  # ~85°/s
+q2_dot = phase.state("q2_dot", initial=0.0, final=0.0, boundary=(-1.2, 1.2))  # ~70°/s
+q3_dot = phase.state("q3_dot", initial=0.0, final=0.0, boundary=(-2.0, 2.0))  # ~115°/s
+
+# Control variables (joint torques) - REALISTIC for KUKA-6 scale
+tau1 = phase.control("tau1", boundary=(-80.0, 80.0))  # Base torque
+tau2 = phase.control("tau2", boundary=(-120.0, 120.0))  # Shoulder torque (highest load)
+tau3 = phase.control("tau3", boundary=(-60.0, 60.0))  # Elbow torque
 
 
 # ============================================================================
-# Dynamics (Generated from SymPy)
+# Dynamics (Generated from SymPy - same equations, corrected parameters)
 # ============================================================================
 
 phase.dynamics(
@@ -283,30 +280,33 @@ phase.dynamics(
 # ============================================================================
 
 # End-effector workspace constraints (avoid ground collision)
-z_ee = l1 + l2 * ca.cos(q2) + l3 * ca.cos(q2 + q3)
+z_ee = l1 + l2 * ca.sin(q2) + l3 * ca.sin(q2 + q3)
 phase.path_constraints(z_ee >= 0.05)  # Minimum 5cm above ground
 
 
 # ============================================================================
-# Objective
+# Objective (CRITICAL: Include time penalty to prevent ballistic motion)
 # ============================================================================
 
-# Minimize energy consumption (torque-squared integral) plus time
+# Minimize time + energy (prevents 0.3-second unrealistic motion)
 energy = phase.add_integral(tau1**2 + tau2**2 + tau3**2)
-problem.minimize(0.05 * energy)
+problem.minimize(t.final + 0.01 * energy)  # Time dominates, energy smooths
 
 
 # ============================================================================
-# Mesh Configuration and Parameterized Initial Guess
+# Mesh Configuration and Initial Guess
 # ============================================================================
 
-num_interval = 11
-degree = [3]
+# Mesh configuration
+num_interval = 12
+degree = [4]
 final_mesh = degree * num_interval
 phase.mesh(final_mesh, np.linspace(-1.0, 1.0, num_interval + 1))
 
+# Generate realistic initial guess
 states_guess = []
 controls_guess = []
+
 for N in final_mesh:
     tau = np.linspace(-1, 1, N + 1)
     t_norm = (tau + 1) / 2
@@ -315,24 +315,26 @@ for N in final_mesh:
     q1_vals = q1_initial + (q1_final - q1_initial) * t_norm
     q2_vals = q2_initial + (q2_final - q2_initial) * t_norm
     q3_vals = q3_initial + (q3_final - q3_initial) * t_norm
-    q1_dot_vals = np.zeros(N + 1)  # Start and end at rest
-    q2_dot_vals = np.zeros(N + 1)  # Start and end at rest
-    q3_dot_vals = np.zeros(N + 1)  # Start and end at rest
+
+    # Smooth velocity profiles (not zero throughout)
+    q1_dot_vals = (q1_final - q1_initial) * np.sin(np.pi * t_norm) * 0.5
+    q2_dot_vals = (q2_final - q2_initial) * np.sin(np.pi * t_norm) * 0.5
+    q3_dot_vals = (q3_final - q3_initial) * np.sin(np.pi * t_norm) * 0.5
 
     states_guess.append(
         np.vstack([q1_vals, q2_vals, q3_vals, q1_dot_vals, q2_dot_vals, q3_dot_vals])
     )
 
-    # Small control torque guess
-    tau1_vals = np.ones(N) * 0.1
-    tau2_vals = np.ones(N) * 0.1
-    tau3_vals = np.ones(N) * 0.1
+    # Moderate control torque guess
+    tau1_vals = np.ones(N) * 5.0
+    tau2_vals = np.ones(N) * 10.0
+    tau3_vals = np.ones(N) * 5.0
     controls_guess.append(np.vstack([tau1_vals, tau2_vals, tau3_vals]))
 
 phase.guess(
     states=states_guess,
     controls=controls_guess,
-    terminal_time=10.0,
+    terminal_time=6.0,  # Realistic time guess (not 3.0)
 )
 
 
@@ -342,21 +344,15 @@ phase.guess(
 
 solution = mtor.solve_adaptive(
     problem,
-    error_tolerance=5e-4,
+    error_tolerance=1e-3,
     max_iterations=15,
     min_polynomial_degree=3,
     max_polynomial_degree=8,
     nlp_options={
+        "ipopt.print_level": 0,
         "ipopt.max_iter": 1000,
-        "ipopt.mumps_pivtol": 5e-7,
-        "ipopt.linear_solver": "mumps",
-        "ipopt.constr_viol_tol": 1e-7,
-        "ipopt.print_level": 5,
-        "ipopt.nlp_scaling_method": "gradient-based",
-        "ipopt.mu_strategy": "adaptive",
-        "ipopt.check_derivatives_for_naninf": "yes",
-        "ipopt.hessian_approximation": "exact",
-        "ipopt.tol": 1e-8,
+        "ipopt.tol": 1e-6,
+        "ipopt.constr_viol_tol": 1e-4,
     },
 )
 
@@ -384,7 +380,7 @@ if solution.status["success"]:
     y_ee_achieved = (l2 * np.cos(q2_solved) + l3 * np.cos(q2_solved + q3_solved)) * np.sin(
         q1_solved
     )
-    z_ee_achieved = l1 + l2 * np.cos(q2_solved) + l3 * np.cos(q2_solved + q3_solved)
+    z_ee_achieved = l1 + l2 * np.sin(q2_solved) + l3 * np.sin(q2_solved + q3_solved)
 
     position_error_final = np.sqrt(
         (x_ee_achieved - x_ee_final) ** 2
@@ -405,6 +401,14 @@ if solution.status["success"]:
     print(f"Maximum joint 1 torque: {tau1_max:.3f} N⋅m")
     print(f"Maximum joint 2 torque: {tau2_max:.3f} N⋅m")
     print(f"Maximum joint 3 torque: {tau3_max:.3f} N⋅m")
+
+    # Velocity statistics
+    q1_dot_max = max(np.abs(solution["q1_dot"]))
+    q2_dot_max = max(np.abs(solution["q2_dot"]))
+    q3_dot_max = max(np.abs(solution["q3_dot"]))
+    print(f"Maximum joint 1 velocity: {q1_dot_max:.3f} rad/s ({np.degrees(q1_dot_max):.1f}°/s)")
+    print(f"Maximum joint 2 velocity: {q2_dot_max:.3f} rad/s ({np.degrees(q2_dot_max):.1f}°/s)")
+    print(f"Maximum joint 3 velocity: {q3_dot_max:.3f} rad/s ({np.degrees(q3_dot_max):.1f}°/s)")
 
     solution.plot()
 
