@@ -20,7 +20,7 @@ l2 = 0.4  # Upper arm length
 l3 = 0.3  # Forearm length
 
 # Center of mass distances (m)
-lc1 = 0.5  # Base link COM distance from joint 1
+lc1 = 0.05  # Base link COM distance from joint 1
 lc2 = 0.20  # Upper arm COM distance from joint 2
 lc3 = 0.15  # Forearm COM distance from joint 3
 
@@ -163,9 +163,15 @@ t = phase.time(initial=0.0)
 q1 = phase.state("q1", initial=q1_initial, final=q1_final, boundary=(-np.pi, np.pi))
 q2 = phase.state("q2", initial=q2_initial, final=q2_final, boundary=(-np.pi / 6, 5 * np.pi / 6))
 q3 = phase.state("q3", initial=q3_initial, final=q3_final, boundary=(-2.5, 2.5))
-q1_dot = phase.state("q1_dot", initial=0.0, final=0.0)  # Start and end at rest
-q2_dot = phase.state("q2_dot", initial=0.0, final=0.0)  # Start and end at rest
-q3_dot = phase.state("q3_dot", initial=0.0, final=0.0)  # Start and end at rest
+q1_dot = phase.state(
+    "q1_dot", initial=0.0, final=0.0, boundary=(None, 1.5)
+)  # Start and end at rest
+q2_dot = phase.state(
+    "q2_dot", initial=0.0, final=0.0, boundary=(None, 1.5)
+)  # Start and end at rest
+q3_dot = phase.state(
+    "q3_dot", initial=0.0, final=0.0, boundary=(None, 1.5)
+)  # Start and end at rest
 
 # Control variables (joint torques)
 tau1 = phase.control("tau1", boundary=(-50.0, 50.0))  # Base torque (N⋅m)
