@@ -180,27 +180,17 @@ pip install -e .
 
 The examples gallery demonstrates trajectory optimization across multiple domains:
 
-### Advanced Aerospace Applications
-- **[Low-Thrust Orbit Transfer](https://maptor.github.io/maptor/examples/low_thrust_orbit_transfer.html)**: Orbital mechanics with J2/J3/J4 gravitational perturbations and modified equinoctial elements
-- **[Multiphase Vehicle Launch](https://maptor.github.io/maptor/examples/multiphase_vehicle_launch.html)**: Realistic rocket trajectory with stage separations and orbital insertion
-- **[Shuttle Reentry](https://maptor.github.io/maptor/examples/shuttle_reentry.html)**: Atmospheric entry with heat rate constraints and crossrange maximization
-- **[Aero-Assisted Plane Change](https://maptor.github.io/maptor/examples/aero_assisted_plane_change.html)**: Atmospheric maneuvers for orbital inclination change
+### Design + Trajectory Optimization
+- **[3DOF Manipulator Design](https://maptor.github.io/maptor/examples/manipulator_3dof.html)**: Simultaneous motor sizing and trajectory optimization with 5kg payload transport
+- **[2DOF Manipulator Design](https://maptor.github.io/maptor/examples/manipulator_2dof.html)**: Actuator investment vs. performance trade-offs with SymPy-generated dynamics
 
-### Advanced Robotics and Control
+### Advanced Trajectory Optimization
 - **[Quadcopter Flight](https://maptor.github.io/maptor/examples/quadcopter.html)**: Quadcopter dynamics with obstacle avoidance
-- **[Dynamic Obstacle Avoidance](https://maptor.github.io/maptor/examples/dynamic_obstacle_avoidance.html)**: Dynamic bicycle model  moving obstacles
 - **[Overtaking Maneuver](https://maptor.github.io/maptor/examples/overtaking_maneuver.html)**: Complex street scenario with dual moving obstacles
-- **[Container Crane Control](https://maptor.github.io/maptor/examples/container_crane.html)**: Advanced control with swing suppression
+- **[Multiphase Vehicle Launch](https://maptor.github.io/maptor/examples/multiphase_vehicle_launch.html)**: Realistic rocket trajectory with stage separations and orbital insertion
 
-### Atmospheric and Environmental Systems
-- **[Hang Glider Flight](https://maptor.github.io/maptor/examples/hang_glider.html)**: Thermal soaring optimization with atmospheric updrafts
-
-### Interdisciplinary Applications
-- **[Two-Strain Tuberculosis Model](https://maptor.github.io/maptor/examples/two_strain_tuberculosis_model.html)**: Epidemiological optimal control with drug resistance dynamics
-
-### Benchmark and Classical Problems
+### Classical Benchmarks
 - **[Hypersensitive Problem](https://maptor.github.io/maptor/examples/hypersensitive.html)**: Challenging optimal control benchmark with sensitive dynamics
-- **[Brachistochrone](https://maptor.github.io/maptor/examples/brachistochrone.html)**: Classical fastest descent problem
 
 ## Architecture
 
