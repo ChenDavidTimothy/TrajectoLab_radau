@@ -4,7 +4,7 @@
 
 ### Problem Statement
 
-Find the optimal motor sizing and joint torques that minimize actuator investment, mission time, and energy consumption for a 3DOF industrial manipulator with 5kg payload performing point-to-point motion:
+Find the optimal motor sizing and joint torques that minimize actuator investment, mission time, and energy consumption for a 3DOF manipulator with 5kg payload performing point-to-point motion:
 
 $$J = t_f + 0.1 \cdot C_{\text{actuator}} + 0.01 \int_0^{t_f} (\tau_1^2 + \tau_2^2 + \tau_3^2) dt$$
 
@@ -58,7 +58,7 @@ $$z_{ee} = l_1 + l_2\sin(q_2) + l_3\sin(q_2+q_3)$$
 ### Physical Parameters
 
 - **Link masses**: $m_1 = 3.0$ kg, $m_2 = 2.5$ kg, $m_3 = 1.5$ kg
-- **Payload mass**: $m_{box} = 5.0$ kg (industrial payload)
+- **Payload mass**: $m_{box} = 5.0$ kg (payload)
 - **Link lengths**: $l_1 = 0.3$ m, $l_2 = 0.4$ m, $l_3 = 0.4$ m
 - **Center of mass distances**: $l_{c1} = 0.15$ m, $l_{c2} = 0.20$ m, $l_{c3} = 0.20$ m
 - **Moments of inertia**: $I_1 = 0.0225$ kg⋅m², $I_2 = 0.0333$ kg⋅m², $I_3 = 0.02$ kg⋅m²
@@ -88,7 +88,7 @@ $$z_{ee} = l_1 + l_2\sin(q_2) + l_3\sin(q_2+q_3)$$
 
 ### Notes
 
-This problem demonstrates **simultaneous design and trajectory optimization** for industrial robotics applications. Unlike pure trajectory planning, MAPTOR optimizes both the motor sizing (design parameters) and the motion trajectory simultaneously. The optimization determines the minimum motor torque ratings required while minimizing mission time and energy consumption. The actuator cost model reflects realistic motor pricing where higher-torque motors are more expensive. The final solution achieves 100% motor utilization, indicating optimal actuator sizing with no over-specification. This approach is essential for industrial applications where both performance and cost efficiency are critical, representing a significant advancement over sequential design-then-control approaches.
+This problem demonstrates **simultaneous design and trajectory optimization** for robotics applications. Unlike pure trajectory planning, MAPTOR optimizes both the motor sizing (design parameters) and the motion trajectory simultaneously. The optimization determines the minimum motor torque ratings required while minimizing mission time and energy consumption.
 
 ## Dynamics Derivation
 

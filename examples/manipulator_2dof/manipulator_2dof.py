@@ -5,75 +5,132 @@ import maptor as mtor
 
 
 # ============================================================================
-# Physical Parameters (Realistic 2DOF Manipulator)
+# Physical Parameters
 # ============================================================================
 
-# Link masses (kg)
-m1 = 2.0  # Link 1 mass
-m2 = 1.5  # Link 2 mass
+m1 = 2.0
+m2 = 1.5
+m_payload = 5.0
 
-m_payload = 5  # kg
+l1 = 0.4
+l2 = 0.4
 
-# Link lengths (m)
-l1 = 0.4  # Link 1 length
-l2 = 0.4  # Link 2 length
+lc1 = 0.20
+lc2 = 0.20
 
-# Center of mass distances (m)
-lc1 = 0.20  # Link 1 COM distance from joint 1
-lc2 = 0.20  # Link 2 COM distance from joint 2
+I1 = m1 * l1**2 / 12
+I2 = m2 * l2**2 / 12
 
-# Moments of inertia about COM (kg⋅m²)
-I1 = m1 * l1**2 / 12  # Uniform rod approximation
-I2 = m2 * l2**2 / 12  # Uniform rod approximation
+g = 9.81
 
-# Gravity
-g = 9.81  # m/s²
+
+# ============================================================================
+# End-Effector Position Specification
+# ============================================================================
+
+x_ee_initial = 0.3
+y_ee_initial = 0.1
+
+x_ee_final = -0.6
+y_ee_final = 0.1
+
+
+# ============================================================================
+# Forward/Inverse Kinematics
+# ============================================================================
+
+
+def calculate_inverse_kinematics(x_target, y_target, l1, l2):
+    r_total = np.sqrt(x_target**2 + y_target**2)
+
+    max_reach = l1 + l2
+    min_reach = abs(l1 - l2)
+
+    if r_total > max_reach:
+        raise ValueError(f"Target unreachable: distance {r_total:.3f} > max reach {max_reach:.3f}")
+    if r_total < min_reach:
+        raise ValueError(f"Target too close: distance {r_total:.3f} < min reach {min_reach:.3f}")
+
+    cos_q2 = (r_total**2 - l1**2 - l2**2) / (2 * l1 * l2)
+    cos_q2 = np.clip(cos_q2, -1, 1)
+
+    alpha = np.arctan2(y_target, x_target)
+
+    # Try elbow up configuration first
+    q2_up = np.arccos(cos_q2)
+    beta_up = np.arctan2(l2 * np.sin(q2_up), l1 + l2 * np.cos(q2_up))
+    q1_up = alpha - beta_up
+
+    # Try elbow down configuration
+    q2_down = -np.arccos(cos_q2)
+    beta_down = np.arctan2(l2 * np.sin(q2_down), l1 + l2 * np.cos(q2_down))
+    q1_down = alpha - beta_down
+
+    # Select configuration that keeps q1 >= 0 (above ground)
+    if q1_up >= 0:
+        return q1_up, q2_up
+    elif q1_down >= 0:
+        return q1_down, q2_down
+    else:
+        raise ValueError(
+            f"Target ({x_target:.3f}, {y_target:.3f}) requires base link below ground. Both solutions: q1_up={np.degrees(q1_up):.1f}°, q1_down={np.degrees(q1_down):.1f}°"
+        )
+
+
+def verify_forward_kinematics(q1, q2, l1, l2):
+    x_ee = l1 * np.cos(q1) + l2 * np.cos(q1 + q2)
+    y_ee = l1 * np.sin(q1) + l2 * np.sin(q1 + q2)
+    return x_ee, y_ee
+
+
+q1_initial, q2_initial = calculate_inverse_kinematics(x_ee_initial, y_ee_initial, l1, l2)
+q1_final, q2_final = calculate_inverse_kinematics(x_ee_final, y_ee_final, l1, l2)
+
+x_check, y_check = verify_forward_kinematics(q1_final, q2_final, l1, l2)
+position_error = np.sqrt((x_check - x_ee_final) ** 2 + (y_check - y_ee_final) ** 2)
+
+print("=== INVERSE KINEMATICS VERIFICATION ===")
+print(f"Target position: ({x_ee_final:.3f}, {y_ee_final:.3f}) m")
+print(f"Calculated joint angles: q1={np.degrees(q1_final):.1f}°, q2={np.degrees(q2_final):.1f}°")
+print(f"Forward kinematics check: ({x_check:.3f}, {y_check:.3f}) m")
+print(f"Position error: {position_error:.6f} m")
+print()
 
 
 # ============================================================================
 # Problem Setup
 # ============================================================================
 
-problem = mtor.Problem("2DOF Manipulator Point-to-Point")
+problem = mtor.Problem("Enhanced 2DOF Manipulator")
 phase = problem.set_phase(1)
+
 
 # ============================================================================
 # Design Parameters
 # ============================================================================
 
-# Actuator sizing optimization - motor torque ratings
-max_tau1 = problem.parameter("joint_1_torque", boundary=(5.0, 50.0))
-max_tau2 = problem.parameter("joint_2_torque", boundary=(5.0, 50.0))
+max_tau1 = problem.parameter("joint_1_torque", boundary=(5.0, 100.0))
+max_tau2 = problem.parameter("joint_2_torque", boundary=(5.0, 100.0))
 
 
 # ============================================================================
 # Variables
 # ============================================================================
 
-# Time variable
 t = phase.time(initial=0.0)
 
-# State variables (joint angles and velocities)
-q1 = phase.state(
-    "q1", initial=np.pi / 2, final=0.0, boundary=(0, np.pi)
-)  # Joint 1: vertical to horizontal
-q2 = phase.state(
-    "q2", initial=0.0, final=0.0, boundary=(-np.pi, np.pi)
-)  # Joint 2: straight to straight
-q1_dot = phase.state(
-    "q1_dot", initial=0.0, final=0.0, boundary=(-1.2, 1.2)
-)  # Start and end at rest
-q2_dot = phase.state(
-    "q2_dot", initial=0.0, final=0.0, boundary=(-1.2, 1.2)
-)  # Start and end at rest
+q1 = phase.state("q1", initial=q1_initial, final=q1_final, boundary=(0, np.pi))
+q2 = phase.state("q2", initial=q2_initial, final=q2_final, boundary=(-np.pi, np.pi))
 
-# Control variables (joint torques)
-tau1 = phase.control("tau1")  # Joint 1 torque (N⋅m)
-tau2 = phase.control("tau2")  # Joint 2 torque (N⋅m)
+q1_dot = phase.state("q1_dot", initial=0.0, final=0.0, boundary=(-2.0, 2.0))
+q2_dot = phase.state("q2_dot", initial=0.0, final=0.0, boundary=(-2.0, 2.0))
+
+tau1 = phase.control("tau1")
+tau2 = phase.control("tau2")
 
 
 # ============================================================================
-# Dynamics (Generated from SymPy + Control Input)
+# Dynamics
 # ============================================================================
 
 phase.dynamics(
@@ -142,10 +199,8 @@ phase.dynamics(
 # Constraints
 # ============================================================================
 
-# Joint angle limits (realistic for manipulator)
-phase.path_constraints(
-    l1 * ca.sin(q1) + l2 * ca.sin(q1 + q2) >= 0,
-)
+y_ee = l1 * ca.sin(q1) + l2 * ca.sin(q1 + q2)
+phase.path_constraints(y_ee >= 0.05)
 
 phase.path_constraints(
     tau1 >= -max_tau1,
@@ -154,48 +209,48 @@ phase.path_constraints(
     tau2 <= max_tau2,
 )
 
+
 # ============================================================================
 # Objective
 # ============================================================================
 
-# Minimize energy consumption (torque-squared integral)
+actuator_cost = max_tau1 * 0.08 + max_tau2 * 0.05
 energy = phase.add_integral(tau1**2 + tau2**2)
-problem.minimize(t.final + energy)
+problem.minimize(t.final + 0.1 * actuator_cost + 0.01 * energy)
 
 
 # ============================================================================
 # Mesh Configuration and Initial Guess
 # ============================================================================
 
-# Mesh and guess
-num_interval = 11
-degree = [3]
+num_interval = 10
+degree = [4]
 final_mesh = degree * num_interval
 phase.mesh(final_mesh, np.linspace(-1.0, 1.0, num_interval + 1))
 
 states_guess = []
 controls_guess = []
+
 for N in final_mesh:
     tau = np.linspace(-1, 1, N + 1)
     t_norm = (tau + 1) / 2
 
-    # Linear transition from initial to final joint angles
-    q1_vals = np.pi / 2 * (1 - t_norm)  # π/2 to 0
-    q2_vals = np.zeros(N + 1)  # 0 to 0
-    q1_dot_vals = np.zeros(N + 1)  # Start and end at rest
-    q2_dot_vals = np.zeros(N + 1)  # Start and end at rest
+    q1_vals = q1_initial + (q1_final - q1_initial) * t_norm
+    q2_vals = q2_initial + (q2_final - q2_initial) * t_norm
+
+    q1_dot_vals = (q1_final - q1_initial) * np.sin(np.pi * t_norm) * 0.5
+    q2_dot_vals = (q2_final - q2_initial) * np.sin(np.pi * t_norm) * 0.5
 
     states_guess.append(np.vstack([q1_vals, q2_vals, q1_dot_vals, q2_dot_vals]))
 
-    # Small control torque guess
-    tau1_vals = np.ones(N) * 0.1
-    tau2_vals = np.ones(N) * 0.1
+    tau1_vals = np.ones(N) * 2.0
+    tau2_vals = np.ones(N) * 2.0
     controls_guess.append(np.vstack([tau1_vals, tau2_vals]))
 
 phase.guess(
     states=states_guess,
     controls=controls_guess,
-    terminal_time=5.0,
+    terminal_time=4.0,
 )
 
 
@@ -205,7 +260,7 @@ phase.guess(
 
 solution = mtor.solve_adaptive(
     problem,
-    error_tolerance=5e-3,
+    error_tolerance=1e-3,
     max_iterations=15,
     min_polynomial_degree=3,
     max_polynomial_degree=8,
@@ -223,32 +278,35 @@ solution = mtor.solve_adaptive(
 # ============================================================================
 
 if solution.status["success"]:
-    print(f"Objective (energy): {solution.status['objective']:.6f}")
-    print(f"Mission time: {solution.status['total_mission_time']:.3f} seconds")
+    params = solution.parameters
+    optimal_tau1 = params["values"][0]
+    optimal_tau2 = params["values"][1]
 
-    # Final joint angles
-    q1_final = solution["q1"][-1]
-    q2_final = solution["q2"][-1]
-    print(f"Final joint 1 angle: {q1_final:.6f} rad ({np.degrees(q1_final):.2f}°)")
-    print(f"Final joint 2 angle: {q2_final:.6f} rad ({np.degrees(q2_final):.2f}°)")
-
-    # End-effector position
-    x_ee_initial = l1 * np.cos(np.pi / 2) + l2 * np.cos(np.pi / 2 + 0)
-    y_ee_initial = l1 * np.sin(np.pi / 2) + l2 * np.sin(np.pi / 2 + 0)
-    x_ee_final = l1 * np.cos(q1_final) + l2 * np.cos(q1_final + q2_final)
-    y_ee_final = l1 * np.sin(q1_final) + l2 * np.sin(q1_final + q2_final)
-
-    print(
-        f"End-effector moved from ({x_ee_initial:.3f}, {y_ee_initial:.3f}) to ({x_ee_final:.3f}, {y_ee_final:.3f})"
-    )
-
-    # Control statistics
     tau1_max = max(np.abs(solution["tau1"]))
     tau2_max = max(np.abs(solution["tau2"]))
-    print(f"Maximum joint 1 torque: {tau1_max:.3f} N⋅m")
-    print(f"Maximum joint 2 torque: {tau2_max:.3f} N⋅m")
+
+    utilization1 = (tau1_max / optimal_tau1) * 100
+    utilization2 = (tau2_max / optimal_tau2) * 100
+
+    actuator_cost = optimal_tau1 * 0.08 + optimal_tau2 * 0.05
+
+    q1_solved = solution["q1"][-1]
+    q2_solved = solution["q2"][-1]
+    x_ee_achieved = l1 * np.cos(q1_solved) + l2 * np.cos(q1_solved + q2_solved)
+    y_ee_achieved = l1 * np.sin(q1_solved) + l2 * np.sin(q1_solved + q2_solved)
+    position_error = np.sqrt((x_ee_achieved - x_ee_final) ** 2 + (y_ee_achieved - y_ee_final) ** 2)
+
+    print("=== OPTIMAL ACTUATOR DESIGN ===")
+    print(f"Joint 1 motor torque: {optimal_tau1:.1f} N⋅m (utilization: {utilization1:.1f}%)")
+    print(f"Joint 2 motor torque: {optimal_tau2:.1f} N⋅m (utilization: {utilization2:.1f}%)")
+    print(f"Total actuator cost: ${actuator_cost:.2f}")
+    print()
+    print("=== SYSTEM PERFORMANCE ===")
+    print(f"Mission time: {solution.status['total_mission_time']:.2f} seconds")
+    print(f"Position accuracy: {position_error * 1000:.2f} mm error")
+    print("5kg payload successfully transported")
 
     solution.plot()
 
 else:
-    print(f"Failed: {solution.status['message']}")
+    print(f"Optimization failed: {solution.status['message']}")

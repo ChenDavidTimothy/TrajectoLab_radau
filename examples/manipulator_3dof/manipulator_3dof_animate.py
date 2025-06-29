@@ -30,7 +30,6 @@ COLORS = {
 def _create_manipulator_3d_geometry(
     q1, q2, q3, l1=manipulator_3dof.l1, l2=manipulator_3dof.l2, l3=manipulator_3dof.l3
 ):
-    """Create 3D manipulator geometry from joint angles."""
     base_pos = np.array([0.0, 0.0, 0.0])
 
     joint1_pos = np.array([0.0, 0.0, l1])
@@ -47,7 +46,6 @@ def _create_manipulator_3d_geometry(
 
 
 def _create_box_wireframe(center_pos, box_size=0.12):
-    """Create simple wireframe box at end effector position."""
     half_size = box_size / 2
 
     vertices = (
@@ -90,16 +88,6 @@ def _create_box_wireframe(center_pos, box_size=0.12):
 
 
 def animate_manipulator_3dof(solution, save_filename="manipulator_3dof.mp4"):
-    """
-    Animate 3DOF manipulator trajectory optimized for social media.
-
-    Args:
-        solution: MAPTOR solution object
-        save_filename: Output video filename
-
-    Returns:
-        matplotlib animation object
-    """
     if not solution.status["success"]:
         raise ValueError("Cannot animate a failed solution.")
 
@@ -188,7 +176,7 @@ def animate_manipulator_3dof(solution, save_filename="manipulator_3dof.mp4"):
     payload_text = ax_main.text2D(
         0.02,
         0.95,
-        f"{manipulator_3dof.m_box:.0f}kg Industrial Payload",
+        f"{manipulator_3dof.m_box:.0f}kg Payload",
         transform=ax_main.transAxes,
         fontsize=18,
         color=COLORS["box_color"],
