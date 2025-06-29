@@ -28,6 +28,7 @@ A Python framework for **trajectory and design optimization** using optimal cont
 **Use MAPTOR for complex DESIGN + TRAJECTORY problems:**
 - Multiple design parameters + trajectory optimization
 - Complex nonlinear path constraints (obstacle avoidance, state bounds)
+- Complex multibody dynamics with built-in SymPy Lagrangian mechanics integration  
 - Multiphase missions with automatic phase linking
 - When you need the full flexibility of direct transcription
 
