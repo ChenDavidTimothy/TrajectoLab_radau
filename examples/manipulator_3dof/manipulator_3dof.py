@@ -381,7 +381,9 @@ if solution.status["success"]:
     print(f"Base motor torque: {optimal_tau1:.1f} N⋅m (utilization: {utilization1:.1f}%)")
     print(f"Shoulder motor torque: {optimal_tau2:.1f} N⋅m (utilization: {utilization2:.1f}%)")
     print(f"Elbow motor torque: {optimal_tau3:.1f} N⋅m (utilization: {utilization3:.1f}%)")
-    print(f"Total actuator cost: ${actuator_cost:.2f}")
+    print(
+        f"Total actuator cost: ${actuator_cost:.2f}. (This is just a made-up cost, not the actual price)"
+    )
     print()
     print("=== SYSTEM PERFORMANCE ===")
     print(f"Mission time: {solution.status['total_mission_time']:.2f} seconds")
@@ -397,7 +399,7 @@ OUTPUT
 Base motor torque: 12.8 N⋅m (utilization: 100.0%)
 Shoulder motor torque: 34.3 N⋅m (utilization: 100.0%)
 Elbow motor torque: 24.1 N⋅m (utilization: 100.0%)
-Total actuator cost: $4.11
+Total actuator cost: $4.11. (This is just a made-up cost, not the actual price)
 
 === SYSTEM PERFORMANCE ===
 Mission time: 2.14 seconds

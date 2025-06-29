@@ -299,7 +299,9 @@ if solution.status["success"]:
     print("=== OPTIMAL ACTUATOR DESIGN ===")
     print(f"Joint 1 motor torque: {optimal_tau1:.1f} N⋅m (utilization: {utilization1:.1f}%)")
     print(f"Joint 2 motor torque: {optimal_tau2:.1f} N⋅m (utilization: {utilization2:.1f}%)")
-    print(f"Total actuator cost: ${actuator_cost:.2f}")
+    print(
+        f"Total actuator cost: ${actuator_cost:.2f}. (This is just a made-up cost, not the actual price)"
+    )
     print()
     print("=== SYSTEM PERFORMANCE ===")
     print(f"Mission time: {solution.status['total_mission_time']:.2f} seconds")
@@ -310,3 +312,16 @@ if solution.status["success"]:
 
 else:
     print(f"Optimization failed: {solution.status['message']}")
+
+"""
+OUTPUT
+=== OPTIMAL ACTUATOR DESIGN ===
+Joint 1 motor torque: 60.7 N⋅m (utilization: 100.0%)
+Joint 2 motor torque: 26.9 N⋅m (utilization: 100.0%)
+Total actuator cost: $6.21. (This is just a made-up cost, not the actual price)
+
+=== SYSTEM PERFORMANCE ===
+Mission time: 1.95 seconds
+Position accuracy: 0.00 mm error
+5kg payload successfully transported
+"""
