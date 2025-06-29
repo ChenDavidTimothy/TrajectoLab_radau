@@ -129,12 +129,14 @@ def lagrangian_to_maptor_dynamics(lagranges_method, coordinates, control_forces,
     # Optional file output in same directory as caller
     if output_file is not None:
         try:
-            caller_frame = inspect.currentframe().f_back  # Get user's script frame
-            caller_filepath = caller_frame.f_code.co_filename
-            caller_directory = Path(caller_filepath).parent
-            output_path = caller_directory / output_file
+            caller_frame = inspect.currentframe()
+            if caller_frame is not None and caller_frame.f_back is not None:
+                caller_filepath = caller_frame.f_back.f_code.co_filename
+                caller_directory = Path(caller_filepath).parent
+                output_path = caller_directory / output_file
+            else:
+                output_path = Path(output_file)
         except (AttributeError, OSError):
-            # Fallback to current working directory if inspect fails
             output_path = Path(output_file)
 
         with open(output_path, "w") as f:
@@ -231,7 +233,7 @@ def _sympy_to_casadi_string(expressions):
         return func_pattern.sub(lambda m: functions[m.group(1)], expr_str)
 
     # Convert all expressions and handle Matrix format
-    converted_expressions = []
+    converted_expressions: list[str] = []
     for expr in expressions:
         converted = _convert_single(expr)
 
